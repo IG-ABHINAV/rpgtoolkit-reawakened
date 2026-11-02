@@ -522,7 +522,7 @@ export function runWaitsPhase(
   vm: VmState,
   view: WaitView,
   poll: WaitPoll = defaultWaitPoll,
-  claim?: (seq: number) => void,
+  claim?: (seq: number, discardBefore?: number) => void,
   services?: ScriptServices,
   onResolved?: (wait: Wait) => void,
 ): void {
@@ -543,7 +543,7 @@ export function runWaitsPhase(
 }
 
 /** Poll one thread's wait; on a result, make the thread ready and hand it the wake value. */
-function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
+function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number, discardBefore?: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
   const wait = thread.wait;
   if (wait === null) return;
   const menuContinuation = wait.kind === "menu.screen" ? wait.payload[0] : null;
@@ -553,7 +553,7 @@ function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread
   }
   const result = poll(view, wait);
   if (result === null) return;
-  if (result.claim !== undefined) claim?.(result.claim);
+  if (result.claim !== undefined) claim?.(result.claim, result.discardBefore);
   thread.status = "ready";
   thread.wait = null;
   const frame = thread.frames[thread.frames.length - 1];

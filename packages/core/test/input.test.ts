@@ -18,9 +18,11 @@ test("input records have monotonic sequences and claims deliver each key once", 
   const first = pollInputKey({ tick: 0, input: inputView(state), claims: [] }, { kind: "input.key", global: true, key: null, parkSeq: 1 });
   if (first === null) throw new Error("expected first key");
   equal(first.value, "A");
+  equal(first.discardBefore, 1, "the resolved waiter carries its own park floor to the claim site");
   const second = pollInputKey({ tick: 0, input: inputView(state), claims: [first.claim ?? -1] }, { kind: "input.key", global: true, key: null, parkSeq: 1 });
   if (second === null) throw new Error("expected second key");
   equal(second.value, "B");
+  equal(second.discardBefore, 1);
   pruneClaimed(state, [first.claim ?? -1, second.claim ?? -1]);
   equal(pollInputKey({ tick: 1, input: inputView(state), claims: [] }, { kind: "input.key", global: true, key: null, parkSeq: 1 }), null);
 });

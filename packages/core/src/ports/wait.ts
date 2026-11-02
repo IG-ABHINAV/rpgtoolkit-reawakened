@@ -154,7 +154,13 @@ export type WaitView = {
   readonly mediaStart?: (handle: number) => { readonly track: string; readonly slot: number; readonly cueId: number } | null;
 };
 
-export type WaitResult = { readonly value: Value; readonly ok: boolean; readonly claim?: number };
+export type WaitResult = {
+  readonly value: Value;
+  readonly ok: boolean;
+  readonly claim?: number;
+  /** Per-waiter sequence floor: claim queued input records older than this when resolving. */
+  readonly discardBefore?: number;
+};
 
 /** The one resolver signature: `null` means "not yet" (AD-9). */
 export type WaitPoll = (view: WaitView, wait: Wait) => WaitResult | null;

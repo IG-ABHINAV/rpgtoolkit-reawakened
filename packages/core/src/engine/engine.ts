@@ -2841,13 +2841,19 @@ export function createEngine(init: EngineInit): Engine {
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }
-        // `get()` and `clearBuffer()` claim keys during the threads phase; remove those records before the claim list is
-        // rebuilt for the waiting threads, or the key would be returned again on the next tick.
+        // `get()` and `clearBuffer()` claims made during threads are pruned before rebuilding waits-phase claims.
         pruneClaimed(state.input, state.engine.claims ?? []);
         state.engine.claims = [];
         const videoBefore = state.engine.video;
-        runWaitsPhase(state.vm, phaseView(), defaultWaitPoll, (seq) => {
-          if (!(state.engine.claims ?? []).includes(seq)) (state.engine.claims ??= []).push(seq);
+        runWaitsPhase(state.vm, phaseView(), defaultWaitPoll, (seq, discardBefore) => {
+          const claims = state.engine.claims ??= [];
+          // Use this waiter's park floor, not its selected sequence: another input wait can preserve intervening keys.
+          if (discardBefore !== undefined) {
+            for (const key of state.input.keys) {
+              if (key.seq < discardBefore && !claims.includes(key.seq)) claims.push(key.seq);
+            }
+          }
+          if (!claims.includes(seq)) claims.push(seq);
         }, undefined, (wait) => {
           if (wait.kind === "input.key" && wait.dialogue !== undefined) {
             queueNativeEvent(state.vm, state.events, "game", "dialogue.completed", wait.dialogue);
