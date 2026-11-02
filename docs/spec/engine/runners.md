@@ -61,6 +61,35 @@ request; the core decodes them (AD-28) and the runner pulls pixels it needs from
 because `rev` increments on every mutation and an unknown or stale `rev` returns `null`; it must be able to refill at
 any time, and a test that flushes every cache every frame must produce identical pixels.
 
+<a id="surface-read-and-state-hash"></a>
+## Surface reads, presentation and game state
+
+**Approved ruling (owner: Jensen, 2026-11-02).** Showing a frame must not change the game merely because a runner
+looks at its pixels. The presented screen surface is a derived presentation cache, not game progress. It is excluded
+from the state hash and is rebuilt deterministically on restore before any script reads it. This combines the
+2026-11-01 option C ruling with the read-only host-accessor rule; it replaces the earlier wording that an owner
+decision on that rule was required. Implementation is pending issue #1048.
+
+`engine.surfacePixels(id, rev)` **MUST** be observationally read-only. It returns an owned copy of the requested
+stored revision, or `null` if the id or revision is unavailable. It **MUST NOT** mutate `GameState`, surface revisions,
+the state hash or save data, or change future diagnostics, regardless of host polling or cache-flush cadence.
+Refreshing the screen for script-visible `getpixel`, `canvasgetscreen` or `savescreen` is a deterministic core
+operation, separate from host presentation reads. A runner cannot trigger that operation by polling.
+
+The hash includes the application store: script variables and globals, script-owned canvases (`cnvX`), and game-loop
+globals needed to store coordinates. Drawing to `cnvX` changes the hash when it changes that store, just as changing a
+global variable does. Drawing to, reading or refreshing the derived presented screen surface is hash-neutral.
+Moving a player changes character state and therefore should change the hash; viewing the screen more often must not.
+See [the surface hash projection](../formats/save-game.md#state-hash-surface-projection).
+Jensen's principle is: “Drawing to the surfaces shouldn't cause a hash change. The only reason the hash should change
+is if the application store changed, e.g. rpgcode surface plus some of the game-loop globals needed to store
+coordinates.”
+
+Conformance compares the same game and inputs with no host reads, repeated reads, cache-flush reads and stale-revision
+reads: per-tick hashes, save data, revisions and future diagnostics must agree. It checks that a `cnvX` draw that
+changes the store moves the hash, while drawing to, reading or refreshing the presented screen and host polling do not.
+It also checks deterministic rebuild before script reads and preserves script-visible screen capture behavior.
+
 <a id="webgl2-agreement"></a>
 ## The WebGL2 agreement bound
 
