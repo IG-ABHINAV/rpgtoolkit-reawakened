@@ -35,7 +35,7 @@ Movement is queued: the keyboard, the mouse, scripts (`Push`, `PlayerPath`, `Ite
 **E-24 Keyboard movement.** Eight configurable direction bindings. Holding two orthogonal keys gives a diagonal where diagonals are allowed. Movement is relative to the board's axes, so on isometric boards "north" runs along the iso axis.
 
 <a id="e-25"></a>
-**E-25 Mouse movement.** Clicking the board path-finds the selected player to the clicked point; if the point is blocked by a sprite the player walks up to it. The path and the destination can be drawn.
+**E-25 Mouse movement.** Clicking the board path-finds the selected player to the clicked point; if the point is blocked by a sprite the player walks up to it. The path and the destination can be drawn. While a blocking script owns the key queue a click starts no path, a path under way pauses, and a button still held when the script ends walks towards the cursor again ([display-input-audio.md](display-input-audio.md#reawakened-click-movement-freeze)).
 
 ## Speed
 

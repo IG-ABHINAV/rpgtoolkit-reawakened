@@ -220,12 +220,13 @@ export function enqueuePathMove(
   goal: SpritePoint,
   mode: PathMode = 1,
   clear = true,
+  pointer = false,
 ): PathResult | null {
   const actor = actorFor(section, id);
   if (actor === null) return null;
   const result = findPath(board, section, actor, goal, mode);
   if (result.points.length === 0) return result;
-  const moves = result.points.map((point): SpriteMove => ({ source: "path", target: clonePoint(point), facing: null, pathMode: mode }));
+  const moves = result.points.map((point): SpriteMove => ({ source: "path", target: clonePoint(point), facing: null, pathMode: mode, ...(pointer ? { pointer: true as const } : {}) }));
   const playerIndex = section.players.findIndex((value) => value.id === id);
   const itemIndex = section.items.findIndex((value) => value.id === id);
   const update = (value: SpriteActor): SpriteActor => ({

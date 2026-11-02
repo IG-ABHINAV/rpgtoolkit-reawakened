@@ -92,6 +92,8 @@ export {
   endBoardThreads,
   endItemThreads,
   findBlockingThread,
+  hasLiveBlockingThread,
+  scriptOwnsInput,
   findThread,
   cellRef,
   globalRef,

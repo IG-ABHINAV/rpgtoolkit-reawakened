@@ -142,15 +142,28 @@ function applyKey(state: InputSection, event: KeyInput): void {
  * unfocused is never reported. Each held key takes exactly the state change its key-up would make — the raw
  * flag, the keyboard half of its action, the action and the direction order — and queues no press edge.
  * Actions a connected gamepad holds stay held: that is device state and follows the device's own records.
+ * The held mouse buttons are released the same way (issue #1169): the button-up is likewise never reported to an
+ * unfocused window, and a stale held button would otherwise walk the player towards the cursor after refocus.
  */
-function releaseKeyboard(state: InputSection): void {
+function releaseHeld(state: InputSection): void {
   for (const name of Object.keys(state.held)) if (state.held[name] === true) state.held[name] = false;
   for (const action of Object.keys(state.keyboardActions)) if (state.keyboardActions[action] === true) state.keyboardActions[action] = false;
   updateAllActions(state, false, "focus");
+  state.pointer = { ...state.pointer, buttons: 0 };
 }
 
 function slotAt(state: InputSection, x: number, y: number): InputButtonSlot | undefined {
   return state.buttons.find((button): button is InputButtonSlot => "id" in button && x >= button.x && x < button.x + button.w && y >= button.y && y < button.y + button.h);
+}
+
+/**
+ * The board point the held left button points at, or `null` when it is up or over an on-screen button slot
+ * (docs/spec/engine/display-input-audio.md#reawakened-click-movement-freeze). Core polls this on the idle input
+ * phase; it adds no state, because the pointer record already holds the last position and buttons.
+ */
+export function heldPointerGoal(state: InputSection): { x: number; y: number } | null {
+  if ((state.pointer.buttons & 1) === 0 || slotAt(state, state.pointer.x, state.pointer.y) !== undefined) return null;
+  return { x: state.pointer.x + state.camera.x, y: state.pointer.y + state.camera.y };
 }
 
 function applyPointer(state: InputSection, event: PointerInput): void {
@@ -175,7 +188,7 @@ export function applyInputEvent(state: InputSection, event: InputEvent): void {
     case "gamepad": state.pendingGamepads.push(event); return;
     case "focus":
       state.focused = event.state === "gained";
-      if (!state.focused) releaseKeyboard(state);
+      if (!state.focused) releaseHeld(state);
       return;
     case "asset":
     case "blob.loaded":

@@ -1,10 +1,10 @@
 import type { EnginePhaseRegistration, EngineResetRegistration } from "../engine/engine.ts";
-import { findBlockingThread } from "../script/state.ts";
+import { scriptOwnsInput } from "../script/state.ts";
 import { enqueueDirectionMove } from "../sprites/movement.ts";
 import type { Facing } from "../sprites/model.ts";
 import { enqueuePathMove } from "../sprites/runtime.ts";
 import type { GameState } from "../save/state.ts";
-import { createInputSection, processGamepadEvents, takeInputActions, type InputConfig } from "./input.ts";
+import { createInputSection, heldPointerGoal, processGamepadEvents, takeInputActions, type InputConfig } from "./input.ts";
 
 const FACING_BY_ACTION: Record<string, Facing> = {
   up: "N",
@@ -57,10 +57,10 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   const { actions, clicks } = takeInputActions(state.input);
   const id = selectedPlayer(state);
   const board = state.world.board ?? null;
-  // A running program or any global wait owns script input until it finishes.
-  // Keep recording key state, but never turn its direction edges or holds into steps.
-  const directionBlocked = findBlockingThread(state.vm) !== null
-    || state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
+  // A running program or any global wait owns script input until it finishes. Keys and clicks are still recorded
+  // (the key queue and the pointer state keep receiving them), but none of them turns into movement
+  // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement, #reawakened-click-movement-freeze).
+  const directionBlocked = scriptOwnsInput(state.vm);
   if (id === null) return;
   if (!directionBlocked && actions.some((action) => FACING_BY_ACTION[action] !== undefined) && canAcceptDirection(state, id)) {
     const facing = heldFacing(state);
@@ -72,8 +72,12 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
     const facing = heldFacing(state);
     if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
   }
-  if (board === null) return;
-  for (const click of clicks) enqueuePathMove(state.sprites, board, id, click, state.input.pathMode, true);
+  if (board === null || directionBlocked) return;
+  // Clicks made during a block never reach here as paths; a button still held when the block ends is polled below.
+  for (const click of clicks) enqueuePathMove(state.sprites, board, id, click, state.input.pathMode, true, true);
+  // A held left button keeps walking towards the cursor whenever the player has no route (3.1 polls it every idle frame).
+  const held = clicks.length === 0 && canAcceptDirection(state, id) ? heldPointerGoal(state.input) : null;
+  if (held !== null) enqueuePathMove(state.sprites, board, id, held, state.input.pathMode, true, true);
 }
 
 /** Register the input owner without changing the engine's fixed phase order. */

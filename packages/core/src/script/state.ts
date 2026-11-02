@@ -404,6 +404,20 @@ export function findBlockingThread(state: Pick<VmState, "threads">): Thread | nu
   return found;
 }
 
+/** True while any `blocking`-kind thread (an outermost program) has not finished, whether it is waiting, sleeping or ready. */
+export function hasLiveBlockingThread(state: Pick<VmState, "threads">): boolean {
+  return state.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
+}
+
+/**
+ * Whether a script owns the key queue (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement):
+ * a live outermost program, or any thread holding a `global` wait (a message window, prompt, menu, `wait()`,
+ * `Get()`-style key wait, battle). Gameplay input, keys and pointer clicks alike, does not move the player while this holds.
+ */
+export function scriptOwnsInput(state: Pick<VmState, "threads">): boolean {
+  return findBlockingThread(state) !== null || hasLiveBlockingThread(state);
+}
+
 /** Recompute `vm.block` from the threads; the VM calls this after every wait change. */
 export function refreshBlock(state: VmState, tick: number): void {
   const thread = findBlockingThread(state);

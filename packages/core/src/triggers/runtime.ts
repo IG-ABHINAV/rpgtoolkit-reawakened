@@ -2,7 +2,7 @@
 import type { EnginePhaseRegistration, EngineResetRegistration } from "../engine/engine.ts";
 import type { EffectRecord } from "../script/effects.ts";
 import { IR_VERSION, type ProgramRef } from "../script/program.ts";
-import { findThread, startThread } from "../script/state.ts";
+import { findThread, hasLiveBlockingThread, startThread } from "../script/state.ts";
 import type { GameState } from "../save/state.ts";
 import { resetUiForProgramStart } from "../save/sections/ui.ts";
 import type { Facing, SpriteActor } from "../sprites/model.ts";
@@ -204,9 +204,6 @@ function currentThreadFinished(state: GameState, active: TriggerActive): boolean
   const thread = findThread(state.vm, active.thread);
   return thread === undefined || thread.status === "finished";
 }
-function hasBlockingThread(state: GameState): boolean {
-  return state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
-}
 function programRef(name: string, resolver: TriggerProgramResolver | null | undefined): ProgramRef | null {
   if (name === "") return null;
   if (resolver !== undefined && resolver !== null) {
@@ -335,7 +332,7 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
     });
     winner = itemCandidates[0] ?? qualifying.filter((candidate) => candidate.source === "region").at(-1);
   }
-  if (winner === undefined || hasBlockingThread(state)) return events;
+  if (winner === undefined || hasLiveBlockingThread(state.vm)) return events;
   if (winner.source === "item" && winner.actor !== undefined) {
     state.sprites.items = state.sprites.items.map((actor) => actor.id === winner!.actor!.id ? { ...actor, facing: facingToward(actor, player) } : actor);
     clearQueue(state, player);

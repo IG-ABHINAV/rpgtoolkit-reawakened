@@ -111,7 +111,7 @@ import {
   type ScriptServices,
   createVmState,
 } from "../script/index.ts";
-import type { ObjectRecord, Thread, VmState } from "../script/state.ts";
+import { hasLiveBlockingThread, type ObjectRecord, type Thread, type VmState } from "../script/state.ts";
 import { findObject, readMember } from "../script/objects.ts";
 import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.ts";
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
@@ -1769,7 +1769,7 @@ export function createEngine(init: EngineInit): Engine {
     if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
   }
   function blockingAlive(): boolean {
-    return state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
+    return hasLiveBlockingThread(state.vm);
   }
 
   /** Hydrate board `key`, requesting its file and then each missing tile asset in turn. */

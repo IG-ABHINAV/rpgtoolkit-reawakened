@@ -43,6 +43,8 @@ export type SpriteMove = {
   readonly facing: Facing | null;
   readonly pathMode?: 1 | 2 | 3;
   readonly deferredComplete?: boolean;
+  /** Queued by a pointer click or held button; such moves pause while a script owns the key queue. */
+  readonly pointer?: true;
 };
 export type WaypointLink = {
   points: SpritePoint[];
@@ -68,6 +70,7 @@ export type SpriteActiveMove = {
   readonly tried: boolean;
   readonly pathMode?: 1 | 2 | 3;
   readonly deferredComplete?: boolean;
+  readonly pointer?: true;
 };
 
 /** Fixed-tick movement state stored with the actor for snapshot/restore. */

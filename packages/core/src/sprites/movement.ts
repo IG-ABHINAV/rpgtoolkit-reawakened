@@ -1,6 +1,7 @@
 /** Fixed-tick actor movement and collision (E-22..E-30, R-50, R-51, R-54). */
 import type { GameState } from "../save/state.ts";
 import type { WorldBoard, WorldPoint, WorldVector } from "../world/model.ts";
+import { scriptOwnsInput } from "../script/state.ts";
 import type { EnginePhaseRegistration } from "../engine/engine.ts";
 import {
   FACING,
@@ -51,6 +52,8 @@ export type MovementOptions = {
   readonly gameSpeed?: number;
   readonly pixelMovement?: number;
   readonly onEvent?: (event: MovementEvent) => void;
+  /** While true, pointer-queued moves still waiting in a queue do not start; a step already under way finishes. */
+  readonly freezePointer?: boolean;
 };
 
 function fixed(value: number): number {
@@ -340,7 +343,7 @@ function waypointMove(actor: SpriteActor): { readonly move: SpriteMove; readonly
     waypoint: nextWaypoint,
   };
 }
-function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldBoard, tick: number, gameSpeed: number, pixelMovement: number, sink?: (event: MovementEvent) => void): void {
+function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldBoard, tick: number, gameSpeed: number, pixelMovement: number, freezePointer: boolean, sink?: (event: MovementEvent) => void): void {
   if (!actor.visible) return;
   if (actor.state === "frozen") {
     if (actor.frozenUntil !== null && tick >= actor.frozenUntil) {
@@ -352,6 +355,11 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
   let movement = cloneMovement(actor.movement);
   if (movement.active === null) {
     let next = actor.queue.moves[0];
+    if (freezePointer && next?.pointer === true) {
+      // A script owns the key queue: the click's route waits, untouched, and resumes with the block's end.
+      if (actor.state === "moving") replaceActor(section, { ...actor, state: "waiting" });
+      return;
+    }
     let queue = actor.queue;
     if (next === undefined && actor.queue.waypoint !== null) {
       const waypoint = waypointMove(actor);
@@ -370,7 +378,7 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
     const move = next;
     const dx = move.target.x - actor.x;
     const dy = move.target.y - actor.y;
-    const active: SpriteActiveMove = { source: move.source, start: { x: actor.x, y: actor.y }, target: { ...move.target }, facing: move.facing, cadence: actor.prev !== null ? Math.max(0, ticksPerAdvance(actor.speed, gameSpeed) - 1) : 0, ignoreBoard: move.source === "points", tried: false, ...(move.pathMode === undefined ? {} : { pathMode: move.pathMode }), ...(move.deferredComplete === true ? { deferredComplete: true } : {}) };
+    const active: SpriteActiveMove = { source: move.source, start: { x: actor.x, y: actor.y }, target: { ...move.target }, facing: move.facing, cadence: actor.prev !== null ? Math.max(0, ticksPerAdvance(actor.speed, gameSpeed) - 1) : 0, ignoreBoard: move.source === "points", tried: false, ...(move.pathMode === undefined ? {} : { pathMode: move.pathMode }), ...(move.deferredComplete === true ? { deferredComplete: true } : {}), ...(move.pointer === true ? { pointer: true as const } : {}) };
     movement = { ...movement, active };
     const moves = actor.queue.moves.length > 0 ? actor.queue.moves.slice(1) : actor.queue.moves;
     const nextActor: SpriteActor = { ...actor, state: "moving", queue: { ...queue, moves }, movement };
@@ -441,7 +449,7 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
     if (following && movement.waitTicks === 0 && !active.tried) {
       const diversion = findPath(board, section, actor, active.target, active.pathMode ?? 1);
       if (diversion.reached && diversion.points.length > 0) {
-        const moves: SpriteMove[] = diversion.points.map((point) => ({ source: "path", target: { ...point }, facing: null, pathMode: active.pathMode ?? 1, deferredComplete: true }));
+        const moves: SpriteMove[] = diversion.points.map((point) => ({ source: "path", target: { ...point }, facing: null, pathMode: active.pathMode ?? 1, deferredComplete: true, ...(active.pointer === true ? { pointer: true as const } : {}) }));
         replaceActor(section, {
           ...actor,
           state: "moving",
@@ -517,7 +525,7 @@ export function runMovementPhase(section: SpritesSection, board: WorldBoard | nu
   const actors = allActors(section).sort((left, right) => drawId(section, left) - drawId(section, right));
   for (const original of actors) {
     const actor = allActors(section).find((value) => value.id === original.id);
-    if (actor !== undefined) advanceActor(section, actor, board, tick, gameSpeed, pixelMovement, sink);
+    if (actor !== undefined) advanceActor(section, actor, board, tick, gameSpeed, pixelMovement, options.freezePointer === true, sink);
   }
   return events;
 }
@@ -528,7 +536,7 @@ export function movementPhaseRegistration(options: MovementOptions & { readonly 
     phase: "movement",
     rank: options.rank ?? 0,
     run(state: GameState): void {
-      runMovementPhase(state.sprites, state.world.board ?? null, state.time.tick, options);
+      runMovementPhase(state.sprites, state.world.board ?? null, state.time.tick, { ...options, freezePointer: scriptOwnsInput(state.vm) });
     },
   };
 }

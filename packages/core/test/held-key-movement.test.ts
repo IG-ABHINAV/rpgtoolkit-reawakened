@@ -17,6 +17,7 @@ import {
   inputPhaseRegistration,
   movementPhaseRegistration,
   killThread,
+  findBlockingThread,
   runThreadsPhase,
   runWaitsPhase,
   startProgram,
@@ -119,6 +120,34 @@ test("a menu provider owns direction presses without moving the player", () => {
   tick(state, 0, [key("ArrowRight", true)]);
   equal(state.sprites.players[0]!.movement.active, null, "menu navigation does not move the player");
   equal(state.input.keys.at(-1)?.name, "right", "the menu receives the key");
+});
+
+test("a battle loop that sleeps between turns still owns input: no key walks the player, and the loop is no global wait", () => {
+  const state = makeState();
+  // The stock battle loop is an outermost program that sleeps between turns; it holds no global wait while it sleeps.
+  const loop = startProgram(state.vm, { kind: "inline", ir: "1", text: ":turn\nthreadSleep(getThreadId(), 5)\nbranch(:turn)\n" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(loop.status, "waiting");
+  equal(loop.wait?.kind, "sleep");
+  equal(findBlockingThread(state.vm), null, "no thread holds a global wait; only the outermost program's liveness freezes input");
+  tick(state, 0, [key("ArrowRight", true)]);
+  for (let t = 1; t < 60; t += 1) tick(state, t);
+  equal(state.sprites.players[0]!.x, 48, "the held key walked nothing during the battle loop");
+  equal(state.input.keys.at(-1)?.name, "right", "the key still reaches the key queue");
+
+  killThread(state.vm, loop.id);
+  tick(state, 60);
+  ok(state.sprites.players[0]!.movement.active !== null, "the key still held when the battle ends walks at once");
+});
+
+test("a script that fails with an uncaught error ends its program, so it never leaves input frozen", () => {
+  // Core has no script-error box wait: an uncaught error becomes a diagnostic and the thread finishes (see issue #1179).
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "noSuchCommand()\nafter = 1" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.status, "finished");
+  tick(state, 0, [key("ArrowRight", true)]);
+  ok(state.sprites.players[0]!.movement.active !== null, "with the failed program gone the key walks");
 });
 
 test("a tap during wait is lost for movement but remains in the key queue", () => {
