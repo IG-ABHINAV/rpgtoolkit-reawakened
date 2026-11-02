@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { equal, ok } from "node:assert/strict";
@@ -13,17 +13,27 @@ function read(relative: string): string {
 /** The strict policy every player/host page must carry, byte for byte. */
 const STRICT_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:;";
 
-/** Every .html page under a package's app directory, enumerated at test time so a new page cannot ship without a policy. */
-function pages(directory: "packages/runner-web/app" | "packages/runner-desktop/app"): string[] {
-  const root = resolve(here, directory);
-  return readdirSync(root)
-    .filter((entry) => entry.endsWith(".html"))
-    .sort()
-    .map((entry) => `${directory}/${entry}`);
+/** Every .html page under each runner package's app directory (`packages/<runner>/app`), walked recursively at test time, so a new runner target or a new page cannot ship without a policy and no list needs maintaining. Returns repo-relative paths. */
+function pages(): string[] {
+  const found: string[] = [];
+  const runners = readdirSync(resolve(here, "packages"), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("runner-"));
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(resolve(directory, entry.name));
+      else if (entry.name.endsWith(".html")) found.push(relative(here, resolve(directory, entry.name)));
+    }
+  };
+  for (const runner of runners) {
+    const app = resolve(here, "packages", runner.name, "app");
+    if (!existsSync(app)) continue;
+    walk(app);
+  }
+  return found.sort();
 }
 
 test("every player/browser page carries the strict Content-Security-Policy", () => {
-  const all = [...pages("packages/runner-web/app"), ...pages("packages/runner-desktop/app")];
+  const all = pages();
   ok(all.length > 0, "expected pages to enumerate, found none");
   for (const relative of all) {
     const html = read(relative);
