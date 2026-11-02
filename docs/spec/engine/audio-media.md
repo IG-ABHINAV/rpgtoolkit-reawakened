@@ -197,6 +197,8 @@ back by a later resume and is not needed by the existing cue set. A separate
 
 Loading restores playback against the audio configuration of the game file being loaded. Active music restarts from position zero at the load tick, preserving its loop value; active non-music voices resume at the saved `positionTicks` with a new `startTick` chosen to preserve that position. Paused and stopped voices remain paused and stopped. A saved one-shot at or beyond its length is restored stopped. Before re-emitting cues, loading sets the next `cueId` to the greater of the live and saved counters, so an id is never reused; it allocates fresh monotonic cue ids in configured track order and voice-index order. The music cue has the load tick as its due tick, while a resumed non-music cue carries the past due tick needed for catch-up. No runner state is trusted from a save.
 
+**Approved ruling (owner: Jensen, 2026-11-02).** Keep monotonic cue IDs, load-time re-emission and the existing replay hash. A separate [continuation-equivalence comparison](../formats/save-game.md#continuation-equivalence) permits the one ID consumed by the load-time `soundfont.set` only under its stated no-active-voice conditions; it verifies the emitted cue and compares the remaining replay projection. It does not claim literal whole-state equality or decide equivalence for active voices, voice identities, waits or restarted music.
+
 `reset()` leaves the whole audio section untouched, including active music and
 settings. Normal board-entry effects may then be applied; the same-file rule
 prevents an unnecessary restart.

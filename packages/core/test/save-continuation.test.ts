@@ -9,7 +9,7 @@
 // in the same phase (this test drives both cases and asserts the ordering), and
 // the finalizer refuses to snapshot while another blob entry is pending, which
 // keeps the invariant structural if the wake rules ever change.
-import { equal, ok } from "node:assert/strict";
+import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
 import { TextDecoder, TextEncoder } from "node:util";
 import {
@@ -19,12 +19,17 @@ import {
   createEmptyBoard,
   createEmptyMainFile,
   createEngine,
+  restoreGameState,
+  snapshot,
   startThread,
   writeBoard,
   writeMainFile,
   type AssetKey,
   type InputRecord,
+  type GameState,
 } from "../src/index.ts";
+import { noActiveAudioContinuationProjection } from "./hash-projections.ts";
+import { hashState } from "../src/canon/canon.ts";
 
 const encoder = new TextEncoder();
 
@@ -49,12 +54,13 @@ function runningGame(): { files: Files; mainBytes: Uint8Array; paths: string[] }
 }
 
 type SavedThread = { readonly id: number; readonly status: string; readonly wait: { readonly kind: string; readonly reqId: number; readonly reply: { readonly ok: boolean } | null } | null };
-type SavedState = { readonly vm: { readonly threads: readonly SavedThread[] }; readonly engine: { readonly nextRequestId: number; readonly pending: readonly unknown[] } };
+type SavedState = { readonly vm: { readonly threads: readonly SavedThread[] }; readonly engine: { readonly nextRequestId: number; readonly pending: readonly unknown[] }; readonly audio: { readonly cueId: number; readonly tracks: readonly { readonly voices: readonly unknown[] }[] } };
 
 
 test("a game save never captures a thread parked on an unanswered host request", () => {
   const game = runningGame();
   let started = false;
+  let uninterruptedState: GameState | null = null;
   const engine = createEngine({
     seed: 7,
     assetIndex: createAssetIndex(game.paths),
@@ -73,6 +79,7 @@ test("a game save never captures a thread parked on an unanswered host request",
     phaseRegistrations: [{
       phase: "events",
       run: (state) => {
+        uninterruptedState = state;
         if (!started) {
           if (state.engine.boot?.stage !== "running") return;
           started = true;
@@ -138,18 +145,31 @@ test("a game save never captures a thread parked on an unanswered host request",
   // Verify correlation independently of full continuation hash equality (#1054).
   replies = [{ tick: saveTick, event: { kind: "blob.saved", reqId: gameSaveRequestId, ok: true } }];
   let uninterruptedRequestId: number | null = null;
+  let uninterruptedCheckpoint: GameState | null = null;
+  let uninterruptedHash: string | null = null;
   for (let guard = 0; guard < 40 && uninterruptedRequestId === null; guard += 1) {
     const report = engine.advance(1, replies);
+    equal(report.audioCues.length, 0, "uninterrupted continuation emits no audio cues");
     replies = [];
     for (const request of report.requests) {
       if (request.kind !== "asset") continue;
-      if (request.key === assetKey("boards/after.brd")) uninterruptedRequestId = request.reqId;
+      if (request.key === assetKey("boards/after.brd")) {
+        uninterruptedRequestId = request.reqId;
+        ok(uninterruptedState !== null);
+        uninterruptedCheckpoint = restoreGameState(snapshot(uninterruptedState));
+        uninterruptedHash = report.stateHash;
+      }
       replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
     }
   }
   equal(uninterruptedRequestId, saved.engine.nextRequestId, "the uninterrupted continuation uses the saved next request ID");
 
   let startedLoad = false;
+  const loadedState: { current: GameState | null } = { current: null };
+  let loadCounter = -1;
+  let restoredCheckpoint: GameState | null = null;
+  let restoredHash: string | null = null;
+  const loadCues: { readonly kind: string; readonly cueId: number }[] = [];
   const loadedEngine = createEngine({
     seed: 7,
     assetIndex: createAssetIndex(game.paths),
@@ -163,6 +183,7 @@ test("a game save never captures a thread parked on an unanswered host request",
     phaseRegistrations: [{
       phase: "events",
       run: (state) => {
+        loadedState.current = state;
         if (!startedLoad && state.engine.boot?.stage === "running") {
           startedLoad = true;
           startThread(state.vm, { ref: { kind: "inline", text: 'Load("slot")\nend()\n', ir: IR_VERSION }, kind: "board", owner: "script" });
@@ -178,14 +199,22 @@ test("a game save never captures a thread parked on an unanswered host request",
   let boardReplyAccepted = false;
   for (let guard = 0; guard < 40 && !boardReplyAccepted; guard += 1) {
     const report = loadedEngine.advance(1, replies);
+    if (loaded) loadCues.push(...report.audioCues);
     if (restoredRequestId !== null && !report.loading) boardReplyAccepted = true;
     replies = [];
     for (const request of report.requests) {
       if (request.kind === "asset") {
-        if (request.key === assetKey("boards/after.brd")) restoredRequestId = request.reqId;
+        if (request.key === assetKey("boards/after.brd")) {
+          restoredRequestId = request.reqId;
+          ok(loadedState.current !== null);
+          restoredCheckpoint = restoreGameState(snapshot(loadedState.current));
+          restoredHash = report.stateHash;
+        }
         replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
       } else if (request.kind === "loadBlob") {
         loaded = true;
+        ok(loadedState.current !== null);
+        loadCounter = loadedState.current.audio.cueId;
         replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: savedBytes } });
       }
     }
@@ -193,4 +222,17 @@ test("a game save never captures a thread parked on an unanswered host request",
   ok(loaded, "the engine loads the deferred save through Load");
   equal(restoredRequestId, saved.engine.nextRequestId, "the restored continuation uses the saved next request ID");
   ok(boardReplyAccepted, "the reply carrying that ID releases the restored board request");
+  ok(uninterruptedCheckpoint !== null && restoredCheckpoint !== null);
+  ok(saved.audio.tracks.every((track) => track.voices.length === 0));
+  ok(uninterruptedCheckpoint.audio.tracks.every((track) => track.voices.length === 0));
+  ok(restoredCheckpoint.audio.tracks.every((track) => track.voices.length === 0));
+  ok(loadCounter <= saved.audio.cueId);
+  equal(uninterruptedCheckpoint.audio.cueId, saved.audio.cueId);
+  equal(restoredCheckpoint.audio.cueId, saved.audio.cueId + 1);
+  deepEqual(loadCues.map(({ kind, cueId }) => ({ kind, cueId })), [{ kind: "soundfont.set", cueId: saved.audio.cueId }]);
+  ok(uninterruptedHash !== restoredHash, "the real replay hashes remain distinct");
+  deepEqual(noActiveAudioContinuationProjection(restoredCheckpoint), noActiveAudioContinuationProjection(uninterruptedCheckpoint));
+  const perturbed = restoreGameState(snapshot(restoredCheckpoint));
+  perturbed.vm.globals.after = 43;
+  ok(hashState(noActiveAudioContinuationProjection(perturbed)) !== hashState(noActiveAudioContinuationProjection(uninterruptedCheckpoint)), "a changed game variable is not normalized");
 });

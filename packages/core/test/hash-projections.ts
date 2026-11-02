@@ -20,6 +20,13 @@ export function referenceHashProjection(state: GameState): string {
   return hashState(projectedState(state));
 }
 
+/** Only valid after checking the no-active-voice and load-cue preconditions in the calling test. */
+export function noActiveAudioContinuationProjection(state: GameState) {
+  const projected = projectedState(state);
+  const { cueId: _cueId, ...audio } = projected.audio;
+  return { ...projected, audio };
+}
+
 /**
  * The projection before the 2026-11-01 owner ruling (#1047): identical except that the saved request-id counter was
  * hashed. Only the counter regressions use it, to show that the old projection moved with bookkeeping the new one

@@ -87,6 +87,11 @@ diagnostics. Script-visible screen refresh is a separate deterministic core oper
 contract and conformance cases are in [runners.md#surface-read-and-state-hash](../engine/runners.md#surface-read-and-state-hash).
 This is the intended contract for #1048, not a claim that its implementation has landed.
 
+<a id="continuation-equivalence"></a>
+**Approved ruling (owner: Jensen, 2026-11-02).** A separate continuation-equivalence comparison checks a settled save against uninterrupted execution without changing the replay state hash. For the no-active-audio case, both checkpoints must have no active voices and agree on the whole replay-hash projection, including pending request IDs and game variables, except the next audio cue ID. The loaded side must have exactly one greater cue ID, accounted for by its single load-time `soundfont.set` cue; the saved counter must match the uninterrupted counter and the load's prior live counter must not exceed it. The comparison is valid only when no other audio cues occur between the save and the compared checkpoints. Verify the actual cue and its ID, not merely the numeric difference.
+
+This is not literal whole-state or replay-hash equality. Cue IDs remain monotonic and saved; load-time re-emission and the existing replay hash are unchanged. Active voices, their IDs, waits, event identities and music restarting need a separately specified comparison; this no-active-voice rule does not silently discard them or prove their equivalence.
+
 ### Save compatibility and instruction versions (owner ruling)
 
 <a id="compiler-mismatch-refuse-the-whole-save-owner-ruling"></a>
