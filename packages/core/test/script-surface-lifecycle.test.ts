@@ -1,21 +1,26 @@
 // Lifecycle of the RPGCode screen surface and message window (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle, GitHub #1045).
 import { test } from "node:test";
-import { deepEqual, equal, ok } from "node:assert/strict";
+import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextEncoder } from "node:util";
 import {
+  advanceScriptTick,
+  applyInputEvent,
   assetKey,
   createAssetIndex,
   createEmptyBoard,
   createEmptyCharacter,
   createEmptyMainFile,
   createEngine,
+  createGameState,
   IR_VERSION,
   PACKAGE_ROOT,
   restoreGameState,
+  runWaitsPhase,
   snapshot,
+  startProgram,
   triggersPhaseRegistration,
   writeBoard,
   writeCharacter,
@@ -25,6 +30,7 @@ import {
   type Engine,
   type GameState,
 } from "../src/index.ts";
+import { createScriptServices } from "./script-test-services.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const font = new Uint8Array(readFileSync(join(here, "..", "..", "..", "media", "fonts", "tkr-8x8.fnt")));
@@ -183,6 +189,110 @@ test("cursor-map navigation accepts browser-shaped arrow key names through the e
   const waitingThread = game.state().vm.threads.find((thread) => thread.wait?.kind === "input.key");
   ok(waitingThread?.wait?.kind === "input.key", "cursor-map runner remains parked after navigation");
   equal(waitingThread.wait.cursorSelection, 1, "ArrowLeft wraps from the first point to the second");
+});
+
+test("cursor-map key press moves selection once across engine waits phases (#1187, docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner)", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\nend()");
+  const right = { name: "ARROWRIGHT", code: "ArrowRight", char: null };
+
+  game.advance(1, [right]);
+  game.advance(3);
+  const first = game.state();
+  const firstWaiter = first.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(firstWaiter?.wait?.kind === "input.key", "navigation leaves the runner blocked");
+  equal(firstWaiter.wait.cursorSelection, 1, "one queued press moves to the second point only once");
+  equal(first.input.keys.length, 0, "the navigation key is consumed");
+
+  game.advance(1, [right]);
+  game.advance(3);
+  const second = game.state();
+  const secondWaiter = second.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(secondWaiter?.wait?.kind === "input.key", "a second navigation press also leaves the runner blocked");
+  equal(secondWaiter.wait.cursorSelection, 0, "a distinct press advances once and wraps to the first point");
+  equal(second.input.keys.length, 0, "the second navigation key is consumed");
+});
+
+test("runWaitsPhase refuses to resolve an input key without a claim callback", () => {
+  const game = boot("wait()\nend()");
+  const state = game.state();
+  applyInputEvent(state.input, { kind: "key", name: "Z", code: "KeyZ", char: "z", down: true });
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  throws(
+    () => runWaitsPhase(state.vm, view),
+    /claim callback for input claims/,
+    "the public waits-phase helper must not resolve a key wait while dropping its queue claim",
+  );
+  equal(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"), true, "the key wait stays parked");
+  equal(state.input.keys.length, 1, "the unclaimed key stays available");
+});
+
+test("runWaitsPhase permits an idle cursor-map wait without a claim callback", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\nselected = cursorMapRun(map)\nend()");
+  const state = game.state();
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  runWaitsPhase(state.vm, view);
+  const waitingThread = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(waitingThread?.wait?.kind === "input.key", "an idle runner remains parked");
+  equal(waitingThread.wait.cursorSelection, 0, "an idle poll leaves selection at the first point");
+});
+
+test("runWaitsPhase accepts a custom claim-free cursor-map poll without a claim callback", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\nselected = cursorMapRun(map)\nend()");
+  const state = game.state();
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  runWaitsPhase(state.vm, view, () => ({ value: 0, ok: true }));
+  equal(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"), false, "the claim-free result resolves the wait");
+});
+
+test("runWaitsPhase requires a claim callback for cursor-map navigation (#1187, docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner)", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\nend()");
+  const state = game.state();
+  applyInputEvent(state.input, { kind: "key", name: "ARROWRIGHT", code: "ArrowRight", char: null, down: true });
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  throws(
+    () => runWaitsPhase(state.vm, view),
+    /claim callback/,
+    "the public wait-phase helper must not silently drop cursor-map claims",
+  );
+  const waitingThread = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(waitingThread?.wait?.kind === "input.key");
+  equal(waitingThread.wait.cursorSelection, 0, "failed API use leaves the selected point unchanged");
+  equal(state.input.keys.length, 1, "failed API use leaves the queued key available");
+});
+
+test("standalone scheduler consumes cursor-map keys in order and preserves unrelated keys for Get (#1187)", () => {
+  const state = createGameState({ seed: 1 });
+  const services = createScriptServices(state);
+  startProgram(state.vm, {
+    kind: "inline",
+    ir: "1",
+    text: "wait(selected)\nanswer = Get()\nend()",
+  });
+  advanceScriptTick(state, services);
+  const thread = state.vm.threads.find((entry) => entry.wait?.kind === "input.key");
+  ok(thread?.wait?.kind === "input.key", "Wait provides the standalone input wait");
+  thread.wait.parkSeq = state.input.nextSeq;
+  thread.wait.cursorMap = 1;
+  thread.wait.cursorSelection = 0;
+  state.ui.cursorMaps = [{ id: 1, points: [{ x: 20, y: 20 }, { x: 40, y: 40 }], selected: 0 }];
+  state.ui.activeCursorMap = 1;
+  applyInputEvent(state.input, { kind: "key", name: "Z", code: "KeyZ", char: "z", down: true });
+  applyInputEvent(state.input, { kind: "key", name: "ARROWRIGHT", code: "ArrowRight", char: null, down: true });
+  applyInputEvent(state.input, { kind: "key", name: "ENTER", code: "Enter", char: null, down: true });
+
+  advanceScriptTick(state, services);
+  const waitingThread = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(waitingThread?.wait?.kind === "input.key", "navigation leaves the standalone wait parked");
+  equal(waitingThread.wait.cursorSelection, 1, "the queued arrow advances once");
+  deepEqual(state.input.keys.map((key) => key.name), ["Z", "ENTER"], "only the arrow record is consumed");
+
+  advanceScriptTick(state, services);
+  equal(state.vm.globals.selected, 1, "the following Enter chooses the already-selected second point");
+  equal(state.vm.globals.answer, "Z", "the unrelated key remains queued for the next Get");
 });
 
 test("cursor-map selection accepts the browser's literal Space key through the engine", () => {

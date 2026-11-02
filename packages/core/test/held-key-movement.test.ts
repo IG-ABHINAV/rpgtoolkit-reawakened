@@ -173,7 +173,10 @@ test("a key held through wait begins moving on the first idle phase after the bl
   runThreadsPhase(state.vm, services, 100);
   tick(state, 0, [key("ArrowRight", true)]);
   equal(state.sprites.players[0]!.movement.active, null, "the block prevents the initial press");
-  runWaitsPhase(state.vm, { tick: 0, events: state.events, input: state.input, ui: state.ui, claims: [] });
+  const claims: number[] = [];
+  runWaitsPhase(state.vm, { tick: 0, events: state.events, input: state.input, ui: state.ui, claims }, undefined, (seq) => {
+    if (seq !== undefined && !claims.includes(seq)) claims.push(seq);
+  });
   runThreadsPhase(state.vm, services, 100);
   equal(thread.status, "finished", "the new direction press ends the real wait");
   runInputPhase(state);

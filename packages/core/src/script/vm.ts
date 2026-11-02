@@ -517,7 +517,10 @@ export function createScriptServices(
  * and a thread that wakes runs in this tick's threads phase. While a blocking
  * command waits (R-32) only that command's wait is polled; the cooperative
  * waits of the other threads are polled once it resolves, in the same phase.
- * `poll` is AD-9's one resolver; it defaults to the VM-owned kinds.
+ * `poll` is AD-9's one resolver; it defaults to the VM-owned kinds. A caller may omit the input claim
+ * callback while polling idle or claim-free waits. If a result contains a claim or discard boundary without
+ * a callback, the phase throws rather than resolve the wait and lose that input. For cursor-map navigation,
+ * it restores the prior selection before throwing so the queued key can be retried by a proper scheduler.
  */
 export function runWaitsPhase(
   vm: VmState,
@@ -543,10 +546,11 @@ export function runWaitsPhase(
   refreshBlock(vm, view.tick);
 }
 
-/** Poll one thread's wait; on a result, make the thread ready and hand it the wake value. */
+/** Poll one thread's wait; claim input progress or hand a wake value to a resolved thread. */
 function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number | undefined, discardBefore?: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
   const wait = thread.wait;
   if (wait === null) return;
+  const cursorSelectionBeforePoll = wait.kind === "input.key" ? wait.cursorSelection : undefined;
   const menuContinuation = wait.kind === "menu.screen" ? wait.payload[0] : null;
   if (menuContinuation !== null && typeof menuContinuation === "object" && !Array.isArray(menuContinuation) &&
       menuContinuation.parkSeq === null) {
@@ -554,7 +558,17 @@ function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread
   }
   const result = poll(view, wait);
   if (result === null) return;
-  if (result.claim !== undefined || result.discardBefore !== undefined) claim?.(result.claim, result.discardBefore);
+  if (result.claim !== undefined || result.discardBefore !== undefined) {
+    if (claim === undefined) {
+      if (result.keepWaiting === true && wait.kind === "input.key") {
+        if (cursorSelectionBeforePoll === undefined) delete wait.cursorSelection;
+        else wait.cursorSelection = cursorSelectionBeforePoll;
+      }
+      throw new Error("runWaitsPhase requires a claim callback for input claims");
+    }
+    claim(result.claim, result.discardBefore);
+  }
+  if (result.keepWaiting === true) return;
   thread.status = "ready";
   thread.wait = null;
   const frame = thread.frames[thread.frames.length - 1];

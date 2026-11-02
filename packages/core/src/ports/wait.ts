@@ -154,15 +154,25 @@ export type WaitView = {
   readonly mediaStart?: (handle: number) => { readonly track: string; readonly slot: number; readonly cueId: number } | null;
 };
 
-export type WaitResult = {
-  readonly value: Value;
-  readonly ok: boolean;
-  readonly claim?: number;
-  /** Per-waiter sequence floor: claim queued input records older than this when resolving. */
-  readonly discardBefore?: number;
-};
+/** A wake result or an input claim that leaves the wait parked. */
+export type WaitResult =
+  | {
+      readonly value: Value;
+      readonly ok: boolean;
+      readonly claim?: number;
+      /** Per-waiter sequence floor: claim queued input records older than this when resolving. */
+      readonly discardBefore?: number;
+      readonly keepWaiting?: false;
+    }
+  | {
+      readonly value: null;
+      readonly ok: true;
+      readonly claim: number;
+      readonly discardBefore?: never;
+      readonly keepWaiting: true;
+    };
 
-/** The one resolver signature: `null` means "not yet" (AD-9). */
+/** The one resolver signature: `null` means not resolved; `keepWaiting` claims input without waking. */
 export type WaitPoll = (view: WaitView, wait: Wait) => WaitResult | null;
 
 /** One kind's resolver, registered into the single `WaitPoll`. */

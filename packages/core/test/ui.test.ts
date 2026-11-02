@@ -196,7 +196,8 @@ test("cursor maps navigate with wrapping, select by keyboard, and ignore mouse a
       input: { keys: [{ seq, name, code: `Arrow${name}`, char: null }], focused: true },
       claims: [],
     }, wait);
-    equal(navigation, null);
+    equal(navigation?.keepWaiting, true, "navigation claims its input but leaves the cursor-map wait pending");
+    equal(navigation?.claim, seq, "the exact queued key sequence is claimed");
     equal(wait.cursorSelection, selected);
   }
   const navigated = composeUi(state.ui, 100, 100, undefined, true, wait.cursorSelection).at(-1);

@@ -39,10 +39,10 @@ function pollCursorMapKey(wait: InputKeyWait, key: string, count: number, claim?
     return claim === undefined ? { value: selected, ok: true } : { value: selected, ok: true, claim };
   } else return null;
   wait.cursorSelection = selected;
-  return null;
+  return claim === undefined ? null : { value: null, ok: true, claim, keepWaiting: true };
 }
 
-/** `input.key`: resolve ordinary keys or cursor-map navigation/selection. */
+/** `input.key`: resolve ordinary keys or claim cursor-map navigation while keeping the wait parked. */
 export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
   if (wait.kind !== "input.key") return null;
   const floor = wait.parkSeq ?? 0;
