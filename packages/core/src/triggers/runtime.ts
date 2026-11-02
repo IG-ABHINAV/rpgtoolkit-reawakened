@@ -4,6 +4,7 @@ import type { EffectRecord } from "../script/effects.ts";
 import { IR_VERSION, type ProgramRef } from "../script/program.ts";
 import { findThread, startThread } from "../script/state.ts";
 import type { GameState } from "../save/state.ts";
+import { resetUiForProgramStart } from "../save/sections/ui.ts";
 import type { Facing, SpriteActor } from "../sprites/model.ts";
 import type { WorldItem, WorldProgram, WorldPoint } from "../world/model.ts";
 import { createTriggersSection, resetTriggersSection, type TriggerActive, type TriggersSection } from "./model.ts";
@@ -341,6 +342,7 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
   } else if ((winner.activationType & 4) !== 0) clearQueue(state, player);
   const ref = programRef(winner.program, options.programRef);
   if (ref === null) return events;
+  resetUiForProgramStart(state.ui);
   const thread = startThread(state.vm, { ref, kind: "blocking", owner: "script", source: winner.source === "item" ? winner.actor?.id ?? null : winner.key, target: player.id });
   const active: TriggerActive = {
     key: winner.key,

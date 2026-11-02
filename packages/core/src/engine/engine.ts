@@ -41,6 +41,7 @@ import type { StartupPorts } from "../ports/startup.ts";
 import type { AssetKey, SurfaceId } from "../ports/keys.ts";
 import type { BlobKey } from "../ports/requests.ts";
 import { createGameState, type GameState, type SectionKey } from "../save/state.ts";
+import { resetUiForProgramStart } from "../save/sections/ui.ts";
 import { applyMenuStateEffect, createMenuOwnerPorts } from "../menu/index.ts";
 import { createShopSessionRuntime } from "./shop-session.ts";
 import { hashGameState } from "../save/hash.ts";
@@ -1042,6 +1043,7 @@ export function createEngine(init: EngineInit): Engine {
     const ref: ProgramRef = typeof init.program === "string"
       ? { kind: "inline", text: init.program, ir: IR_VERSION, dialect: "tk3" }
       : init.program;
+    resetUiForProgramStart(state.ui);
     startProgram(state.vm, ref);
   }
 
@@ -1988,7 +1990,13 @@ export function createEngine(init: EngineInit): Engine {
     boardLifecycle("entered", board, player);
     // An empty list is stored as one empty string and empty entries are ignored (docs/spec/formats/board.md#threads-constants-and-settings).
     for (const name of board.threads ?? []) if (name !== "") startFileProgram(name, board.key, "board");
-    if (board.enterPrg !== undefined && board.enterPrg !== "") startFileProgram(board.enterPrg, board.key, blockingAlive() ? "board" : "blocking");
+    if (board.enterPrg !== undefined && board.enterPrg !== "") {
+      // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
+      // A blocking enter program is a new outermost program; reset the message window.
+      const blocking = blockingAlive();
+      if (!blocking) resetUiForProgramStart(state.ui);
+      startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
+    }
   }
 
   /** Resolve the selected player's pending edge exit during AD-26's edges phase. */
@@ -2005,6 +2013,9 @@ export function createEngine(init: EngineInit): Engine {
     }
     if (link.toLowerCase().endsWith(".prg")) {
       clearPendingExit(player.id);
+      // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
+      // An edge link that runs a program starts a new outermost program.
+      resetUiForProgramStart(state.ui);
       startFileProgram(link, board.key, "blocking");
       return;
     }
@@ -2200,7 +2211,10 @@ export function createEngine(init: EngineInit): Engine {
       if (initialCharacterKey !== null && cache.has(initialCharacterKey)) {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
       }
-      if (mainFile.startupPrg !== "") startFileProgram(mainFile.startupPrg, mainKey, "blocking");
+      if (mainFile.startupPrg !== "") {
+        resetUiForProgramStart(state.ui);
+        startFileProgram(mainFile.startupPrg, mainKey, "blocking");
+      }
       boot.stage = "startup";
       return true;
     }
@@ -2493,6 +2507,7 @@ export function createEngine(init: EngineInit): Engine {
       for (const ref of prepared.boardPrograms) startThread(stagedVm, { ref, kind: "board", owner: "world" });
       if (prepared.entryProgram !== null) {
         const blocking = stagedVm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
+        if (!blocking) resetUiForProgramStart(state.ui);
         startThread(stagedVm, { ref: prepared.entryProgram, kind: blocking ? "board" : "blocking", owner: blocking ? "world" : "script" });
       }
     } catch (error) {
@@ -2821,10 +2836,19 @@ export function createEngine(init: EngineInit): Engine {
         }
         pruneClaimed(state.input, state.engine.claims ?? []);
         return;
-      case "threads":
+      case "threads": {
+        const liveBlockingBefore = new Set(
+          state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
+        );
         withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET));
+        for (const thread of state.vm.threads) {
+          if (thread.kind === "blocking" && thread.status === "finished" && liveBlockingBefore.has(thread.id)) {
+            onBlockingThreadFinished(thread);
+          }
+        }
         expireProgramTileEdits(state);
         return;
+      }
       case "events":
         returnToBoardAfterBattle();
         runEventsPhase(state, services, STEP_BUDGET);
@@ -2918,6 +2942,14 @@ export function createEngine(init: EngineInit): Engine {
       consumed.push(record);
     }
   }
+  /** Hide the message window when an outermost (blocking) program ends, without clearing its text. */
+  function onBlockingThreadFinished(thread: Thread): void {
+    if (thread.kind !== "blocking") return;
+    if (state.ui.message === undefined) return;
+    state.ui.message = { ...state.ui.message, visible: false };
+    state.ui.modal = null;
+  }
+
   function currentDrawList(alpha = 0, include = init.include ?? { shading: false, images: false, sprites: false }): DrawList {
     const spriteInput = [...spriteDraws(state.sprites), ...(presentation.sprites ?? [])];
     const board: WorldBoard | null = state.world.board ?? null;
@@ -2976,7 +3008,12 @@ export function createEngine(init: EngineInit): Engine {
     const overlay = renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withOverlay = { ...withFx, commands: [...withFx.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
-    const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(state.ui, init.width, init.height, state.input, false, cursorSelection)] };
+    // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
+    const programSurfaceActive = blockingAlive();
+    const uiForCompose = programSurfaceActive
+      ? state.ui
+      : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
+    const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection)] };
     return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection)] };
   }
   function refreshFrame(): void {

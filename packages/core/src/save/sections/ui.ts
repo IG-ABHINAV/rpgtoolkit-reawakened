@@ -122,3 +122,17 @@ export function createUiSection(): UiSection {
     backgroundRev: 0,
   };
 }
+
+/**
+ * The state change of a new outermost program start
+ * (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle): the message window is
+ * hidden and its stored text is reset, and the script text layer starts empty because the program's
+ * starting image replaces whatever the previous program drew. Has no effect until the engine has
+ * installed the UI section.
+ */
+export function resetUiForProgramStart(ui: UiSection): void {
+  if (ui.message === undefined) return;
+  ui.message = { ...ui.message, visible: false, text: "" };
+  ui.draws = [];
+  ui.modal = null;
+}

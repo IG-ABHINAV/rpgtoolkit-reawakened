@@ -20,15 +20,15 @@
         },
         {
           "tick": 90,
-          "stateHash": "ef44b8cc4828e4b8"
+          "stateHash": "b5524c4dee140a8b"
         },
         {
           "tick": 120,
-          "stateHash": "8bb22341353ed818"
+          "stateHash": "bd76110c3e6d7c6b"
         },
         {
           "tick": 600,
-          "stateHash": "f495891727af8cb4"
+          "stateHash": "90e8770d6d03db8f"
         }
       ],
       "frames": [
@@ -46,10 +46,10 @@
         {
           "label": "board",
           "tick": 120,
-          "stateHash": "8bb22341353ed818",
-          "drawHash": "9a40be8a0b5ca816",
-          "pixelHash": "de76cd21894894bf",
-          "commands": 128,
+          "stateHash": "bd76110c3e6d7c6b",
+          "drawHash": "9c0e4d56e59619da",
+          "pixelHash": "11119c84367c565f",
+          "commands": 122,
           "width": 640,
           "height": 480,
           "png": "golden/regression/closing/demo-board.png"
@@ -57,10 +57,10 @@
         {
           "label": "later",
           "tick": 600,
-          "stateHash": "f495891727af8cb4",
-          "drawHash": "f3d5432c7e51d4fb",
-          "pixelHash": "de76cd21894894bf",
-          "commands": 128,
+          "stateHash": "90e8770d6d03db8f",
+          "drawHash": "a0d501bd6cdf7837",
+          "pixelHash": "11119c84367c565f",
+          "commands": 122,
           "width": 640,
           "height": 480,
           "sameAs": "board"
@@ -85,15 +85,15 @@
         },
         {
           "tick": 90,
-          "stateHash": "f7e02f706d932041"
+          "stateHash": "54db5c013ac4cf40"
         },
         {
           "tick": 120,
-          "stateHash": "186c8e55bc9a3f91"
+          "stateHash": "b3f2b2a266de49b0"
         },
         {
           "tick": 600,
-          "stateHash": "673801db099c3a83"
+          "stateHash": "00c28fc56fa7f3dd"
         }
       ],
       "frames": [
@@ -111,10 +111,10 @@
         {
           "label": "board",
           "tick": 120,
-          "stateHash": "186c8e55bc9a3f91",
-          "drawHash": "0e6b513fcb19e42c",
-          "pixelHash": "a27277e54249bddd",
-          "commands": 307,
+          "stateHash": "b3f2b2a266de49b0",
+          "drawHash": "ecb1ee38ded5da74",
+          "pixelHash": "0a31791bdaaf1e65",
+          "commands": 301,
           "width": 640,
           "height": 480,
           "png": "golden/regression/closing/Basic-board.png"
@@ -122,10 +122,10 @@
         {
           "label": "later",
           "tick": 600,
-          "stateHash": "673801db099c3a83",
-          "drawHash": "cd2745bce1f25e89",
-          "pixelHash": "a27277e54249bddd",
-          "commands": 307,
+          "stateHash": "00c28fc56fa7f3dd",
+          "drawHash": "009f616f91048cf1",
+          "pixelHash": "0a31791bdaaf1e65",
+          "commands": 301,
           "width": 640,
           "height": 480,
           "sameAs": "board"

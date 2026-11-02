@@ -18,10 +18,10 @@ const LIBRARIES = ["weather-system.prg", "audio-stems.prg", "pace.prg", "hud-log
   .join("\n");
 
 const INSTALL = `trace = ""\ninstallWeather()\ninstallStems()\ninstallPace()\ninstallHud()\n`;
-const GAME = `weatherSet(1)\nmwin("hello")\nsleep(1)\nend()\n`;
+const GAME = `weatherSet(1)\nmwin("hello")\nwait()\nend()`;
 const WRAPPED = `${LIBRARIES}\n${INSTALL}${GAME}`;
 /** What the engine's `mwin` receives once the four layers have run (hud > audio > weather > engine). */
-const BY_HAND = `mwin("w:rain|a0:hello")\nsleep(1)\nend()\n`;
+const BY_HAND = `mwin("w:rain|a0:hello")\nwait()\nend()`;
 
 function engineOf(program: string): Engine {
   const board = writeBoard(createEmptyBoard());
@@ -90,7 +90,7 @@ test("two engines running the wrapped game reach the same hash at every tick, ho
 
 test("the wrapped engine run is a different run from the bare game", () => {
   const wrapped = engineOf(WRAPPED);
-  const bare = engineOf(`mwin("hello")\nsleep(1)\nend()\n`);
+  const bare = engineOf(`mwin("hello")\nwait()\nend()`);
   wrapped.advance(12, []);
   bare.advance(12, []);
 
