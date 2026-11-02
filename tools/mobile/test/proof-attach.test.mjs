@@ -50,3 +50,26 @@ test("transient adb failure does not restart, genuine absence does, and failure 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a malformed pidof response (exit 0, non-numeric stdout) keeps its raw stdout in the evidence", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mobile-proof-test-"));
+  try {
+    const adb = join(dir, "adb");
+    const calls = join(dir, "calls");
+    writeFileSync(adb, `#!/bin/sh\necho "$*" >> "$CALLS"\ncase "$*" in\n  'shell pidof '*)\n    if [ ! -e "$FIRST" ]; then touch "$FIRST"; echo garbage; exit 0; fi\n    exit 1;;\n  *) exit 0;;\nesac\n`);
+    chmodSync(adb, 0o755);
+    const clock = join(dir, "clock.mjs");
+    writeFileSync(clock, 'let now = 0; Date.now = () => { now += 5000; return now; }; const original = globalThis.setTimeout; globalThis.setTimeout = (fn, _ms, ...args) => original(fn, 1, ...args);\n');
+    const result = spawnSync(process.execPath, ["--import", clock, tool], {
+      encoding: "utf8", timeout: 15000,
+      env: { ...process.env, CI: "false", PATH: `${dir}:${process.env.PATH}`, CALLS: calls, FIRST: join(dir, "first"), MOBILE_PROOF_DIR: join(dir, "output") },
+    });
+    equal(result.status, 1, result.stderr);
+    const reading = JSON.parse(readFileSync(join(dir, "output", "readings.json"), "utf8"));
+    equal(reading.attachAttempts[0].processState, "unknown");
+    equal(reading.attachAttempts[0].pidof.exitCode, 0);
+    equal(reading.attachAttempts[0].pidof.output, "garbage");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

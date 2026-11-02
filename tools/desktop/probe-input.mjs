@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { judgeMovement } from "./probe-judge.mjs";
 import { electronBinary } from "./electron-binary.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -103,6 +104,8 @@ const KEY = {
   Enter: { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: "\r", unmodifiedText: "\r" },
   ArrowRight: { key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39, text: "", unmodifiedText: "" },
   ArrowDown: { key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40, nativeVirtualKeyCode: 40, text: "", unmodifiedText: "" },
+  ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", windowsVirtualKeyCode: 37, nativeVirtualKeyCode: 37, text: "", unmodifiedText: "" },
+  ArrowUp: { key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, nativeVirtualKeyCode: 38, text: "", unmodifiedText: "" },
 };
 
 async function main() {
@@ -144,11 +147,23 @@ async function main() {
     await page.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
     await page.send("Input.dispatchKeyEvent", { type: "keyUp", ...key });
   };
-  const hold = async (name, milliseconds) => {
-    const key = KEY[name];
-    await page.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
-    await new Promise((wait) => setTimeout(wait, milliseconds));
-    await page.send("Input.dispatchKeyEvent", { type: "keyUp", ...key });
+  const keyDown = async (name) => page.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...KEY[name] });
+  const keyUp = async (name) => page.send("Input.dispatchKeyEvent", { type: "keyUp", ...KEY[name] });
+  const sleep = (ms) => new Promise((wait) => setTimeout(wait, ms));
+
+  // The engine consumes keyboard state per input phase, so a back-to-back keydown/keyup pair can fall inside one
+  // phase and register nothing (that is what the real run showed before #1122). Wait until the player has stood
+  // still over several ticks before taking the position to measure against.
+  const settled = async () => {
+    let previous = null;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const live = await status();
+      const same = previous !== null && previous.x === live.player?.x && previous.y === live.player?.y && live.tick > 30;
+      previous = live.player ?? null;
+      if (same) return live;
+      await sleep(100);
+    }
+    return null;
   };
 
   try {
@@ -197,43 +212,52 @@ async function main() {
       await new Promise((wait) => setTimeout(wait, 600));
     }
     if ((await status()).board === null) throw new Error("the session never entered a board");
-    let settled = null;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      const live = await status();
-      if (live.player === null || live.player === undefined) throw new Error("the board never showed a player");
-      const same = settled !== null && settled.x === live.player.x && settled.y === live.player.y && live.tick > 30;
-      settled = { x: live.player.x, y: live.player.y, tick: live.tick };
-      if (same) break;
-      await new Promise((wait) => setTimeout(wait, 300));
-    }
+    if ((await settled()) === null) throw new Error("the board never settled to a stable player position");
     const before = await status();
     if (before.player === null || before.player === undefined) throw new Error("the board never showed a player");
 
-    // A direction is only meaningful while it is held across input phases. Hold it long enough for several
-    // tiles (1200 ms ≈ 72 ticks ≈ 3 tiles at default speed) so the probe proves continuous movement, not a single step.
+    // A direction is only meaningful while a key is pressed (#1122): phase (a) taps once and expects exactly
+    // one 32-pixel tile on the tapped axis with no perpendicular drift; phase (b) holds and expects continuous
+    // movement (2+ tiles ≈ 64 px) on the same axis with the perpendicular delta near zero, so one big hop or a
+    // wrong-axis/diagonal walk cannot impersonate input. Releasing the tap mid-step completes the current tile
+    // (core movement contract), which is why a tap held briefly still lands exactly one tile.
     let moved = null;
     const attempts = [];
-    let probeBefore = before.player;
+    let cursor = before.player;
     for (const name of ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"]) {
-      await hold(name, 1200);
-      await new Promise((wait) => setTimeout(wait, 300));
-      const after = await status();
-      const delta = after.player !== null && after.player !== undefined
-        ? { x: after.player.x - probeBefore.x, y: after.player.y - probeBefore.y }
-        : { x: 0, y: 0 };
-      attempts.push({ key: name, before: probeBefore, after: after.player ?? null, delta });
-      const axisDelta = name === "ArrowRight" || name === "ArrowLeft" ? delta.x : delta.y;
-      // Continuous movement: at least two 32-pixel tiles on the pressed axis.
-      if (Math.abs(axisDelta) >= 64) {
-        moved = { key: name, before: probeBefore, after: after.player, delta };
+      await keyDown(name);
+      await sleep(100);
+      await keyUp(name);
+      const tapped = await settled();
+      if (tapped === null || tapped.player === null || tapped.player === undefined) throw new Error("the player vanished or never settled during the tap phase");
+      await keyDown(name);
+      await sleep(1200);
+      await keyUp(name);
+      const held = await settled();
+      if (held === null || held.player === null || held.player === undefined) throw new Error("the player vanished or never settled during the hold phase");
+      const verdict = judgeMovement(name, cursor, tapped.player, held.player);
+      attempts.push({
+        key: name,
+        before: cursor,
+        afterTap: tapped.player,
+        afterHold: held.player,
+        tap: verdict.tap,
+        hold: verdict.hold,
+        tapOk: verdict.tapOk,
+        holdOk: verdict.holdOk,
+      });
+      if (verdict.tapOk && verdict.holdOk) {
+        moved = { key: name, tap: verdict.tap, hold: verdict.hold };
         break;
       }
-      probeBefore = after.player ?? probeBefore;
+      cursor = held.player;
     }
 
     const report = {
       package: pkg,
-      error: moved === null ? "a dispatched key did not move the player continuously (expected >= 64 px on one axis)" : null,
+      error: moved === null
+        ? "no direction proved a one-tile tap (exactly 32 px on the tapped axis, no perpendicular drift) plus a continued hold (>= 64 px on that axis, perpendicular delta < 16 px)"
+        : null,
       tick: (await status()).tick,
       opened: { tick: opened.tick, player: opened.player ?? null },
       fits,

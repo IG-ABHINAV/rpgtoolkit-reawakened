@@ -179,12 +179,18 @@ function attachObservation(stage, attempt, startedAt, deadline) {
     elapsedMs: Date.now() - startedAt,
     processState,
     pid,
-    pidof: { exitCode: process.status, stderr: process.stderr },
+    pidof: { exitCode: process.status, output: retainedStdout(process.stdout), stderr: process.stderr },
     logcat: { exitCode: logcat.status, output: logcat.stdout, stderr: logcat.stderr },
   };
 }
 function processDescription(result) {
-  return `exit ${result.exitCode ?? "unknown"}: ${result.stderr || "no error output"}`;
+  return `exit ${result.exitCode ?? "unknown"}: ${result.stderr || (result.output ? "stdout: " + result.output : "no error output")}`;
+}
+
+// Keep the raw pidof response diagnosable without dumping unbounded bytes into
+// the artifact: strip control characters and cap the retained text (#1080).
+function retainedStdout(text) {
+  return text.replace(/[^\x20-\x7e\t\n]/g, "¦").slice(0, 400);
 }
 
 
