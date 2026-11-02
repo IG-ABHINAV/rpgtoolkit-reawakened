@@ -15,6 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
+import { classifyProcess } from "./proof-process.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -169,19 +170,23 @@ async function connectToApp(pid, deadline) {
 
 function attachObservation(stage, attempt, startedAt, deadline) {
   const process = attachAdb(deadline, "shell", "pidof", appId);
-  const pid = process.status === 0 ? process.stdout.split(/\s+/).find(Boolean) ?? null : null;
+  const { state: processState, pid } = classifyProcess(process);
   const logcat = attachAdb(deadline, "logcat", "-d", "-t", String(ATTACH_LOGCAT_LINES), "-v", "brief",
     "-s", "chromium:*", "ActivityManager:*", "AndroidRuntime:*");
   return {
     stage,
     attempt,
     elapsedMs: Date.now() - startedAt,
-    processExists: pid !== null,
+    processState,
     pid,
     pidof: { exitCode: process.status, stderr: process.stderr },
     logcat: { exitCode: logcat.status, output: logcat.stdout, stderr: logcat.stderr },
   };
 }
+function processDescription(result) {
+  return `exit ${result.exitCode ?? "unknown"}: ${result.stderr || "no error output"}`;
+}
+
 
 async function launchAndConnect(stage, timeoutMs = ATTACH_TIMEOUT_MS) {
   const startedAt = Date.now();
@@ -192,8 +197,11 @@ async function launchAndConnect(stage, timeoutMs = ATTACH_TIMEOUT_MS) {
   while (Date.now() < deadline) {
     attempt += 1;
     const observation = attachObservation(stage, attempt, startedAt, deadline);
-    console.log(`Android WebView attach ${stage} attempt ${attempt}: process=${observation.processExists ? `running (${observation.pid})` : "absent"}; logcat=${JSON.stringify(observation.logcat.output)}`);
-    if (!observation.processExists) {
+    console.log(`Android WebView attach ${stage} attempt ${attempt}: process=${observation.processState}${observation.pid === null ? "" : ` (${observation.pid})`}; logcat=${JSON.stringify(observation.logcat.output)}`);
+    if (observation.processState === "unknown") {
+      observation.attachError = `pidof failed or returned an invalid response: ${processDescription(observation.pidof)}`;
+      lastError = new Error(observation.attachError);
+    } else if (observation.processState === "absent") {
       const start = Date.now() < deadline
         ? attachAdb(deadline, "shell", "am", "start", "-n", activity)
         : { status: null, stdout: "", stderr: "attach deadline expired before am start" };
@@ -502,6 +510,7 @@ try {
   assertScreenshotManifest(proof.screenshots, existsSync);
   proof.result = "passed";
 } catch (error) {
+  proof.result = "failed";
   try {
     proof.failureEvidence = captureFailureEvidence(error);
   } catch (evidenceError) {
