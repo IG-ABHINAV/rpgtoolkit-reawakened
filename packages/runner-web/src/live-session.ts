@@ -29,6 +29,7 @@ import { fontProvider, liveTextureProvider } from "./index.ts";
 import type { DecodeAhead } from "./decode-types.ts";
 import type { PackageSource } from "./package-source.ts";
 import { createSessionAssets, packageOrigin, type AssetLoadState } from "./session-assets.ts";
+import { dispatchRequests } from "./dispatch-requests.ts";
 
 export type LiveBlobHost = {
   read(area: "saves" | "files", gameId: string, path: string): Promise<Uint8Array | null>;
@@ -345,14 +346,10 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
         player.reach(reachedTick);
         player.advance(cues);
       });
-      // Asset requests go out together (the engine is blocked on all of them); everything else is answered in order.
-      const started = report.requests.map((request) => (request.kind === "asset" ? hostReply(request, report.tickAfter) : undefined));
-      for (const answer of started) answer?.catch(() => undefined);
-      const replies: InputRecord[] = [];
-      for (const [position, request] of report.requests.entries()) {
-        const reply = await (started[position] ?? hostReply(request, report.tickAfter));
-        if (reply !== null) replies.push(reply);
-      }
+      // Prefetch hints go out before blocking asset requests so a hint for the same key starts its origin read first
+      // and the later blocking request joins it. Asset requests still go out together (the engine is blocked on all
+      // of them); replies are awaited in report order so input records stay in the order the engine expects.
+      const replies = await dispatchRequests(report.requests, report.tickAfter, hostReply);
       if (report.loading || replies.length > 0) { inputs = replies; continue; }
       if (ticks > 0 && report.ticksRun > 0) continue;
       return;

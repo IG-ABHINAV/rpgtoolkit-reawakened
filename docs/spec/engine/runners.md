@@ -321,8 +321,10 @@ reply is remembered as unavailable for the engine session and is not requested a
 cache is not saved and is excluded from state and draw hashes. It does not prevent a separate gameplay asset request.
 
 A hint **never blocks**, **never changes state**, **never appears in a state or draw hash**, and **never earns a reply**.
-The wire record is an AD-5 and AD-17 amendment, added by entry 8. The owner approved this correction to the landed
-planner's behavior on 2026-11-01 (issue #934, OQ4); it supersedes the broader proposed table in
+Because it never blocks, a runner must dispatch a hint before it awaits any blocking reply; a hint and a blocking
+asset request for the same key in the same report must share the hint's origin read, not the request's. The wire record
+is an AD-5 and AD-17 amendment, added by entry 8. The owner approved this correction to the landed planner's behavior on
+2026-11-01 (issue #934, OQ4); it supersedes the broader proposed table in
 [audio-media.md#audio-prefetch](audio-media.md#audio-prefetch).
 
 The web runner reports one diagnostic about hints, `shared`: the keys whose audio-cue read was served by a read that a
