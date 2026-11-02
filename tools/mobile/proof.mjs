@@ -19,7 +19,7 @@ import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./p
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
 const appId = "com.tkreawakened.player";
-const activity = `${appId}/.WrongActivity`;
+const activity = `${appId}/.MainActivity`;
 const apk = join(root, "packages", "runner-mobile", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk");
 const output = resolve(process.env.MOBILE_PROOF_DIR ?? join(root, "artifacts", "mobile-proof"));
 const devtoolsPort = 9222;
