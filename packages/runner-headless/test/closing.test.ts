@@ -4,6 +4,7 @@ import { deepEqual, equal, ok } from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { TextEncoder } from "node:util";
 import { fileURLToPath } from "node:url";
 import { compareRgbaWithPng, parseClosingPlan, runClosingGame, type ClosingBaseline } from "@tk-reawakened/runner-harness";
 import { loadGameFiles, runClosing } from "../src/closing.ts";
@@ -54,6 +55,31 @@ test("the demo sample game boots through the real engine and matches its committ
     equal(comparison.error, null);
     equal(comparison.equal, true, `${path}: ${JSON.stringify(comparison.firstDifference)}`);
   }
+});
+
+// #1047 (docs/spec/formats/save-game.md#state-hash-request-projection): the saved request-id counter is not hashed, so one
+// more settled boot-time request must move no baseline. The perturbation is real, not simulated: every game gets one
+// extra, unused program file, which the engine requests and the host answers at boot like any other `Prg/` file (a
+// literal second request for the same key is deduplicated by the engine and so cannot be injected from outside). The
+// run is traced only to prove the extra request happened. It replays all eight games four times each (three batch sizes
+// and the traced run), the smallest run that covers every committed baseline; a faster test would cover fewer of them.
+test("one extra settled boot request moves none of the eight closing baselines", { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
+  const bundled = new Map<string, Uint8Array>();
+  for (const folder of plan.bundled) for (const [path, bytes] of loadGameFiles(join(repoRoot, folder))) bundled.set(`${folder}/${path}`, bytes);
+  const extraName = "zz-extra-boot-request-1047.prg";
+  const requested: string[] = [];
+  for (const game of plan.games) {
+    const files = new Map(loadGameFiles(join(repoRoot, "fixtures", "legacy", game.name)));
+    const sample = [...files.keys()].find((path) => /\.prg$/i.test(path));
+    const folder = sample === undefined ? "Prg/" : sample.slice(0, sample.lastIndexOf("/") + 1);
+    files.set(`${folder}${extraName}`, new TextEncoder().encode("// an unused program: only its boot request matters (#1047)\n"));
+    const run = runClosingGame(plan, game, files, bundled, { trace: true });
+    deepEqual(run.batchProblems, [], `${game.name}: batching or tracing disagreed`);
+    deepEqual(run.record, baseline.games[game.name], `${game.name}: the extra settled request moved its baseline`);
+    if (run.census?.bootSequence.some((item) => item.file.toLowerCase().endsWith(extraName)) === true) requested.push(game.name);
+  }
+  const reachedBoard = plan.games.filter((game) => baseline.games[game.name]?.board !== null).map((game) => game.name);
+  deepEqual(requested.filter((name) => reachedBoard.includes(name)).sort(), [...reachedBoard].sort(), "every game that reaches a board really requested the extra program");
 });
 
 test("closing reports a missing fixtures directory instead of passing", () => {

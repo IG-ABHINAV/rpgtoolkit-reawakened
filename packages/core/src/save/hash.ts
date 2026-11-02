@@ -201,9 +201,9 @@ function cachedSurfaceField(value: unknown): string | undefined {
 
 /**
  * The state hash of a whole game state (AD-11): `hashState` of the tree
- * without `audio.settings`. The script volume settings are not game state a
- * replay compares (docs/spec/engine/audio-media.md#audio-core-pins item 7), so
- * they never enter the hash; a snapshot still carries them.
+ * without `audio.settings`, VM step counters or `engine.nextRequestId`.
+ * Snapshots retain these fields; pending engine requests, including their ids,
+ * remain hashed (docs/spec/formats/save-game.md#state-hash-request-projection).
  *
  * Canonical surface fragments are reused after checking their metadata and
  * immutable b64 values, including writes that do not increment rev. An exact
@@ -212,7 +212,8 @@ function cachedSurfaceField(value: unknown): string | undefined {
  */
 export function hashGameState(state: GameState): string {
   const { stepCounters: _stepCounters, ...vm } = state.vm;
-  const projected = { ...state, vm, audio: withoutSettings(state.audio) };
+  const { nextRequestId: _nextRequestId, ...engine } = state.engine;
+  const projected = { ...state, vm, engine, audio: withoutSettings(state.audio) };
   const tagged = tagNonFinite(projected) as PlainData;
   let ascii: boolean | undefined;
   const parts = canonSplitRoot(tagged, "surfaces", (value) => {

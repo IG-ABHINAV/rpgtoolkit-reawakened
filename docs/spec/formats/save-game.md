@@ -71,6 +71,9 @@ image effects and other in-flight blob requests all settle first. A save
 therefore never records a thread parked on a request the host has not answered,
 which a restore would drop and strand.
 
+<a id="state-hash-request-projection"></a>
+**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash, so a bookkeeping difference such as an additional settled boot-time asset request does not move golden baselines.
+
 ### Save compatibility and instruction versions (owner ruling)
 
 <a id="compiler-mismatch-refuse-the-whole-save-owner-ruling"></a>
