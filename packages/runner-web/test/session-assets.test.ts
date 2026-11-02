@@ -206,6 +206,86 @@ test("shared records a cue's successful cached or in-flight read, not merely a h
   deepEqual(assets.state().failures.filter((failure) => failure.during === "ensure").map((failure) => failure.key), [key("failed.mid")]);
 });
 
+// #1065: `shared` is evidence that a cue's own read resolved from bytes a hint's read supplied. A hint that merely
+// names a key, over bytes some other tier supplied, is not that evidence.
+
+test("shared is not earned when a hint names a key whose bytes were already cached (an eager package)", async () => {
+  const origin = manualOrigin(["eager.mid"]);
+  const cache = new Map<AssetKey, Uint8Array>([[key("eager.mid"), bytes(9)]]);
+  const assets = createSessionAssets({ cache, origin: origin.origin, clock: fakeClock().now });
+  assets.hint(hints(["now", "eager.mid"]));
+  await assets.ensure([key("eager.mid")]);
+  deepEqual(assets.state().shared, [], "the hint supplied nothing: the bytes were there first");
+  equal(origin.started.length, 0);
+});
+
+test("shared is not earned by a read a blocking request began, whether the cue joins it in flight or reads it cached", async () => {
+  const origin = manualOrigin(["asked.mid"]);
+  const assets = createSessionAssets({ cache: new Map(), origin: origin.origin, clock: fakeClock().now });
+  const asked = assets.request(key("asked.mid"));
+  assets.hint(hints(["now", "asked.mid"]));
+  const joined = assets.ensure([key("asked.mid")]);
+  origin.settle("asked.mid", bytes(1));
+  await Promise.all([asked, joined]);
+  deepEqual(assets.state().shared, [], "the hint arrived after the request began the read, so the read is not the hint's");
+  await assets.ensure([key("asked.mid")]);
+  deepEqual(assets.state().shared, [], "the request's bytes stay the request's once cached");
+  equal(origin.started.length, 1);
+});
+
+test("shared is not earned by a cue's own read of a hinted key whose hint was still queued, nor by a second cue joining that read", async () => {
+  const origin = manualOrigin(["busy.mid", "queued.mid"]);
+  const assets = createSessionAssets({ cache: new Map(), origin: origin.origin, clock: fakeClock().now, concurrency: 1 });
+  assets.hint(hints(["now", "busy.mid"], ["now", "queued.mid"]));
+  deepEqual(origin.started, [key("busy.mid")], "the one hint slot is busy, so the hint for queued.mid has not started");
+  const own = assets.ensure([key("queued.mid")]);
+  const second = assets.ensure([key("queued.mid")]);
+  origin.settle("queued.mid", bytes(2));
+  await Promise.all([own, second]);
+  deepEqual(assets.state().shared, [], "the cue began that read itself");
+  await assets.ensure([key("queued.mid")]);
+  deepEqual(assets.state().shared, [], "and its bytes do not become the hint's");
+  equal(origin.started.filter((name) => name === key("queued.mid")).length, 1);
+});
+
+test("shared is not earned when the cache's bytes are no longer those the hint's read delivered: replaced, or evicted and fetched again", async () => {
+  const origin = manualOrigin(["song.mid"]);
+  const cache = new Map<AssetKey, Uint8Array>();
+  const assets = createSessionAssets({ cache, origin: origin.origin, clock: fakeClock().now });
+  assets.hint(hints(["now", "song.mid"]));
+  origin.settle("song.mid", bytes(1, 2));
+  await flush();
+  deepEqual(assets.peek(key("song.mid")), bytes(1, 2));
+
+  cache.set(key("song.mid"), bytes(1, 2));
+  await assets.ensure([key("song.mid")]);
+  deepEqual(assets.state().shared, [], "equal bytes that did not come from the hint's read are not its bytes");
+
+  cache.delete(key("song.mid"));
+  const reread = assets.ensure([key("song.mid")]);
+  origin.settle("song.mid", bytes(3));
+  await reread;
+  deepEqual(assets.state().shared, [], "an evicted key the cue had to fetch again was not served by the hint");
+  equal(origin.started.length, 2);
+});
+
+test("shared still records a hint-initiated read that a blocking request or a second cue joined, in flight or cached", async () => {
+  const origin = manualOrigin(["early.mid", "later.mid"]);
+  const assets = createSessionAssets({ cache: new Map(), origin: origin.origin, clock: fakeClock().now });
+  assets.hint(hints(["now", "early.mid"], ["now", "later.mid"]));
+  const asked = assets.request(key("early.mid"));
+  const cue = assets.ensure([key("later.mid")]);
+  const second = assets.ensure([key("later.mid")]);
+  origin.settle("early.mid", bytes(1));
+  origin.settle("later.mid", bytes(2));
+  await Promise.all([asked, cue, second]);
+  deepEqual(assets.state().shared, [key("later.mid")], "the cue joined the hint's in-flight read; the request is not a cue");
+  await assets.ensure([key("early.mid")]);
+  deepEqual(assets.state().shared, [key("later.mid"), key("early.mid")], "a request that joined the hint's read leaves the bytes hint-supplied");
+  equal(origin.started.length, 2, "one read per key");
+  equal(assets.state().stalls[0]?.hinted, true);
+});
+
 test("arriving assets are offered to the decode worker by kind, and only those its scope covers", async () => {
   const offered: [string, PrepareKind][] = [];
   const decode: DecodeAhead = {

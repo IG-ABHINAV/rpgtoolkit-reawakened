@@ -51,7 +51,11 @@ export type AssetLoadState = {
     readonly pending: number;
   };
   readonly failures: readonly AssetFailure[];
-  /** Keys whose cue read actually resolved from a cached or in-flight read named by a hint; diagnostic evidence, not a performance metric. */
+  /**
+   * Keys whose cue read was served by a read a hint began: the cue found those very bytes cached or joined that read in
+   * flight (docs/spec/engine/runners.md#prefetch). A hint over bytes already cached, or over a read a request or a cue had
+   * started, earns nothing. Diagnostic evidence, not a performance metric.
+   */
   readonly shared: readonly AssetKey[];
 };
 
@@ -109,6 +113,8 @@ export function prepareKindFor(key: AssetKey): PrepareKind | null {
 }
 
 type Job = { readonly key: AssetKey; readonly rank: number; readonly order: number };
+/** Who asks `load` for a key: a prefetch hint, the engine's blocking request, or the audio cue chain. */
+type Reader = "hint" | "request" | "cue";
 
 function describe(cause: unknown): string {
   return cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
@@ -126,6 +132,8 @@ export function createSessionAssets(options: SessionAssetsOptions): SessionAsset
   const limit = Math.max(1, options.concurrency ?? 2);
   const inFlight = new Map<AssetKey, Promise<Uint8Array | null>>();
   const hinted = new Set<AssetKey>();
+  /** The bytes each hint-began read delivered, by identity, so a replaced or refetched entry is no longer the hint's. */
+  const hintSupplied = new WeakMap<Uint8Array, AssetKey>();
   const shared = new Set<AssetKey>();
   const queue: Job[] = [];
   const stalls: AssetStall[] = [];
@@ -138,17 +146,17 @@ export function createSessionAssets(options: SessionAssetsOptions): SessionAsset
   const changed = (): void => options.onChange?.();
 
   /** Read `key` through the origin once, however many callers want it, and cache what arrives. */
-  function load(key: AssetKey, cue = false): Promise<Uint8Array | null> {
+  function load(key: AssetKey, reader: Reader): Promise<Uint8Array | null> {
     const cached = cache.get(key);
     if (cached !== undefined) {
-      if (cue && hinted.has(key)) shared.add(key);
+      if (reader === "cue" && hintSupplied.get(cached) === key) shared.add(key);
       return Promise.resolve(cached);
     }
     const pending = inFlight.get(key);
     if (pending !== undefined) {
-      if (!cue) return pending;
+      if (reader !== "cue") return pending;
       return pending.then((bytes) => {
-        if (bytes !== null && !closed && hinted.has(key) && cache.get(key) === bytes) shared.add(key);
+        if (bytes !== null && !closed && hintSupplied.get(bytes) === key && cache.get(key) === bytes) shared.add(key);
         return bytes;
       });
     }
@@ -157,6 +165,7 @@ export function createSessionAssets(options: SessionAssetsOptions): SessionAsset
       inFlight.delete(key);
       if (!closed) {
         cache.set(key, bytes);
+        if (reader === "hint") hintSupplied.set(bytes, key);
         const kind = prepareKindFor(key);
         if (kind !== null) options.decode?.prepare(key, bytes, kind);
       }
@@ -173,7 +182,7 @@ export function createSessionAssets(options: SessionAssetsOptions): SessionAsset
     while (!closed && running < limit && queue.length > 0) {
       const job = queue.shift() as Job;
       running += 1;
-      load(job.key).then(
+      load(job.key, "hint").then(
         () => {
           counts.completed += 1;
         },
@@ -202,7 +211,7 @@ export function createSessionAssets(options: SessionAssetsOptions): SessionAsset
       else held.count += 1;
       changed();
       try {
-        return await load(key);
+        return await load(key, "request");
       } catch (cause) {
         failures.push({ key, during: "request", message: describe(cause) });
         throw cause;
@@ -236,7 +245,7 @@ export function createSessionAssets(options: SessionAssetsOptions): SessionAsset
     async ensure(keys) {
       await Promise.all(keys.map(async (key) => {
         try {
-          await load(key, true);
+          await load(key, "cue");
         } catch (cause) {
           failures.push({ key, during: "ensure", message: describe(cause) });
         }

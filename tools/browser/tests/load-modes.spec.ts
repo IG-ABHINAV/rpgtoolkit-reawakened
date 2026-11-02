@@ -149,9 +149,15 @@ test("AC3: forced streaming with a delayed unhinted board asset records only unh
   });
   expect(interactiveMusicDelayed, "the hinted music has exactly one network range read").toBe(1);
   expect(audio.audio?.scheduled.some((play) => play.track === "music")).toBe(true);
-  // `shared` is diagnostic evidence recorded only when the cue read resolves from a hinted cached/in-flight read.
-  const shared = await page.evaluate(() => window.__session?.loadState().shared ?? []);
-  expect(shared.map((key) => key.toLowerCase()), "the cue read resolved from the hinted cached or in-flight bytes").toContain("media/vip - village3.mid");
+  // `shared` is evidence that a hint's own read supplied the cue's bytes. In this run the engine's blocking request for
+  // the music begins before the hint starts it, so the cue cannot be marked as shared. The invariant below is stronger
+  // than a positive match: it fails under the bug in #1065, where any hinted key was recorded as shared even though a
+  // blocking request supplied the bytes.
+  const loadState = await page.evaluate(() => window.__session?.loadState() ?? { shared: [], stalls: [] });
+  const unhintedStalls = new Set(loadState.stalls.filter((stall) => !stall.hinted).map((stall) => stall.key.toLowerCase()));
+  const shared = loadState.shared.map((key) => key.toLowerCase());
+  const claimedAsShared = shared.find((key) => unhintedStalls.has(key));
+  expect(claimedAsShared, "no key with an unhinted stall can be reported as shared").toBeUndefined();
 });
 
 test("AC4: a quota exception on the durable package put exposes quota-limited and streaming, reports an unpersisted answer, and still reaches the committed tick-120 baseline by real ranges", async ({ page }) => {

@@ -285,6 +285,15 @@ The wire record is an AD-5 and AD-17 amendment, added by entry 8. The owner appr
 planner's behavior on 2026-11-01 (issue #934, OQ4); it supersedes the broader proposed table in
 [audio-media.md#audio-prefetch](audio-media.md#audio-prefetch).
 
+The web runner reports one diagnostic about hints, `shared`: the keys whose audio-cue read was served by a read that a
+hint began. In plain terms, it is evidence that a prefetch hint, and not an eager package, a blocking request or the cue
+itself, did the loading a cue then used. Technically a key is recorded only when the cue's own read of it, at that
+moment, found bytes in the cache or joined a read still in flight **and** those bytes came from a read that a hint
+started. A hint that names a key whose bytes were already cached, or whose read a blocking request or a cue had already
+started, earns no credit; neither do bytes the cache no longer holds (replaced or evicted and fetched again) or a read
+that failed. It is evidence a test can assert, not a performance metric, and like every hint it changes no state, hash or
+reply.
+
 <a id="offline"></a>
 ## The PWA and offline play
 

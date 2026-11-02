@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fix the `runner-web` `shared` asset-load diagnostic so it records only cue reads that resolved from bytes a hint's own read supplied; a hint that merely names a key over already cached, eagerly fetched, or request-supplied bytes no longer earns credit. Strengthen the F6 browser lane to assert that no unhinted-stall key can also appear in `shared`. (#1065)
 - The desktop player fits the entire logical frame inside its actual resizable content area, centred on black: it uses the largest fitting integer scale, or a fractional downscale when 1× cannot fit. Pointer coordinates follow the same canvas transform; presentation does not change simulation state. The desktop CI lane exercises actual Electron layout, scaling and input across resized content areas.
 - Specify and test no-active-audio save continuation equivalence without changing replay hashes or cue allocation; active-voice equivalence needs a separate specification and remains untested.
 - Android mobile proof retries WebView attachment without restarting the app when `pidof` times out or reports a transport error; failed runs record `result: "failed"` alongside their diagnostics.
