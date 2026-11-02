@@ -210,6 +210,8 @@ To remove a listener, pass `off` a callable equal to the one registered: store t
 | `goldChanged` | inventory | no | exactly `{ previous, current, delta }`, with `delta = current - previous`; emitted once after a successful non-zero gold change, including a committed shop trade and only after the whole inventory+gold transaction commits; never for refusal/no-op. Gold amounts/results are non-negative safe integers; zero is a no-op | Epic 8.4, 8.6 |
 | `started`, `stopped`, `ended`, `looped`, `paused`, `resumed`, `faded` | voice, then its track, then `media` | no | exactly `track`, `slot`, `cueId`, `file`, `tick`; [MEDIA-2](audio-media.md#media-2) defines transitions and ordering | 21.3 |
 
+**Proposed item-action clarification (#589, pending review).** Under the [composed replacement proposal](plugins-and-battle.md#epic-85-item-action-proposal), replacing an equipped unit with another from the same stack leaves that stack's committed available quantity unchanged and emits neither `itemRemoved` nor `itemAdded`. Remove/equip programs still run; no hypothetical intermediate quantity is represented in inventory events. Distinct-stack replacement emits the two actual committed quantity changes only after the atomic transaction.
+
 <a id="emit-14"></a>
 ### How a queued emit is delivered (EMIT-14, EMIT-15) — entry 19.10
 
