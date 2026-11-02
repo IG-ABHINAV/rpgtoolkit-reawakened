@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tk-reawakened.dev/schema/runner-protocol-v1.schema.json",
   "title": "TK Reawakened runner boundary protocol v1",
-  "description": "The records that cross the runner boundary, in the JSON projection a non-TypeScript runner sees. Every record has exactly the keys for its kind and an absent value is null, never an omitted key (AD-14). Uint8Array leaves travel as base64 strings; a runner validates what it sends and what it receives against this schema and replays the vector kit (tools/fixtures/runner-protocol/) to prove it behaves. The audio messages and events are NOT restated here: they are packages/synth/schema/audio-protocol-v1.schema.json, which this schema's $defs.audioCue points at by name.",
+  "description": "The records that cross the runner boundary, in the JSON projection a non-TypeScript runner sees. Every record has exactly the keys for its kind and an absent value is null, never an omitted key (AD-14). Uint8Array leaves travel as base64 strings; a runner validates what it sends and what it receives against this schema and replays the vector kit (tools/fixtures/runner-protocol/) to prove it behaves. The audio messages and events are NOT restated here: they are packages/synth/schema/audio-protocol-v1.schema.json.",
   "oneOf": [
     {
       "$ref": "#/$defs/drawList"

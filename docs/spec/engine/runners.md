@@ -373,7 +373,8 @@ any one of them changes alone. It runs, in this order, and reports every problem
    them.
 
 `packages/core` also fails its own type check when a request kind is missing from `HOST_REQUEST_KINDS`, so a request
-kind cannot be added to the wire without being declarable by a package. `pnpm fixtures:test` runs the same check.
+kind cannot be added to the wire without being declarable by a package. The same check, plus perturbation tests that
+prove schema-only, TypeScript-only and vector-only changes each fail, run under `pnpm fixtures:test`.
 
 The browser lane is **Playwright 1.64.0** (Apache-2.0, Blue Oak Gold), one headless Chromium project, a required `gate`
 dependency that runs `pnpm fixtures:fetch` first and serves the fetched `fixtures/` folder over the local static server.

@@ -25,7 +25,7 @@
     "fixtures:check": "node tools/fixtures/check.mjs",
     "fixtures:author": "node tools/fixtures/author/generate.mjs",
     "fixtures:author:check": "node tools/fixtures/author/generate.mjs --check",
-    "fixtures:test": "node --test tools/fixtures/test/fixtures.test.mjs tools/fixtures/test/movement.test.mjs tools/fixtures/test/audio.test.mjs tools/fixtures/test/audio-protocol.test.mjs tools/fixtures/test/runner-protocol.test.mjs tools/fixtures/test/format-corpus.test.mjs",
+    "fixtures:test": "node --test tools/fixtures/test/fixtures.test.mjs tools/fixtures/test/movement.test.mjs tools/fixtures/test/audio.test.mjs tools/fixtures/test/audio-protocol.test.mjs tools/fixtures/test/runner-protocol.test.mjs tools/fixtures/test/runner-protocol-drift.test.mjs tools/fixtures/test/format-corpus.test.mjs",
     "font:generate": "node tools/fonts/generate.mjs",
     "font:check": "node tools/fonts/generate.mjs --check",
     "catalogue:generate": "node tools/catalogue/generate.mjs",
