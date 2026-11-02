@@ -352,6 +352,7 @@ references = ["issue - #853", "spec - docs/spec/engine/rpgcode-package-loader.md
 [[entry]]
 id = 21
 tracker_id = "#1051"
+tracker_status = "done"
 type = "bug"
 title = "Package script functions do not join ordinary or namespaced lookup"
 description = "Package startup script functions are not found by ordinary or package-qualified calls."
@@ -361,5 +362,5 @@ after = [17, 20]
 hitl = false
 risk = "high"
 refine = true
-unknown = "Approved ruling (owner: Jensen, 2026-11-02): both bare and qualified calls and collision rules in the linked spec. In-file directives deferred to #1089; PKG-7 package-location policy remains independently pending and does not block lookup."
-references = ["issue - #1051", "spec - docs/spec/engine/rpgcode-modules-and-objects.md#pkg-script-function-lookup-proposal", "evidence - _bmad-output/initiative-rpgtoolkit-reawakened/deferred-work.md"]
+references = ["issue - #1051", "spec - docs/spec/engine/rpgcode-modules-and-objects.md#pkg-script-function-lookup-proposal", "merged fix - PR #1093 (dc285a1c)", "follow-up - PR #1118 (3c72de07) for #1110", "evidence - _bmad-output/initiative-rpgtoolkit-reawakened/deferred-work.md"]
+notes = ["Merged: PR #1093 (dc285a1c) makes package script functions join bare and qualified lookup; follow-up PR #1118 (3c72de07) fixes the program-vs-package conflict warning (#1110). Issue #1051 is closed."]

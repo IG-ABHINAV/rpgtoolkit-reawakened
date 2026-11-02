@@ -596,6 +596,7 @@ notes = ["Delivered by PR #887 (b93ee00c, Fixes #885), merged 2026-10-31. The au
 [[entry]]
 id = 38
 tracker_id = "#1045"
+tracker_status = "done"
 type = "bug"
 title = "Title-screen text and menu persist after entering a board"
 description = "Board arrival replaces the world without clearing the startup screen text and message-window state."
@@ -605,8 +606,8 @@ after = [20]
 hitl = true
 risk = "high"
 refine = true
-unknown = "First-board clearing and its UI scope await the owner ruling tracked by #642."
-references = ["issue - #1045", "ruling - #642", "proposed fix - PR #1042"]
+references = ["issue - #1045", "ruling - #642", "merged fix - PR #1117 (185101d2)", "follow-up - PR #1137 (4ca0a3b9)", "spec - docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle"]
+notes = ["Merged: PR #1117 (185101d2) clears the script-screen text layer and message-window state on board entry; follow-up PR #1137 (4ca0a3b9) composes the surface for a promoted enter program and engine UI messages. Issue #1045 is closed."]
 
 [[entry]]
 id = 39
@@ -625,6 +626,7 @@ references = ["issue - #1046", "proposed fix - PR #1042", "spec - docs/spec/engi
 [[entry]]
 id = 40
 tracker_id = "#1047"
+tracker_status = "done"
 type = "story"
 title = "Rule the request counter's participation in simulation hashes"
 description = "Apply the approved request-counter hash projection without breaking request correlation or saved-state replay."
@@ -633,12 +635,13 @@ covers = ["CAP-2"]
 after = [19]
 hitl = false
 risk = "high"
-notes = ["Approved ruling (owner: Jensen, 2026-11-01) — the request-id counter is retained in saved state but excluded from the state-hash projection; the outstanding-request list including each id remains hashed. Implementation is unstarted."]
-references = ["issue - #1047", "evidence - PR #1022"]
+references = ["issue - #1047", "evidence - PR #1022", "merged fix - PR #1055 (5080d940)", "spec - docs/spec/formats/save-game.md#state-hash-request-projection"]
+notes = ["Merged: PR #1055 (5080d940) excludes the request-id counter from the state-hash projection while keeping it in saved state; the outstanding-request list including each id remains hashed. Issue #1047 is closed."]
 
 [[entry]]
 id = 41
 tracker_id = "#1048"
+tracker_status = "done"
 type = "bug"
 title = "surfacePixels screen read mutates hashed surface state"
 description = "A host presentation read can refresh persisted surface 0 and change later state hashes and saves."
@@ -647,5 +650,33 @@ covers = ["CAP-2", "CAP-6"]
 after = [7, 19, 40]
 hitl = false
 risk = "high"
-notes = ["Approved ruling (owner: Jensen, 2026-11-02): combined rule — the presented screen is a derived presentation cache excluded from the state hash and rebuilt deterministically on restore before any script read; host surfacePixels(id, rev) returns the requested stored revision or null and is observationally read-only for GameState, revisions, hash, saves and future diagnostics regardless of polling or cache-flush cadence; script-visible refresh for getpixel, canvasgetscreen and savescreen is a separate deterministic core operation. Script variables and globals, script-owned canvases (cnvX), and game-loop globals needed to store coordinates are hashed application store; drawing to cnvX can change the hash, but drawing to, reading or refreshing the presented screen and host polling cannot. Implemented by the pull request that fixes #1048 (in review); #1047 has merged."]
-references = ["issue - #1048", "evidence - PR #1022", "spec - docs/spec/engine/runners.md#surface-read-and-state-hash", "spec - docs/spec/formats/save-game.md#state-hash-surface-projection"]
+references = ["issue - #1048", "evidence - PR #1022", "merged fix - PR #1131 (d3838a7e)", "spec - docs/spec/engine/runners.md#surface-read-and-state-hash", "spec - docs/spec/formats/save-game.md#state-hash-surface-projection"]
+notes = ["Merged: PR #1131 (d3838a7e) makes the screen a derived cache and surfacePixels read-only. The presented screen is excluded from the state hash and rebuilt deterministically on restore before any script read; host surfacePixels(id, rev) returns the requested stored revision or null. Issue #1048 is closed."]
+
+[[entry]]
+id = 42
+tracker_id = "#1145"
+type = "bug"
+title = "PR #1137 recomposes finished title text when an unrelated board thread waits"
+description = "A board thread waiting on input can cause the engine to recompose finished title-screen text draws, reintroducing stale UI after board entry."
+verify = "A fixture with an input-waiting board thread does not recompose script text from a finished outer program; removing the outermost-only guard fails the test."
+covers = ["CAP-2"]
+after = [38]
+hitl = false
+risk = "high"
+references = ["issue - #1145", "related - PR #1137 (4ca0a3b9)", "merged fix - e46a988a"]
+notes = ["Tracked regression. A fix landed in e46a988a; this entry remains open until the acceptance criteria and perturbation proofs are recorded."]
+
+[[entry]]
+id = 43
+tracker_id = "#1146"
+type = "bug"
+title = "Board thread waiting on input composes stale script text draws"
+description = "A board thread that becomes the active surface while waiting on input can compose stale script text draws into the frame."
+verify = "A fixture with a board thread waiting on input discards stale script text draws; removing the stale-draw guard fails the test."
+covers = ["CAP-2"]
+after = [38]
+hitl = false
+risk = "high"
+references = ["issue - #1146", "merged fixes - 535b2aec, 9e497a33, 503ea161 (docs)"]
+notes = ["Tracked regression. Fixes landed in 535b2aec, 9e497a33 and the doc correction 503ea161; this entry remains open until the acceptance criteria and perturbation proofs are recorded."]

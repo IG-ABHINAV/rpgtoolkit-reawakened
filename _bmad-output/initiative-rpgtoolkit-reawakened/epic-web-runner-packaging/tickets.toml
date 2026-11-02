@@ -152,7 +152,7 @@ tracker_id = "#938"
 type = "story"
 title = "runner-desktop: the player's desktop package — main process, app:// scheme, package asset source and save-blob host"
 description = "`runner-desktop` is the **player's** desktop package, not the editor's: the editor is `host-desktop` in epic `desktop-shell` and is not built here. It wraps the `runner-web` build with the Electron main process the player application (entry 10) runs on — registering the privileged `app://` scheme (standard, secure, supportFetchAPI, corsEnabled) before `app.ready` so no page is ever served with `loadFile`, and registering no service worker — and adds the desktop asset source (an installed package read as bytes, by path, by drag-and-drop or from the library) and the save-blob host behind AD-17's keys, so a game opens with no web-only assumption. It builds no window chrome, launch resolution or library UI; entry 10 owns those, the player and the editor build from the same shell, and the shell choice itself is closed by ADR 0013."
-verify = "In Electron on CI, `runner-desktop` opens `demo`'s distribution package from disk through its asset source and reports tick-120 state hash `91172695de52cfd6` and draw hash `9a40be8a0b5ca816`, the current values in golden/regression/closing.json, with the page served over `app://` and no service worker registered; and a save it writes loads in the web runner under the same `GameId` key."
+verify = "In Electron on CI, `runner-desktop` opens `demo`'s distribution package from disk through its asset source and reports tick-120 state hash and draw hash for the demo board committed in `golden/regression/closing.json`, with the page served over `app://` and no service worker registered; desktop and web use the same canonical `GameId` key for saves, but each host stores saves locally. Cross-host save movement is tracked by #1021."
 covers = ["CAP-12"]
 after = [3, 7]
 hitl = false
@@ -231,13 +231,14 @@ tracker_id = "#1018"
 type = "story"
 title = "Live player page: keep engine.advance() alive under the injected clock, feed real input, and present every tick"
 description = "Wires the landed core engine loop (epic board-rendering entry 19 / #393) into the runner-web player page: keep one Engine alive across frames, call engine.advance() once per frame under the injected clock and host pacing, feed the core/input section from real keyboard/pointer events, present each tick's draw list to the on-page canvas, route saves through the host blob boundary, and honour the presentation-only alpha ruling. This is the visible, interactive loop that makes the desktop window and mobile wrapper show an animated board and accept input."
-verify = "Pending merge: the implementation is in review on a draft PR. A post-E-02 run demonstrates that `demo` reaches the board on a visible canvas, a held movement key moves the player on the browser page, the parity route reproduces the current tick-120 state hash `91172695de52cfd6` with draw `9a40be8a0b5ca816`, a package with no start-up program boots from its initial character, and an authored non-demo package renders its own board in the desktop player. Saves are durable per host and do not move between hosts (#1021)."
+verify = "A post-E-02 run demonstrates that `demo` reaches the board on a visible canvas, a held movement key moves the player on the browser page, the parity route reproduces the current tick-120 closing baseline, a package with no start-up program boots from its initial character, and an authored non-demo package renders its own board in the desktop player. Saves are durable per host and do not move between hosts (#1021)."
 covers = ["CAP-12"]
 after = [3, "4.19", 11, 12]
 hitl = false
 risk = "high"
 plan_checkpoint = true
-references = ["spec - docs/spec/engine/main-loop-and-startup.md#e-03, docs/spec/engine/display-input-audio.md#e-113", "code - packages/runner-web/app/main.ts, packages/core/src/engine/engine.ts, packages/core/src/input/input.ts", "epic - epic-board-rendering entry 19 / #393 (the engine loop)", "epic - web-runner-packaging entry 3 / #928 (the player page), entry 11 / #938 (runner-desktop), entry 12 / #940 (runner-mobile)"]
+references = ["spec - docs/spec/engine/main-loop-and-startup.md#e-03, docs/spec/engine/display-input-audio.md#e-113", "code - packages/runner-web/app/main.ts, packages/core/src/engine/engine.ts, packages/core/src/input/input.ts", "epic - epic-board-rendering entry 19 / #393 (the engine loop)", "epic - web-runner-packaging entry 3 / #928 (the player page), entry 11 / #938 (runner-desktop), entry 12 / #940 (runner-mobile)", "slices - PR #1006 (436c78d6), PR #1028 (9954e783), commit aca8aea8"]
+notes = ["Partial slices landed in aca8aea8 (PR #1006 436c78d6 and PR #1028 9954e783): shared player page, mobile wrapper, descriptor identity, viewport fix and desktop input proof. The full acceptance criteria above remain open; issue #1018 is still open."]
 
 [[entry]]
 id = 17
@@ -269,6 +270,7 @@ references = ["issue - #1044", "spec - docs/spec/engine/runners.md", "decision -
 [[entry]]
 id = 19
 tracker_id = "#1049"
+tracker_status = "done"
 type = "bug"
 title = "Desktop renderer lacks CSP and uses deprecated console-message callback"
 description = "The desktop app pages lack a Content-Security-Policy and the renderer console listener uses deprecated positional arguments."
@@ -278,11 +280,13 @@ after = [11]
 hitl = false
 risk = "high"
 refine = true
-references = ["issue - #1049", "proposed fix - PR #1042", "code - packages/runner-desktop/src/main.ts"]
+references = ["issue - #1049", "proposed fix - PR #1042 (ee3db47e)", "merged fix - PR #1155 (adbc5e93)", "code - packages/runner-desktop/src/main.ts"]
+notes = ["Merged: PR #1155 (adbc5e93) gives every player page a strict Content-Security-Policy and makes the test enumerate all eight player pages. Issue #1049 is closed."]
 
 [[entry]]
 id = 20
 tracker_id = "#1050"
+tracker_status = "done"
 type = "bug"
 title = "Desktop player clips frames larger than its fixed window"
 description = "A logical game frame larger than the fixed desktop window is centred at 1x and clipped."
@@ -292,5 +296,170 @@ after = [11]
 hitl = true
 risk = "medium"
 refine = true
-unknown = "The owner must choose the compliant large-frame presentation behavior."
-references = ["issue - #1050", "spec - docs/spec/engine/runners.md"]
+references = ["issue - #1050", "merged fix - PR #1085 (81503cf8)", "spec - docs/spec/engine/runners.md"]
+notes = ["Merged: PR #1085 (81503cf8) fits desktop game frames to the viewport. Issue #1050 is closed."]
+
+[[entry]]
+id = 21
+tracker_id = "#1006"
+tracker_status = "done"
+type = "story"
+title = "Live player page slices: shared player page, mobile wrapper and descriptor identity"
+description = "Lands the first slices of the live interactive player page: a shared player page used by web, desktop and mobile, the mobile Capacitor wrapper and its host services, descriptor identity, viewport fix and desktop input proof."
+verify = "The shared player page boots in the mobile wrapper and desktop shell; descriptor identity and the viewport fix are under test; the desktop input probe proves one-tile tap and axis-clean hold."
+covers = ["CAP-12"]
+after = [3, 11, 12]
+hitl = false
+risk = "high"
+references = ["merged - PR #1006 (436c78d6)", "merged - PR #1028 (9954e783)", "commit - aca8aea8", "follow-up - #1018 (residual gaps still open)"]
+notes = ["Merged via aca8aea8 (PR #1006 436c78d6 and PR #1028 9954e783). Residual live-player gaps remain tracked by #1018."]
+
+[[entry]]
+id = 22
+tracker_id = "#1042"
+tracker_status = "done"
+type = "bug"
+title = "Player defects: audio dropouts, Electron CSP hygiene and menu cell layout"
+description = "Fixes live-player audio buffer underruns, adds strict Content-Security-Policy to desktop and browser pages and updates the Electron console-message listener, and corrects menu cell text layout so each newline occupies one cell row."
+verify = "The browser buffer-size assertion passes at the shipped value and fails when perturbed; removing the CSP meta tag fails the CSP test; the menu layout test fails when cell-row assignment is broken."
+covers = ["CAP-12"]
+after = [5, 11]
+hitl = false
+risk = "medium"
+references = ["issue - #1042", "merged fix - ee3db47e", "code - packages/runner-web/src/audio-sink.ts", "code - packages/runner-desktop/src/main.ts"]
+notes = ["Merged: commit ee3db47e. The larger AudioWorklet migration is tracked by #1044."]
+
+[[entry]]
+id = 23
+tracker_id = "#1036"
+tracker_status = "done"
+type = "chore"
+title = "CI change classifier: each job judges its own applicability"
+description = "Implements ADR 0016: a change classifier at the job level so CI never skips a required job; instead, each job classifies its own steps and reports success with a reason when expensive steps are deferred."
+verify = "The classifier runs in every required job; a docs-only change defers expensive steps while the job still succeeds; removing the classifier makes a docs-only change run expensive steps."
+covers = ["CAP-12", "CAP-13"]
+after = [1]
+hitl = false
+risk = "medium"
+references = ["issue - #1036", "merged - PR #1036 (350738c9)", "adr - docs/adr/0016-ci-classified-steps.md"]
+notes = ["Merged: PR #1036 (350738c9)."]
+
+[[entry]]
+id = 24
+tracker_id = "#1014"
+tracker_status = "done"
+type = "story"
+title = "Document how to run the desktop player and add the desktop CI lane"
+description = "Writes the runnable recipe for the desktop player (docs/playing-the-desktop-player.md and CONTRIBUTING.md) and adds the desktop CI job that exercises the player build and measurement harness."
+verify = "The desktop CI lane builds and measures the player; the docs page gives exact commands and honest output without claiming post-E-02 visible interactive play."
+covers = ["CAP-12"]
+after = [11]
+hitl = false
+risk = "low"
+references = ["issue - #1014", "merged - PR #1014 (c5d65a49)", "code - tools/desktop/measure.mjs", "code - .github/workflows/ci.yml"]
+notes = ["Merged: PR #1014 (c5d65a49)."]
+
+[[entry]]
+id = 25
+tracker_id = "#1030"
+tracker_status = "done"
+type = "chore"
+title = "Move desktop macOS CI runner to macos-15"
+description = "Updates the desktop CI job to run on the macos-15 GitHub-hosted runner."
+verify = "The desktop macOS job passes on macos-15 and the runner label is updated in the workflow."
+covers = ["CAP-12"]
+after = [24]
+hitl = false
+risk = "low"
+references = ["issue - #1030", "merged - PR #1030 (a0e65fc6)", "code - .github/workflows/ci.yml"]
+notes = ["Merged: PR #1030 (a0e65fc6)."]
+
+[[entry]]
+id = 26
+tracker_id = "#1066"
+tracker_status = "done"
+type = "bug"
+title = "Runner protocol drift check across schema, vectors and TypeScript"
+description = "Establishes a drift guard that fails when the runner protocol schema, committed vectors and TypeScript types disagree, and wires the check into CI."
+verify = "`pnpm runner-protocol:check` fails when the schema, vectors or types change alone; it passes on the committed set."
+covers = ["CAP-12"]
+after = [2]
+hitl = false
+risk = "medium"
+references = ["issue - #1066", "merged - PR #1066 (28732627)", "merged follow-up - PR #1116 (624e7d01)", "code - tools/fixtures/runner-protocol/"]
+notes = ["Merged: PR #1066 (28732627) and follow-up PR #1116 (624e7d01). Issue #1066 is closed."]
+
+[[entry]]
+id = 27
+tracker_id = "#1065"
+tracker_status = "done"
+type = "bug"
+title = "F6 shared-asset evidence can pass without a hint-driven load"
+description = "The streaming-load F6 test could pass even when shared assets were loaded without a prefetch hint; tighten the evidence to require hint-initiated reads."
+verify = "The browser shared-asset test fails if a shared read is recorded before the hint that initiated it; the test passes with the fixed runner-web accounting."
+covers = ["CAP-12"]
+after = [9]
+hitl = false
+risk = "medium"
+references = ["issue - #1065", "merged - PR #1095 (55561f19)", "code - packages/runner-web/src/asset-cache.ts"]
+notes = ["Merged: PR #1095 (55561f19). Issue #1065 is closed."]
+
+[[entry]]
+id = 28
+tracker_id = "#1076"
+tracker_status = "done"
+type = "bug"
+title = "Desktop measurement times out without report or Electron log on macOS"
+description = "The desktop measurement harness could hang or exit without producing a report or capturing the Electron process log on macOS."
+verify = "A failed or slow desktop measurement run still produces a report and captures the child-exit diagnostics and Electron log; tests cover the child-exit paths."
+covers = ["CAP-12"]
+after = [24]
+hitl = false
+risk = "medium"
+references = ["issue - #1076", "merged fix - PR #1149 (efe6f7ee)", "code - tools/desktop/measure.mjs"]
+notes = ["Merged: PR #1149 (efe6f7ee). Issue #1076 is closed."]
+
+[[entry]]
+id = 29
+tracker_id = "#1142"
+tracker_status = "done"
+type = "bug"
+title = "Undecodable prefetch background is requested repeatedly"
+description = "An undecodable battle-background prefetch reply is re-requested every tick because the failure is not remembered."
+verify = "A fixture with an invalid prefetch background reply records it as unavailable and does not re-request it; removing the failure-remembrance makes the test fail."
+covers = ["CAP-12"]
+after = [8]
+hitl = false
+risk = "medium"
+references = ["issue - #1142", "merged fix - PR #1144 (4eb1c9f8)", "spec - docs/spec/engine/runners.md#prefetch"]
+notes = ["Merged: PR #1144 (4eb1c9f8) also fixes #1081. Issue #1142 is closed."]
+
+[[entry]]
+id = 30
+tracker_id = "#1081"
+tracker_status = "done"
+type = "bug"
+title = "Prefetch-only battle background request may block engine progress"
+description = "A prefetch-only background request can leave the engine in a loading state, blocking reported loading, recovery capture and game saves."
+verify = "The withholding-host regression test passes: loading does not stay true when only a prefetch background is outstanding; late replies still publish updated hints."
+covers = ["CAP-12"]
+after = [8]
+hitl = false
+risk = "medium"
+references = ["issue - #1081", "merged fix - PR #1144 (4eb1c9f8)", "spec - docs/spec/engine/runners.md#prefetch"]
+notes = ["Merged: PR #1144 (4eb1c9f8) also fixes #1142. Issue #1081 is closed."]
+
+[[entry]]
+id = 31
+tracker_id = "#1154"
+tracker_status = "done"
+type = "chore"
+title = "Correct retired demo closing hashes quoted as current"
+description = "Updates docs/playing-the-desktop-player.md and CHANGELOG.md to stop quoting the pre-#1048 demo closing hashes as the current baseline, pointing to golden/regression/closing.json as the source of truth."
+verify = "The docs page points desktop:measure at the committed closing baseline and marks the old macOS report as a historical artefact; no golden is changed."
+covers = ["CAP-12"]
+after = [15, 41]
+hitl = false
+risk = "low"
+references = ["issue - #1154", "merged - PR #1154 (503ea161)", "doc - docs/playing-the-desktop-player.md"]
+notes = ["Merged: PR #1154 (503ea161). Issue #1154 is closed."]

@@ -235,3 +235,18 @@ hitl = false
 risk = "medium"
 references = ["spec - docs/spec/engine/movement-and-collision.md#triggers", "code - packages/core/src/triggers/runtime.ts"]
 notes = ["Delivered by PR #888 (64e6620c, Fixes #886), merged 2026-10-31. runTriggersPhase now requires candidate.layer === player.layer in its qualifying filter, so a region no longer fires across layers; triggers.test.ts gained the three missing Done-when 3 cases (key-press vs step-on, layer matching, then-set) and the audit row is corrected quoting the superseded wording. golden and closing unchanged."]
+
+[[entry]]
+id = 14
+tracker_id = "#1105"
+tracker_status = "done"
+type = "bug"
+title = "Held direction keys only move one tile instead of walking continuously"
+description = "Holding a direction key moves the player a single tile and then stops; the input section should queue another step each time the player becomes idle while the key remains held."
+verify = "A held direction key walks continuously; releasing the key stops at the next idle tick; focus loss releases held keys; the held-key tests discriminate one-tile tap from continuous walk."
+covers = ["CAP-3", "CAP-8"]
+after = [6]
+hitl = false
+risk = "medium"
+references = ["issue - #1105", "merged fix - PR #1106 (30bcc376)", "spec - docs/spec/engine/display-input-audio.md#e-110 to E-113", "code - packages/core/src/input/input.ts"]
+notes = ["Merged: PR #1106 (30bcc376). Issue #1105 is closed."]
