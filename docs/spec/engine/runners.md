@@ -8,10 +8,7 @@ It exists because the owner ruled on 2026-10-31 that **the runners in any langua
 normative prose, the boundary is plain data, and a conformance kit decides who complies. The TypeScript packages are
 one binding of this page, never the contract itself.
 
-**Status.** This page is normative from its landing date. No runner package exists in `packages/` yet: epic
-`web-runner-packaging` builds them, and the table at [Implementation status](#implementation-status) names which entry
-delivers each section. Nothing here describes a feature that no entry will build; where a section names a file, that
-file is that entry's destination.
+**Status.** This page is normative from its landing date. The runner packages exist in `packages/` today: `runner-harness` (the conformance harness and its schema) and `runner-headless` (the headless golden lane) landed first, and epic `web-runner-packaging` has since built `runner-web`, `runner-desktop` and `runner-mobile`; the table at [Implementation status](#implementation-status) names which entry delivers each section. Nothing here describes a feature that no entry will build; where a section names a file, that file is that entry's destination.
 
 **What this page does not restate.** The engine API is AD-1; the draw
 command union is AD-3; the event union is AD-14; the request union is AD-17; audio cues are AD-16 and
