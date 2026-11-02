@@ -30,7 +30,7 @@ import { readLegacyFont } from "../formats/font/reader.ts";
 import { gateTrueType } from "../formats/font/truetype.ts";
 import type { AssetKind } from "../formats/main-file/layout.ts";
 import type { AssetIndex, AssetRoot } from "../formats/resolver/model.ts";
-import type { DrawList, Rgb, Tint } from "../ports/draw.ts";
+import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
 import type { InputConfig } from "../input/input.ts";
@@ -117,7 +117,7 @@ import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.t
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
-import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
+import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
 
@@ -666,7 +666,9 @@ export function createEngine(init: EngineInit): Engine {
   state.surfaces = createSurfacesSection(init.width, init.height);
   state.camera = createCameraSection(init.width, init.height);
   const surfaceCache: SurfacePixelCache = new Map();
-  let frameHash = hashDrawList({ tick: 0, width: init.width, height: init.height, commands: [] });
+  let frameHash: string | null = null;
+  /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
+  let frameFailure: { readonly hash: string; readonly message: string } | null = null;
   // Presentation inputs are plain draw-list data; decoded textures remain runner-owned (AD-29).
   const presentation = {
     ...(init.assets === undefined ? {} : { assets: init.assets }),
@@ -970,6 +972,7 @@ export function createEngine(init: EngineInit): Engine {
       () => expireProgramTileEdits(state),
       () => { recoveryCaptureRequested = true; },
       capturePreBattleRecoveryCandidate,
+      () => refreshFrame(true),
     );
     media.activateDeclared();
     if (runStartups) {
@@ -999,6 +1002,8 @@ export function createEngine(init: EngineInit): Engine {
     const previousStartupServicesReady = startupServicesReady;
     const previousFailed = failed;
     const previousNextRequestId = nextRequestId;
+    const previousFrameHash = frameHash;
+    const previousFrameFailure = frameFailure;
     const restoredLayers = createPluginLayers();
     try {
       Object.assign(state, createGameState({ seed: init.seed }));
@@ -1011,6 +1016,9 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
+      // A save may carry a bare section; the restored continuation must still render, so the engine completes
+      // the surface section it owns, exactly as it does at creation (never inventing game data).
+      if (Object.keys(state.surfaces).length === 0) state.surfaces = createSurfacesSection(init.width, init.height);
       // A loaded continuation replaces the object table, so no startup lifetime identity survives.
       clearStartupAnchors();
       if (typeof candidate.engine.nextRequestId === "number" && Number.isSafeInteger(candidate.engine.nextRequestId) && candidate.engine.nextRequestId >= 1) {
@@ -1026,12 +1034,17 @@ export function createEngine(init: EngineInit): Engine {
       audio.load(projection);
       clearPathfindingCache();
       surfaceCache.clear();
+      frameHash = null;
+      frameFailure = null;
+      refreshFrame(true);
     } catch (error) {
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
       startupServicesReady = previousStartupServicesReady;
       failed = previousFailed;
+      frameHash = previousFrameHash;
+      frameFailure = previousFrameFailure;
       nextRequestId = previousNextRequestId;
       throw error;
     }
@@ -1322,6 +1335,9 @@ export function createEngine(init: EngineInit): Engine {
       imageDiagnostic(args[0], `${effect.name}: image dimensions are invalid`);
       return;
     }
+    // An image that names no canvas lands on the script-screen layer, exactly like the drawing commands
+    // (docs/spec/engine/runners.md#surface-read-and-state-hash); destination 0 is the derived presented frame.
+    if (destination === (0 as SurfaceId)) destination = ensureScriptScreen(state.surfaces);
     if (!blitTexture(state.surfaces, texture, destination, x, y, width, height, keyColour, alpha, additive)) {
       imageDiagnostic(args[0], `${effect.name}: destination surface is not live`);
     }
@@ -3019,10 +3035,13 @@ export function createEngine(init: EngineInit): Engine {
     const cursorSelection = waitingCursor?.wait?.kind === "input.key" ? waitingCursor.wait.cursorSelection : undefined;
     const fx = drawableFx();
     const withFx = applyFxDrawList(base, fx);
+    // E-57: the persistent script-screen layer sits above the board and below the render-now overlay.
+    const scriptLayer = surfaceBlit(state.surfaces, scriptScreen(state.surfaces));
     // E-57: the enabled render-now canvas sits above the board, sprites and animations and below UI text and the message window.
     const overlay = renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
-    const withOverlay = { ...withFx, commands: [...withFx.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
+    const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
+    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const programSurfaceActive = blockingAlive();
     const uiForCompose = programSurfaceActive
@@ -3031,19 +3050,53 @@ export function createEngine(init: EngineInit): Engine {
     const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection)] };
     return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection)] };
   }
-  function refreshFrame(): void {
+  /** A blit of one whole persistent surface, sized from its stored bitmap (E-57's script-screen layer). */
+  function surfaceBlit(surfaces: GameState["surfaces"], id: SurfaceId | null): DrawCommand | null {
+    if (id === null) return null;
+    const current = surfaces.entries[String(id)];
+    // A layer nothing has ever drawn on has revision 0; skipping it keeps a game that never draws to the screen
+    // identical to one that does not know the layer exists.
+    if (current === undefined || current.rev === 0) return null;
+    return {
+      kind: "blit",
+      source: { surface: current.id, rev: current.rev },
+      src: { x: 0, y: 0, w: current.bitmap.w, h: current.bitmap.h },
+      dst: { x: 0, y: 0, w: current.bitmap.w, h: current.bitmap.h },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: 255,
+      blend: "normal",
+      iso2d: false,
+    };
+  }
+  /**
+   * Rebuild the presented screen (surface 0) from the current state. `report` is true only for the deterministic
+   * operations a script or a restore asks for; the presentation refresh at the end of `advance` renders the same frame
+   * silently, so a simulation that never reads the screen never reports a presentation failure, and a script that
+   * reads a frame that cannot be replayed is told (docs/spec/engine/runners.md#surface-read-and-state-hash).
+   */
+  function refreshFrame(report: boolean): void {
     const list = currentDrawList(0);
-    const nextHash = hashDrawList(list);
-    if (nextHash === frameHash) return;
+    // The rasteriser reads the list's size and commands, never its tick, so a static scene is rebuilt once, not every
+    // tick. A rebuild is also forced when an asset has arrived, because a command that named it may now replay.
+    const nextHash = `${hashDrawList({ ...list, tick: 0 })}:${cache.size}:${installedFonts.size}`;
+    if (nextHash === frameHash) {
+      if (report && frameFailure !== null && frameFailure.hash === nextHash) reportRenderFailure(frameFailure.message);
+      return;
+    }
     const assets = new Map(rasterAssets());
     // A font the game does not ship (a legacy family name such as "Comic Sans MS") draws in the default bitmap font.
     const fallbackFont = assets.get(defaultFontAsset);
     if (fallbackFont !== undefined) for (const command of list.commands) if (command.kind === "text" && !assets.has(command.font.asset)) assets.set(command.font.asset, fallbackFont);
     const rendered = rasterize(list, assets, surfaceTextures(state.surfaces, surfaceCache));
-    // A frame that could not be replayed is reported, never left as a silently blank or partial image.
-    if (rendered.error !== null) diagnostics.push({ code: "render.failed", file: state.world.board?.key ?? "", line: 0, message: rendered.error });
+    // A frame that could not be replayed is never left as a silently blank or partial image.
+    frameFailure = rendered.error === null ? null : { hash: nextHash, message: rendered.error };
+    if (report && frameFailure !== null) reportRenderFailure(frameFailure.message);
     replaceSurface(state.surfaces, 0 as SurfaceId, rendered.width, rendered.height, rendered.rgba);
     frameHash = nextHash;
+  }
+  function reportRenderFailure(message: string): void {
+    diagnostics.push({ code: "render.failed", file: state.world.board?.key ?? "", line: 0, message });
   }
   function threadLocation(thread: Thread): SourceLocation | null {
     const frame = thread.frames[thread.frames.length - 1];
@@ -3148,6 +3201,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       syncEngineState();
       finalizeBlobRequests();
+      refreshFrame(false);
       const reportDiagnostics = [...diagnostics.splice(0), ...drainDiagnostics(services)];
       return {
         ticksRun,
@@ -3185,7 +3239,6 @@ export function createEngine(init: EngineInit): Engine {
       return currentDrawList(alpha, include);
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
-      if (id === (0 as SurfaceId)) refreshFrame();
       return readSurfacePixels(state.surfaces, id, rev, surfaceCache);
     },
     setBreakpoints(next: readonly Breakpoint[]) { breakpoints = next; },

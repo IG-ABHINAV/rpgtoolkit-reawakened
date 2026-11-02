@@ -75,18 +75,38 @@ which a restore would drop and strand.
 **State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash, so a bookkeeping difference such as an additional settled boot-time asset request does not move golden baselines.
 
 <a id="state-hash-surface-projection"></a>
-**Surface hash projection — Approved ruling (owner: Jensen, 2026-11-02).** A presented screen is a
-rebuildable picture, not game progress: its derived presentation cache is excluded from `hashGameState`
-and is rebuilt deterministically on restore before any script read. Script variables and globals,
-script-owned canvases (`cnvX`), and game-loop globals needed to store coordinates are application store
-and remain hashed. A `cnvX` draw that changes the store changes the hash; drawing to, reading or
-refreshing the presented screen does not. Host `surfacePixels` polls are also hash-neutral.
+**Surface hash projection — Approved ruling (owner: Jensen, 2026-11-02).**
+Approved option C ruling (owner: Jensen, 2026-11-01), verbatim:
+> the presented screen surface is a derived cache excluded from the hash, rebuilt deterministically on restore before any script read; script-owned canvases (`cnvX`) remain hashed.
 
-Host `surfacePixels(id, rev)` reads must not change game state, revisions, hashes, saves or future
-diagnostics. Script-visible screen refresh is a separate deterministic core operation; the complete
-contract and conformance cases are in [runners.md#surface-read-and-state-hash](../engine/runners.md#surface-read-and-state-hash).
-This is the intended contract for #1048, not a claim that its implementation has landed.
+Follow-up approved ruling (owner: Jensen, 2026-11-02), verbatim:
+> RPGCode script-owned canvases (cnvX) are application store, treated like global variables — they STAY in the state hash, and drawing to them legitimately changes it. Only the presented screen surface (the derived presentation cache) is excluded. Hash-significant: script variables/globals, cnvX canvases, game-loop globals needed to store coordinates. Hash-neutral: drawing to / reading / refreshing the presented screen surface and any host surfacePixels poll.
 
+A presented screen is a rebuildable picture, not game progress: its derived presentation cache is excluded
+from `hashGameState` and is rebuilt deterministically on restore before any script read.
+
+**What leaves the hash:**
+- The presented frame (`surfaces.entries["0"]`), which is a derived presentation cache.
+- The persistent script-screen layer (`surfaces.entries["-1"]`), which holds script drawing when no canvas is specified and is composited into surface 0.
+
+**What stays in the hash:**
+- Script variables and globals.
+- Script-owned canvases (`cnvX`, all positive surface entries `surfaces.entries["1"]`, `["2"]`, ...).
+- Game-loop globals needed to store coordinates.
+- Surface slots, colour table, id counter (`nextId`), and render-now overlay fields.
+
+A `cnvX` draw that changes application store changes the hash; drawing to, reading or refreshing the presented screen does not. Host `surfacePixels` polls are also hash-neutral.
+
+**Restore recomputes the surface:** Both surface 0 and the script-screen layer are preserved in saved game data, so a restore preserves what the script drew. On restore, before any script can read it (and before any restored script thread executes a step), the engine deterministically recomputes the presented screen surface from the saved draw state (board, camera, layers, and render-now overlay).
+
+**Host-accessor purity (answering the open question on #1048):**
+Host `surfacePixels(id, rev)` is observationally read-only: presentation cadence must not change simulation state, `GameState`, surface revisions, state hashes, save data, or future diagnostics, regardless of host polling or cache-flush cadence.
+This purity is enforced by type and API design rather than convention:
+1. **Type signature:** `surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null` is typed as a pure query. It accepts no mutation closures, takes no write buffers or commands, and returns a read-only data record `{ w, h, rgba }` or `null`.
+2. **API separation:** Rebuilding the presented screen is strictly a core-owned deterministic operation, triggered only at the end of `advance`, immediately before a script screen read, and during a restore. The host `surfacePixels` API has no way to trigger or alter that composition by polling: it resolves the stored entry, returns it only for its exact `rev`, and returns `null` on a stale or unknown revision.
+3. **Buffer ownership:** The returned RGBA byte array is an owned detached copy (`new Uint8Array(entry.bitmap.data)`), so mutation of the returned buffer by the runner or host cannot mutate the engine's internal surface bitmaps.
+
+Script-visible screen refresh is a separate deterministic core operation; the complete contract and conformance cases are in [runners.md#surface-read-and-state-hash](../engine/runners.md#surface-read-and-state-hash).
 <a id="continuation-equivalence"></a>
 **Approved ruling (owner: Jensen, 2026-11-02).** A separate continuation-equivalence comparison checks a settled save against uninterrupted execution without changing the replay state hash. For the no-active-audio case, both checkpoints must have no active voices and agree on the whole replay-hash projection, including pending request IDs and game variables, except the next audio cue ID. The loaded side must have exactly one greater cue ID, accounted for by its single load-time `soundfont.set` cue; the saved counter must match the uninterrupted counter and the load's prior live counter must not exceed it. The comparison is valid only when no other audio cues occur between the save and the compared checkpoints. Verify the actual cue and its ID, not merely the numeric difference.
 

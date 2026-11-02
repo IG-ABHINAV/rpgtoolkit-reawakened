@@ -143,9 +143,15 @@ export function shake(amplitude: number, ticks: number): CameraShakeState {
  */
 export function positionAt(camera: CameraSection, alpha: number): CameraPoint {
   const clampedAlpha = Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 0;
-  let x = Math.round(camera.prevX + (camera.x - camera.prevX) * clampedAlpha);
-  let y = Math.round(camera.prevY + (camera.y - camera.prevY) * clampedAlpha);
-  if (camera.shake !== null) {
+  // A save may carry a bare camera section; an accepted save must still present, so a missing field reads as the
+  // default the section is created with (docs/spec/engine/runners.md#surface-read-and-state-hash).
+  const from = camera.prevX ?? camera.x ?? 0;
+  const fromY = camera.prevY ?? camera.y ?? 0;
+  const to = camera.x ?? 0;
+  const toY = camera.y ?? 0;
+  let x = Math.round(from + (to - from) * clampedAlpha);
+  let y = Math.round(fromY + (toY - fromY) * clampedAlpha);
+  if (camera.shake !== null && camera.shake !== undefined) {
     const offset = shakeOffset(camera.shake.amplitude, camera.shake.elapsedTicks);
     x += offset.x;
     y += offset.y;

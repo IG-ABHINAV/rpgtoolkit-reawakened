@@ -128,6 +128,32 @@ function numberEntries(value: unknown): readonly (readonly [string, number])[] |
   }
   return result;
 }
+/**
+ * The entries that are the screen rather than application store: the derived presented frame (0) and the persistent
+ * script-screen layer (-1) it is composited from. Both are hash-neutral; script canvases and every other surface are
+ * not (docs/spec/engine/runners.md#surface-read-and-state-hash).
+ */
+const SCREEN_ENTRY_KEYS: ReadonlySet<string> = new Set(["0", "-1"]);
+
+/**
+ * Canonicalize unusual surface shapes after omitting the derived screen entry.
+ * Ordinary surface state takes the cached fast path below.
+ */
+function projectedSurfaceField(value: unknown): string | undefined {
+  const fields = dataFields(value);
+  if (fields === null) return undefined;
+  const entriesValue = fields["entries"];
+  if (entriesValue === null || typeof entriesValue !== "object" || Array.isArray(entriesValue)) return undefined;
+  const entries: Record<string, unknown> = Object.create(null);
+  for (const key of Object.keys(entriesValue)) {
+    if (SCREEN_ENTRY_KEYS.has(key)) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(entriesValue, key);
+    if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) return undefined;
+    entries[key] = descriptor.value;
+  }
+  fields["entries"] = entries;
+  return '"surfaces":' + canon(fields as PlainData);
+}
 
 /**
  * Reuse the canonical surface field only for its ordinary all-plain shape.
@@ -155,6 +181,7 @@ function cachedSurfaceField(value: unknown): string | undefined {
   const bitmaps: string[] = [];
   const fragments: Array<{ key: string; entry: Record<string, unknown>; bitmap: Record<string, unknown>; bitmapObject: object }> = [];
   for (const key of Object.keys(entries).sort()) {
+    if (SCREEN_ENTRY_KEYS.has(key)) continue;
     const entry = dataFields(entries[key]);
     if (entry === null || Object.keys(entry).sort().join(",") !== "bitmap,id,rev" || !finite(entry["id"]) || !finite(entry["rev"])) return undefined;
     const bitmap = dataFields(entry["bitmap"]);
@@ -208,7 +235,8 @@ function cachedSurfaceField(value: unknown): string | undefined {
  * Canonical surface fragments are reused after checking their metadata and
  * immutable b64 values, including writes that do not increment rev. An exact
  * prefix cache skips FNV work when both the prefix and surfaces are unchanged.
- * Other shapes fall back to the ordinary canonicalizer.
+ * A derived screen entry is excluded from the projection; unusual surface
+ * shapes use the canonical projection helper after omitting that entry.
  */
 export function hashGameState(state: GameState): string {
   const { stepCounters: _stepCounters, ...vm } = state.vm;
@@ -217,7 +245,7 @@ export function hashGameState(state: GameState): string {
   const tagged = tagNonFinite(projected) as PlainData;
   let ascii: boolean | undefined;
   const parts = canonSplitRoot(tagged, "surfaces", (value) => {
-    const field = cachedSurfaceField(value);
+    const field = cachedSurfaceField(value) ?? projectedSurfaceField(value);
     if (field !== undefined && value !== null && typeof value === "object") ascii = canonicalSurfaces.get(value)?.ascii;
     return field;
   });

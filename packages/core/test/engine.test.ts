@@ -3,6 +3,7 @@ import { TextEncoder } from "node:util";
 import { test } from "node:test";
 import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
 import { resolveManifestPlugins } from "../src/engine/boot.ts";
+import { ensureScriptScreen, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
 
 function boardBytes(board: Board): Uint8Array {
   const encoded = writeBoard(board);
@@ -538,7 +539,9 @@ function screenSnapshotWrites() {
     {
       phase: "input",
       run: (state) => {
-        tracked = state.surfaces.entries["0"]!;
+        // A script that draws to the screen draws on the script-screen layer; that is the surface whose batching
+        // these tests count (surface 0 is the derived frame).
+        tracked = state.surfaces.entries[String(ensureScriptScreen(state.surfaces))]!;
         held = tracked.bitmap;
         track();
       },
@@ -622,7 +625,11 @@ test("a heavy tick of script drawing materialises one snapshot, matches the eage
   if (state === undefined || eagerState === undefined) throw new Error("expected the events phase to capture state");
   assertStateSnapshotsCanonical(state);
   assertStateSnapshotsCanonical(eagerState);
-  equal(JSON.stringify(state.surfaces), JSON.stringify(eagerState.surfaces));
+  // The presented screen entry is a derived cache: its revision follows how often the frame was rebuilt, so it is
+  // compared separately. Every other surface must match byte for byte.
+  equal(JSON.stringify(state.surfaces.entries["0"]?.bitmap), JSON.stringify(eagerState.surfaces.entries["0"]?.bitmap));
+  const others = (surfaces: GameState["surfaces"]) => JSON.stringify({ ...surfaces, entries: Object.fromEntries(Object.entries(surfaces.entries).filter(([id]) => id !== "0")) });
+  equal(others(state.surfaces), others(eagerState.surfaces));
   equal(state.surfaces.entries["1"]?.rev, eagerState.surfaces.entries["1"]?.rev);
   deepEqual(withBatching.engine.surfacePixels(1 as SurfaceId, state.surfaces.entries["1"]!.rev)?.rgba, withoutBatching.engine.surfacePixels(1 as SurfaceId, eagerState.surfaces.entries["1"]!.rev)?.rgba);
 });
@@ -809,7 +816,22 @@ function authoredBoard(backgroundImage = ""): Uint8Array {
   return encoded.value;
 }
 
+/** The live state, captured in a phase the engine runs every tick. */
+function captureState(): { readonly registration: EnginePhaseRegistration; state(): GameState | undefined } {
+  let latest: GameState | undefined;
+  return { registration: { phase: "events", run: (state) => { latest = state; } }, state: () => latest };
+}
+
+/** The program's own canvas: surface 0 is the presented frame and the section also holds a script-screen layer. */
+function programCanvas(state: GameState | undefined) {
+  if (state === undefined) throw new Error("expected engine state");
+  const canvas = Object.values(state.surfaces.entries).find((entry) => entry.id !== (0 as never) && entry.id !== SCRIPT_SCREEN);
+  if (canvas === undefined) throw new Error("expected the program's canvas");
+  return canvas;
+}
+
 function pixelsAfter(command: string, boardBytes = authoredBoard()): Uint8Array {
+  const capture = captureState();
   const engine = createEngine({
     seed: 19,
     assetIndex: createAssetIndex(["Boards/test.brd", "Bitmap/pixel.bmp"]),
@@ -819,6 +841,7 @@ function pixelsAfter(command: string, boardBytes = authoredBoard()): Uint8Array 
     height: 2,
     maxTicks: 20,
     program: `createcanvas(4, 2, c)\n${command}\nend()\n`,
+    phaseRegistrations: [capture.registration],
   });
   let result = engine.advance(0, []);
   for (let step = 0; step < 8; step += 1) {
@@ -828,8 +851,9 @@ function pixelsAfter(command: string, boardBytes = authoredBoard()): Uint8Array 
     result = engine.advance(1, events);
     if (result.requests.length === 0 && !result.loading) break;
   }
-  const surface = engine.surfacePixels(1 as never, 1) ?? engine.surfacePixels(1 as never, 2) ?? engine.surfacePixels(1 as never, 0);
-  if (surface === null) throw new Error("expected rendered screen pixels");
+  const canvas = programCanvas(capture.state());
+  const surface = engine.surfacePixels(canvas.id, canvas.rev);
+  if (surface === null) throw new Error("expected rendered canvas pixels");
   return surface.rgba;
 }
 
@@ -910,8 +934,9 @@ function tileBitmapFiles(cellTile: string): Map<string, Uint8Array> {
 }
 
 /** Run `bitmap("tiles.tbm", c)` into a 64 × 64 canvas, answering every request from `files`, and report the run. */
-function tileBitmapRun(cellTile: string): { readonly engine: Engine; readonly diagnostics: { readonly code: string; readonly file: string; readonly message: string }[] } {
+function tileBitmapRun(cellTile: string): { readonly engine: Engine; readonly state: GameState | undefined; readonly diagnostics: { readonly code: string; readonly file: string; readonly message: string }[] } {
   const files = tileBitmapFiles(cellTile);
+  const capture = captureState();
   const engine = createEngine({
     seed: 19,
     assetIndex: createAssetIndex(["Boards/test.brd", "Bitmap/tiles.tbm", "Tiles/tiles.tst"]),
@@ -921,6 +946,7 @@ function tileBitmapRun(cellTile: string): { readonly engine: Engine; readonly di
     height: 64,
     maxTicks: 20,
     program: 'createcanvas(64, 64, c)\nbitmap("tiles.tbm", c)\nend()\n',
+    phaseRegistrations: [capture.registration],
   });
   const diagnostics: { code: string; file: string; message: string }[] = [];
   let result = engine.advance(0, []);
@@ -932,13 +958,14 @@ function tileBitmapRun(cellTile: string): { readonly engine: Engine; readonly di
     result = engine.advance(1, events);
     diagnostics.push(...result.diagnostics);
   }
-  return { engine, diagnostics };
+  return { engine, state: capture.state(), diagnostics };
 }
 
 test("bitmap draws a tile bitmap's cells, tinted, through the image path", () => {
-  const { engine, diagnostics } = tileBitmapRun("tiles.tst1");
+  const { engine, state, diagnostics } = tileBitmapRun("tiles.tst1");
   deepEqual(diagnostics, [], "the tile bitmap decodes without a diagnostic");
-  const surface = engine.surfacePixels(1 as never, 1) ?? engine.surfacePixels(1 as never, 0);
+  const canvas = programCanvas(state);
+  const surface = engine.surfacePixels(canvas.id, canvas.rev);
   if (surface === null) throw new Error("expected the composed tile bitmap");
   equal(surface.w, 64);
   equal(surface.h, 64);

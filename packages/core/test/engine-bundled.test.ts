@@ -36,16 +36,18 @@ function runProgram(program: string, bundled?: ReadonlyMap<AssetKey, Uint8Array>
   });
   const diagnostics: Diagnostic[] = [];
   let report = engine.advance(0, []);
+  diagnostics.push(...report.diagnostics);
   for (let step = 0; step < 4 && report.loading; step += 1) {
     const replies = report.requests.flatMap((request) => (request.kind === "asset" ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: boardBytes() } }] : []));
     report = engine.advance(0, replies);
+    diagnostics.push(...report.diagnostics);
   }
   report = engine.advance(3, []);
   diagnostics.push(...report.diagnostics);
   return { engine, diagnostics };
 }
 
-/** The screen surface's pixels; its revision depends on how often the frame was refreshed, so scan for the current one. */
+/** The screen surface's pixels; its revision depends on how the ticks were batched, so scan for the current one. */
 function screen(engine: Engine): Uint8Array {
   for (let rev = 0; rev < 64; rev += 1) {
     const surface = engine.surfacePixels(0 as never, rev);
@@ -61,16 +63,21 @@ function paintedPixels(rgba: Uint8Array): number {
 }
 
 test("a frame that cannot be replayed is reported as render.failed instead of staying silently blank", () => {
-  const { engine, diagnostics } = runProgram('text(1, 1, "hi")\nwait()\nend()\n');
-  equal(diagnostics.length, 0);
-  screen(engine);
-  const flushed = engine.advance(0, []);
-  const failure = flushed.diagnostics.find((diagnostic) => diagnostic.code === "render.failed");
+  // The script reads the screen, which is the deterministic core refresh; a host poll would never report it.
+  const { engine, diagnostics } = runProgram('text(1, 1, "hi")\ngetpixel(0, 0, pr, pg, pb)\nend()\n');
+  const failure = diagnostics.find((diagnostic) => diagnostic.code === "render.failed");
   equal(failure?.message, "missing bitmap font asset");
+  equal(engine.advance(0, []).diagnostics.length, 0, "the failure is reported once, not on every advance");
+});
+
+test("a presentation refresh alone reports no render failure", () => {
+  // Nothing reads the screen, so the simulation is silent about a frame it only ever presented.
+  const { diagnostics } = runProgram('text(1, 1, "hi")\nend()\n');
+  equal(diagnostics.filter((diagnostic) => diagnostic.code === "render.failed").length, 0);
 });
 
 test("the bundled default bitmap font the host ships draws script text on the screen surface", () => {
-  const { engine } = runProgram('text(1, 1, "hi")\nwait()\nend()\n', bundledFiles);
+  const { engine } = runProgram('text(1, 1, "hi")\nend()\n', bundledFiles);
   equal(paintedPixels(screen(engine)) > 0, true);
   equal(engine.advance(0, []).diagnostics.length, 0);
 });
@@ -120,9 +127,8 @@ test("a family name resolves to the Liberation face the project ships, not an as
 
 test("a bundled file that does not decode is reported once with its key", () => {
   const broken = new Map<AssetKey, Uint8Array>([[bundledFont, new Uint8Array([1, 2, 3])]]);
-  const { engine } = runProgram('text(1, 1, "hi")\nwait()\nend()\n', broken);
-  screen(engine);
-  const reported = engine.advance(0, []).diagnostics.filter((diagnostic) => diagnostic.code === "asset.invalid" && diagnostic.file === bundledFont);
+  const { engine, diagnostics } = runProgram('text(1, 1, "hi")\ngetpixel(0, 0, pr, pg, pb)\nend()\n', broken);
+  const reported = diagnostics.filter((diagnostic) => diagnostic.code === "asset.invalid" && diagnostic.file === bundledFont);
   equal(reported.length, 1);
   screen(engine);
   equal(engine.advance(0, []).diagnostics.filter((diagnostic) => diagnostic.code === "asset.invalid").length, 0);

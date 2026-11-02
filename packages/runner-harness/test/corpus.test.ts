@@ -355,15 +355,18 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // to version 6. Hashing each final state with the old schema fields put back gives every previous value.
   // Re-pinned by ticket 23.10 (#848): `font("Arial")` now resolves to the Liberation face the host bundles instead of
   // a key nothing ships, and the saved `ui.font.asset` is part of the hashed state. Only `sample-start-basic` moved.
+  // Re-pinned by issue #1048: the presented screen (surface 0) and the script-screen layer no longer contribute to the
+  // state hash. Only `sample-start-demo` and `sample-start-basic` moved, because only their start programs draw to the
+  // screen (`clear()`); the other programs never put a screen entry into the saved state.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "ab73298e19acf1a9",
+    "sample-start-demo": "e0577da117f849f5",
     "sample-system-demo": "1412e38336613efb",
     "sample-sys-test-demo": "1412e38336613efb",
     "sample-win-demo": "cf14d086b215e8e1",
     "sample-oldman-demo": "3644a41f9d281d58",
     "sample-man-demo": "c15afea486c1a662",
     "sample-man-wander-demo": "0edb3abab3859871",
-    "sample-start-basic": "b267ee387e896941",
+    "sample-start-basic": "396a686051634955",
     "sample-system-basic": "1412e38336613efb",
     "sample-wander-basic": "2694ff0a5f3079c7",
   };

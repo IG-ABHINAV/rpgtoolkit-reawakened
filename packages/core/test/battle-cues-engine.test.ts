@@ -690,13 +690,15 @@ test("same-tick setimage before Save waits for the asset reply so the saved stat
       });
     }
     const state = loaded.latest();
-    if (state && state.surfaces.entries["1"]) break;
+    if (state && state.vm.globals.c !== undefined) break;
   }
   const finalState = loaded.latest();
   ok(finalState, "loaded state exists");
-  const surfaceEntry = finalState.surfaces.entries["1"];
-  ok(surfaceEntry, "canvas 1 surface exists in restored state");
-  const surface = loaded.engine.surfacePixels(1 as never, surfaceEntry.rev);
+  const canvasHandle = finalState.vm.globals.c;
+  ok(typeof canvasHandle === "number", "the program's canvas handle round-trips");
+  const surfaceEntry = finalState.surfaces.entries[String(canvasHandle)];
+  ok(surfaceEntry, "the program's canvas exists in the restored state");
+  const surface = loaded.engine.surfacePixels(surfaceEntry.id, surfaceEntry.rev);
   ok(surface !== null, "surface pixels exist");
   equal(surface.rgba[0], 255, "red channel is 255 from pixel.bmp");
 });

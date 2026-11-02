@@ -79,7 +79,13 @@ any time, and a test that flushes every cache every frame must produce identical
 looks at its pixels. The presented screen surface is a derived presentation cache, not game progress. It is excluded
 from the state hash and is rebuilt deterministically on restore before any script reads it. This combines the
 2026-11-01 option C ruling with the read-only host-accessor rule; it replaces the earlier wording that an owner
-decision on that rule was required. Implementation is pending issue #1048.
+decision on that rule was required. The core implements it as described below (issue #1048).
+
+Owner ruling (Jensen, 2026-11-01), approved option C, verbatim:
+> the presented screen surface is a derived cache excluded from the hash, rebuilt deterministically on restore before any script read; script-owned canvases (`cnvX`) remain hashed.
+
+Follow-up approved ruling (owner: Jensen, 2026-11-02), verbatim:
+> RPGCode script-owned canvases (cnvX) are application store, treated like global variables — they STAY in the state hash, and drawing to them legitimately changes it. Only the presented screen surface (the derived presentation cache) is excluded. Hash-significant: script variables/globals, cnvX canvases, game-loop globals needed to store coordinates. Hash-neutral: drawing to / reading / refreshing the presented screen surface and any host surfacePixels poll.
 
 `engine.surfacePixels(id, rev)` **MUST** be observationally read-only. It returns an owned copy of the requested
 stored revision, or `null` if the id or revision is unavailable. It **MUST NOT** mutate `GameState`, surface revisions,
@@ -87,15 +93,40 @@ the state hash or save data, or change future diagnostics, regardless of host po
 Refreshing the screen for script-visible `getpixel`, `canvasgetscreen` or `savescreen` is a deterministic core
 operation, separate from host presentation reads. A runner cannot trigger that operation by polling.
 
+**Enforcement by type/API rather than convention (answering the open question on #1048):**
+Host accessor purity is guaranteed structurally rather than by trusting runners or developers to follow convention:
+1. **Type signature:** `surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null` is typed as a read-only query taking primitive values and returning `{ readonly w: number, readonly h: number, readonly rgba: Bytes } | null`. It accepts no callbacks, configuration flags, or mutable contexts.
+2. **API separation:** The presentation query is separated entirely from the screen composition pipeline. `surfacePixels` resolves the stored entry for `id`, compares its `rev` and returns `null` on any mismatch; it never invokes the core's frame rebuild. Only a deterministic core operation — the end of `advance`, a script screen read, or a restore — rebuilds surface 0.
+3. **Detached buffer ownership:** The returned `rgba` byte buffer is a newly allocated copy (`new Uint8Array(entry.bitmap.data)`), so runners can retain, wrap, or mutate it without corrupting the engine's internal state.
+
+**Two surfaces, not one.** A script that draws and names no canvas draws to the **script-screen layer**, a persistent
+surface with the reserved id `-1`. The id is fixed, never taken from the monotonic counter, so the first draw to the
+screen moves neither the counter nor any canvas handle, and a script cannot name the layer (handles are never
+negative). The layer is created on first use at the frame's size, and is composited between the board and the
+render-now overlay into surface 0, the **presented frame**. Drawing to the layer never overwrites the board, and
+rebuilding the frame never discards what the script drew. Both surfaces are saved; neither is hashed.
+
+**When the core rebuilds the frame.** The core rebuilds surface 0 from game state alone, and only at three points: at
+the end of every `advance` call; immediately before a script reads the screen (`getpixel` on the screen,
+`canvasgetscreen`, `savescreen`, and a canvas draw whose source is the screen); and when a saved game is restored,
+before any script runs. A rebuild is skipped when the frame it would render is the one already rebuilt — the same
+draw-list size and commands (the tick stamp is not part of the comparison) and no asset has arrived since — and a
+restore always rebuilds. The frame's pixels and revision therefore depend on the game and on how `advance` calls were
+batched, never on how often a host read them; its revision and bytes may differ between batchings, which is harmless
+because surface 0 is excluded from the state hash. A state edit made between `advance` calls shows in the frame at the
+next `advance` or script read, never on a host read.
+
+**What leaves the hash and what stays:**
 The hash includes the application store: script variables and globals, script-owned canvases (`cnvX`), and game-loop
 globals needed to store coordinates. Drawing to `cnvX` changes the hash when it changes that store, just as changing a
-global variable does. Drawing to, reading or refreshing the derived presented screen surface is hash-neutral.
+global variable does. Drawing to, reading or refreshing the screen — the script-screen layer and the presented frame
+alike — is hash-neutral. A script that needs screen content later captures it into a canvas or a numbered slot, and
+those are store.
 Moving a player changes character state and therefore should change the hash; viewing the screen more often must not.
 See [the surface hash projection](../formats/save-game.md#state-hash-surface-projection).
 Jensen's principle is: “Drawing to the surfaces shouldn't cause a hash change. The only reason the hash should change
 is if the application store changed, e.g. rpgcode surface plus some of the game-loop globals needed to store
 coordinates.”
-
 Conformance compares the same game and inputs with no host reads, repeated reads, cache-flush reads and stale-revision
 reads: per-tick hashes, save data, revisions and future diagnostics must agree. It checks that a `cnvX` draw that
 changes the store moves the hash, while drawing to, reading or refreshing the presented screen and host polling do not.

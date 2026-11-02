@@ -22,6 +22,7 @@ import {
   editSurfaceWithBounds,
   getPixel,
   killSurface,
+  ensureScriptScreen,
   renderNowCanvas,
   renderNowEnabled,
   restoreScreen,
@@ -37,6 +38,14 @@ const SCREEN = 0 as SurfaceId;
 const WHITE: Rgb = { r: 255, g: 255, b: 255 };
 
 type AnyState = GameState & { surfaces: GameState["surfaces"] & { renderNow?: SurfaceId } };
+
+/**
+ * Where a script draws when it draws "to the screen": the persistent script-screen layer, never the derived
+ * presented frame in surface 0 (docs/spec/engine/runners.md#surface-read-and-state-hash).
+ */
+function writingTarget(current: AnyState, id: SurfaceId): SurfaceId {
+  return id === SCREEN ? ensureScriptScreen(current.surfaces) : id;
+}
 
 function numberArg(args: readonly Arg[], index: number, fallback = 0): number {
   const value = args[index]?.value;
@@ -118,8 +127,8 @@ function command(name: string, aliases: readonly string[], commandParams: ParamS
 }
 
 const CLEAR = command("clear", [], [{ name: "canvas", optional: true, byRef: false, variadic: false }], docs("Clear a screen or canvas.", "Blanks every pixel of the selected surface to transparent black immediately; without a canvas argument it clears the screen surface."), (view, args) => {
-  const target = canvasArg(args, 0);
   const surfaces = state(view).surfaces;
+  const target = writingTarget(state(view), canvasArg(args, 0));
   const size = surfaceSize(surfaces, target);
   const bounds = size === null ? undefined : { first: 0, last: size.w * size.h - 1 };
   const ok = editSurfaceWithBounds(surfaces, target, (rgba) => rgba.fill(0), bounds);
@@ -128,8 +137,8 @@ const CLEAR = command("clear", [], [{ name: "canvas", optional: true, byRef: fal
 });
 
 const SET_PIXEL = command("setpixel", [], params(["x", "y", "canvas"], 2), docs("Set one pixel to the current colour.", "Writes the current RGB colour at integer pixel coordinates, clipping outside the selected surface; the optional canvas defaults to the screen."), (view, args) => {
-  const target = canvasArg(args, 2);
   const surfaces = state(view).surfaces;
+  const target = writingTarget(state(view), canvasArg(args, 2));
   const rawX = numberArg(args, 0);
   const rawY = numberArg(args, 1);
   const bounds = surfacePixelBounds(surfaces, target, rawX, rawY);
@@ -152,8 +161,8 @@ const SET_PIXEL = command("setpixel", [], params(["x", "y", "canvas"], 2), docs(
 function primitive(name: string, filled: boolean, circle: boolean): BuiltinSpec {
   const commandParams = circle ? params(["x", "y", "radius", "canvas"], 3) : params(["x1", "y1", "x2", "y2", "canvas"], 4);
   return command(name, [], commandParams, docs(`${filled ? "Fill" : "Draw"} a ${circle ? "circle" : "rectangle"}.`, "Rasterises the integer primitive using the current colour on the screen or optional canvas, clipping to the target bounds and returning immediately."), (view, args) => {
-    const target = canvasArg(args, circle ? 3 : 4);
     const surfaces = state(view).surfaces;
+    const target = writingTarget(state(view), canvasArg(args, circle ? 3 : 4));
     const rgb = colour(view);
     const a0 = numberArg(args, 0);
     const a1 = numberArg(args, 1);
@@ -172,8 +181,8 @@ function primitive(name: string, filled: boolean, circle: boolean): BuiltinSpec 
 }
 
 const DRAW_LINE = command("drawline", [], params(["x1", "y1", "x2", "y2", "canvas"], 4), docs("Draw a line in the current colour.", "Rasterises an inclusive integer Bresenham line on the screen or optional canvas and clips it to the surface."), (view, args) => {
-  const target = canvasArg(args, 4);
   const surfaces = state(view).surfaces;
+  const target = writingTarget(state(view), canvasArg(args, 4));
   const x1 = numberArg(args, 0);
   const y1 = numberArg(args, 1);
   const x2 = numberArg(args, 2);
@@ -206,7 +215,9 @@ const GET_PIXEL = command("getpixel", [], [
   { name: "b", optional: false, byRef: true, variadic: false },
   { name: "canvas", optional: true, byRef: false, variadic: false },
 ], docs("Read one pixel's colour.", "Reads RGB from the screen or optional canvas; out-of-bounds reads return black and all three by-reference outputs are written immediately."), (view, args) => {
-  const pixel = getPixel(state(view).surfaces, canvasArg(args, 5), Math.trunc(numberArg(args, 0)), Math.trunc(numberArg(args, 1)));
+  const target = canvasArg(args, 5);
+  if (target === SCREEN) view.refreshScreen?.();
+  const pixel = getPixel(state(view).surfaces, target, Math.trunc(numberArg(args, 0)), Math.trunc(numberArg(args, 1)));
   const rgb = pixel ?? { r: 0, g: 0, b: 0 };
   return { value: rgb.r, out: [[2, rgb.r], [3, rgb.g], [4, rgb.b]], effects: [] };
 });
@@ -227,30 +238,37 @@ const KILL_CANVAS = command("killcanvas", [], params(["canvas"]), docs("Release 
 
 const DRAW_CANVAS = command("drawcanvas", [], params(["canvas", "x", "y", "width", "height", "destination"], 3), docs("Draw one canvas onto another surface.", "Copies the canvas with nearest-neighbour sampling at x,y; optional dimensions resize it and the optional destination defaults to the screen."), (view, args) => {
   const source = handle(args[0]?.value);
-  const destination = canvasArg(args, args.length >= 6 ? 5 : 3);
+  const destination = writingTarget(state(view), canvasArg(args, args.length >= 6 ? 5 : 3));
+  if (source === SCREEN) view.refreshScreen?.();
   const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), args.length >= 5 ? numberArg(args, 3) : undefined, args.length >= 5 ? numberArg(args, 4) : undefined);
   if (!ok) throw new ScriptError("surface.unknown", "drawcanvas: source or destination canvas is not live");
   return { value: null, effects: effects(args) };
 });
 const DRAW_CANVAS_TRANSPARENT = command("drawcanvastransparent", [], params(["canvas", "x", "y", "r", "g", "b", "width", "height", "destination"], 6), docs("Draw a canvas with one colour transparent.", "Copies the selected canvas to the screen or optional destination, skipping the exact RGB key and optionally resizing it."), (view, args) => {
-  const destination = canvasArg(args, args.length >= 9 ? 8 : 6);
-  const ok = blitSurface(state(view).surfaces, handle(args[0]?.value), destination, numberArg(args, 1), numberArg(args, 2), args.length >= 8 ? numberArg(args, 6) : undefined, args.length >= 8 ? numberArg(args, 7) : undefined, { r: numberArg(args, 3), g: numberArg(args, 4), b: numberArg(args, 5) });
+  const source = handle(args[0]?.value);
+  const destination = writingTarget(state(view), canvasArg(args, args.length >= 9 ? 8 : 6));
+  if (source === SCREEN) view.refreshScreen?.();
+  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), args.length >= 8 ? numberArg(args, 6) : undefined, args.length >= 8 ? numberArg(args, 7) : undefined, { r: numberArg(args, 3), g: numberArg(args, 4), b: numberArg(args, 5) });
   if (!ok) throw new ScriptError("surface.unknown", "drawcanvastransparent: source or destination canvas is not live");
   return { value: null, effects: effects(args) };
 });
 const CANVAS_DRAW_PART = command("canvasdrawpart", [], params(["canvas", "x", "y", "xsrc", "ysrc", "width", "height", "destination"], 7), docs("Draw part of a canvas.", "Copies a source rectangle from the canvas to x,y on the screen or optional destination using nearest-neighbour pixels."), (view, args) => {
-  const destination = canvasArg(args, 7);
-  const ok = blitSurface(state(view).surfaces, handle(args[0]?.value), destination, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, 255, false, { x: numberArg(args, 3), y: numberArg(args, 4), w: numberArg(args, 5), h: numberArg(args, 6) });
+  const source = handle(args[0]?.value);
+  const destination = writingTarget(state(view), canvasArg(args, 7));
+  if (source === SCREEN) view.refreshScreen?.();
+  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, 255, false, { x: numberArg(args, 3), y: numberArg(args, 4), w: numberArg(args, 5), h: numberArg(args, 6) });
   if (!ok) throw new ScriptError("surface.unknown", "canvasdrawpart: source or destination canvas is not live");
   return { value: null, effects: effects(args) };
 });
 const CANVAS_GET_SCREEN = command("canvasgetscreen", [], params(["destination"]), docs("Capture the current screen into a canvas.", "Copies the composed screen surface 0 into the destination canvas and increments its revision."), (view, args) => {
+  view.refreshScreen?.();
   const revision = canvasGetScreen(state(view).surfaces, handle(args[0]?.value));
   if (revision === null) throw new ScriptError("surface.unknown", "canvasgetscreen: destination canvas is not live");
   return { value: revision, effects: effects(args) };
 });
 
 const SAVE_SCREEN = command("savescreen", [], params(["slot", "x1", "y1", "x2", "y2"], 0), docs("Save the screen into a numbered slot.", "Copies the whole screen by default, or the inclusive rectangle x1,y1 through x2,y2, into the numbered persistent slot."), (view, args) => {
+  view.refreshScreen?.();
   const slot = Math.max(0, Math.trunc(numberArg(args, 0)));
   const sourceSize = surfaceSize(state(view).surfaces, SCREEN);
   const region = args.length >= 5 && sourceSize !== null
@@ -263,9 +281,9 @@ const RESTORE_SCREEN = command("restorescreen", [], params(["slot", "x1", "y1", 
   const region = args.length >= 7
     ? { x: Math.trunc(numberArg(args, 1)), y: Math.trunc(numberArg(args, 2)), w: Math.trunc(numberArg(args, 3)) - Math.trunc(numberArg(args, 1)) + 1, h: Math.trunc(numberArg(args, 4)) - Math.trunc(numberArg(args, 2)) + 1, dx: Math.trunc(numberArg(args, 5)), dy: Math.trunc(numberArg(args, 6)) }
     : undefined;
-  return { value: restoreScreen(state(view).surfaces, Math.max(0, Math.trunc(numberArg(args, 0))), SCREEN, undefined, region) ?? 0, effects: effects(args) };
+  return { value: restoreScreen(state(view).surfaces, Math.max(0, Math.trunc(numberArg(args, 0))), writingTarget(state(view), SCREEN), undefined, region) ?? 0, effects: effects(args) };
 });
-const RESTORE_ARRAY = command("restorescreenarray", ["restorearrayscreen"], params(["slot", "x1", "y1", "x2", "y2", "xdest", "ydest"], 0), docs("Restore a numbered screen-array slot.", "Alias of restoreScreen: copies the selected saved slot or region into the screen immediately."), (view, args) => ({ value: restoreScreen(state(view).surfaces, Math.max(0, Math.trunc(numberArg(args, 0))), SCREEN) ?? 0, effects: effects(args) }));
+const RESTORE_ARRAY = command("restorescreenarray", ["restorearrayscreen"], params(["slot", "x1", "y1", "x2", "y2", "xdest", "ydest"], 0), docs("Restore a numbered screen-array slot.", "Alias of restoreScreen: copies the selected saved slot or region into the screen immediately."), (view, args) => ({ value: restoreScreen(state(view).surfaces, Math.max(0, Math.trunc(numberArg(args, 0))), writingTarget(state(view), SCREEN)) ?? 0, effects: effects(args) }));
 
 const RENDER_NOW = command("rendernow", [], params(["draw"]), docs("Show or hide the render-now overlay canvas.", "When draw is true, creates the reserved canvas (cleared, screen-sized) if it does not exist or was killed and turns drawing on above board content; an existing canvas keeps its pixels. When draw is false it only turns drawing off: the canvas, its handle and its pixels persist."), (view, args) => {
   const current = state(view);

@@ -6,13 +6,22 @@ import { hashState } from "../src/canon/canon.ts";
 import type { GameState } from "../src/save/state.ts";
 
 /**
- * The current projection: the whole state without `vm.stepCounters`, `audio.settings` and `engine.nextRequestId`.
- * The pending-request list stays in it, ids included.
+ * The current projection: the whole state without `vm.stepCounters`, `audio.settings`, `engine.nextRequestId`, and the
+ * two screen surfaces — the derived presented frame (0) and the script-screen layer (-1) it is composited from
+ * (docs/spec/engine/runners.md#surface-read-and-state-hash). The pending-request list stays in it, ids
+ * included.
  */
 export function projectedState(state: GameState) {
   const { stepCounters: _stepCounters, ...vm } = state.vm;
   const { nextRequestId: _nextRequestId, ...engine } = state.engine;
-  return { ...state, vm, engine, audio: withoutSettings(state.audio) };
+  const section = state.surfaces as Partial<GameState["surfaces"]>;
+  let surfacesProjection: unknown = section;
+  if (section.entries !== undefined) {
+    // The presented frame (0) and the script-screen layer (-1) are the screen, not application store.
+    const entries = Object.fromEntries(Object.entries(section.entries).filter(([id]) => id !== "0" && id !== "-1"));
+    surfacesProjection = { ...section, entries };
+  }
+  return { ...state, vm, engine, audio: withoutSettings(state.audio), surfaces: surfacesProjection as GameState["surfaces"] };
 }
 
 /** `hashGameState` must equal this for every state. */

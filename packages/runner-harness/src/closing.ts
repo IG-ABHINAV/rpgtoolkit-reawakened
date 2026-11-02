@@ -233,7 +233,7 @@ type Trace = {
 };
 
 
-/** Read the screen surface. Its revision depends on how often the frame was refreshed, so scan for the current one. */
+/** Read the screen surface. Its revision depends on how the ticks were batched, so scan for the current one. */
 function readScreen(engine: Engine): DecodedTexture {
   for (let rev = 0; rev < 4096; rev += 1) {
     const surface = engine.surfacePixels(0 as SurfaceId, rev);

@@ -74,6 +74,8 @@ export type CommandView = {
   readonly rng: RngPort;
   readonly clock: ClockPort;
   readonly state?: GameState;
+  /** Refresh the composed screen before a script-visible pixel read; host polling never invokes it. */
+  readonly refreshScreen?: () => void;
   /** The script-facing media owner (MEDIA-1): `mediaPlay`, track/voice objects and their operations. */
   readonly media?: MediaScriptService;
   /** Read one live object's members without writing them; the media option and method commands use it. */

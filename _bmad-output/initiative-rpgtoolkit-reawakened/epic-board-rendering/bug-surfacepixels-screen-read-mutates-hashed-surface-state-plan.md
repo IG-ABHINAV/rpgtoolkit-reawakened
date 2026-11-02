@@ -2,7 +2,7 @@
 title: 'surfacePixels screen read mutates hashed surface state'
 type: 'bug'
 ticket: '41'
-status: 'ready'
+status: 'in-review'
 tracker_id: '#1048'
 risk: 'high'
 ---
@@ -19,4 +19,4 @@ Jensen's principle: “Drawing to the surfaces shouldn't cause a hash change. Th
 
 The owner clarified that script-owned canvases (`cnvX`) are application store, like script variables and globals, and stay hashed; a draw that changes a canvas legitimately changes the hash. Game-loop globals needed to store coordinates are hashed too. Drawing to, reading or refreshing the derived presented screen, and any host `surfacePixels` poll, are hash-neutral.
 
-Implementation is unstarted and ready; #1047 is merged. Follow [the runner contract](../../../docs/spec/engine/runners.md#surface-read-and-state-hash) and [the hash projection](../../../docs/spec/formats/save-game.md#state-hash-surface-projection). Compare no reads, repeated reads, cache-flush reads and stale revisions for identical per-tick hashes, saves, revisions and future diagnostics; verify the requested stored revision or `null`, restore before script reads, script-visible capture behavior, a store-changing `cnvX` draw changing the hash, and presented-screen drawing, refresh, reads and host polling leaving it unchanged.
+Implemented by the pull request that fixes #1048 (in review); #1047 is merged. The screen is rebuilt at the end of `advance`, before a script's screen read and on restore; scripts draw to a persistent script-screen layer (reserved id `-1`) composited into surface 0, and `hashGameState` omits `surfaces.entries["0"]` and `["-1"]`. Follow [the runner contract](../../../docs/spec/engine/runners.md#surface-read-and-state-hash) and [the hash projection](../../../docs/spec/formats/save-game.md#state-hash-surface-projection). Compare no reads, repeated reads, cache-flush reads and stale revisions for identical per-tick hashes, saves, revisions and future diagnostics; verify the requested stored revision or `null`, restore before script reads, script-visible capture behavior, a store-changing `cnvX` draw changing the hash, and presented-screen drawing, refresh, reads and host polling leaving it unchanged.

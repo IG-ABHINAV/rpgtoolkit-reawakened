@@ -5,13 +5,15 @@ import {
   createSurfacesSection,
   decodeSurfaceBytes,
   encodeSurfaceBytes,
+  blitSurface,
   getPixel,
   GRAPHICS_PLUGIN,
   readSurfacePixels,
   type Arg,
   type CommandView,
+  type SurfaceId,
 } from "../src/index.ts";
-import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch } from "../src/raster/surfaces.ts";
+import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
 import type { SurfacesSection } from "../src/save/sections/surfaces.ts";
 
 function arg(value: unknown, ref: string | null = null): Arg {
@@ -27,7 +29,12 @@ function command(name: string) {
 function view() {
   const state = createGameState({ seed: 1 });
   state.surfaces = createSurfacesSection(8, 8);
-  const commandView: CommandView = { state, rng: { nextUint32: () => 0 }, clock: { tick: () => 0 }, gameId: "test-game" };
+  // A scene with no board: the composed frame is the script-screen layer drawn over an empty background.
+  const refreshScreen = (): void => {
+    if (state.surfaces.entries[String(SCRIPT_SCREEN)] === undefined) return;
+    blitSurface(state.surfaces, SCRIPT_SCREEN, 0 as SurfaceId, 0, 0);
+  };
+  const commandView: CommandView = { state, rng: { nextUint32: () => 0 }, clock: { tick: () => 0 }, gameId: "test-game", refreshScreen };
   return { state, commandView };
 }
 
@@ -57,12 +64,17 @@ test("canvas blits, screen capture and numbered screen restore use surface revis
   const create = command("createcanvas").call(commandView, [arg(2), arg(2)], () => ({ value: null }));
   const canvas = create.value as number;
   command("setpixel").call(commandView, [arg(0), arg(0), arg(canvas)], () => ({ value: null }));
+  // A draw that names no destination lands on the script-screen layer, not on the derived presented frame.
   command("drawcanvas").call(commandView, [arg(canvas), arg(2), arg(2)], () => ({ value: null }));
-  equal(getPixel(state.surfaces, 0 as never, 2, 2)?.r, 255);
+  const layer = SCRIPT_SCREEN;
+  equal(getPixel(state.surfaces, layer, 2, 2)?.r, 255);
   command("savescreen").call(commandView, [arg(2)], () => ({ value: null }));
   command("clear").call(commandView, [], () => ({ value: null }));
+  equal(getPixel(state.surfaces, layer, 2, 2)?.r, 0, "clear blanks the layer a script draws on");
   command("restorescreen").call(commandView, [arg(2)], () => ({ value: null }));
-  equal(getPixel(state.surfaces, 0 as never, 2, 2)?.r, 255);
+  equal(getPixel(state.surfaces, layer, 2, 2)?.r, 255);
+  commandView.refreshScreen?.();
+  equal(getPixel(state.surfaces, 0 as never, 2, 2)?.r, 255, "the composed frame shows the restored layer");
 });
 
 type Section = SurfacesSection;

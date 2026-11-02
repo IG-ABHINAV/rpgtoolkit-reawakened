@@ -35,6 +35,7 @@ test("demo tracer reports the committed tick-120 hashes and presents its capture
   expect(report["commands"]).toBe(baseline.commands);
 
   const render = report["render"] as { drawn: number; deferred: number; deferredByKind: Record<string, number> };
+  // Every command of the frame is replayed; the committed closing baseline is the single source of the count.
   expect(render.drawn).toBe(baseline.commands);
   expect(render.deferred).toBe(0);
   expect(render.deferredByKind["text"]).toBeUndefined();

@@ -1,4 +1,4 @@
-import { type InputRecord, type SurfaceId } from "@tk-reawakened/core";
+import { type InputRecord } from "@tk-reawakened/core";
 import { parseClosingPlan, type ClosingFiles } from "@tk-reawakened/runner-harness";
 import { createBlobHost, createIndexedDbBlobBackend, type BlobHost } from "../src/blob-host.ts";
 import { createDecodeAhead, DECODE_WORKER_URL } from "../src/decode-ahead.ts";
@@ -242,13 +242,6 @@ async function runParity(session: LiveSession, report: HTMLPreElement, game: str
   for (const tick of [30, 60, 90, 120]) {
     await session.advance(tick - session.tick(), inputs);
     inputs = [];
-    // The closing harness captures the tick-30 title frame before sending ENTER. Its screen-surface read refreshes
-    // core's saved screen surface, so reproducing that capture is necessary for the same later state hashes.
-    if (tick === 30) {
-      for (let rev = 0; rev < 4096; rev += 1) {
-        if (session.engine.surfacePixels(0 as SurfaceId, rev) !== null) break;
-      }
-    }
     if (tick < 120) {
       inputs.push({ tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } });
       inputs.push({ tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: false } });
