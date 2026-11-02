@@ -1,4 +1,5 @@
 import type { EnginePhaseRegistration, EngineResetRegistration } from "../engine/engine.ts";
+import { findBlockingThread } from "../script/state.ts";
 import { enqueueDirectionMove } from "../sprites/movement.ts";
 import type { Facing } from "../sprites/model.ts";
 import { enqueuePathMove } from "../sprites/runtime.ts";
@@ -56,14 +57,18 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   const { actions, clicks } = takeInputActions(state.input);
   const id = selectedPlayer(state);
   const board = state.world.board ?? null;
+  // A running program or any global wait owns script input until it finishes.
+  // Keep recording key state, but never turn its direction edges or holds into steps.
+  const directionBlocked = findBlockingThread(state.vm) !== null
+    || state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
   if (id === null) return;
-  if (actions.some((action) => FACING_BY_ACTION[action] !== undefined) && canAcceptDirection(state, id)) {
+  if (!directionBlocked && actions.some((action) => FACING_BY_ACTION[action] !== undefined) && canAcceptDirection(state, id)) {
     const facing = heldFacing(state);
     if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
   }
   // Held-direction continuous movement: while a direction key stays held and the player becomes
   // idle again, queue the next step at the normal cadence (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement).
-  if (state.input.focused && canAcceptDirection(state, id)) {
+  if (!directionBlocked && state.input.focused && canAcceptDirection(state, id)) {
     const facing = heldFacing(state);
     if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
   }

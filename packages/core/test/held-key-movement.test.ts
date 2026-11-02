@@ -8,15 +8,27 @@ import {
   createEngine,
   createGameState,
   createInputSection,
+  CATALOGUE_RESPONDERS_PLUGIN,
+  CATALOGUE_PLUGIN,
+  CORE_PLUGIN,
+  UI_PLUGIN,
+  createScriptServices as coreCreateScriptServices,
   hydrateSprites,
   inputPhaseRegistration,
   movementPhaseRegistration,
+  killThread,
+  runThreadsPhase,
+  runWaitsPhase,
+  startProgram,
+  startThread,
   PACKAGE_ROOT,
   writeBoard,
   type Engine,
   type GameState,
+  type PluginDefinition,
   type WorldBoard,
 } from "../src/index.ts";
+import { createScriptServices } from "./script-test-services.ts";
 
 function makeBoard(): WorldBoard {
   const empty = createEmptyBoard();
@@ -62,6 +74,133 @@ function tick(state: GameState, t: number, events: InputEv[] = []): void {
   runInputPhase(state);
   runMovement(state);
 }
+
+for (const heldBeforeWait of [true, false]) {
+  test(`wait freezes movement when direction is ${heldBeforeWait ? "already held" : "pressed after parking"}`, () => {
+    const state = makeState();
+    const startX = state.sprites.players[0]!.x;
+    if (heldBeforeWait) applyInputEvent(state.input, key("ArrowRight", true));
+    const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()\nend()" });
+    runThreadsPhase(state.vm, createScriptServices(state), 100);
+    equal(thread.wait?.kind, "input.key", "the real wait() has parked");
+    if (!heldBeforeWait) applyInputEvent(state.input, key("ArrowRight", true));
+    for (let t = 0; t < 30; t += 1) tick(state, t);
+    equal(state.sprites.players[0]!.x, startX, "no movement while wait owns the queue");
+  });
+}
+
+for (const [label, text, waitKind] of [
+  ["prompt", 'prompt("Question", answer)', "render.msgbox"],
+  ["message box", 'msgbox("hello")', "render.msgbox"],
+] as const) {
+  test(`${label} blocks direction presses without consuming the key`, () => {
+    const state = makeState();
+    const thread = startProgram(state.vm, { kind: "inline", ir: "1", text });
+    runThreadsPhase(state.vm, createScriptServices(state, [CATALOGUE_RESPONDERS_PLUGIN]), 100);
+    equal(thread.wait?.kind, waitKind);
+    tick(state, 0, [key("ArrowRight", true)]);
+    equal(state.sprites.players[0]!.movement.active, null, "no direction movement starts");
+    equal(state.input.keys.at(-1)?.name, "right", "the script key queue receives the press");
+  });
+}
+
+test("a menu provider owns direction presses without moving the player", () => {
+  const state = makeState();
+  const menu: PluginDefinition = {
+    id: "test-menu", version: "1.0.0", commands: [],
+    menuProviders: {
+      main: () => ({ kind: "wait", state: {}, wait: { kind: "menu.screen", global: true, id: "test-menu", payload: [], resumeRefs: [] } }),
+    },
+  };
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "mainmenu()" });
+  const services = coreCreateScriptServices(state, [{ definition: CORE_PLUGIN }, { definition: UI_PLUGIN }, { definition: CATALOGUE_PLUGIN }, { definition: menu }]);
+  runThreadsPhase(state.vm, services, 100);
+  equal(thread.wait?.kind, "menu.screen", "the real menu provider is waiting");
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "menu navigation does not move the player");
+  equal(state.input.keys.at(-1)?.name, "right", "the menu receives the key");
+});
+
+test("a tap during wait is lost for movement but remains in the key queue", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.wait?.kind, "input.key");
+  tick(state, 0, [key("ArrowRight", true)]);
+  tick(state, 1, [key("ArrowRight", false)]);
+  equal(state.sprites.players[0]!.queue.moves.length, 0, "a blocked press queues no step");
+  equal(state.sprites.players[0]!.movement.active, null, "a blocked tap starts no movement");
+  equal(state.input.keys.at(-1)?.name, "right", "the tap is still buffered for scripts");
+  killThread(state.vm, thread.id);
+  tick(state, 2);
+  equal(state.sprites.players[0]!.queue.moves.length, 0, "released tap is not replayed after the block");
+  equal(state.sprites.players[0]!.movement.active, null);
+});
+
+test("a key held through wait begins moving on the first idle phase after the block ends", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()" });
+  const services = createScriptServices(state);
+  runThreadsPhase(state.vm, services, 100);
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "the block prevents the initial press");
+  runWaitsPhase(state.vm, { tick: 0, events: state.events, input: state.input, ui: state.ui, claims: [] });
+  runThreadsPhase(state.vm, services, 100);
+  equal(thread.status, "finished", "the new direction press ends the real wait");
+  runInputPhase(state);
+  equal(state.sprites.players[0]!.queue.moves.length, 1, "the held key queues a step immediately after the block");
+});
+
+test("a running program owns input even before its immediate Get executes", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "answer = Get()" });
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "input does not walk before Get");
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.status, "finished");
+  equal(state.vm.globals.answer, "right", "Get reads the buffered key");
+});
+
+test("a global wait in a non-blocking thread also freezes movement", () => {
+  const state = makeState();
+  const thread = startThread(state.vm, {
+    ref: { kind: "inline", ir: "1", text: "wait()" }, kind: "board", owner: "script",
+  });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.wait?.kind, "input.key");
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "the global wait owns the key queue regardless of thread kind");
+});
+
+test("a nested wait freezes movement and other script threads", () => {
+  const state = makeState();
+  const program = startProgram(state.vm, {
+    kind: "inline", ir: "1", text: "function nested() { wait() }\nnested()\n",
+  });
+  const background = startThread(state.vm, {
+    ref: { kind: "inline", ir: "1", text: "backgroundRan = 1" }, kind: "board", owner: "script",
+  });
+  const services = createScriptServices(state);
+  runThreadsPhase(state.vm, services, 100);
+  equal(program.wait?.kind, "input.key", "the nested call is parked");
+  equal(background.status, "ready", "the background thread did not run through the block");
+  tick(state, 0, [key("ArrowRight", true)]);
+  runThreadsPhase(state.vm, services, 100);
+  equal(state.sprites.players[0]!.movement.active, null, "nested wait prevents movement");
+  equal(state.vm.globals.backgroundran, undefined, "the background thread stays frozen");
+});
+
+test("a held gamepad direction resumes only after a blocking wait ends", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  tick(state, 0, [{ kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 8 }]);
+  equal(state.input.actions.right, true, "the gamepad continues to hold its action");
+  equal(state.sprites.players[0]!.movement.active, null, "the wait prevents a gamepad step");
+  killThread(state.vm, thread.id);
+  runInputPhase(state);
+  equal(state.sprites.players[0]!.queue.moves.length, 1, "the still-held gamepad direction resumes immediately");
+});
 
 test("holding a direction key moves the player continuously, not one tile", () => {
   const state = makeState();
