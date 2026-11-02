@@ -183,6 +183,8 @@ PlayerOverrides = {                    // the save's input section
 
 **Removal is explicit and addition never deletes.** A player who adds `KeyZ` to `confirm` keeps `Enter`, so a 3.1 script that polls `ENTER` still receives it; a control leaves an action only when the player removes that exact game default. That is what makes remapping safe for a ported game whose scripts read raw key names ([A11Y-16](accessibility.md#a11y-16)).
 
+**Which numbers are which (clarification, reconciliation tracked on #1127).** Three version numbers sit near the binding table and are not the same thing: the `TRKINP` block's `u8` schema number (`1` in this version, [main-file.md](../formats/main-file.md#tkr-input-extension)), the save's `input` section schema (2 today; [ADR 0017](../../adr/0017-input-actions-devices-and-accessibility.md) moves it to 3 with the core action layer, #1099), and the `version` fields inside the two shapes above. These shapes do not yet say which of those referents each `version` names, so neither number is, on this page, stated to version the `TRKINP` block or the save section.
+
 A `ControlId` is one of three canonical ASCII strings:
 
 | Form | Meaning | Example |

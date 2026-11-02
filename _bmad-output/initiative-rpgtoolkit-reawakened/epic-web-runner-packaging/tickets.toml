@@ -144,7 +144,7 @@ hitl = false
 risk = "high"
 plan_checkpoint = true
 references = ["spec - docs/spec/engine/audio-media.md#audio-prefetch", "spine - _bmad-output/initiative-rpgtoolkit-reawakened/architecture-rpgtoolkit-reawakened/architecture-rpgtoolkit-reawakened.md, AD-17, Operations (CSP, PWA update policy)", "decision - D-4 and D-5 of discovery/inception-proposal.md"]
-notes = ["Delivered by PR #1041, merge 62c2ba14. OQ1's full first-launch archive transfer is an approved property, not a remaining gap. Independent review approval and the three F6 perturbation reruns are not recorded in the cited PR; their provenance is unverified here."]
+notes = ["Delivered by PR #1041, merge 62c2ba14. OQ1's full first-launch archive transfer is an approved property, not a remaining gap. Independent review approval and the three F6 perturbation reruns are not recorded in the cited PR; their provenance is unverified here.", "Resolution 2026-11-02, #1119: the F6 shared-asset evidence gap #1056 noted as unverified is closed by PR #1095 (merge 55561f19), which fixes #1065; its docs-first `shared` definition and perturbation-verified browser cases prove the hint-driven load; #1041's independent-review approval remains unrecorded."]
 
 [[entry]]
 id = 11
