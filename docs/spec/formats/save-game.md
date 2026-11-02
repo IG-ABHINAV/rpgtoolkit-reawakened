@@ -73,6 +73,8 @@ image effects and other in-flight blob requests all settle first. A save
 therefore never records a thread parked on a request the host has not answered,
 which a restore would drop and strand.
 
+**Item-action clarification (#589; TKR engineering rule).** A pending item-asset acquisition obeys this same in-flight request rule. A request-free saved item-action continuation may need to acquire its definitions again on a cold restore; an unanswered host request itself is never serialized. The [item-action contract](../engine/plugins-and-battle.md#epic-85-item-action-proposal) specifies request phases and distinguishes normal save continuation from interruption recovery.
+
 <a id="state-hash-request-projection"></a>
 **State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash, so a bookkeeping difference such as an additional settled boot-time asset request does not move golden baselines.
 
