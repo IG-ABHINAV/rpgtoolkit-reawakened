@@ -84,6 +84,7 @@ import {
   writeMember,
 } from "./objects.ts";
 import { createProgramCache, type ProgramCache } from "./cache.ts";
+import { createPackageFunctionSource, followPackageInclude } from "./package-exports.ts";
 import { runModuleCommand } from "./modules.ts";
 import { MODULE_COMMANDS } from "./parse.ts";
 import type { SourcePos, StepOp } from "./ops.ts";
@@ -409,11 +410,17 @@ export function createScriptServices(
   }
   // The engine's own packs are the built-in tier (R-35); every other plugin is an extension.
   const builtinPacks = new Set(ENGINE_DEFAULT_MANIFEST.map((entry) => entry.id));
+  // The package export index reads compiled programs from the cache created below; it is only asked
+  // once a call or a program compile runs, never while this function builds the services.
+  const packageFunction = createPackageFunctionSource(layers, (ref) => programs.get(ref));
   const commands = createCommandLookup({
     builtin: (name) =>
       registry.layerPlugins(name).some((id) => builtinPacks.has(id)) ? registry.get(name) : undefined,
     extension: (name) => registry.get(name),
     namespace: { has: (namespace) => registry.hasNamespace(namespace), get: (namespace, name) => registry.getIn(namespace, name) },
+    packageFunction,
+    owner: (name) => registry.layerPlugins(name).at(-1),
+    builtinOwner: (name) => registry.layerPlugins(name).filter((id) => builtinPacks.has(id)).at(-1),
   });
   const hydratedTypes = new Map<string, HostObjectType>();
   hydratedTypes.set("actor", createActorHostType(actors));
@@ -426,10 +433,12 @@ export function createScriptServices(
   for (const type of hostTypes) hydratedTypes.set(type.name, type);
   // Load-time notices (clashes, shadowed built-ins, include cycles) are raised once, when a program
   // compiles: each is a located warn record, and a cycle is also a located host diagnostic (MOD-3).
-  const programs = createProgramCache(
+  const warnedPackageOverrides = new Set<string>();
+  const programs: ProgramCache = createProgramCache(
     {
       ...(loader === undefined ? {} : { loader }),
       isBuiltin: (name) => commands.builtin(name) !== undefined,
+      packageFunctionOwners: packageFunction.owners,
     },
     (notices) => {
       for (const notice of notices) {
@@ -440,6 +449,12 @@ export function createScriptServices(
             line: notice.line,
             message: notice.message,
           });
+        }
+        // A program recompiled for a run-time include meets the same package function again: one warning per binding.
+        if (notice.code === "command.overridden" && typeof notice.data === "object" && notice.data !== null && !Array.isArray(notice.data) && notice.data.kind === "package-function") {
+          const key = JSON.stringify(notice.data);
+          if (warnedPackageOverrides.has(key)) continue;
+          warnedPackageOverrides.add(key);
         }
         logger.warn({
           level: "warn",
@@ -1808,7 +1823,8 @@ function liveTarget(vm: VmState, id: number, what: string, pos: SourcePos): Thre
 }
 
 /**
- * The compiled definition `def` names: the running program first, then every
+ * The compiled definition `def` names: the running program first, then the script functions the
+ * packages export, last enabled package first (a name only; entry 19.21), then every
  * other compiled program in cache order (FUN-8; entry 18.4), then the program
  * `vm.defOwners` records for it (entry 18.6). A def is unique to the unit that
  * was lowered (`main.prg#lambda_1`), so the first program that defines it owns
@@ -1824,9 +1840,18 @@ function findDefinition(
   services: ScriptServices,
   program: Program,
   def: string,
+  argc?: number,
 ): { readonly program: Program; readonly infos: readonly FunctionInfo[] } | undefined {
   const local = program.functions[def];
   if (local !== undefined) return { program, infos: local };
+  // A name a call can spell reaches the packages' exports before any other compiled program, in
+  // manifest order, so a handle `bindingOf` made binds as the call does (entry 19.21). A lambda's
+  // definition (`file#lambda_n`) is not a name and keeps its compile-order lookup.
+  if (!def.includes("#")) {
+    const source = services.commands.packageFunction;
+    const exported = (argc === undefined ? undefined : source.find(def, argc)) ?? source.findAny(def);
+    if (exported !== undefined) return { program: exported.program, infos: exported.infos };
+  }
   let owner = services.programs.find(def);
   const recorded = vm.defOwners !== undefined && Object.hasOwn(vm.defOwners, def) ? vm.defOwners[def] : undefined;
   if (owner === undefined && recorded !== undefined) {
@@ -2039,7 +2064,7 @@ function performCallable(
       { kind: "command", command: builtin }, given, pos, true,
     );
   }
-  const found = findDefinition(vm, services, program, value.def);
+  const found = findDefinition(vm, services, program, value.def, args.length);
   if (found === undefined) {
     const extension = services.commands.extension(value.def);
     if (extension === undefined) {
@@ -3664,7 +3689,10 @@ export function stepThread(
         const args = takeArgs(frame, op.argc, op.pos);
         services.setCommandPos(op.pos);
         if (op.file === undefined && Object.hasOwn(MODULE_COMMANDS, op.name)) {
-          runModuleCommand(op.name, args, vm, services.loader, services.programs, program, op.pos);
+          runModuleCommand(
+            op.name, args, vm, services.loader, services.programs, program, op.pos,
+            (from, to) => followPackageInclude(services.layers, from, to),
+          );
           frame.ip += 1;
           frame.operands.push({ value: 0, ref: null });
           break;
@@ -3688,7 +3716,7 @@ export function stepThread(
         // file. A parameter qualifier is a local, so it is never a namespace.
         const inPackage =
           op.file !== undefined && op.fileParam !== true
-            ? resolveNamespaced(op.file, op.name, services.commands)
+            ? resolveNamespaced(op.file, op.name, op.argc, services.commands)
             : undefined;
         if (inPackage !== undefined) warnNamespaceHidesFile(services, program, op.file!);
         // The environment table (FUN-8; entry 18.5): the running scope's own

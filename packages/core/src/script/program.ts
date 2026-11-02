@@ -120,6 +120,12 @@ export type CompileContext = {
   readonly loader?: ProgramLoader;
   /** Whether `name` is a built-in, so a script function of that name is reported as shadowed (R-35). */
   readonly isBuiltin?: (name: string) => boolean;
+  /**
+   * The packages that export a script function of `name` with `argc` parameters, earliest first,
+   * so a program or included function that wins over one is reported once (PKG-4; entry 19.21).
+   * A package's own program is never asked: its functions are the exports.
+   */
+  readonly packageFunctionOwners?: (name: string, argc: number) => readonly string[];
 };
 
 /** The program-cache identity of `ref`: dialect, source, instruction version, includes, redirects and owner (MOD-3, R-42, PKG-8). */
@@ -363,6 +369,7 @@ function build(ref: ProgramRef, context: CompileContext, inlineName: string): Pr
   // Definitions are added to the flat list in include order and the main file last, so the
   // main file's own definition wins after every include has been applied (MOD-1, R-41).
   const addOrder = [...units.keys()].slice(1).concat(0);
+  const reported = new Set<string>();
   for (const at of addOrder) {
     const unit = units[at]!;
     const result = lowered[at]!;
@@ -376,6 +383,28 @@ function build(ref: ProgramRef, context: CompileContext, inlineName: string): Pr
           message: `function "${def.name}" shadows the built-in of the same name; calls bind to the built-in (R-35)`,
           data: { name: def.name, file: unit.name },
         });
+      }
+      if (ref.owner === undefined && context.packageFunctionOwners !== undefined) {
+        const signature = `${def.name}\u0000${def.argc}`;
+        if (!reported.has(signature)) {
+          reported.add(signature);
+          for (const owner of context.packageFunctionOwners(def.name, def.argc)) {
+            notices.push({
+              code: "command.overridden",
+              file: unit.name,
+              line: def.line,
+              message: `"${def.name}" with ${def.argc} parameter(s) is bound by both package "${owner}" and program "${unit.name}"; program "${unit.name}" wins the unqualified call (PKG-4)`,
+              data: {
+                name: def.name,
+                argc: def.argc,
+                kind: "package-function",
+                previous: `package "${owner}"`,
+                replacement: `program "${unit.name}"`,
+                winner: `program "${unit.name}"`,
+              },
+            });
+          }
+        }
       }
     }
     for (const [name, list] of Object.entries(result.functions)) {

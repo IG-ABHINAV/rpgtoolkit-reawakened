@@ -23,6 +23,8 @@
 import type { GameState } from "../save/state.ts";
 import { registerPackageBehaviours, resolveBehaviour } from "../actors/behaviour.ts";
 import { restorePluginLayers, snapshotPluginLayers } from "./layers.ts";
+import { beginPackageExport, sealPackageExport } from "./package-exports.ts";
+import { foldNamespace } from "./manifest.ts";
 import { ScriptError } from "./errors.ts";
 import type { ProgramRef } from "./program.ts";
 import { findThread, killThread, startProgram } from "./state.ts";
@@ -59,6 +61,10 @@ export function runPackageStartup(
       const packageName = ref.owner ?? matchedPlugin?.package?.name ?? matchedPlugin?.definition.id;
       const diagnosticStart = services.diagnostics.length;
       services.setPackageStartup(true, packageName);
+      const owningPlugin = matchedPlugin ?? plugins.find((plugin) => (plugin.package?.name ?? plugin.definition.id) === packageName);
+      const entry = packageName === undefined
+        ? undefined
+        : beginPackageExport(services.layers, packageName, owningPlugin?.namespace === undefined ? null : foldNamespace(owningPlugin.namespace), ref);
       const thread = startProgram(state.vm, ref);
       const id = thread.id;
       activeThread = id;
@@ -79,6 +85,7 @@ export function runPackageStartup(
         );
       }
       if (killThread(state.vm, id)) services.onThreadRemoved?.(id);
+      if (entry !== undefined) sealPackageExport(services.layers, entry, services);
       activeThread = undefined;
     }
   } catch (error) {

@@ -193,8 +193,24 @@ export function resolveManifestPlugins(
     if (byName.has(name)) duplicates.add(name);
     else byName.set(name, item);
   }
+  const named = new Set<string>();
   for (let index = 0; index < manifest.length; index += 1) {
     const entry = manifest[index]!;
+    // A package identity appears once (entry 19.21): the later entry is rejected, so no package starts twice.
+    if (!Object.hasOwn(ENGINE_PLUGIN_TABLE, entry.id)) {
+      const identity = foldNamespace(entry.id);
+      if (named.has(identity)) {
+        const packageIndex = index - ENGINE_DEFAULT_MANIFEST.length;
+        diagnostics.push({
+          code: "manifest.duplicate-package",
+          file,
+          line: packageIndex >= 0 ? packageIndex : 0,
+          message: `package "${entry.id}" is listed more than once in the manifest; the later entry is rejected`,
+        });
+        continue;
+      }
+      named.add(identity);
+    }
     if (!isPluginManifestEntryEnabled(entry)) continue;
     // Own-property-safe (issue #537): `constructor`, `__proto__` and `toString` are inherited
     // members of a plain object, and selecting one would skip the located `plugin.unresolved`.

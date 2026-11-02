@@ -25,6 +25,7 @@
  */
 
 import type { CallableValue } from "../ports/value.ts";
+import type { ProgramRef } from "./program.ts";
 
 /** The `def` prefix of a layer wrapper; the rest is the layer id. */
 export const LAYER_PREFIX = "plugin.layer:";
@@ -97,6 +98,22 @@ export type PluginRegistration = {
   readonly menuLayers: readonly string[];
 };
 
+/**
+ * One enabled package's script-function export index entry (PKG-4; entry 19.21): the
+ * package's startup program as it stood when its start-up finished. Session data, rebuilt by
+ * package start-up at every boot and restore, never state.
+ */
+export type PackageExport = {
+  /** The owning package name (`ProgramRef.owner`). */
+  readonly name: string;
+  /** The package's folded namespace, or `null` when the host named none. */
+  readonly namespace: string | null;
+  /** The startup program with the includes its own start-up performed. */
+  ref: ProgramRef;
+  /** False while the package's start-up still runs; only a sealed entry answers a lookup. */
+  sealed: boolean;
+};
+
 /** The layers of one running game (see the file header). */
 export type PluginLayers = {
   seq: number;
@@ -108,11 +125,13 @@ export type PluginLayers = {
   readonly menuLayers: Map<string, MenuProviderLayer>;
   /** Per screen, the live menu provider layer ids, registration order. */
   readonly menuStacks: Map<string, string[]>;
+  /** The packages' script-function exports, in manifest (start-up) order. */
+  readonly exports: PackageExport[];
 };
 
 /** An empty layer table. */
 export function createPluginLayers(): PluginLayers {
-  return { seq: 0, menuOrder: 0, layers: new Map(), stacks: new Map(), registrations: new Map(), menuLayers: new Map(), menuStacks: new Map() };
+  return { seq: 0, menuOrder: 0, layers: new Map(), stacks: new Map(), registrations: new Map(), menuLayers: new Map(), menuStacks: new Map(), exports: [] };
 }
 
 
@@ -125,6 +144,7 @@ export function clearPluginLayers(table: PluginLayers): void {
   table.menuStacks.clear();
   table.stacks.clear();
   table.registrations.clear();
+  table.exports.length = 0;
 }
 /** Capture a restorable copy of a session layer table before a startup pass. */
 export function snapshotPluginLayers(table: PluginLayers): PluginLayers {
@@ -139,6 +159,7 @@ export function snapshotPluginLayers(table: PluginLayers): PluginLayers {
       layer.kind === "rpgcode" ? { ...layer, provider: copyCallable(layer.provider) } : { ...layer },
     ])),
     menuStacks: new Map([...table.menuStacks].map(([screen, ids]) => [screen, [...ids]])),
+    exports: table.exports.map((entry) => ({ ...entry })),
   };
 }
 
@@ -158,6 +179,8 @@ export function restorePluginLayers(table: PluginLayers, snapshot: PluginLayers)
   }
   table.menuStacks.clear();
   for (const [screen, ids] of snapshot.menuStacks) table.menuStacks.set(screen, [...ids]);
+  table.exports.length = 0;
+  for (const entry of snapshot.exports) table.exports.push({ ...entry });
 }
 /** The layer id a `def` names, or `null` when `def` is not a layer wrapper. */
 export function layerIdOf(def: string): string | null {

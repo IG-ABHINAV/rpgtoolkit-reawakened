@@ -279,6 +279,18 @@ export function listPackageDeclarations(manifest: PluginManifest): readonly Pack
   return out;
 }
 
+/**
+ * A repeated package identity is `manifest.duplicate-package` (PKG-2; entry 19.21); a repeated
+ * native id stays `manifest.duplicate-id`. Either way the later entry is rejected, never run twice.
+ */
+function duplicateCode(entry: PluginManifestEntry): string {
+  return isPackageManifestEntry(entry) ? "manifest.duplicate-package" : "manifest.duplicate-id";
+}
+
+function duplicateMessage(entry: PluginManifestEntry): string {
+  return isPackageManifestEntry(entry) ? `duplicate package "${entry.id}"` : `duplicate plugin id "${entry.id}"`;
+}
+
 /** Validate untrusted manifest data and report every located error. */
 export function parsePluginManifest(input: unknown, path = "manifest"): PluginManifestParseResult {
   if (!Array.isArray(input)) {
@@ -295,7 +307,7 @@ export function parsePluginManifest(input: unknown, path = "manifest"): PluginMa
     }
     const entry = parsed.entry!;
     if (ids.has(entry.id)) {
-      diagnostics.push(diagnostic("manifest.duplicate-id", path, index, `duplicate plugin id "${entry.id}"`));
+      diagnostics.push(diagnostic(duplicateCode(entry), path, index, duplicateMessage(entry)));
       continue;
     }
     const takenAt = namespaceTakenAt(entries, entry);
@@ -335,7 +347,7 @@ export function applyPluginManifestPatch(
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index]!;
     if (seen.has(entry.id)) {
-      diagnostics.push(diagnostic("manifest.duplicate-id", path, index, `duplicate plugin id "${entry.id}"`));
+      diagnostics.push(diagnostic(duplicateCode(entry), path, index, duplicateMessage(entry)));
     }
     const takenAt = namespaceTakenAt(entries, entry, index);
     if (takenAt >= 0 && takenAt < index) {
@@ -368,7 +380,7 @@ export function applyPluginManifestPatch(
         continue;
       }
       if (locate(entries, entry.id) >= 0) {
-        reject("manifest.duplicate-id", index, `duplicate plugin id "${entry.id}"`);
+        reject(duplicateCode(entry), index, duplicateMessage(entry));
         continue;
       }
       const takenAt = namespaceTakenAt(entries, entry);
@@ -411,7 +423,7 @@ export function applyPluginManifestPatch(
       }
       const duplicateAt = locate(entries, entry.id);
       if (duplicateAt >= 0 && duplicateAt !== at) {
-        reject("manifest.duplicate-id", index, `duplicate plugin id "${entry.id}"`);
+        reject(duplicateCode(entry), index, duplicateMessage(entry));
         continue;
       }
       const takenAt = namespaceTakenAt(entries, entry, at);

@@ -403,9 +403,9 @@ test("resolving through a namespace that supplies no such name is unknown.comman
     namespace: { has: (ns) => registry.hasNamespace(ns), get: (ns, name) => registry.getIn(ns, name) },
   });
 
-  equal(resolveNamespaced("NS", "here", commands)?.kind, "command");
-  equal(resolveNamespaced("other", "here", commands), undefined, "not a namespace: the caller tries a file");
-  equal(errorOf(() => resolveNamespaced("ns", "gone", commands)).code, "unknown.command");
+  equal(resolveNamespaced("NS", "here", 0, commands)?.kind, "command");
+  equal(resolveNamespaced("other", "here", 0, commands), undefined, "not a namespace: the caller tries a file");
+  equal(errorOf(() => resolveNamespaced("ns", "gone", 0, commands)).code, "unknown.command");
 });
 
 // --- Stacked wrappers: `next` is the layer below the caller (PKG-4, AD-8; issue #496) ----------

@@ -29,10 +29,10 @@ export function resolvePluginManifest(
     const entry = manifest[index]!;
     if (seen.has(entry.id)) {
       diagnostics.push({
-        code: "manifest.duplicate-id",
+        code: isPackageManifestEntry(entry) ? "manifest.duplicate-package" : "manifest.duplicate-id",
         path,
         index,
-        message: `duplicate plugin id "${entry.id}"`,
+        message: isPackageManifestEntry(entry) ? `duplicate package "${entry.id}"` : `duplicate plugin id "${entry.id}"`,
       });
       continue;
     }

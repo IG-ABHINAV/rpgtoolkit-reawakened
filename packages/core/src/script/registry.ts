@@ -20,21 +20,24 @@
  * one function, `resolveCall`, first match wins: (1) the running scope's own
  * symbol, a variable that currently holds a callable value, which the VM
  * supplies because only it can see frames; (2) a built-in command; (3) a
- * script function of the program, by name and parameter count; (4) a command a
- * plugin claims (`docs/spec/engine/plugins-and-battle.md#plugin-roles`, "RPGCode
+ * script function of the program, by name and parameter count; (4) a script
+ * function a package exports, the last enabled package first (entry 19.21;
+ * docs/spec/engine/rpgcode-modules-and-objects.md#pkg-script-function-lookup-proposal);
+ * (5) a command a plugin claims (`docs/spec/engine/plugins-and-battle.md#plugin-roles`, "RPGCode
  * command plugins"; `docs/spec/engine/rpgcode-language.md#plugin-commands`,
  * "Plugin commands"). Entry 1 is what lets a script intercept a command by
  * assigning a callable to its name; nothing else changes, because a variable
  * that holds anything but a callable is not an entry. The table is not
- * materialised: its lower layers are this registry and the program's functions,
- * read where they live, so no save gains a field
+ * materialised: its lower layers are this registry, the program's functions and
+ * the package export index, read where they live, so no save gains a field
  * (docs/spec/engine/rpgcode-language.md#keywords-and-structure, FUN-8; ADR 0004
  * decision 8, entry 18.5). Redirects are not an entry: a redirect substitutes
  * the name while the program is parsed, before a call reaches the table.
  *
  * **Namespaces (PKG-4, entry 19.7).** A package entry also owns a namespace, and
- * `namespace.name(args)` runs that package's own layer of `name` with `next`
- * reaching the layer below it. The namespace is a view over the same layer
+ * `namespace.name(args)` runs that package's own script function of `name` and
+ * parameter count (entry 19.21) or, when it has none, its own layer of `name` with
+ * `next` reaching the layer below it. The namespace is a view over the same layer
  * stacks, built from the resolved list and holding no state, so it needs no
  * table of its own and nothing in a save: dropping a package from the list drops
  * its layers and its namespace together, and the binding below it is the one the
@@ -99,6 +102,31 @@ export type NamespaceSource = {
   readonly get: (namespace: string, name: string) => ResolvedCommand | undefined;
 };
 
+/** One script function a package exports (PKG-4; entry 19.21): its package, compiled program and definitions. */
+export type PackageFunctionHit = {
+  readonly package: string;
+  readonly program: Program;
+  /** Every definition of the name in that program, one per parameter count (MOD-1). */
+  readonly infos: readonly FunctionInfo[];
+  /** The definition that matches the requested parameter count, when one was asked for. */
+  readonly info: FunctionInfo | undefined;
+};
+
+/**
+ * The script functions the enabled packages export, in manifest order (docs/spec/engine/rpgcode-modules-and-objects.md#pkg-script-function-lookup-proposal).
+ * A package's export index is session data rebuilt by package start-up, never saved state.
+ */
+export type PackageFunctionSource = {
+  /** The matching function of the last enabled package that has one, by name and parameter count. */
+  readonly find: (name: string, argc: number) => PackageFunctionHit | undefined;
+  /** The matching function of the package that owns `namespace` (ASCII-folded); no other package is asked. */
+  readonly findIn: (namespace: string, name: string, argc: number) => PackageFunctionHit | undefined;
+  /** The definitions of `name` of the last package that defines it with any parameter count. */
+  readonly findAny: (name: string) => PackageFunctionHit | undefined;
+  /** The packages exporting `name` with `argc` parameters, earliest first. */
+  readonly owners: (name: string, argc: number) => readonly string[];
+};
+
 /**
  * The commands the engine itself binds, as two sources (AD-8; the VM and the
  * LSP share it): a built-in, which binds ahead of a script function (R-35), and
@@ -113,14 +141,30 @@ export type CommandLookup = {
   get: CommandSource;
   /** The package namespaces: `namespace.name` reaches that package's own layer (PKG-4). */
   namespace: NamespaceSource;
+  /** The script functions packages export; they sit between program functions and plugin commands. */
+  packageFunction: PackageFunctionSource;
+  /** The id of the plugin whose layer is on top of `name`, if any (diagnostics only). */
+  owner: (name: string) => string | undefined;
+  /** The id of the engine pack that supplies the built-in `name`, if any (diagnostics only). */
+  builtinOwner: (name: string) => string | undefined;
 };
 
-/** Build the command lookup from its two sources; a source left out resolves nothing. */
+const NO_PACKAGE_FUNCTIONS: PackageFunctionSource = {
+  find: () => undefined,
+  findIn: () => undefined,
+  findAny: () => undefined,
+  owners: () => [],
+};
+
+/** Build the command lookup from its sources; a source left out resolves nothing. */
 export function createCommandLookup(
   sources: {
     readonly builtin?: CommandSource;
     readonly extension?: CommandSource;
     readonly namespace?: NamespaceSource;
+    readonly packageFunction?: PackageFunctionSource;
+    readonly owner?: (name: string) => string | undefined;
+    readonly builtinOwner?: (name: string) => string | undefined;
   },
 ): CommandLookup {
   const builtin = sources.builtin ?? (() => undefined);
@@ -131,6 +175,9 @@ export function createCommandLookup(
     extension,
     get: (name) => builtin(name) ?? extension(name),
     namespace,
+    packageFunction: sources.packageFunction ?? NO_PACKAGE_FUNCTIONS,
+    owner: sources.owner ?? (() => undefined),
+    builtinOwner: sources.builtinOwner ?? (() => undefined),
   };
 }
 
@@ -177,7 +224,8 @@ function functionTarget(
  *    which runs the binding it names);
  * 3. a built-in binds ahead of a script function of the same name (R-35);
  * 4. the flat list of script functions, where the last definition added won (R-41);
- * 5. the extension: a plugin command that no built-in or script function claims.
+ * 5. a script function a package exports, the last enabled package first (PKG-4; entry 19.21);
+ * 6. the extension: a plugin command that no built-in or script function claims.
  *
  * A script function resolves by name and parameter count (FUN-1); a wrong count
  * falls through to the next step.
@@ -209,29 +257,43 @@ export function resolveCall(
   const script = functionTarget(program.functions, name, argc, program);
   if (script !== undefined) return script;
 
+  // A package's exported function binds after the program's own and ahead of a plugin command.
+  const exported = commands.packageFunction.find(name, argc);
+  if (exported !== undefined) return packageTarget(exported);
+
   // A plugin's own command is reached only after the script functions (docs/spec OOP-6 call order).
   const extension = commands.extension(name);
   return extension === undefined ? undefined : { kind: "command", command: extension };
 }
 
+/** The call target of a package-exported function (entry 19.21). */
+function packageTarget(hit: PackageFunctionHit): CallResolution {
+  const info = hit.info!;
+  return { kind: "function", target: { program: hit.program.ref, entry: info.entry, params: info.params } };
+}
+
 /**
- * Resolve `namespace.name` (PKG-4): the command the package of `namespace` supplies
- * under `name`, or `undefined` when `namespace` names no package, so the caller falls
- * through to a file. A package that supplies nothing under `name` is the
- * `unknown.command` failure; the call never falls back to a file, another package or
- * the unqualified table, since that would let one spelling reach different code.
- * The qualifier is ASCII-folded here, as the manifest folds namespaces.
+ * Resolve `namespace.name(args)` (PKG-4; entry 19.21): the package of `namespace` is asked for
+ * its own script function of that name and parameter count first, then its own native
+ * layer of `name`. `undefined` when `namespace` names no package, so the caller falls
+ * through to a file. A package that supplies neither is the `unknown.command` failure
+ * naming the qualified call; the call never falls back to a file, another package, a
+ * built-in or the unqualified table, since that would let one spelling reach different
+ * code. The qualifier is ASCII-folded here, as the manifest folds namespaces.
  */
 export function resolveNamespaced(
   namespace: string,
   name: string,
+  argc: number,
   commands: CommandLookup,
 ): CallResolution | undefined {
   const folded = foldNamespace(namespace);
   if (!commands.namespace.has(folded)) return undefined;
+  const exported = commands.packageFunction.findIn(folded, name, argc);
+  if (exported !== undefined) return packageTarget(exported);
   const command = commands.namespace.get(folded, name);
   if (command === undefined) {
-    throw new ScriptError("unknown.command", `the package namespace "${folded}" supplies no command "${name}"`);
+    throw new ScriptError("unknown.command", `the package namespace "${folded}" supplies no command "${name}" taking ${argc} argument(s)`);
   }
   return { kind: "command", command };
 }

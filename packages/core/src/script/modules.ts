@@ -80,6 +80,7 @@ export function runModuleCommand(
   programs: ProgramCache,
   program: Program,
   pos: SourcePos,
+  onInclude?: (from: ProgramRef, to: ProgramRef) => void,
 ): void {
   switch (name) {
     case "redirect":
@@ -121,6 +122,7 @@ export function runModuleCommand(
         );
       }
       replaceRefs(vm, program.ref, next);
+      onInclude?.(program.ref, next);
       return;
     }
     default:
