@@ -369,6 +369,14 @@ function build(ref: ProgramRef, context: CompileContext, inlineName: string): Pr
   // Definitions are added to the flat list in include order and the main file last, so the
   // main file's own definition wins after every include has been applied (MOD-1, R-41).
   const addOrder = [...units.keys()].slice(1).concat(0);
+  // The unit whose definition of a signature the flat list keeps: the last one in add order, so the
+  // main file's own definition beats an include's (MOD-1, R-41). A conflict record names that winner.
+  const winnerOf = new Map<string, Unit>();
+  for (const at of addOrder) {
+    for (const [name, list] of Object.entries(lowered[at]!.functions)) {
+      for (const info of list) winnerOf.set(`${name}\u0000${info.params.length}`, units[at]!);
+    }
+  }
   const reported = new Set<string>();
   for (const at of addOrder) {
     const unit = units[at]!;
@@ -386,7 +394,7 @@ function build(ref: ProgramRef, context: CompileContext, inlineName: string): Pr
       }
       if (ref.owner === undefined && context.packageFunctionOwners !== undefined) {
         const signature = `${def.name}\u0000${def.argc}`;
-        if (!reported.has(signature)) {
+        if (!reported.has(signature) && winnerOf.get(signature) === unit) {
           reported.add(signature);
           for (const owner of context.packageFunctionOwners(def.name, def.argc)) {
             notices.push({

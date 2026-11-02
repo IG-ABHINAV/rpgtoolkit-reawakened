@@ -252,6 +252,30 @@ test("collision: an included function outranks a package function, whenever the 
   equal(overrides(rig).length, 1);
 });
 
+test("collision: when the main file shadows an included function, the record names the main file as the winner", () => {
+  const rig = boot(
+    { packages: [DEMO], files: { "lib.prg": "function pkgfn(n) { return \"included\" }\nfunction extra(n) { return 1 }\n" } },
+    '#include "lib.prg"\nfunction pkgfn(n) { return \"main\" }\na = pkgfn(1)\n',
+  );
+  deepEqual(run(rig), []);
+  equal(rig.state.vm.globals.a, "main");
+  const warnings = overrides(rig);
+  equal(warnings.length, 1);
+  deepEqual(warnings[0], {
+    name: "pkgfn",
+    argc: 1,
+    kind: "package-function",
+    previous: 'package "demo"',
+    replacement: 'program "<inline>"',
+    winner: 'program "<inline>"',
+  });
+  const record = rig.records.find((item) => item.code === "command.overridden");
+  const located = record?.data as { readonly file?: unknown } | undefined;
+  equal(located?.file, "<inline>", "the record is located at the winning definition");
+  equal(String(record?.message).includes('program "<inline>" wins'), true);
+  equal(String(record?.message).includes("lib.prg"), false);
+});
+
 test("collision: two packages with one signature: the later manifest entry wins bare, both stay reachable qualified", () => {
   const rig = boot(
     {
