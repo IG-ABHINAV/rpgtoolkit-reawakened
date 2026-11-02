@@ -329,7 +329,7 @@ test("custom fight seed and mid-battle save restore preserve state and drawing",
   equal(drawHash, hashDrawList(drawListFor(repeated.state)));
   equal(stateHash === hashState(differentSeed.state), false);
   equal(drawHash === hashDrawList(drawListFor(differentSeed.state)), false);
-  equal(stateHash, "95cc9b44656c2ca5");
+  equal(stateHash, "026cb68e92d3d9fd");
   equal(drawHash, "3fa17af6365a9ba5");
 
   const restoredState = restoreGameState(snapshot(first.state));

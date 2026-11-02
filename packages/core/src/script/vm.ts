@@ -10,6 +10,7 @@
  */
 
 import { pow } from "../fmath/index.ts";
+import { claimInputBefore, pruneClaimed } from "../input/index.ts";
 import { observe, observePlugins, type ScriptObservers, type CallObservation } from "./observers.ts";
 import type { Diagnostic } from "../ports/engine.ts";
 import type { Logger } from "../ports/logger.ts";
@@ -522,7 +523,7 @@ export function runWaitsPhase(
   vm: VmState,
   view: WaitView,
   poll: WaitPoll = defaultWaitPoll,
-  claim?: (seq: number, discardBefore?: number) => void,
+  claim?: (seq: number | undefined, discardBefore?: number) => void,
   services?: ScriptServices,
   onResolved?: (wait: Wait) => void,
 ): void {
@@ -543,7 +544,7 @@ export function runWaitsPhase(
 }
 
 /** Poll one thread's wait; on a result, make the thread ready and hand it the wake value. */
-function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number, discardBefore?: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
+function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number | undefined, discardBefore?: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
   const wait = thread.wait;
   if (wait === null) return;
   const menuContinuation = wait.kind === "menu.screen" ? wait.payload[0] : null;
@@ -553,7 +554,7 @@ function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread
   }
   const result = poll(view, wait);
   if (result === null) return;
-  if (result.claim !== undefined) claim?.(result.claim, result.discardBefore);
+  if (result.claim !== undefined || result.discardBefore !== undefined) claim?.(result.claim, result.discardBefore);
   thread.status = "ready";
   thread.wait = null;
   const frame = thread.frames[thread.frames.length - 1];
@@ -856,13 +857,23 @@ export function advanceScriptTick(
   poll: WaitPoll = defaultWaitPoll,
 ): ScriptStatus {
   const claims = state.engine.claims;
-  if (claims !== undefined) claims.length = 0;
   const activeClaims = claims ?? [];
+  // Apply any shared claims from the previous standalone tick before the next wait poll.
+  pruneClaimed(state.input, activeClaims);
+  activeClaims.length = 0;
+  state.engine.claims = activeClaims;
+  // Backfill a legacy/manual key wait before the standalone scheduler polls it.
+  for (const thread of state.vm.threads) {
+    if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
+  }
   runWaitsPhase(
     state.vm,
     { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: activeClaims },
     poll,
-    (seq) => { if (!activeClaims.includes(seq)) activeClaims.push(seq); },
+    (seq, discardBefore) => {
+      if (discardBefore !== undefined) claimInputBefore(state.input, discardBefore, activeClaims);
+      if (seq !== undefined && !activeClaims.includes(seq)) activeClaims.push(seq);
+    },
     services,
     (wait) => {
       if (wait.kind === "input.key" && wait.dialogue !== undefined) {
@@ -870,9 +881,14 @@ export function advanceScriptTick(
       }
     },
   );
-  if (claims === undefined && activeClaims.length > 0) state.engine.claims = activeClaims;
+  // Resolve wait discards before any ready thread can call get() on the shared queue.
+  pruneClaimed(state.input, activeClaims);
+  activeClaims.length = 0;
   runThreadsPhase(state.vm, services, budget);
   runEventsPhase(state, services, budget);
+  pruneClaimed(state.input, activeClaims);
+  activeClaims.length = 0;
+  if (claims === undefined) delete state.engine.claims;
   assertNoDeadlock(state.vm, services);
   runTimePhase(state.time);
   collectStateGarbage(state, layerRoots(services.layers));
@@ -2966,9 +2982,8 @@ function dispatchResolved(
   }
 
   if (result.wait !== undefined) {
-    const wait = result.wait.kind === "input.key" && result.wait.parkSeq === undefined &&
-      services.view.state?.input.keys.length
-      ? { ...result.wait, parkSeq: services.view.state.input.nextSeq }
+    const wait = result.wait.kind === "input.key" && result.wait.parkSeq === undefined
+      ? { ...result.wait, parkSeq: services.view.state?.input.nextSeq ?? 0 }
       : result.wait;
     thread.wait = wait;
     thread.status = "waiting";

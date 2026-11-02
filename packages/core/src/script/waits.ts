@@ -94,7 +94,7 @@ export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
     }
   }
   if (wait.key === null) return null;
-  return { value: wait.key, ok: true };
+  return { value: wait.key, ok: true, discardBefore: floor };
 }
 /** `menu.screen`: resolve provider input, or wait for the active shop context to close. */
 export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
