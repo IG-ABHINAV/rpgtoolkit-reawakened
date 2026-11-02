@@ -318,7 +318,9 @@ The planner does not currently hint other current-board assets, animation frame 
 It deduplicates keys across tiers, keeping the earliest tier, and sorts keys within each tier. The battle background may
 need a separate prefetch-only asset request before its sound fields become available. Such a request never blocks
 ticking or loading; a late successful reply emits a changed plan when its facts are ready. A missing or undecodable
-reply is remembered as unavailable for the engine session and is not requested again.
+reply is remembered as unavailable for the engine session and is not requested again. An undecodable reply reports an
+`asset.invalid` diagnostic with the key and parser error; it does not stop the engine. This prefetch-only negative
+cache is not saved and is excluded from state and draw hashes. It does not prevent a separate gameplay asset request.
 
 A hint **never blocks**, **never changes state**, **never appears in a state or draw hash**, and **never earns a reply**.
 The wire record is an AD-5 and AD-17 amendment, added by entry 8. The owner approved this correction to the landed

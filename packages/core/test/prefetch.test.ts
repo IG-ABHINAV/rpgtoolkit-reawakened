@@ -8,6 +8,9 @@
 
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { assetKey } from "../src/formats/resolver/resolver.ts";
 import { PACKAGE_ROOT } from "../src/formats/resolver/model.ts";
 import { createAssetIndex } from "../src/formats/resolver/index.ts";
@@ -137,6 +140,56 @@ test("the engine emits the ruled hints for a board that names music, and a host 
   ok(observed.hints.includes("now:media/town.mid"), `the board's music is a now hint: ${observed.hints.join(",")}`);
   equal(observed.stateHash, discarded.stateHash, "a hint never changes the state hash");
   equal(observed.drawHash, discarded.drawHash, "a hint never changes the draw hash");
+});
+
+test("undecodable battle background is requested once and loading clears", () => {
+  const board = createEmptyBoard();
+  const written = writeBoard({ ...board, properties: { ...board.properties, battleBackground: "fight.raw" } });
+  if (!written.ok) throw new Error(written.error.message);
+  const boardData = written.value;
+  const backgroundKey = assetKey("Bkrounds/fight.raw");
+  function run(background: Uint8Array | null) {
+    const engine = createEngine({
+      seed: 5,
+      assetIndex: createAssetIndex(["Boards/b.brd", "Bkrounds/fight.raw"]),
+      assetRoot: PACKAGE_ROOT,
+      initialBoard: "b.brd",
+      width: 32,
+      height: 32,
+      maxTicks: 60,
+      program: "end()\n",
+    });
+    let report = engine.advance(1, []);
+    const counts: number[] = [];
+    const hashes: string[] = [];
+    const diagnostics: string[] = [];
+    const loadingAfterBackgroundReply: boolean[] = [];
+    for (let step = 0; step < 8; step += 1) {
+      counts.push(report.requests.filter((request) => request.kind === "asset" && request.key === backgroundKey).length);
+      hashes.push(report.stateHash);
+      diagnostics.push(...report.diagnostics.filter((item) => item.file === backgroundKey).map((item) => item.code));
+      const replies = report.requests.flatMap((request) =>
+        request.kind === "asset"
+          ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId,
+            bytes: request.key === backgroundKey ? background : request.key === assetKey("Boards/b.brd") ? boardData : null } }]
+          : [],
+      );
+      report = engine.advance(1, replies);
+      if (counts[counts.length - 1] === 1) loadingAfterBackgroundReply.push(report.loading);
+    }
+    return { counts, hashes, diagnostics, loadingAfterBackgroundReply, loading: report.loading, tick: report.tickAfter };
+  }
+  const invalid = run(new Uint8Array([0x0a, 0x00]));
+  equal(invalid.counts.reduce((sum, count) => sum + count, 0), 1, `background requests per advance: ${invalid.counts.join(",")}`);
+  deepEqual(invalid.loadingAfterBackgroundReply, [false], "loading clears on the advance consuming the undecodable reply");
+  equal(invalid.loading, false, "loading clears after undecodable reply");
+  ok(invalid.tick > 0, "simulation progresses after undecodable reply");
+  deepEqual(invalid.diagnostics, ["asset.invalid"]);
+  deepEqual(invalid, run(new Uint8Array([0x0a, 0x00])), "identical inputs give identical reports");
+  const missing = run(null);
+  deepEqual(invalid.hashes, missing.hashes, "decode failure and missing reply have identical per-tick state hashes");
+  const valid = run(new Uint8Array(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../../docs/spec/examples/versions/fight-background/background_minor3.bkg"))));
+  deepEqual(invalid.hashes, valid.hashes, "negative and positive prefetch caches are absent from per-tick state hashes");
 });
 
 test("the plan emits battle background and main menu hints in the ruled tiers", () => {

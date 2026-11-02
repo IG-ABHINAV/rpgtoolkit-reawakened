@@ -339,7 +339,7 @@ export function createEngine(init: EngineInit): Engine {
   const requestsOut: RunnerRequest[] = [];
   /** The last prefetch plan sent, so a board entry only sends a hint set that differs from it. */
   let lastPrefetch = "";
-  /** Backgrounds whose asset request came back missing; do not re-request them for prefetch. */
+  /** Backgrounds unavailable for prefetch, including decode failures; do not request them again. */
   const missingBattleBackgrounds = new Set<AssetKey>();
   /** Sound facts from battle backgrounds fetched only for prefetch; kept out of the saved asset cache so prefetch hints stay hash-neutral. */
   const prefetchedBattleBackgrounds = new Map<AssetKey, PrefetchFacts["battle"]>();
@@ -1452,6 +1452,7 @@ export function createEngine(init: EngineInit): Engine {
           });
         } else {
           missingBattleBackgrounds.add(prefetchKey);
+          diagnostics.push({ code: "asset.invalid", file: prefetchKey, line: parsed.error.offset, message: parsed.error.message });
         }
         if (state.world.board !== undefined && state.world.board !== null) postPrefetch(state.world.board);
       }
