@@ -60,6 +60,7 @@
     "desktop:build": "node tools/desktop/build.mjs",
     "desktop:run": "node tools/desktop/run.mjs",
     "desktop:measure": "node tools/desktop/measure.mjs",
+    "desktop:measure:test": "node --test tools/desktop/test/*.test.mjs",
     "desktop:input": "node tools/desktop/probe-input.mjs",
     "desktop:inventory": "node tools/licences/desktop-inventory.mjs",
     "mobile:build": "node tools/mobile/build.mjs",
