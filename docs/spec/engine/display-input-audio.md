@@ -129,7 +129,7 @@ The runner reports a key as `{ code, char, vk, down, repeat? }` and never names 
 3.1's rule that `Wait()` **clears the queue before blocking** is kept in effect by the park-sequence rule: when `wait()` is called, it captures the sequence of the next input key—even if the queue is empty—and only resolves on an unclaimed key at or after that floor. A key appended after the call is eligible even when it arrives before the next waits phase. **Owner ruling (Jensen, 2026-11-02; #1174):** “After a `wait()` resolves, `get()` on the same thread only sees keys at or after that wait's park sequence; pre-park keys are gone.” The TK engineer's 3.1 source-read [certain] states: “wait throws away that backlog before it starts waiting... only a new key counts”. Accordingly, resolving a wait physically discards every shared queued key before its park floor; no thread can retrieve those pre-park keys. Keys at or after the floor that remain unclaimed are still available to later `Get()` calls.
 
 <a id="e-111"></a>
-**E-111 Mouse.** Click (blocking or polling) and move coordinates for scripts, click-to-move, cursor maps and on-screen buttons.
+**E-111 Mouse.** Click (blocking or polling) and move coordinates for scripts, click-to-move and on-screen buttons. Cursor-map selection is keyboard-driven; see [cursor-map runner](rpgcode-functions.md#reawakened-cursor-map-runner).
 
 <a id="e-112"></a>
 **E-112 Joystick/gamepad.** An optional joystick, mapped to movement and confirm/cancel. The legacy engine records no other joystick behaviour, so the contract below is a **Reawakened addition**; the E-112 anchor is kept so citations to the id still resolve.

@@ -1,7 +1,8 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
-import { assetKey } from "@tk-reawakened/core";
+import { applyInputEvent, assetKey, createInputSection } from "@tk-reawakened/core";
 import { fetchBundled, fetchBundledFiles, fetchGame, liveTextureProvider, textureProvider, toFiles } from "../src/index.ts";
+import { INTERACTIVE_INPUT_BINDINGS } from "../src/input-bindings.ts";
 
 // `runner-web`'s transport helpers and its decode adapter are the shipped code a Node unit test reaches without a
 // browser; the drawing itself is entry 4's lane under Playwright.
@@ -134,4 +135,10 @@ test("liveTextureProvider does not lock in null before bytes arrive, and prefers
   const ready = { w: 1, h: 1, rgba: new Uint8Array([9, 8, 7, 255]) };
   prepared.set(assetKey("Tiles/ready.bmp"), ready);
   equal(provide(assetKey("Tiles/ready.bmp")), ready);
+});
+
+test("interactive bindings route the browser Space event into the key queue", () => {
+  const input = createInputSection({ bindings: INTERACTIVE_INPUT_BINDINGS });
+  applyInputEvent(input, { kind: "key", name: " ", code: "Space", char: " ", down: true });
+  deepEqual(input.keys.map((key) => [key.name, key.code, key.action]), [[" ", "Space", " "]]);
 });

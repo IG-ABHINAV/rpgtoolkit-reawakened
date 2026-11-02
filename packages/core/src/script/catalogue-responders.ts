@@ -72,10 +72,10 @@ const TICKET_4_29_DOCS: Readonly<Record<string, BuiltinDoc>> = {
     see: ["docs/spec/engine/rpgcode-functions.md#reawakened-message-window-defaults"],
   },
   msgbox: {
-    summary: "Display a message box containing one or two buttons, handled using a cursor map (keyboard input only).",
-    behaviour: "Shows a question box as large as its wrapped text needs, with 80 by 28 pixel buttons, and waits for the player's choice. Technically, the title is merged into the body, an OK box has one OK button, a question box has Yes then No, and the call yields until a cursor-map key selects a button, then returns 1 (OK), 6 (Yes) or 7 (No).",
+    summary: "Display a message box with one or two buttons. Toolkit 3.1 used cursor maps for some choices; this does not establish that Reawakened msgbox uses cursor maps.",
+    behaviour: "Shows a centred wrapped panel, merges the title as its first body line, then blocks until a button is selected; it returns 1 (OK), 6 (Yes) or 7 (No). Toolkit 3.1's cursor-map behavior is legacy evidence, not a claim about Reawakened usage.",
     groups: ["message-window-text-fonts-30"],
-    waits: { kind: "until-input", summary: "Yields until a cursor-map key selects a button." },
+    waits: { kind: "until-input", summary: "Yields until a button is selected." },
     see: ["docs/spec/engine/rpgcode-functions.md#reawakened-msgbox-layout"],
   },
   animation: {
@@ -121,7 +121,7 @@ const TICKET_4_29_DOCS: Readonly<Record<string, BuiltinDoc>> = {
     see: ["docs/spec/engine/rpgcode-functions.md#reawakened-zoom"],
   },
   cursormaphand: {
-    summary: "Change the cursor used everywhere cursors are used (e.g. cursor maps, the menu, the battle system), optionally not stretching it to 32 by 32 pixels.",
+    summary: "Choose the image used for the cursor-map hand.",
     behaviour: "Changes the pointing hand used by cursor maps. Technically, the bundled hand is 32 by 32 pixels with no hot spot and is drawn at an offset of (-40, -10) from the cursor-map point; the stretch option scales a supplied image to 32 by 32; the call does not wait.",
     groups: ["mouse-buttons-cursor-maps-11"],
     waits: { kind: "never", summary: "Does not wait." },

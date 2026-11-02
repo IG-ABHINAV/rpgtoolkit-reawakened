@@ -33,15 +33,10 @@ type InputKeyWait = Extract<Wait, { readonly kind: "input.key" }>;
 function pollCursorMapKey(wait: InputKeyWait, key: string, count: number, claim?: number): WaitResult | null {
   const normalized = key.toLowerCase();
   let selected = Math.max(0, Math.min(count - 1, Math.trunc(wait.cursorSelection ?? 0)));
-  if (normalized === "left" || normalized === "up") selected = (selected + count - 1) % count;
-  else if (normalized === "right" || normalized === "down") selected = (selected + 1) % count;
-  else if (normalized === "enter" || normalized === "return" || normalized === "space") {
+  if (normalized === "left" || normalized === "up" || normalized === "arrowleft" || normalized === "arrowup") selected = (selected + count - 1) % count;
+  else if (normalized === "right" || normalized === "down" || normalized === "arrowright" || normalized === "arrowdown") selected = (selected + 1) % count;
+  else if (normalized === "enter" || normalized === "return" || normalized === "space" || normalized === " ") {
     return claim === undefined ? { value: selected, ok: true } : { value: selected, ok: true, claim };
-  } else if (/^[0-9]+$/.test(normalized)) {
-    const direct = Number(normalized);
-    if (direct >= 0 && direct < count) {
-      return claim === undefined ? { value: direct, ok: true } : { value: direct, ok: true, claim };
-    }
   } else return null;
   wait.cursorSelection = selected;
   return null;
@@ -59,19 +54,6 @@ export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
     if (count === 0) {
       wait.key = null;
       return null;
-    }
-    const pointer = view.input?.pointer;
-    if (pointer !== undefined && pointer.buttons !== 0) {
-      let best = 0;
-      let distance = Number.POSITIVE_INFINITY;
-      for (let index = 0; index < map.points.length; index += 1) {
-        const point = map.points[index]!;
-        const dx = point.x - pointer.x;
-        const dy = point.y - pointer.y;
-        const candidate = dx * dx + dy * dy;
-        if (candidate < distance) { distance = candidate; best = index; }
-      }
-      return { value: best, ok: true };
     }
     if (view.input !== undefined) {
       for (const key of view.input.keys) {

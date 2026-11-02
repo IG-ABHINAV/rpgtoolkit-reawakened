@@ -142,12 +142,12 @@ function cursorCommand(cursor: UiCursorImage, pointer: { readonly x: number; rea
   };
 }
 
-function drawCursor(commands: DrawCommand[], ui: UiSection, input: InputSection | undefined, selection?: number): void {
+function drawCursor(commands: DrawCommand[], ui: UiSection, input: InputSection | undefined, selection?: number, cursorMapRunnerActive = true): void {
   const pointer = input?.pointer ?? { x: 0, y: 0, buttons: 0 };
   if (ui.mouseCursor !== undefined && ui.mouseCursor !== null) {
     commands.push(cursorCommand(ui.mouseCursor, pointer));
-    return;
   }
+  if (!cursorMapRunnerActive) return;
   const point = cursorMapPoint(ui, selection);
   if (point === null) return;
   const hand = ui.cursorHand ?? { asset: "media/cursors/tkr-hand.png", stretch: true, width: 32, height: 32 };
@@ -191,10 +191,10 @@ export function composeUi(ui: UiSection, width: number, height: number, input?: 
   return commands;
 }
 
-/** Compose only the cursor so the engine can append it after post-processing effects. */
-export function composeUiCursor(ui: UiSection, input?: InputSection, cursorSelection?: number): DrawCommand[] {
+/** Compose the pointer and, only during its blocking runner, the cursor-map hand. */
+export function composeUiCursor(ui: UiSection, input: InputSection | undefined, cursorSelection: number | undefined, cursorMapRunnerActive: boolean): DrawCommand[] {
   const commands: DrawCommand[] = [];
-  drawCursor(commands, ui, input, cursorSelection);
+  drawCursor(commands, ui, input, cursorSelection, cursorMapRunnerActive);
   return commands;
 }
 

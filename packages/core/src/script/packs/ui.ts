@@ -121,7 +121,7 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
   uiCommand("cursorMapRun", [
     { name: "map", optional: false, byRef: false, variadic: false },
     { name: "ret", optional: true, byRef: true, variadic: false },
-  ], { summary: "Run a cursor map.", behaviour: "Shows the hand at the selected map point and waits for a key or mouse selection. Technically, arrow keys move through points, number keys select a zero-based point, Enter/Return/Space confirms, mouse presses choose the nearest point, and the returned index is zero-based.", groups: [CURSOR_GROUP], waits: { kind: "until-input", summary: "Yields until a cursor-map point is selected." }, see: ["docs/spec/engine/rpgcode-functions.md#e-60"] }, (_view, args) => {
+  ], { summary: "Run a cursor map and wait for a point to be chosen.", behaviour: "Blocks while showing the hand at the selected point. Selection starts at the first point; Up/Left and Down/Right navigate with wrapping, and Enter/Return/Space confirms. Escape does not cancel, the runner reads no mouse input, and the result is the selected zero-based index.", groups: [CURSOR_GROUP], waits: { kind: "until-input", summary: "Yields until a cursor-map point is selected." }, see: ["docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner"] }, (_view, args) => {
     const map = Math.trunc(number(args, 0));
     const refs = args[1]?.ref === null || args[1]?.ref === undefined ? [] : [args[1].ref];
     return { value: null, effects: [uiEffect("cursormaprun", [map])], wait: { kind: "input.key", global: true, key: null, cursorMap: map, cursorSelection: 0, resumeRefs: refs } };

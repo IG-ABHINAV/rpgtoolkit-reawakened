@@ -3057,7 +3057,7 @@ export function createEngine(init: EngineInit): Engine {
     const cursorMap = state.ui.activeCursorMap;
     const waitingCursor = cursorMap === undefined
       ? undefined
-      : state.vm.threads.find((thread) => thread.wait?.kind === "input.key" && thread.wait.cursorMap === cursorMap);
+      : state.vm.threads.find((thread) => thread.status === "waiting" && thread.wait?.kind === "input.key" && thread.wait.cursorMap === cursorMap);
     const cursorSelection = waitingCursor?.wait?.kind === "input.key" ? waitingCursor.wait.cursorSelection : undefined;
     const fx = drawableFx();
     const withFx = applyFxDrawList(base, fx);
@@ -3074,7 +3074,7 @@ export function createEngine(init: EngineInit): Engine {
       ? state.ui
       : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
     const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection)] };
-    return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection)] };
+    return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)] };
   }
   /** A blit of one whole persistent surface, sized from its stored bitmap (E-57's script-screen layer). */
   function surfaceBlit(surfaces: GameState["surfaces"], id: SurfaceId | null): DrawCommand | null {

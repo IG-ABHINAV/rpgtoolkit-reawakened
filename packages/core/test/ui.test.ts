@@ -1,4 +1,4 @@
-import { deepEqual, equal } from "node:assert/strict";
+import { deepEqual, equal, ok } from "node:assert/strict";
 import test from "node:test";
 import {
   applyUiEffect,
@@ -139,7 +139,7 @@ test("menu.screen CallShop waits resolve only after active stock closes", () => 
   deepEqual(pollMenuScreen({ tick: 1, shopStock: [] }, wait), { value: null, ok: true });
 });
 
-test("cursor maps allocate points, claim keys and draw the hand last", () => {
+test("cursor maps navigate with wrapping, select by keyboard, and ignore mouse and Escape", () => {
   const state = createGameState({ seed: 0 });
   const created = command("createcursormap", state, [arg(0, "map")]);
   equal(created.value, 1);
@@ -148,35 +148,77 @@ test("cursor maps allocate points, claim keys and draw the hand last", () => {
   applyUiEffect(state, "cursormapadd", [50, 60, 1]);
   const run = command("cursormaprun", state, [arg(1)]);
   applyUiEffect(state, "cursormaprun", firstEffect(run).args ?? []);
+  const pointerCursor = command("mousecursor", state, [arg("TK DEFAULT"), arg(0), arg(0), arg(255), arg(0), arg(255)]);
+  applyUiEffect(state, "mousecursor", firstEffect(pointerCursor).args ?? []);
+  state.input.pointer = { x: 12, y: 14, buttons: 0 };
   const wait = run.wait as Wait;
-  equal(pollInputKey({
-    tick: 0,
-    ui: state.ui as never,
-    input: { keys: [{ seq: 1, name: "Right", code: "ArrowRight", char: null }], focused: true },
-    claims: [],
-  }, wait), null);
-  const navigatedSelection = wait.kind === "input.key" ? wait.cursorSelection : undefined;
-  const navigated = composeUi(state.ui, 100, 100, undefined, true, navigatedSelection);
-  const navigatedHand = navigated.at(-1);
-  equal(navigatedHand?.kind, "blit");
-  if (navigatedHand?.kind === "blit") {
-    equal(navigatedHand.dst.x, 10);
-    equal(navigatedHand.dst.y, 50);
+  equal(wait.kind, "input.key");
+  if (wait.kind !== "input.key") throw new Error("expected cursor map input wait");
+  equal(wait.cursorSelection, 0, "selection starts at the first point");
+
+  const initialCommands = composeUi(state.ui, 100, 100, state.input, true, wait.cursorSelection);
+  const initial = initialCommands.at(-1);
+  ok(initialCommands.some((entry) => entry.kind === "blit" && "asset" in entry.source && entry.source.asset === "media/cursors/tkr-arrow.png"), "configured mouse cursor remains visible");
+  ok(initialCommands.some((entry) => entry.kind === "blit" && "asset" in entry.source && entry.source.asset === "media/cursors/tkr-hand.png"), "configured mouse cursor does not suppress the active map hand");
+  equal(initial?.kind, "blit");
+  if (initial?.kind === "blit") {
+    equal(initial.dst.x, -30);
+    equal(initial.dst.y, 10);
   }
-  const result = pollInputKey({
+  const mouse = pollInputKey({
     tick: 0,
     ui: state.ui as never,
-    input: { keys: [{ seq: 2, name: "0", code: "Digit0", char: "0" }], focused: true },
+    input: { keys: [], pointer: { x: 50, y: 60, buttons: 1 }, focused: true },
     claims: [],
   }, wait);
-  deepEqual(result, { value: 0, ok: true, claim: 2 });
-  const commands = composeUi(state.ui, 100, 100);
-  const hand = commands.at(-1);
-  equal(hand?.kind, "blit");
-  if (hand?.kind === "blit") {
-    equal(hand.dst.x, -30);
-    equal(hand.dst.y, 10);
+  equal(mouse, null, "mouse presses do not choose cursor-map points");
+  equal(wait.cursorSelection, 0);
+  const escape = pollInputKey({
+    tick: 0,
+    ui: state.ui as never,
+    input: { keys: [{ seq: 1, name: "Escape", code: "Escape", char: null }], focused: true },
+    claims: [],
+  }, wait);
+  equal(escape, null, "Escape does not cancel the runner");
+  const numberKey = pollInputKey({
+    tick: 0,
+    ui: state.ui as never,
+    input: { keys: [{ seq: 2, name: "1", code: "Digit1", char: "1" }], focused: true },
+    claims: [],
+  }, wait);
+  equal(numberKey, null, "numeric keys do not choose a cursor-map point");
+  equal(wait.cursorSelection, 0, "numeric keys do not change the selected point");
+
+  for (const [seq, name, selected] of [[2, "Left", 1], [3, "Right", 0], [4, "Right", 1]] as const) {
+    const navigation = pollInputKey({
+      tick: 0,
+      ui: state.ui as never,
+      input: { keys: [{ seq, name, code: `Arrow${name}`, char: null }], focused: true },
+      claims: [],
+    }, wait);
+    equal(navigation, null);
+    equal(wait.cursorSelection, selected);
   }
+  const navigated = composeUi(state.ui, 100, 100, undefined, true, wait.cursorSelection).at(-1);
+  equal(navigated?.kind, "blit");
+  if (navigated?.kind === "blit") {
+    equal(navigated.dst.x, 10);
+    equal(navigated.dst.y, 50);
+  }
+  const enter = pollInputKey({
+    tick: 0,
+    ui: state.ui as never,
+    input: { keys: [{ seq: 5, name: "Enter", code: "Enter", char: null }], focused: true },
+    claims: [],
+  }, wait);
+  deepEqual(enter, { value: 1, ok: true, claim: 5 });
+  const space = pollInputKey({
+    tick: 0,
+    ui: state.ui as never,
+    input: { keys: [{ seq: 6, name: "Space", code: "Space", char: null }], focused: true },
+    claims: [],
+  }, wait);
+  deepEqual(space, { value: 1, ok: true, claim: 6 });
 });
 
 test("mouseCursor restores the bundled arrow and button slots stay in the overlay", () => {

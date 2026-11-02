@@ -30,6 +30,7 @@ import type { DecodeAhead } from "./decode-types.ts";
 import type { PackageSource } from "./package-source.ts";
 import { createSessionAssets, packageOrigin, type AssetLoadState } from "./session-assets.ts";
 import { dispatchRequests } from "./dispatch-requests.ts";
+import { INTERACTIVE_INPUT_BINDINGS } from "./input-bindings.ts";
 
 export type LiveBlobHost = {
   read(area: "saves" | "files", gameId: string, path: string): Promise<Uint8Array | null>;
@@ -225,7 +226,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       getEntityPosition: () => null,
     },
     ...(interactive ? {
-      input: { bindings: { keys: { Enter: "ENTER", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", KeyW: "up", KeyS: "down", KeyA: "left", KeyD: "right" } } },
+      input: { bindings: INTERACTIVE_INPUT_BINDINGS },
       resetRegistrations: [inputResetRegistration()],
     } : {}),
     ...(spriteRuntime === undefined ? {} : { spriteRuntime }),
