@@ -346,7 +346,6 @@ export function createEngine(init: EngineInit): Engine {
   /** In-flight prefetch-only asset requests and their ids; these deliberately do not live in the saved engine section. */
   const prefetchPending = new Map<number, AssetKey>();
   let nextPrefetchReqId = 1;
-  const prefetchLoading = (): boolean => prefetchPending.size > 0;
   /**
    * A hint's own counter, deliberately **not** `nextRequestId`: that one lives in the saved `engine` section, so drawing
    * from it would move a state hash for a request that must change nothing (AD-5). A hint earns no reply, so its id only
@@ -854,7 +853,6 @@ export function createEngine(init: EngineInit): Engine {
       (allowOpenTick || state.engine.openTick === undefined) &&
       pending.size === 0 &&
       pendingBlobs.size === 0 &&
-      !prefetchLoading() &&
       pendingImageEffects.length === 0 &&
       pendingBoardPreviews.length === 0 &&
       !state.vm.threads.some((thread) => thread.wait?.kind === "request") &&
@@ -1398,7 +1396,7 @@ export function createEngine(init: EngineInit): Engine {
         // Assets, deferred image effects and every other in-flight blob request
         // are therefore answered (or applied) before the snapshot is taken.
         const otherBlob = [...pendingBlobs.values()].some((other) => other !== entry);
-        if (pending.size > 0 || prefetchLoading() || pendingImageEffects.length > 0 || pendingBoardPreviews.length > 0 || otherBlob) continue;
+        if (pending.size > 0 || pendingImageEffects.length > 0 || pendingBoardPreviews.length > 0 || otherBlob) continue;
         try {
           const savedState = restoreGameState(snapshot(state));
           replyToRequest(savedState.vm, entry.vmReqId, { ok: true, value: 1 });
@@ -1452,6 +1450,8 @@ export function createEngine(init: EngineInit): Engine {
             readySound: parsed.value.readySound,
             cantDoSound: parsed.value.cantDoSound,
           });
+        } else {
+          missingBattleBackgrounds.add(prefetchKey);
         }
         if (state.world.board !== undefined && state.world.board !== null) postPrefetch(state.world.board);
       }
@@ -2656,7 +2656,7 @@ export function createEngine(init: EngineInit): Engine {
   function drive(): void {
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
-      if (failed || pending.size > 0 || pendingBlobs.size > 0 || prefetchLoading() || state.engine.openTick !== undefined) return;
+      if (failed || pending.size > 0 || pendingBlobs.size > 0 || state.engine.openTick !== undefined) return;
       if (pendingBoardPreviews.length > 0 && !prepareBoardPreviews()) return;
       const boot = state.engine.boot;
       const transition = state.engine.transition;
@@ -2669,7 +2669,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   /** Ticks run once nothing is outstanding: a scene needs its board, boot needs the start-up program or the main loop. */
   function canTick(): boolean {
-    if (failed || pending.size > 0 || pendingBlobs.size > 0 || prefetchLoading() || state.engine.transition !== undefined) return false;
+    if (failed || pending.size > 0 || pendingBlobs.size > 0 || state.engine.transition !== undefined) return false;
     if (state.engine.video !== undefined && !state.engine.video.ended) return false;
     const boot = state.engine.boot;
     if (boot === undefined) return state.world.board !== undefined && state.world.board !== null;
@@ -3235,7 +3235,7 @@ export function createEngine(init: EngineInit): Engine {
         audioCues: audio.drain(),
         requests: [...requestsOut],
         diagnostics: reportDiagnostics,
-        loading: !failed && (pending.size > 0 || pendingBlobs.size > 0 || prefetchLoading()),
+        loading: !failed && (pending.size > 0 || pendingBlobs.size > 0),
         paused,
         stateHash: hashGameState(state),
       };

@@ -1973,6 +1973,68 @@ test("a reserved plugin id is an unknown plugin with a located diagnostic, never
   equal(core.diagnostics.length, 0);
 });
 
+// docs/spec/engine/runners.md#prefetch: prefetch-only reads cannot hold up the game.
+function withheldPrefetchGame() {
+  return authorGame({
+    initChar: "hero.tem",
+    boards: { "start.brd": { battleBackground: "fight.raw" } },
+    programs: {},
+    battleBackgrounds: { "fight.raw": { music: "battle.mid", menuMoveSound: "", menuChooseSound: "", readySound: "", cantDoSound: "" } },
+  });
+}
+
+function bootWithheldBackground(game: AuthoredGame) {
+  const engine = bootEngine(game, makeDoubles());
+  let report = engine.advance(0, []);
+  let background: Extract<TickReport["requests"][number], { kind: "asset" }> | undefined;
+  for (let i = 0; i < 30; i += 1) {
+    const replies: InputRecord[] = [];
+    for (const request of report.requests) {
+      if (request.kind !== "asset") continue;
+      if (request.key === "bkrounds/fight.raw") background = request;
+      else replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+    }
+    if (background !== undefined && replies.length === 0) break;
+    report = engine.advance(0, replies);
+  }
+  ok(background, "the background request was withheld");
+  return { engine, report, background };
+}
+
+test("withheld prefetch background does not block ticks and a late reply emits the changed plan", () => {
+  const game = withheldPrefetchGame();
+  const { engine, report, background } = bootWithheldBackground(game);
+  equal(report.loading, false, "prefetch-only request does not count as loading");
+  const running = engine.advance(2, []);
+  equal(running.ticksRun, 2, "ticks continue while the host withholds the background");
+  const late = engine.advance(0, [{ tick: running.tickAfter, event: { kind: "asset", reqId: background.reqId, bytes: game.files.get(background.key) ?? null } }]);
+  ok(late.requests.some((request) => request.kind === "prefetch" && request.hints.some((hint) => hint.key === "battle.mid" && hint.tier === "next")), "late reply emits battle music in the changed plan");
+  equal(engine.advance(1, []).ticksRun, 1);
+});
+
+test("undecodable prefetch background is remembered and not requested again", () => {
+  const game = withheldPrefetchGame();
+  const { engine, report, background } = bootWithheldBackground(game);
+  let next = engine.advance(0, [{ tick: report.tickAfter, event: { kind: "asset", reqId: background.reqId, bytes: new Uint8Array([0x0a, 0x00]) } }]);
+  for (let i = 0; i < 3; i += 1) {
+    equal(next.requests.some((request) => request.kind === "asset" && request.key === background.key), false, "invalid background is not re-requested");
+    equal(next.loading, false);
+    next = engine.advance(1, []);
+  }
+});
+
+test("missing prefetch background is remembered and not requested again", () => {
+  const game = withheldPrefetchGame();
+  const { engine, report, background } = bootWithheldBackground(game);
+  const missing = engine.advance(0, [{ tick: report.tickAfter, event: { kind: "asset", reqId: background.reqId, bytes: null } }]);
+  equal(missing.loading, false);
+  for (let i = 0; i < 3; i += 1) {
+    const next = engine.advance(1, []);
+    equal(next.requests.some((request) => request.kind === "asset" && request.key === background.key), false);
+    equal(next.ticksRun, 1);
+  }
+});
+
 test("boot emits battle and menu prefetch hints, and consuming them does not change state or draw hashes", () => {
   const game = authorGame({
     initChar: "hero.tem",
@@ -2006,10 +2068,11 @@ test("boot emits battle and menu prefetch hints, and consuming them does not cha
       }
     };
     note();
-    for (let guard = 0; guard < 40 && report.loading; guard += 1) {
+    for (let guard = 0; guard < 40; guard += 1) {
       const replies = report.requests.flatMap((request) =>
         request.kind === "asset" ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: game.files.get(request.key) ?? null } }] : [],
       );
+      if (replies.length === 0 && !report.loading) break;
       report = engine.advance(6, replies);
       note();
     }
