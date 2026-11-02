@@ -23,7 +23,7 @@ import {
 import { inputPhaseRegistration, inputResetRegistration, movementPhaseRegistration } from "@tk-reawakened/core";
 import { parseClosingPlan, type ClosingFiles } from "@tk-reawakened/runner-harness";
 import { createWebgl2Renderer, type RenderStats } from "@tk-reawakened/render-webgl2";
-import { BUNDLED_BANK, CuePlayer } from "@tk-reawakened/synth";
+import { BUNDLED_BANK, CuePlayer, describePatchGap } from "@tk-reawakened/synth";
 import { connectSinkToGraph, PcmSink, type ScheduledPlay } from "./audio-sink.ts";
 import { fontProvider, liveTextureProvider } from "./index.ts";
 import type { DecodeAhead } from "./decode-types.ts";
@@ -248,7 +248,10 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
     onEvent(event) {
       if (event.kind === "ready") queueMicrotask(() => player.ready(event.voice, event.lengthTicks));
       else if (event.kind === "ended") player.ended(event.voice);
-      else if (event.kind === "error" && event.voice !== null) queueMicrotask(() => player.failed(event.voice!));
+      else if (event.kind === "error") {
+        if (event.voice !== null) queueMicrotask(() => player.failed(event.voice!));
+        else console.warn(`audio: ${event.code}: ${event.detail}`); // a bank failure belongs to no voice
+      } else if (event.kind === "bank.substitution") console.warn(describePatchGap(event)); // playback continues; not game state
     },
   });
   player = new CuePlayer({

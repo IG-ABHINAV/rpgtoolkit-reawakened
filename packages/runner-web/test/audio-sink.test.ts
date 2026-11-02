@@ -173,7 +173,7 @@ function midiSink(options: { readonly withBank: boolean; readonly readBank?: () 
 test("TK-16 loads and MIDI renders through it: the bundled bank is usable", () => {
   const { made, events } = midiSink({ withBank: true });
   made.handle({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "TK-16", sha256: null } });
-  equal(made.currentBankSha, "5419f02b0a9e63534b35332842e29decbc53c5352236be85b92cc87d0267f62a");
+  equal(made.currentBankSha, "a79fa6d4ae3b8ab8b3f3e3ddd4ab3d59a0ac24222caffcdd914435d76872ede2");
   made.handle({ kind: "load", voice: 7, track: "music", asset: `media/${MIDI}` as AssetKey, data: wav(MIDI) });
   made.handle({ kind: "play", voice: 7, cue: 12, loop: false, volume: 100, positionTicks: 0 });
   const frames = 8_192;

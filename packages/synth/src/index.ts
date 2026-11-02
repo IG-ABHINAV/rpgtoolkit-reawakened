@@ -2,6 +2,7 @@ export * from "./protocol.ts";
 export * from "./source.ts";
 export * from "./silent-voice.ts";
 export * from "./midi.ts";
+export * from "./patch.ts";
 export * from "./spessa.ts";
 export * from "./pcm.ts";
 export * from "./mixer.ts";

@@ -2,6 +2,7 @@ import { BasicMIDI, SoundBankLoader, SpessaSynthProcessor } from "spessasynth_co
 import { err } from "@tk-reawakened/core";
 import type { Result } from "@tk-reawakened/core";
 import { midiLengthTicks } from "./midi.ts";
+import { PatchRouter, bankPresetTable } from "./patch.ts";
 import { opened } from "./source.ts";
 import type { AudioSource, SourceEnv, SourceError, SourceVoice } from "./source.ts";
 import type { BankRef } from "./protocol.ts";
@@ -22,6 +23,7 @@ class SpessaVoice implements SourceVoice {
   readonly lengthTicks: number;
   private readonly midi: BasicMIDI;
   private readonly bank: Uint8Array | ArrayBuffer;
+  private readonly presets: ReadonlySet<string>;
   private readonly sampleRate: number;
   private readonly maxBufferSize: number;
   private readonly lengthFrames: number;
@@ -38,6 +40,7 @@ class SpessaVoice implements SourceVoice {
   constructor(bytes: Uint8Array, bank: Uint8Array | ArrayBuffer, sampleRate: number, lengthTicks: number, maxBufferSize: number) {
     this.midi = BasicMIDI.fromArrayBuffer(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     this.bank = bank;
+    this.presets = bankPresetTable(bank instanceof Uint8Array ? bank : new Uint8Array(bank));
     this.sampleRate = sampleRate;
     this.lengthTicks = lengthTicks;
     this.maxBufferSize = Math.max(32, maxBufferSize);
@@ -121,9 +124,14 @@ class SpessaVoice implements SourceVoice {
       eventsEnabled: false,
     });
     processor.soundBankManager.addSoundBank(SoundBankLoader.fromArrayBuffer(asArrayBuffer(this.bank)), "tkr");
+    // Patch selection follows the owner's fallback order (patch.ts), not SpessaSynth's: the synth is only ever asked for
+    // an instrument the bank has, and a channel with none is silent.
+    const router = new PatchRouter(this.presets);
     for (const timeline of this.midi.timeline) {
       const event = this.midi.tracks[timeline.tr]?.events[timeline.ev];
-      if (event !== undefined) processor.processMessage(event, 0, { time: this.midi.midiTicksToSeconds(event.ticks) });
+      if (event === undefined) continue;
+      const time = this.midi.midiTicksToSeconds(event.ticks);
+      for (const message of router.route(event)) processor.processMessage(message, 0, { time });
     }
     return processor;
   }

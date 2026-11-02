@@ -21,9 +21,11 @@ import {
   createSpessaMidiSource,
   openPrepared,
   validateBankBytes,
+  missingPatches,
   type AudioMessage,
   type AudioSourceRegistry,
   type BankRef,
+  type PatchRequest,
   type SourceError,
   type SourceVoice,
 } from "@tk-reawakened/synth";
@@ -33,6 +35,18 @@ import type { PreparedAudio } from "./decode-types.ts";
 export type SinkEvent =
   | { readonly kind: "ready"; readonly voice: number; readonly lengthTicks: number | null }
   | { readonly kind: "ended"; readonly voice: number }
+  /**
+   * A MIDI file asked for an instrument the bank does not have, so another plays instead (or the channel is silent).
+   * It belongs to no voice, is reported once per bank (by SHA-256) and requested instrument, and never stops playback.
+   */
+  | {
+      readonly kind: "bank.substitution";
+      readonly bankId: string;
+      readonly sha256: string;
+      readonly request: PatchRequest;
+      readonly substitute: { readonly bank: number; readonly program: number } | null;
+      readonly asset: AssetKey;
+    }
   /** A bank failure belongs to no voice and keeps the previous bank. */
   | { readonly kind: "error"; readonly voice: number | null; readonly code: string; readonly detail: string };
 
@@ -101,6 +115,8 @@ export class PcmSink {
   private bankBytes: Uint8Array | null = null;
   private readonly played: ScheduledPlay[] = [];
   private readonly errors: SinkEvent[] = [];
+  /** Substitutions already reported: bank SHA-256 + requested instrument, for the life of this sink (one player session). */
+  private readonly reported = new Set<string>();
 
   constructor(options: PcmSinkOptions) {
     this.readAsset = options.readAsset;
@@ -149,6 +165,7 @@ export class PcmSink {
         const prepared = this.readPrepared?.(message.asset) ?? null;
         const env = { outputRateHz: this.outputRateHz, bank: this.bankRef };
         let source: Result<SourceVoice, SourceError>;
+        let fetched: Uint8Array | null = null; // the asset's bytes, only if this load had to read them
         if (prepared !== null && prepared.kind === "pcm" && prepared.outputRateHz === this.outputRateHz) {
           source = openPrepared(prepared, env);
         } else {
@@ -157,6 +174,7 @@ export class PcmSink {
             this.fail(message.voice, "source.failed", `${message.asset} is not readable`);
             return;
           }
+          fetched = bytes;
           // The source reads the bank it needs from `env`; the bytes come from the cache through `bankResolver`.
           source = this.registry.open(bytes, () => env, extensionOf(message.asset));
         }
@@ -167,6 +185,7 @@ export class PcmSink {
           this.fail(message.voice, code, source.error.detail);
           return;
         }
+        this.reportMissingPatches(message.asset, fetched);
         this.voices.set(message.voice, {
           id: message.voice,
           track: message.track,
@@ -307,6 +326,26 @@ export class PcmSink {
     this.bankRef = bank;
     this.bankSha = sha;
     this.bankBytes = validateBankBytes(bytes);
+  }
+
+  /** Compare a MIDI file's instruments with the current bank's and report each one that needs a substitute, once. */
+  private reportMissingPatches(asset: AssetKey, bytes: Uint8Array | null): void {
+    if (bytes === null || this.bankBytes === null || this.bankSha === null || this.bankRef === null) return;
+    const isMidi = bytes.length >= 4 && String.fromCharCode(bytes[0] ?? 0, bytes[1] ?? 0, bytes[2] ?? 0, bytes[3] ?? 0) === "MThd";
+    if (!isMidi) return;
+    for (const { request, resolution } of missingPatches(bytes, this.bankBytes)) {
+      const id = `${this.bankSha}|${request.percussion ? "p" : "m"}|${request.bank}|${request.program}`;
+      if (this.reported.has(id)) continue;
+      this.reported.add(id);
+      this.event({
+        kind: "bank.substitution",
+        bankId: this.bankRef.id,
+        sha256: this.bankSha,
+        request,
+        substitute: resolution.kind === "silent" ? null : { bank: resolution.bank, program: resolution.program },
+        asset,
+      });
+    }
   }
 
   private releaseBank(): void {

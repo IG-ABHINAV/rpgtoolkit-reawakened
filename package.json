@@ -16,7 +16,7 @@
     "graph:write": "node tools/deps/graph.mjs --write",
     "graph:test": "node --test tools/deps/test/graph.test.mjs",
     "licence": "node tools/licences/check.mjs",
-    "licence:test": "node --test tools/licences/test/licences.test.mjs",
+    "licence:test": "node --test tools/licences/test/licences.test.mjs tools/licences/test/tk16-build.test.mjs",
     "license": "pnpm run licence",
     "license:test": "pnpm run licence:test",
     "provenance": "node tools/provenance/scan.mjs",

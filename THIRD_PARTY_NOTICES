@@ -260,17 +260,34 @@ with this deed makes no warranties about the work, and disclaims liability for
 all uses of the work, to the fullest extent permitted by applicable law.
 ```
 
-### TK-16 authored General MIDI bank — CC0-1.0
+### TK Reawakened authored MIDI test pieces — CC0-1.0
 
-`media/soundfonts/TK-16.sf2` is the project's compact, Super NES-flavoured
-General MIDI bank (37,560 bytes, SHA-256
-`5419f02b0a9e63534b35332842e29decbc53c5352236be85b92cc87d0267f62a`). It is
-authored entirely from deterministic mathematical waveforms and contains no
-third-party or recorded samples. The 16 melodic programs and one percussion
-program are listed individually in
-`tools/licences/tk16-provenance.json`, including each generator, frequency,
-loop range and CC0-1.0 provenance. The bank is shipped as a candidate pending
-owner listening approval; it is not activated as the default by this entry.
+`packages/synth/test/fixtures/pieces/` holds three short original pieces written
+to exercise the TK-16 banks in their intended styles: `1-classic-departure.mid`
+(an overworld theme), `2-whimsical-mushroom-market.mid` (a bouncy village piece)
+and `3-arcade-boss-rush.mid` (a battle theme). They are test fixtures only, are
+not bundled, and are not based on any existing game music. The contributors
+dedicate them to the public domain under the CC0 1.0 Universal dedication
+reproduced above.
+
+### TK-16 authored General MIDI banks — CC0-1.0
+
+The project ships three compact, Super NES-flavoured General MIDI banks in
+`media/soundfonts/`. They are authored entirely from deterministic mathematical
+waveforms and contain no third-party or recorded samples. Each carries 16
+melodic timbres mapped over GM programs 0–127 and a synthesised kit on
+percussion keys 35–81. Every sample is listed individually in
+`tools/licences/tk16-provenance.json`, including its generator, root key, rate,
+loop range and CC0-1.0 provenance.
+
+| File | Style | Bytes | SHA-256 |
+|---|---|---:|---|
+| `TK-16.sf2` (default) | Classic RPG | 563,992 | `a79fa6d4ae3b8ab8b3f3e3ddd4ab3d59a0ac24222caffcdd914435d76872ede2` |
+| `TK-16-Whimsical.sf2` | Whimsical | 618,322 | `280fa8d591c914747a30b297e703aefdbe63a428bae3d0a45fd2a5f20399700d` |
+| `TK-16-Arcade.sf2` | Arcade | 527,696 | `de883a27625f1a4443596864fcd518f540483aab3ccd2fbf2a84fa1ddf3909f6` |
+
+The owner chose Classic RPG as the default on 2026-11-01; the other two are
+selectable bundled banks.
 
 TK-16 is an authored General MIDI bank built entirely from deterministic mathematical waveforms; it contains no third-party samples.
 
