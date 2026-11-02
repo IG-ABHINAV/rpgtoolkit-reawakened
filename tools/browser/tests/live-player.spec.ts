@@ -109,22 +109,25 @@ test("live demo attaches a board canvas and movement changes the player and pres
   expect(canvasInfo?.height).toBe(480);
   expect(canvasInfo?.nonBlack ?? 0).toBeGreaterThan(1000);
   await page.locator("#screen").focus();
+
+  // Holding a direction key must walk continuously, not stop after one tile. Hold long enough
+  // for at least two 32-pixel tiles (the exact one-tile tap behaviour is covered by the core
+  // unit test; here we prove the real browser runner keeps queueing steps while held).
   await page.keyboard.down("ArrowRight");
   try {
     await page.waitForFunction((initial) => {
       const player = window.__live?.player;
-      return player !== null && player !== undefined && player.x > initial.x;
+      return player !== null && player !== undefined && player.x >= initial.x + 64;
     }, first.player, { timeout: 10_000 });
   } finally {
     await page.keyboard.up("ArrowRight");
   }
-  await page.waitForFunction((initial) => {
-    const current = window.__live;
-    return current !== undefined && current.player !== null && current.player.x === initial.x + 32 && current.player.y === initial.y;
-  }, first.player, { timeout: 10_000 });
   const moved = await page.evaluate(() => window.__live as LiveReport);
   expect(moved.error).toBeUndefined();
-  expect(moved.player).toEqual({ x: first.player.x + 32, y: first.player.y });
+  expect(moved.player).not.toBeNull();
+  expect(moved.player!.x).toBeGreaterThanOrEqual(first.player.x + 64);
+  expect(moved.player!.y).toBe(first.player.y);
+
   const movedFrame = await readCanvas();
   expect(movedFrame?.frameHash).not.toBe(canvasInfo?.frameHash);
 });

@@ -57,7 +57,7 @@ The window title is the game title. Tiles are 32×32 pixels and are drawn at 1:1
 
 | Input | Effect |
 |---|---|
-| Movement keys (main file, scan codes for 8 directions; default arrow keys) | queue a step in that direction when the player is idle; two keys 90° apart give a diagonal if allowed |
+| Movement keys (main file, scan codes for 8 directions; default arrow keys) | queue a step in that direction when the player is idle; while the key remains held, queue another step each time the player becomes idle again, at the normal movement cadence; two keys 90° apart give a diagonal if allowed |
 | Activation key (main file `key`, the demo uses space) | test programs and items in front of / under the player |
 | Menu key (main file `menuKey`, Enter in new projects) | open the menu plugin |
 | Run-time keys (main file) | run their programs |
@@ -65,6 +65,16 @@ The window title is the game title. Tiles are 32×32 pixels and are drawn at 1:1
 | Any key while a script waits | delivered to `Wait()` / `Get()` through a key queue |
 
 Input is read only while the player is idle; during blocking scripts keys go to the script's key queue. Losing window focus pauses the game; regaining it resumes.
+
+<a id="reawakened-held-direction-movement"></a>
+**Reawakened rule (OWNER; held direction movement).** In plain terms: if you keep a direction key held, the player keeps walking in that direction, one step at a time, at the same speed as if you had tapped the key repeatedly. Technically, and deterministically:
+
+1. The input phase reads the current held direction state (`state.input.actions`) as well as any new press edges.
+2. When the selected player is idle (`canAcceptDirection`) and a direction is held, one direction move is enqueued in that tick.
+3. The move uses the same step size and speed rules as a tapped key; the next step is enqueued on the first tick the player becomes idle again while the key stays held.
+4. Focus lost pauses tick consumption, so no new steps are enqueued while the window is unfocused; held state is updated normally when focus returns and the runner delivers key-up events.
+
+Evidence: this page's Input table ("queue a step ... when the player is idle"); E-24 and E-110; the deterministic fixed-tick rule in [main-loop-and-startup.md](main-loop-and-startup.md#reawakened-phases) (R-56). **Rejected alternative:** relying on the host OS key-repeat events, which makes movement cadence depend on the host's repeat delay and rate and differs between runners (violating G3).
 
 <a id="e-49"></a>
 **E-49 Global keys.** The menu key opens the menu ([plugins-and-battle.md](plugins-and-battle.md#menu-plugin)); the run-time keys (up to 51 of them) run the programs they name, with a short debounce after the menu closes.

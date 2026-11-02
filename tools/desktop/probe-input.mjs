@@ -209,27 +209,31 @@ async function main() {
     const before = await status();
     if (before.player === null || before.player === undefined) throw new Error("the board never showed a player");
 
-    // A direction is only meaningful while it is held across an input phase, so hold it for a few frames.
+    // A direction is only meaningful while it is held across input phases. Hold it long enough for several
+    // tiles (1200 ms ≈ 72 ticks ≈ 3 tiles at default speed) so the probe proves continuous movement, not a single step.
     let moved = null;
     const attempts = [];
-    for (const name of ["ArrowRight", "ArrowDown"]) {
-      await hold(name, 900);
+    let probeBefore = before.player;
+    for (const name of ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"]) {
+      await hold(name, 1200);
       await new Promise((wait) => setTimeout(wait, 300));
       const after = await status();
-      if (after.player !== null && after.player !== undefined
-        && (after.player.x !== before.player.x || after.player.y !== before.player.y)) {
-        const delta = { x: after.player.x - before.player.x, y: after.player.y - before.player.y };
-        attempts.push({ key: name, before: before.player, after: after.player, delta });
-        // One direction step is 32 pixels on the axis pressed; a bigger jump is board entry or a camera move, not input.
-        if (Math.abs(delta.x) === 32 || Math.abs(delta.y) === 32) moved = { key: name, before: before.player, after: after.player, delta };
+      const delta = after.player !== null && after.player !== undefined
+        ? { x: after.player.x - probeBefore.x, y: after.player.y - probeBefore.y }
+        : { x: 0, y: 0 };
+      attempts.push({ key: name, before: probeBefore, after: after.player ?? null, delta });
+      const axisDelta = name === "ArrowRight" || name === "ArrowLeft" ? delta.x : delta.y;
+      // Continuous movement: at least two 32-pixel tiles on the pressed axis.
+      if (Math.abs(axisDelta) >= 64) {
+        moved = { key: name, before: probeBefore, after: after.player, delta };
         break;
       }
-      attempts.push({ key: name, before: before.player, after: after.player, delta: { x: 0, y: 0 } });
+      probeBefore = after.player ?? probeBefore;
     }
 
     const report = {
       package: pkg,
-      error: moved === null ? "a dispatched key did not move the player" : null,
+      error: moved === null ? "a dispatched key did not move the player continuously (expected >= 64 px on one axis)" : null,
       tick: (await status()).tick,
       opened: { tick: opened.tick, player: opened.player ?? null },
       fits,
