@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -10,22 +10,34 @@ function read(relative: string): string {
   return readFileSync(resolve(here, relative), "utf8");
 }
 
-test("browser player page has a strict Content-Security-Policy", () => {
-  const html = read("packages/runner-web/app/index.html");
-  const csp = html.match(/<meta[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"/i);
-  if (csp === null) throw new Error("no Content-Security-Policy meta tag found");
-  const policy = csp[1] ?? "";
-  ok(!/unsafe-eval/.test(policy), "CSP must not allow unsafe-eval");
-  ok(/script-src 'self'/.test(policy), "CSP must restrict scripts to same origin");
-});
+/** The strict policy every player/host page must carry, byte for byte. */
+const STRICT_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:;";
 
-test("desktop player page has a strict Content-Security-Policy", () => {
-  const html = read("packages/runner-desktop/app/player.html");
-  const csp = html.match(/<meta[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"/i);
-  if (csp === null) throw new Error("no Content-Security-Policy meta tag found");
-  const policy = csp[1] ?? "";
-  ok(!/unsafe-eval/.test(policy), "CSP must not allow unsafe-eval");
-  ok(/script-src 'self'/.test(policy), "CSP must restrict scripts to same origin");
+/** Every .html page under a package's app directory, enumerated at test time so a new page cannot ship without a policy. */
+function pages(directory: "packages/runner-web/app" | "packages/runner-desktop/app"): string[] {
+  const root = resolve(here, directory);
+  return readdirSync(root)
+    .filter((entry) => entry.endsWith(".html"))
+    .sort()
+    .map((entry) => `${directory}/${entry}`);
+}
+
+test("every player/browser page carries the strict Content-Security-Policy", () => {
+  const all = [...pages("packages/runner-web/app"), ...pages("packages/runner-desktop/app")];
+  ok(all.length > 0, "expected pages to enumerate, found none");
+  for (const relative of all) {
+    const html = read(relative);
+    const csp = html.match(/<meta[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"/i);
+    if (csp === null) throw new Error(`${relative}: no Content-Security-Policy meta tag found`);
+    const policy = csp[1] ?? "";
+    ok(!/unsafe-eval/.test(policy), `${relative}: CSP must not allow unsafe-eval`);
+    ok(/script-src 'self'/.test(policy), `${relative}: CSP must restrict scripts to same origin`);
+    equal(
+      policy.trim().replace(/\s+/g, " "),
+      STRICT_POLICY,
+      `${relative}: CSP must match the shared strict policy exactly`,
+    );
+  }
 });
 
 test("desktop main process uses the event-object console-message listener", () => {
