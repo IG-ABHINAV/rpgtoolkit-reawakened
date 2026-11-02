@@ -11,7 +11,7 @@ context:
   - "spec - docs/spec/formats/item.md"
 status: draft
 blocked_at: "2026-10-31"
-blocked_reason: "Doc-first contract requires independent review before implementation; the owner has selected the item-use and prevalidated replacement directions."
+blocked_reason: "Complete the doc-first contract amendments, including provider continuations and outcomes, and obtain independent review before implementation; the owner choices require no further clarification."
 ---
 
 ## Intent
@@ -28,7 +28,7 @@ Script and Epic 7 battle fixtures demonstrate valid use, invalid targets, succes
 
 ## Verification
 
-Run deterministic tests at each side-effect boundary; assert final state and queued event sequences and replay from a saved point. Include item uses that do not consume when the documented operation fails, exact-handle selection among same-source stacks, displaced zero-quantity stacks, same old/new stack with correct net quantities, and hooks that yield while another action changes the item or equipment.
+Run deterministic tests at each side-effect boundary; assert final state and queued event sequences and replay from a saved point. Cover exact-handle selection among same-source stacks, displaced zero-quantity and maximum-quantity stacks, same old/new stack with correct net quantities, synchronous hook mutation, explicit waits, and instruction-budget preemption while another action changes the item or equipment.
 
 ## Implementation map
 
@@ -46,4 +46,6 @@ Compose entry 4's existing inventory and actor operations with a saveable script
 
 **Implementation design:** after prevalidation succeeds, return the displaced unit to its existing retained `(source, handle)` stack, preserving its `entryId`. The existing stack handle remains readable naturally; this is not a claim that the owner mandated both return and a separate handle-access guarantee. There is no per-copy handle.
 
-**Contract work before implementation:** amend E-80/E-81/E-82 and affected script rules doc-first, then independently review. Define the shared action's arguments/results and equivalent provider exposure; distinguish validation refusal from errors or interruptions after a program starts. Prevalidation before a yielding hook is not sufficient by itself: revalidate the selected stack, available quantity and occupied slot after a hook can mutate state or another thread acts. Returning and equipping a unit from the same stack must give the correct net quantity. Reconcile hook order, queued events, caps and G1 save/restore; do not promise rollback of script side effects. Keep #585 dependent on this ticket; #1195 remains deferred.
+**Contract work before implementation:** complete and independently review doc-first amendments to E-80/E-81/E-82 and affected script rules. The existing synchronous native provider has only wait/open/complete transitions; specify how both native and RPGCode providers invoke a shared action that can run a yielding program, how the caller resumes, its arguments and result, and the plain-data saved continuation. An action's preflight refusal must remain atomic under E-81; distinguish it from a composed operation interrupted or failing after a program has run, where already completed script side effects cannot be assumed rolled back. Do not silently change E-81 primitive equip/unequip semantics or place hooks inside E-82's primitive operations.
+
+**Engineering constraints to resolve in that amendment:** prevalidate the incoming item, actor, slot, quantity and the displaced stack's capacity to accept its returned unit; use net quantity for a same-stack replacement, not an overflowing intermediate increment. Revalidate stack identity, quantity, slot and capacity after every hook returns, including synchronously mutating hooks, and at every continuation boundary where execution can interleave, including VM budget preemption. Define safe outcomes for changes after preflight without losing or duplicating the displaced item, and preserve documented hook order, context, events, caps and G1 save/restore. A review of this proposal alone does not unblock implementation. Keep #585 dependent on this ticket; #1195 remains deferred.
