@@ -133,6 +133,7 @@ references = ["spine - _bmad-output/initiative-rpgtoolkit-reawakened/architectur
 [[entry]]
 id = 9
 tracker_id = "#934"
+tracker_status = "done"
 type = "story"
 title = "Load modes, storage tiers and the offline service worker"
 description = "Implements the two load modes with a measured threshold rather than a guessed one — whole-package below it, behind a progress screen, streaming above it driven by the entry 8 plan — with memory, then Cache Storage or OPFS, then network decode-ahead in a worker, save blobs stored under the AD-17 keys the engine's save path produces (entry 8.9), `navigator.storage.persist()` with a streaming fallback on quota errors, the last-frame stall presentation with a spinner only after about 300 ms, and a service worker for the player that updates on next launch and never mid-session."
@@ -143,6 +144,7 @@ hitl = false
 risk = "high"
 plan_checkpoint = true
 references = ["spec - docs/spec/engine/audio-media.md#audio-prefetch", "spine - _bmad-output/initiative-rpgtoolkit-reawakened/architecture-rpgtoolkit-reawakened/architecture-rpgtoolkit-reawakened.md, AD-17, Operations (CSP, PWA update policy)", "decision - D-4 and D-5 of discovery/inception-proposal.md"]
+notes = ["Delivered by PR #1041, merge 62c2ba14. OQ1's full first-launch archive transfer is an approved property, not a remaining gap. Independent review approval and the three F6 perturbation reruns are not recorded in the cited PR; their provenance is unverified here."]
 
 [[entry]]
 id = 11
