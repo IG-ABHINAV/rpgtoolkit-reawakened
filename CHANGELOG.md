@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Held direction keys now walk the player continuously, one tile at a time, instead of stopping after the first step. The input phase re-evaluates the held direction each tick the selected player becomes idle, using the core's fixed 60 Hz cadence (R-50) rather than the host OS key-repeat rate. A new core unit test covers tap, hold, release, opposing keys, diagonals and focus loss; the desktop input probe and browser live-player test now hold a key and assert at least two tiles of movement. Fixes #1105.
 - Specify and test no-active-audio save continuation equivalence without changing replay hashes or cue allocation; active-voice equivalence needs a separate specification and remains untested.
 - Android mobile proof retries WebView attachment without restarting the app when `pidof` times out or reports a transport error; failed runs record `result: "failed"` alongside their diagnostics.
 - Parallel local Playwright browser lanes can set `PLAYWRIGHT_PORT` to distinct TCP ports instead of colliding on the default 4173.

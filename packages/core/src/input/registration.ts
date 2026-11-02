@@ -61,6 +61,12 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
     const facing = heldFacing(state);
     if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
   }
+  // Held-direction continuous movement: while a direction key stays held and the player becomes
+  // idle again, queue the next step at the normal cadence (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement).
+  if (state.input.focused && canAcceptDirection(state, id)) {
+    const facing = heldFacing(state);
+    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
+  }
   if (board === null) return;
   for (const click of clicks) enqueuePathMove(state.sprites, board, id, click, state.input.pathMode, true);
 }
