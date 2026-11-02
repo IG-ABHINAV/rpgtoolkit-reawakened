@@ -13,7 +13,7 @@ The desktop player is a small Electron window that opens a packaged game and run
 | The window shows the game at the resolution its own main file asks for — 640×480, 800×600, 1024×768 or a custom size. The whole frame fits and is centred on black. | The window starts at 960×720 and can be resized. The picture normally uses whole-number scaling; if 1× cannot fit, it shrinks fractionally to keep the whole frame visible. |
 | A board larger than the frame scrolls: the camera follows the player and clamps to the board's edges. A smaller board is centred. | — |
 | A save is written to the desktop host's own storage, under the package's canonical game key. | A save does **not** move between hosts yet: the browser and desktop keep separate stores, so a save made in one is not visible to the other. |
-| A rebuilt desktop measurement reports demo tick-120 state `91172695de52cfd6`, draw `9a40be8a0b5ca816` and frame worst 0. | Those values are from the closing configuration, not an interactive session. |
+| A rebuilt desktop measurement compares against the current committed baseline: `golden/regression/closing.json` expects demo tick-120 state `32e892e98b3d2a85`, draw `4a9a3307cb466e3f` and 123 commands. | Those values are from the closing configuration, not an interactive session. |
 
 The mobile player is wrapped with Capacitor. The Android CI lane builds and launches the demo APK on an API 33 x86_64 emulator, clears app data in CI for a clean first launch, then drives title entry, a board tap, rotation and relaunch. The proof requires the initial host-blob probe to be absent and the first write to succeed, then confirms the blob is present after relaunch. It retains live page readings and four screenshots (title, tap, rotation and relaunch/save) as the `mobile-android-api33-proof` workflow artifact; the board-entry reading is retained in JSON. The tap reading records the trusted touch's canvas coordinate and the player's world position before and after input. This automated proof does not replace the human acceptance check for the mobile story.
 
@@ -57,7 +57,7 @@ pnpm desktop:run --package fixtures/packages/demo.tpk
 
 `pnpm desktop:input` opens the player, sends real key events through Chromium's debugging protocol, and prints the player position before and after — it exits non-zero when the key did not move the player.
 
-`pnpm desktop:measure` emits machine-readable closing-suite and renderer evidence and closes its window. On macOS arm64, after `pnpm desktop:build`, it reported state `91172695de52cfd6`, draw `9a40be8a0b5ca816` and frame worst 0. Rebuild after source changes: the measurement runs the existing desktop build.
+`pnpm desktop:measure` emits machine-readable closing-suite and renderer evidence and closes its window. It compares the `demo` tick-120 result against the committed closing baseline in `golden/regression/closing.json`, which currently expects state `32e892e98b3d2a85`, draw `4a9a3307cb466e3f` and 123 commands — it does not check hard-coded literals in this page. The committed macOS report `tools/desktop/measurements/macos.json` is a historical artefact of the date its `measuredAt` field records (2026-11-01); it was taken before the closing-baseline re-record for issue #1048, so it does not describe what a measurement reports on `main` today — a current measurement is judged against `closing.json`. Rebuild after source changes: the measurement runs the existing desktop build.
 
 ## Measurement report
 
@@ -65,11 +65,11 @@ The measured closing-suite report for `demo` at tick 120 contains:
 
 ```json
 "tick": 120,
-"stateHash": "91172695de52cfd6",
-"drawHash": "9a40be8a0b5ca816",
+"stateHash": "32e892e98b3d2a85",
+"drawHash": "4a9a3307cb466e3f",
 ```
 
-Those hashes describe the closing harness configuration, which has no interactive bindings or input/movement owners; they are not hashes for an interactive play session. The visible live session is separate and has its own state as input is received.
+These are the current expected values committed in `golden/regression/closing.json` (`demo`, `board` frame at tick 120). Those hashes describe the closing harness configuration, which has no interactive bindings or input/movement owners; they are not hashes for an interactive play session. The visible live session is separate and has its own state as input is received.
 
 ## Open the window yourself
 
