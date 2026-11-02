@@ -79,6 +79,18 @@ Legacy plugin entry point: `menu(request)`: 1 main menu, 2 inventory, 4 equipmen
 
 **Reawakened rule (OWNER; Epic 8.1 menu ownership and interface).** Core owns authoritative party, inventory, equipment, gold and menu state; each state section validates and applies its own actions. The `stock_menu` package owns replaceable menu navigation and presentation. TypeScript and RPGCode menu implementations receive the same object-valued, read-only context plus named owner-action capabilities; action requests are validated and committed by the relevant core owner, not by menu code. Both languages MUST expose the same semantic queries, actions, arguments, results, replacement behavior, and blocking semantics, using language-appropriate provider declarations and calls. Menu presentation contributes to the core draw list; menu code does not mutate section state or draw directly to a host window. E-81–E-85 define the canonical owner surfaces; the entry 7/#588 contract below defines menu invocation and provider replacement.
 
+<a id="menu-navigation"></a>
+**Reawakened rule (OWNER; menu navigation on every device; ruled 2026-11-01).** In plain terms: the menu, the shop, the save and load picker and the message box all work with a keyboard, with a controller or with a mouse, and the row that will be chosen is always visibly marked.
+
+Technically, for every engine-owned surface:
+
+1. **One cursor.** The screen's `selection` in the `menu` section is the cursor. It is plain data, it is saved with a menu frame, and it is drawn as the focus indicator of [A11Y-5](accessibility.md#a11y-5) as part of the draw list.
+2. **Keyboard and controller are the same path.** `up`, `down`, `left` and `right` move the cursor, `confirm` activates the focused row, `cancel` leaves the screen, `menu` closes the outermost menu. The default bindings of [ACT-5](display-input-audio.md#act-5) therefore give the controller the same menu as the keyboard with no configuration. The per-screen order and wrapping rules of [E-80](#e-80) and the stock menu's item list are unchanged.
+3. **The pointer is a second way, not a mode.** Hovering a row moves the cursor to it; a press followed by a release over the same row activates it; moving off the row before release cancels ([A11Y-6](accessibility.md#a11y-6)). A surface never needs the pointer and never requires a drag.
+4. **A provider receives actions.** The native and RPGCode provider event `{ type: "input", key }` carries the **action name** (`up`, `down`, `left`, `right`, `confirm`, `cancel`, `menu`) for engine navigation, so a provider written in either language navigates identically. A provider that wants a legacy key name reads the key queue instead ([E-110](display-input-audio.md#e-110)); the two surfaces do not share a cursor.
+5. **Game actions on a menu.** A menu screen MAY host bars, grids or paged lists of game-defined actions ([ACT-8](display-input-audio.md#act-8)); each slot is a pointer target and an accessibility-tree node, and its activation is the same `confirm` the cursor uses.
+6. **Nothing traps the player.** `cancel` always closes the current screen, including the innermost nested provider; a Quit confirmation is its own screen ([A11Y-10](accessibility.md#a11y-10)).
+
 <a id="e-80"></a>
 **E-80 Default menu.** Opened with the menu key or `InternalMenu(n)`; in legacy the presentation came from a plugin and the rules from the engine:
 * main screen: party members with portraits and stats, gold and play time;

@@ -18,6 +18,7 @@ This is a behaviour and file-format specification of **RPG Toolkit 3.1** (the ed
 | [engine/plugins-and-battle.md](engine/plugins-and-battle.md) | Menu, battle and command plugins; the battle model and enemy AI; the 140-method callback interface |
 | [engine/battle.md](engine/battle.md) | The Reawakened battle rules: boundary, state, loop, damage, status, AI, outcomes and starts (BAT-1 to BAT-15) |
 | [engine/plugin-constants.md](engine/plugin-constants.md) | Info codes and enumerations used by the callback interface |
+| [engine/accessibility.md](engine/accessibility.md) | The Reawakened accessibility contract: WCAG 2.2 AA for engine chrome, focus, contrast, target size, motion, the accessibility tree, projection of script-drawn content, the custom-UI insertion point, the port tiers and the harness report (A11Y-1 to A11Y-17) |
 | [engine/rpgcode-tooling.md](engine/rpgcode-tooling.md) | The tooling contract: language server and debug adapter, one diagnostic model, the linter rules, formatting, the spec API, the index schema, the CI job, the debug view and `tkr script` with its exit codes |
 | [engine/runners.md](engine/runners.md) | The runner contract: what a runner must do, what it may decide, the draw-list and audio obligations, the desktop applications, install and the library, load modes, prefetch, offline, mobile, build shape and the conformance kit |
 | [engine/parity-checklist.md](engine/parity-checklist.md) | What "plays legacy games" requires, area by area: the reference the headless golden tests hold the engine to |

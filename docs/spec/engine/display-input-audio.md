@@ -84,6 +84,22 @@ Evidence: this page's Input table ("queue a step ... when the player is idle"); 
 
 **Reawakened rule (entry 7.11 corrects a gap).** `Get()` and `ClearBuffer()` claim keys while a thread runs. A claimed key is removed from the queue at the start of the next tick's waits phase, before that phase rebuilds the claim list for waiting threads, so a key `Get()` returned is never returned again and `ClearBuffer()` empties what was buffered.
 
+<a id="reawakened-key-name"></a>
+**Reawakened rule (OWNER; the legacy key name is derived by `core`; ruled 2026-11-01).** In plain terms: every key press that reaches a script is named the way Toolkit 3.1 named it, whatever keyboard, layout or host it came from.
+
+The runner reports a key as `{ code, char, vk, down, repeat? }` and never names it. **`core` derives the name**; a `name` field that a host or runner nonetheless supplies is ignored, never read, so a browser, a desktop shell and a mobile WebView cannot disagree:
+
+| The key | Name the queue holds |
+|---|---|
+| Enter, Escape, the four arrows | `ENTER`, `ESC`, `LEFT`, `RIGHT`, `UP`, `DOWN` |
+| Space | `" "` (one space; 3.0 said `SPACE`, 3.1 does not) |
+| any key that produces a character | that character, as typed (`char`) |
+| any key that produces no character | the character whose code is `vk`, which is 3.1's virtual-key fallback: F1 is `P` (112), PgUp is `!` (33), Delete is `.` (46) |
+
+`vk` is an integer or `null`: the host's virtual-key number, which a browser supplies from the key event and a native host from its own key code. The collisions are kept: `%`, `&`, `'` and `(` have codes 37–40, so **shifted 7, 8, ' and 9 return `LEFT`, `UP`, `RIGHT` and `DOWN`**, exactly as 3.1 did. A key-down appends one entry, **including a host auto-repeat**, so a held key keeps filling the queue; a key-up appends nothing. A key with no character and a `null` `vk` appends nothing and reports one `input.key-name` diagnostic, because 3.1 had no such key.
+
+3.1's rule that `Wait()` **clears the queue before blocking** is kept in effect by the park-sequence rule above: a wait parks at the current sequence number and only sees keys at or after it, so keys pressed earlier are discarded for that waiter without a queue write. `Get()` claims from the same sequence and therefore still sees them.
+
 <a id="e-111"></a>
 **E-111 Mouse.** Click (blocking or polling) and move coordinates for scripts, click-to-move, cursor maps and on-screen buttons.
 
@@ -92,19 +108,150 @@ Evidence: this page's Input table ("queue a step ... when the player is idle"); 
 
 <a id="reawakened-gamepad-contract"></a>
 <!-- OWNER: E-112 -->
-**Reawakened rule (OWNER; E-112 gamepad contract; ruled 2026-10-18).** In plain terms: a game controller can walk the player and press confirm or cancel exactly like the keyboard does, and a controller that is unplugged is ignored. Technically, and deterministically:
+**Reawakened rule (OWNER; E-112 gamepad contract; ruled 2026-10-18, buttons amended 2026-11-01).** In plain terms: a game controller can walk the player and press confirm or cancel exactly like the keyboard does, and a controller that is unplugged is ignored. Technically, and deterministically:
 
-1. *Normalized event.* The host reports `{ kind: "gamepad", device, connected, axes: { x, y }, buttons }` as plain data. `device` is an integer 0..3 (other values are ignored); `axes.x` and `axes.y` are integers in −1000..1000 (right and down positive); `buttons` is an integer bitmask: bit 0 up, 1 down, 2 left, 3 right, 4 confirm, 5 cancel, 6 menu. No host or browser controller API, object or float enters `core`; the host does the normalizing.
-2. *Dead-zone.* An axis value with absolute value below 250 counts as 0 (strict less-than; 250 itself is active). The pressed directions are the d-pad bits OR the active axes (x < 0 left, x > 0 right, y < 0 up, y > 0 down).
-3. *Project bindings.* The main file's bindings map each direction, confirm (the activation key), cancel and menu to the same logical actions as the keyboard (E-24, E-110); a gamepad input adds nothing the bindings do not name. Diagonals follow the keyboard rule (two directions 90° apart, only where diagonals are allowed).
-4. *Same held/edge state.* A gamepad action updates the same held-key set and key queue as a keyboard key: a press edge on a tick appends one key-queue entry with the next monotonic input sequence number and sets the key held; a release edge clears it; a held action produces no repeat entries. Edges are computed per device from the previous event for that device; simultaneous edges are processed in ascending device then ascending bit order.
+1. *Normalized event.* The host reports `{ kind: "gamepad", device, connected, axes: { x, y }, buttons }` as plain data. `device` is an integer 0..3 (other values are ignored); `axes.x` and `axes.y` are integers in −1000..1000 (right and down positive); `buttons` is a **physical** bitmask on the [W3C Standard Gamepad](https://w3c.github.io/gamepad/#remapping) layout — bit `n` is button `n` (0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 8 Back, 9 Start, 12–15 d-pad up/down/left/right, 16 guide). The host reports which control was physically pressed and never decides what it means; meaning comes from the binding table ([ACT-3](#act-3)). No host or browser controller API, object or float enters `core`; the host does the normalizing.
+2. *Dead-zone.* An axis value with absolute value below 250 counts as 0 (strict less-than; 250 itself is active). An active axis resolves to the corresponding stick control (`pad:axis0-`, `pad:axis0+`, `pad:axis1-`, `pad:axis1+`), which the binding table maps like any button; the default bindings make that the matching direction.
+3. *Project bindings.* Controls resolve to actions through the same binding table as the keyboard ([ACT-3](#act-3)), including a game's own actions ([ACT-2](#act-2)); a controller input adds nothing the bindings do not name. Diagonals follow the keyboard rule (two directions 90° apart, only where diagonals are allowed).
+4. *Same held/edge state.* A resolved action updates the same held set as a keyboard key: a press edge on a tick appends one key-queue entry with the next monotonic input sequence number whose name is the action's compatibility name (`up`, `down`, `left`, `right`, `confirm`, `cancel`, `menu`) and sets the action held; a release edge clears it; a held control produces no repeat entries. Edges are computed per device from the previous event for that device; simultaneous edges are processed in ascending device, then ascending control order (`pad:<n>` by index, then stick directions).
 5. *Disconnect.* An event with `connected: false` releases everything that device held and is otherwise ignored; events for a device that has never reported `connected: true` are ignored. Connected devices are merged: an action is held while any connected device holds it.
-6. *Buttons and cursor map.* On-screen button slots are a separate concern (entry 5.6 defines the slot data `{ id, x, y, w, h, action, enabled }`); the gamepad never moves the pointer.
+6. *Buttons and cursor map.* On-screen button slots are a separate concern (entry 5.6 defines the slot data `{ id, x, y, w, h, action, enabled }`); the controller never moves the pointer.
 
-Evidence: the legacy inventory's single line (joystick mapped to movement and confirm/cancel); `docs/spec/formats/main-file.md` `useJoystick`; the `GamepadInput` port in `packages/core/src/ports/input.ts` and AD-14 (event name fixed, payload deferred to this epic); the shared key-claim protocol (Epic 4, entries 4.1 and 4.19). **Rejected alternative:** exposing the browser or native controller API (or float analogue values and per-device bindings) to `core`, which would break G2/G3 and make replays host-dependent. Dead-zone value 250, the device range and the bit layout are an unverified default recorded under the owner's approval of the rule as written. Deferred: haptics, analogue speed, remapping UI and multiplayer assignment. Consumers: entries 5.2 (`input-replay-button-slots`), 5.6.
+Evidence: the legacy inventory's single line (joystick mapped to movement and confirm/cancel); `docs/spec/formats/main-file.md` `useJoystick`; the `GamepadInput` port in `packages/core/src/ports/input.ts` and AD-14 (event name fixed, payload deferred to this epic); the shared key-claim protocol (Epic 4, entries 4.1 and 4.19). **Rejected alternative:** exposing the browser or native controller API (or float analogue values and per-device bindings) to `core`, which would break G2/G3 and make replays host-dependent. The dead-zone value 250 and the device range 0..3 remain the defaults ruled on 2026-10-18 and are still unverified against hardware; the **button layout is no longer an action bitmask** — it is the W3C standard index space, because a host that has already collapsed buttons to actions cannot report which physical button was pressed, and so nothing could be rebound ([ADR 0017](../../adr/0017-input-actions-devices-and-accessibility.md)). Remapping is no longer deferred: it is [ACT-5](#act-5). Still deferred: haptics, analogue speed and multiplayer assignment. Consumers: entries 5.2 (`input-replay-button-slots`), 5.6.
 
 <a id="e-113"></a>
 **E-113 Focus handling.** The game pauses when the window loses focus.
+
+<a id="act-1"></a>
+**ACT-1 The action vocabulary (OWNER; ruled 2026-11-01).** In plain terms: a game asks "is *confirm* held?" rather than "is Enter held?". Which physical key, mouse button or controller button produces *confirm* is configuration, and the player can change it.
+
+Technically, the engine owns a fixed set of seven actions: `up`, `down`, `left`, `right`, `confirm`, `cancel`, `menu`. Gameplay — the board, the movement rules, the menu, dialogs, the shop, the battle UI and the system options — reads **actions only**; no surface reads a key name, a key code or a controller button directly. `confirm` is the action the legacy activation key performs and `menu` is the action the legacy menu key performs, so the engine set is a rename of behaviour the engine already had, not a new capability. The engine set may not be removed or renamed by a game. **The action space beyond it is open**: a game registers its own actions ([ACT-2](#act-2)), and a registered action is as bindable, as remappable and as visible to options as an engine action.
+
+**Everything the legacy layer reads keeps working** ([E-110](#e-110)): a key-down still enters the key queue under its legacy name, and a `wait()` parked in a script still resumes on it. Actions are derived beside the queue; deriving an action never consumes a queue entry and never changes a sequence number.
+
+<a id="act-2"></a>
+**ACT-2 Game actions: a designer can add as many as the game needs (OWNER; ruled 2026-11-01).** In plain terms: a spell-and-skill game can define "fireball", "heal", "dash" and a hundred more as first-class actions, each with its own icon and label, each bindable by the player, each usable from a script and from a spell bar — without the engine knowing what any of them mean.
+
+A game registers an action through the package or script that owns it, as plain data:
+
+```
+RegisteredAction = {
+  name:      string,                  // "game.fireball"; the identity, stable forever
+  label:     string,                  // non-empty; shown in options and on the surface
+  icon:      AssetKey | null,         // the asset the spell bar draws; null draws the label
+  group:     string | null,           // "Spells", "Skills"; options groups by it
+  controls:  readonly ControlId[],    // the designer's default bindings (ACT-3)
+  locked:    boolean,                 // the game fixes this action (ACT-6)
+  hidden:    boolean,                 // registered for scripts only; never offered in options
+}
+```
+
+Rules:
+
+1. **Namespace.** A registered name MUST start with `game.` and then match `[a-z][a-z0-9]*` segments joined by dots (`game.fireball`, `game.skill.backstab`). The prefix keeps the engine set collision-free forever; a name that does not start with it is rejected with a located refusal.
+2. **Label and icon are presentation, the name is identity.** Renaming an action is a new action: a save that bound the old name keeps the binding as inert data (rule 6). Changing a label or an icon never touches a save.
+3. **Ordering is registration order**, and registration order is startup order: packages in resolved manifest order, then each package's startup program, then runtime registrations in the order they execute. The order is part of the action table and therefore of the state hash; it is never derived from a map's iteration order (G3).
+4. **Scale is a design constraint, not a limit.** A registry holds at least 512 actions. Binding resolution builds one `control → actions` index whenever the effective table changes and looks up only the controls an event actually names, so per-input cost does not grow with the size of the registry. Registration itself is a startup cost, charged once.
+5. **A shortcut is data, not behaviour.** Registering an action adds an action, a default binding and a row in options; it never runs game logic, never touches the board and never overwrites an engine action.
+6. **Inert is not an error.** A binding, a save or a surface slot naming an action that is not registered keeps its data, holds nothing and produces one located `input.unknown-action` diagnostic per boot. If the action is registered later in the same boot it takes effect; a game update that removes an action therefore cannot brick a save ([ACT-7](#act-7)).
+7. **Extensible shape.** `RegisteredAction` is versioned and forward-compatible: an unknown field is preserved as data and ignored by a reader that does not know it, so a future capability (a cooldown source, a narration string, a default surface slot) is added without a format break.
+
+<a id="act-3"></a>
+**ACT-3 The binding table (OWNER; ruled 2026-11-01).** A binding names an action and the **controls** that produce it, as plain data:
+
+Two layers, and they are different shapes on purpose ([ACT-6](#act-6)):
+
+```
+GameBindings = {                       // .gam block, or a registration's defaults
+  version: 3,
+  actions: { [action: string]: {
+    controls: readonly ControlId[],    // ordered; first bound control wins on a tie
+    locked: boolean,                   // true: the game fixes this action (ACT-6)
+  } },
+}
+
+PlayerOverrides = {                    // the save's input section
+  version: 1,
+  actions: { [action: string]: {
+    added:   readonly ControlId[],     // controls the player put on this action
+    removed: readonly ControlId[],     // game-default controls the player took off
+  } },
+}
+
+// effective controls = (game controls − removed) + added, deduplicated in that order
+```
+
+**Removal is explicit and addition never deletes.** A player who adds `KeyZ` to `confirm` keeps `Enter`, so a 3.1 script that polls `ENTER` still receives it; a control leaves an action only when the player removes that exact game default. That is what makes remapping safe for a ported game whose scripts read raw key names ([A11Y-16](accessibility.md#a11y-16)).
+
+A `ControlId` is one of three canonical ASCII strings:
+
+| Form | Meaning | Example |
+|---|---|---|
+| `key:<code>` | a physical key, named by the DOM `KeyboardEvent.code` value: layout-independent, and every host can produce it | `key:Enter`, `key:ArrowUp`, `key:KeyW`, `key:NumpadEnter`, `key:F1`, `key:Digit1` |
+| `pad:<n>` | button `n` in the W3C Standard Gamepad layout, 0–16 | `pad:0` (A), `pad:9` (Start), `pad:12` (d-pad up) |
+| `pad:axis<0\|1><-\|+>` | a stick direction after the E-112 dead-zone: axis 0 is x, axis 1 is y | `pad:axis0-` (stick left) |
+
+`core` compares control ids as strings and never parses a host identifier ([ADR 0017](../../adr/0017-input-actions-devices-and-accessibility.md) decision 4). The pointer is deliberately not a control: it acts by hit-testing on the surface under it, so it needs no binding and cannot be mis-bound. An action may have zero controls (explicitly unbound); an action with zero controls is never held, and a surface that needs it says so through `a11y.character-shortcut` or its own validation ([A11Y-4](accessibility.md#a11y-4)).
+
+<a id="act-4"></a>
+**ACT-4 From a device event to an action (OWNER; ruled 2026-11-01).** Each incoming event is normalised to controls, then resolved to actions, inside the tick that consumes it:
+
+| Event | Controls it can produce |
+|---|---|
+| `key { code, char, vk, down, repeat? }` | `key:<code>`; the legacy name is used for the queue, the code for the action |
+| `pointer { x, y, buttons }` | none — the pointer drives the surface cursor and its own actions |
+| `gamepad { device, connected, axes, buttons }` | `pad:<n>` for each changed bit, `pad:axis…` for each axis that crosses the dead-zone |
+
+Rules: the **same** `key` event appends its legacy queue entry and updates its action's held set, in that order, so a script and a surface see one event and not two — **one key press appends exactly one queue entry, the derived key name of [E-110: key names](#reawakened-key-name)**, never also the action's compatibility name; a host auto-repeat (`repeat: true`) never produces a new action press edge, and appends exactly its one derived-name entry like any other key-down ([E-110: key names](#reawakened-key-name)), never also the action's compatibility name; a press edge that comes from a gamepad (or from a pointer on a button slot) appends the action's compatibility entry as [E-112](#reawakened-gamepad-contract) rule 4 describes, so `wait()` can still be satisfied by a controller; a control bound to two actions holds both, and the order they resolve in is the action table's order, which is the engine set first (in the order `up`, `down`, `left`, `right`, `confirm`, `cancel`, `menu`) and then registered names in registration order.
+
+<a id="act-5"></a>
+**ACT-5 Controllers are on by default (OWNER; ruled 2026-11-01).** A standard-layout controller works in a new game with no configuration: the game file's controller flag defaults to **enabled** when the game file does not say otherwise, and the default bindings are:
+
+| Action | Keyboard default | Controller default |
+|---|---|---|
+| `up` | `ArrowUp` | `pad:12`, `pad:axis1-` |
+| `down` | `ArrowDown` | `pad:13`, `pad:axis1+` |
+| `left` | `ArrowLeft` | `pad:14`, `pad:axis0-` |
+| `right` | `ArrowRight` | `pad:15`, `pad:axis0+` |
+| `confirm` | `Enter`, `Space` | `pad:0` |
+| `cancel` | `Escape` | `pad:1` |
+| `menu` | `Enter` (the legacy menu key) | `pad:9` |
+
+A game may disable the controller in its own file, and a player may disable it in options; a disabled controller's events are ignored entirely, including its disconnect. Devices 0–3 merge as [E-112](#reawakened-gamepad-contract) rule 5 already rules. A game action gets no controller default unless its registration names one; a spell bar on a controller is the designer's choice, not the engine's.
+
+<a id="act-6"></a>
+**ACT-6 Remapping, override and locking (OWNER; ruled 2026-11-01).** Two layers, one effective table:
+
+1. **Game defaults** live in the game file for the engine set and in the registration for a game action ([TKR input extension](../formats/main-file.md#tkr-input-extension)). Absent, the defaults above and the legacy rows' meanings apply, so an untouched 3.1 game behaves exactly as it did.
+2. **Player overrides** are `{ added, removed }` per action ([ACT-3](#act-3)) in the save's `input` section. At boot they are folded into one effective table; the effective table is the state that is snapshotted, restored and hashed.
+3. **Adding is the default action of remapping; removing is a separate, explicit one.** The options screen's ordinary remap adds a control to the action. Removing a game default is its own action, is shown as such, and is the only way a control stops producing an action. This keeps a ported game working when a player rebinds: an engine action moved to another key does not take the old key away from a script that reads it.
+4. An override may not change an action's `locked` flag: a locked action is fixed by the game and stays fixed after a restore.
+5. Rebinding rejects a **duplicate within the engine's own set** with a located refusal that names the conflicting action, so two actions cannot accidentally share a control through the options screen. A game's own defaults, a game action's registration and a script's `rebindAction` may still bind a control twice; the resolution order of [ACT-4](#act-4) then applies, exactly as the legacy movement rows behave when one scan code is bound to two directions.
+6. `resetBindings()` discards every override and returns to the game defaults; there is always a way back that a player can reach from the options screen.
+7. The options screen is reachable from the title screen, from the running game and from the pause menu, works with all three devices, lists game actions by `group` with paging on `left`/`right` (the stock item list's rule), and is itself covered by [A11Y-2](accessibility.md#a11y-2), [A11Y-4](accessibility.md#a11y-4) and [A11Y-13](accessibility.md#a11y-13).
+
+<a id="act-7"></a>
+**ACT-7 Determinism, replay and restore (OWNER; ruled 2026-11-01).** The binding table, the effective table, the registry order and every held action are part of the `input` section, so they are snapshotted and hashed with the rest of the state (G1). A replay is the logged input events plus the state they landed in: because the table is state and not a host setting, replaying the same log on another machine produces the same action edges, the same queue entries and the same state hash (G3).
+
+Restore rules:
+
+1. A v2 input section restores into the defaults of [ACT-5](#act-5); no save is refused for version alone.
+2. The registry is rebuilt by startup, never stored in the save. A save records bindings by action **name**, so a changed registration list cannot invalidate them.
+3. A saved binding whose action is not registered after restore is kept as inert data with one `input.unknown-action` diagnostic; the save still loads and every other action still works. A save MUST NOT be refused, and no binding MUST be silently dropped, because either would lose data on a game update.
+4. A surface's saved slot layout is the game's, not the save's, unless the game provides a layout action; the bar's order does not depend on the player's bindings, so a rebind never rearranges a spell bar.
+
+<a id="act-8"></a>
+**ACT-8 Action surfaces: bars, grids and pages (OWNER; ruled 2026-11-01).** In plain terms: a spell-and-skill game can put dozens of actions on screen — a bar of icons during play, a grid of spells in a book — and every one of them is reachable by keyboard, controller and mouse, and is described to a screen reader.
+
+A **surface** is an ordered list of slots, each `{ slot, action, enabled }`, plus a layout the game chooses:
+
+| Surface | Layout | Navigation |
+|---|---|---|
+| **bar** | one row of at most 10 slots, drawn during play | `left`/`right` move the cursor and wrap; `confirm` activates the focused slot |
+| **grid** | rows × columns (a spellbook) | `left`/`right` wrap within the row, `up`/`down` change row and wrap at the ends; `confirm` activates |
+| **paged list** | the stock menu and options shape | `up`/`down` move, `left`/`right` page, `confirm` activates, `cancel` leaves |
+
+Rules: the pointer moves the surface cursor by hover and activates on release over the same slot ([A11Y-6](accessibility.md#a11y-6)); a slot whose action is bound to a control can be activated by that control without the cursor being on it, so a hotkey and a click do the same thing; a disabled slot (no resource, on cooldown, out of range) is drawn dimmed, is skipped by the cursor only if the game says so, and is always reachable by the pointer; the focused slot and every slot are described in the accessibility tree with their label, their enabled state and their cooldown as `value` ([A11Y-11](accessibility.md#a11y-11)); a cooldown is announced when it starts and when it becomes ready, never per frame; the bar never steals a control the engine set owns — the bar's actions are game actions, and the engine set stays bound to what it was. A script that draws its own screen declares a surface and gets **the same** cursor, pointer behaviour, focus ring and tree node shape the stock menu gets ([A11Y-15](accessibility.md#a11y-15)); there is no second-class navigation path for author-drawn UI.
 
 ## Audio
 

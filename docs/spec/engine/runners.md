@@ -134,10 +134,15 @@ reason to widen the bound.
 ## Input and focus
 
 A runner turns its host's events into the AD-14 input records and feeds them to `advance` with the tick they belong to:
-`key { name, code, char, down }` with `name` in the legacy logical vocabulary (`"ENTER"`, `"LEFT"`, `"A"`) and the
-optional `repeat` flag for host auto-repeat, which is not a new press edge; `pointer` in logical integer pixels;
-`gamepad`; `focus { lost | gained }`. The DOM-to-legacy name table lives in `core/input`; a
-runner maps, it does not name.
+`key { code, char, vk, down, repeat? }` — a physical key in the host's own identifier space, the character it produced
+or `null`, its virtual-key number or `null`, and the optional `repeat` flag for host auto-repeat, which is not a new
+press edge; `pointer` in logical integer pixels; `gamepad` with a **physical** standard-layout button bitmask
+([E-112](display-input-audio.md#reawakened-gamepad-contract)); `focus { lost | gained }`.
+
+**A runner maps, it does not name.** `core` turns each key into its binding control (`key:<code>`,
+[ACT-3](display-input-audio.md#act-3)) and into its legacy queue name, so a script sees `LEFT` and `" "` on every host
+([E-110: key names](display-input-audio.md#reawakened-key-name)). A runner supplies the identifiers its host actually reports; it
+never decides what a key is called and never decides what it does.
 
 Focus is the core's, not the runner's: after `focus.lost` the core consumes no ticks until `focus.gained` (E-03). A
 runner keeps calling `advance` — it must not stop its own loop — and lets the core return `ticksRun: 0`.

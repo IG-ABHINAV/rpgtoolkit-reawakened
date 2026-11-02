@@ -98,11 +98,35 @@ After the tracks come an unsigned little-endian `u16` voice cap (1–32), then o
 
 The block is the full ordered track list: the five built-in names `music`, `sfx`, `ambience`, `voice` and `ui` must be the first five entries, in that order after ASCII case-folding, and may not appear again. Track names must be unique under ASCII case-folding. The count is therefore 5–16. The voice cap (1–32) limits the configuration applied at boot, not the aggregate that the reader or writer may represent; an over-cap aggregate is accepted and recovers as described below. Their Epic 6 defaults are `{ music: 1, sfx: 1, ambience: 4, voice: 2, ui: 4 }`; a block may override any of them. Without a block the Epic 6 tracks and counts apply and the default cap is 32. The game-file tracks, counts, cap and default SoundFont are game configuration, never playback-save data ([MEDIA-4](../engine/audio-media.md#media-4)).
 
-The block order is fixed: the package list, when present, comes first; the audio block, when present, comes next; any remaining bytes are residue. Each block may be present without the other. The writer emits the audio block when the model carries audio settings and never derives it from, or into, the package list or the legacy rows.
+The block order is fixed: the package list, when present, comes first; the audio block, when present, comes next; the [input block](#tkr-input-extension), when present, comes last; any remaining bytes are residue. Each block may be present without the others. The writer emits the audio block when the model carries audio settings and never derives it from, or into, the package list or the legacy rows.
 
 The decoded model always carries `audioSettings`: it is `null` when the block is absent, otherwise `{ tracks, voiceCap, defaultSoundFont }`, with `defaultSoundFont: null` when the font flag is zero. These required nullable fields make absence explicit across serialization boundaries; the binary reader validates the envelope before returning this typed model.
 
 Structural violations — a truncated block, a count or voice count out of range, an unknown font flag, an oversized or empty name, a duplicate name, or built-in names missing, out of order or repeated — are located format errors and no model is produced. A structurally valid block whose total voice count exceeds its cap is accepted as data; at load the engine reports one located `media.voice-cap` diagnostic at the first track whose cumulative count crosses the cap, replaces the track configuration with the Epic 6 default tracks and cap 32, and still applies the block's independent `defaultSoundFont`. The game therefore boots with the defaults rather than refusing the file.
+
+<a id="tkr-input-extension"></a>
+## TKR input extension
+
+TK Reawakened may append a native input-settings block after the audio-settings block. It is a separate tagged block, so a reader that knows only some of the three keeps the rest as residue. It begins with the marker `TRKINP\0` (six ASCII bytes followed by NUL), then a `u8` schema number (`1` in this version), then:
+
+| Field | Type | Meaning |
+|---|---|---|
+| controller enabled | `u8` | `1` the game offers controllers, `0` it does not. Any other value is malformed |
+| action count | `u16` | 0–512 actions with a stored binding |
+| × count: action name | NUL-terminated ASCII string | 1–64 bytes, `up`, `down`, `left`, `right`, `confirm`, `cancel`, `menu`, or `game.` followed by `[a-z][a-z0-9]*` segments joined by dots |
+| flags | `u8` | bit 0: the action is **locked** (the game fixes it, [ACT-6](../engine/display-input-audio.md#act-6)); bits 1–7 reserved, must be 0 |
+| control count | `u16` | 0–8 controls for this action |
+| × control count: control id | NUL-terminated ASCII string | 1–32 bytes, `key:<code>`, `pad:<0-16>` or `pad:axis<0\|1><-\|+>` ([ACT-3](../engine/display-input-audio.md#act-3)) |
+
+The block is the game's **default** binding table, not the player's ([ACT-6](../engine/display-input-audio.md#act-6)). The block order after the last legacy row is fixed: the package list, then the audio block, then this block; any remaining bytes are residue. Each block may be present without the others.
+
+**Absent block.** The model's `inputSettings` is `null`, and the engine uses the defaults of [ACT-5](../engine/display-input-audio.md#act-5): arrows for directions, Enter and Space for `confirm`, Escape for `cancel`, Enter for `menu`, and a standard-layout controller on. The legacy input rows (18–22, 45, 60–61) keep their 3.1 meaning for the legacy layer and are **not** re-derived into control ids: a 3.1 game's movement scan codes and its ASCII activation, menu and run-time keys still drive the key queue exactly as [E-110](../engine/display-input-audio.md#e-110) describes, and the action defaults above are what the engine's own surfaces use.
+
+**Why a new block rather than new rows.** The legacy rows cannot express a controller button, a second binding for one action, a locked action or a game-defined action, and extending the numbered row list would change what a 3.1 reader sees at every subsequent row. A tagged block is invisible to a legacy reader, is versioned on its own, and follows the same record rules the package list and the audio block already established.
+
+**Validation.** A truncated block, an unknown schema, an action count above 512, a control count above 8, an empty or oversized name, a name that is neither a reserved engine action nor a valid `game.*` name, a reserved flag bit, an invalid control id, or the same control twice within one action is a located format error and no model is produced. A structurally valid block naming a `game.*` action the running game never registers is accepted: the binding stays as data and the engine reports `input.unknown-action` once ([ACT-7](../engine/display-input-audio.md#act-7)).
+
+**Writer.** The writer emits the block when `inputSettings` is non-null and never derives it from, or into, the legacy rows, the package list or the audio block. A round-trip through reader and writer is byte-identical, including an empty action list, which is written as a block with the controller flag and a zero count rather than omitted.
 
 ## Compatibility notes
 
