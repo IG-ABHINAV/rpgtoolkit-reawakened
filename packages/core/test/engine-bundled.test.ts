@@ -55,6 +55,16 @@ function screen(engine: Engine): Uint8Array {
   }
   throw new Error("the screen surface has no readable revision");
 }
+function assertScreenTextDiffersFromBlank(engine: Engine, blankEngine: Engine): void {
+  const withText = screen(engine);
+  const blank = screen(blankEngine);
+  equal(withText.length, blank.length, "the text and blank screen surfaces have the same dimensions");
+  equal(
+    withText.some((channel, index) => channel !== blank[index]),
+    true,
+    "the script text glyphs change screen pixels relative to the same board with no text",
+  );
+}
 
 function paintedPixels(rgba: Uint8Array): number {
   let painted = 0;
@@ -77,16 +87,20 @@ test("a presentation refresh alone reports no render failure", () => {
 });
 
 test("the bundled default bitmap font the host ships draws script text on the screen surface", () => {
-  const { engine } = runProgram('text(1, 1, "hi")\nend()\n', bundledFiles);
+  const { engine } = runProgram('text(1, 1, "hi")\nwait()\nend()\n', bundledFiles);
+  const blank = runProgram('wait()\nend()\n', bundledFiles);
   equal(paintedPixels(screen(engine)) > 0, true);
+  assertScreenTextDiffersFromBlank(engine, blank.engine);
   equal(engine.advance(0, []).diagnostics.length, 0);
 });
 
 test("a font name the game does not ship draws in the default bitmap font", () => {
   const named = runProgram('font("Comic Sans MS")\ntext(1, 1, "hi")\nwait()\nend()\n', bundledFiles);
   const plain = runProgram('text(1, 1, "hi")\nwait()\nend()\n', bundledFiles);
-  equal(paintedPixels(screen(named.engine)), paintedPixels(screen(plain.engine)));
+  const blank = runProgram('wait()\nend()\n', bundledFiles);
+  equal(screen(named.engine).join(","), screen(plain.engine).join(","), "the fallback renders the same glyph pixels as the plain bitmap font");
   equal(paintedPixels(screen(named.engine)) > 0, true);
+  assertScreenTextDiffersFromBlank(named.engine, blank.engine);
   equal(named.engine.advance(0, []).diagnostics.length, 0);
 });
 
