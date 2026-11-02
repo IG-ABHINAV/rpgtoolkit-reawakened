@@ -176,6 +176,18 @@ test("text and pixelText with a canvas draw into that canvas, not the screen tex
   equal(game.state().ui.draws.length, 0, "the screen text layer got nothing");
 });
 
+test("canvas cell text with fractional coordinates truncates toward zero before mapping (E-56)", () => {
+  const game = boot('rendernow(1)\nc = cnvrendernow\ncolorrgb(255,255,255)\ntext(1.5,5.9,"A",c)\nend()\n');
+  const handle = game.state().surfaces.renderNow ?? 0;
+  ok(handle > 0);
+  let highRow = 0;
+  let sixthRow = 0;
+  for (let x = 0; x < 20; x += 1) if (canvasPixel(game, handle, x, 5)[3] === 255) highRow += 1;
+  for (let y = 32; y < 40; y += 1) for (let x = 0; x < 8; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) sixthRow += 1;
+  equal(highRow, 0, "trunc(1.5)=1 lands x at cell 0, not half a cell in");
+  ok(sixthRow > 3, `trunc(5.9)=5 puts the glyphs in the fifth cell row (y 32..39), not at (5.9−1)×8 = 39.2 (${sixthRow} pixels)`);
+});
+
 test("canvas text interleaved with graphics and rendernow has eager and batched pixel parity", () => {
   const program = 'rendernow(1)\nc = cnvrendernow\ncolorrgb(10,20,30)\nfillrect(0,0,63,63,c)\ncolorrgb(255,255,255)\npixelText(2,8,"HI",c)\nsetpixel(63,63,c)\ntext(1,4,"A",c)\nrendernow(0)\nrendernow(1)\nend()\n';
   const batched = boot(program);

@@ -249,8 +249,10 @@ export function applyUiEffect(
     case "text": {
       // A canvas target (fourth argument) is drawn into that canvas by the engine, never onto the screen text layer.
       if (numberArg(args[3]) !== 0) return;
-      const x = (numberArg(args[0]) - 1) * ui.font.size;
-      const y = (numberArg(args[1]) - 1) * ui.font.size;
+      // E-56 (docs/spec/engine/rpgcode-functions.md#e-56): each coordinate is truncated
+      // toward zero before the cell maps to ((x - 1) × size, (y - 1) × size).
+      const x = (Math.trunc(numberArg(args[0])) - 1) * ui.font.size;
+      const y = (Math.trunc(numberArg(args[1])) - 1) * ui.font.size;
       ui.draws = [...ui.draws, { x, y, cell: true, text: stringArg(args[2]), font: ui.font, rgb: ui.color, underline: ui.underline }];
       ui.cursorX = x; ui.cursorY = y;
       return;
