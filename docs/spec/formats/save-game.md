@@ -60,10 +60,12 @@ the identity starts a new save area.
 thread has parked on the host request. The save records that thread as resumed
 after a successful `Save`, so loading it continues the original script at its
 next instruction. `Load` validates the full save and the current package/source
-compatibility before replacing the live state; a missing or invalid save
-returns failure to the calling thread without replacing the current game.
-Successful restoration rebuilds package layers, hydrates saved actors and
-verifies restored VM handles before continuing the saved thread set.
+compatibility; a missing or invalid save returns failure to the calling thread
+without replacing the current game. The current implementation replaces live
+state, rebuilds package layers, hydrates saved actors and verifies VM handles
+before continuing the saved thread set.
+
+**Start-program Load exception (OWNER, 2026-11-02; [#1177](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177)).** The target follows 3.1: the loaded board is drawn into the program surface, replacing its drawing; the player is placed as for `send`, disarming programs under the player; the message window's flag and text remain unchanged; board music starts; the loaded board's enter program runs nested without a new copy; then the calling start program continues over the board. This overrides continuing only the saved thread set for that caller, but is not yet implemented. An [issue comment](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177#issuecomment-6579294362) attributes redraw-before-placement to an owner ruling; its underlying direct owner wording has not been independently located. The owner-relayed engineer account in this PR's request instead places the player before redraw. Preserve both accounts and obtain clarification before implementing their relative order; do not treat the issue comment as a verified verbatim owner quote. Saved blocking programs and threads, VM, tick and UI state also remain open. Evidence for nested entry and continuation is source-read, not run-confirmed; first-board skipping was labelled certain.
 
 **In-flight requests.** A game save is serialized only once every other host
 request it would capture has been answered: outstanding asset requests, deferred
@@ -82,8 +84,9 @@ Approved option C ruling (owner: Jensen, 2026-11-01), verbatim:
 Follow-up approved ruling (owner: Jensen, 2026-11-02), verbatim:
 > RPGCode script-owned canvases (cnvX) are application store, treated like global variables — they STAY in the state hash, and drawing to them legitimately changes it. Only the presented screen surface (the derived presentation cache) is excluded. Hash-significant: script variables/globals, cnvX canvases, game-loop globals needed to store coordinates. Hash-neutral: drawing to / reading / refreshing the presented screen surface and any host surfacePixels poll.
 
-A presented screen is a rebuildable picture, not game progress: its derived presentation cache is excluded
-from `hashGameState` and is rebuilt deterministically on restore before any script read.
+The approved exclusion and deterministic rebuild-before-read requirement above remain binding. How to rebuild a history-dependent presented image under the adopted program-surface model is unresolved; the current implementation's board-state recomposition below is not proof that the target image can be reconstructed without retained history.
+
+A program's **starting copy** is supplied by deterministic core composition without host capture ([engine/main-loop-and-startup.md#reawakened-starting-frame-capture](../engine/main-loop-and-startup.md#reawakened-starting-frame-capture), [ADR 0018](../../adr/0018-core-composed-program-starting-frame.md)). The owner adopted the 3.1 presentation model for now; the retention, save/restore, replay and hash treatment of the prior-frame history remain open. Existing exclusions below do not settle whether that history is reconstructible or requires stored data. Script reads into variables, `cnvX` canvases or screen slots remain hash-significant.
 
 **What leaves the hash:**
 - The presented frame (`surfaces.entries["0"]`), which is a derived presentation cache.
@@ -97,13 +100,13 @@ from `hashGameState` and is rebuilt deterministically on restore before any scri
 
 A `cnvX` draw that changes application store changes the hash; drawing to, reading or refreshing the presented screen does not. Host `surfacePixels` polls are also hash-neutral.
 
-**Restore recomputes the surface:** Both surface 0 and the script-screen layer are preserved in saved game data, so a restore preserves what the script drew. On restore, before any script can read it (and before any restored script thread executes a step), the engine deterministically recomputes the presented screen surface from the saved draw state (board, camera, layers, and render-now overlay).
+**Current implementation:** Both surface 0 and the script-screen layer are saved; on restore the engine recomputes surface 0 from board, camera, layers and render-now overlay before script execution. This can differ from a retained program/window image. The approved deterministic restore requirement remains; the target must preserve the correct observable history, with representation and any reconciliation of the ruling resolved explicitly before implementation.
 
 **Host-accessor purity (answering the open question on #1048):**
 Host `surfacePixels(id, rev)` is observationally read-only: presentation cadence must not change simulation state, `GameState`, surface revisions, state hashes, save data, or future diagnostics, regardless of host polling or cache-flush cadence.
 This purity is enforced by type and API design rather than convention:
 1. **Type signature:** `surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null` is typed as a pure query. It accepts no mutation closures, takes no write buffers or commands, and returns a read-only data record `{ w, h, rgba }` or `null`.
-2. **API separation:** Rebuilding the presented screen is strictly a core-owned deterministic operation, triggered only at the end of `advance`, immediately before a script screen read, and during a restore. The host `surfacePixels` API has no way to trigger or alter that composition by polling: it resolves the stored entry, returns it only for its exact `rev`, and returns `null` on a stale or unknown revision.
+2. **API separation:** Rebuilding the presented screen is core-owned and deterministic; host polling cannot trigger or alter it. Currently it is triggered at the end of `advance`, before a script screen read and during restore. Target timing and history retention require the design above. The host API resolves the stored entry only for its exact `rev`, otherwise returns `null`.
 3. **Buffer ownership:** The returned RGBA byte array is an owned detached copy (`new Uint8Array(entry.bitmap.data)`), so mutation of the returned buffer by the runner or host cannot mutate the engine's internal surface bitmaps.
 
 Script-visible screen refresh is a separate deterministic core operation; the complete contract and conformance cases are in [runners.md#surface-read-and-state-hash](../engine/runners.md#surface-read-and-state-hash).

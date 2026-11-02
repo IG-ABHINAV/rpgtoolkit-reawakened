@@ -93,26 +93,27 @@ operation, separate from host presentation reads. A runner cannot trigger that o
 **Enforcement by type/API rather than convention (answering the open question on #1048):**
 Host accessor purity is guaranteed structurally rather than by trusting runners or developers to follow convention:
 1. **Type signature:** `surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null` is typed as a read-only query taking primitive values and returning `{ readonly w: number, readonly h: number, readonly rgba: Bytes } | null`. It accepts no callbacks, configuration flags, or mutable contexts.
-2. **API separation:** The presentation query is separated entirely from the screen composition pipeline. `surfacePixels` resolves the stored entry for `id`, compares its `rev` and returns `null` on any mismatch; it never invokes the core's frame rebuild. Only a deterministic core operation — the end of `advance`, a script screen read, or a restore — rebuilds surface 0.
+2. **API separation:** `surfacePixels` resolves the stored entry and revision without invoking a rebuild. Currently the core rebuilds at the end of `advance`, on a script screen read, or on restore. The approved deterministic rebuild-before-read rule remains binding; reconstructing the target's history-dependent frame and its precise timing remain unresolved.
 3. **Detached buffer ownership:** The returned `rgba` byte buffer is a newly allocated copy (`new Uint8Array(entry.bitmap.data)`), so runners can retain, wrap, or mutate it without corrupting the engine's internal state.
 
 **Two surfaces, not one.** A script that draws and names no canvas draws to the **script-screen layer**, a persistent
 surface with the reserved id `-1`. The id is fixed, never taken from the monotonic counter, so the first draw to the
 screen moves neither the counter nor any canvas handle, and a script cannot name the layer (handles are never
-negative). The layer is created on first use at the frame's size. While an outermost program runs it is composited
-between the board and the render-now overlay into surface 0, the **presented frame**; outside a program it is retained
-but not composed. Drawing to the layer never overwrites the board, and rebuilding the frame never discards what the script drew.
-Both surfaces are saved; neither is hashed.
+negative). In the current implementation the layer is composited between the live board and overlay while an
+outermost program runs; this is an implementation gap, not the target. The owner chose the Toolkit 3.1 model
+for now: a running program presents its own surface with the message window on top, without live board or overlay
+composition. Board redraws replace that surface. The starting frame is core-composed, with no host pixel request.
+See [ADR 0018](../../adr/0018-core-composed-program-starting-frame.md) and
+[main-loop-and-startup.md#reawakened-starting-frame-capture](main-loop-and-startup.md#reawakened-starting-frame-capture).
+Both existing surfaces are saved; neither is hashed. The storage and save/hash treatment of retained prior-frame
+history are unresolved and are not decided by these existing exclusions.
 
-**When the core rebuilds the frame.** The core rebuilds surface 0 from game state alone, and only at three points: at
+**Current implementation: when the core rebuilds the frame.** The core rebuilds surface 0 from game state alone, and only at three points: at
 the end of every `advance` call; immediately before a script reads the screen (`getpixel` on the screen,
 `canvasgetscreen`, `savescreen`, and a canvas draw whose source is the screen); and when a saved game is restored,
 before any script runs. A rebuild is skipped when the frame it would render is the one already rebuilt — the same
 draw-list size and commands (the tick stamp is not part of the comparison) and no asset has arrived since — and a
-restore always rebuilds. The frame's pixels and revision therefore depend on the game and on how `advance` calls were
-batched, never on how often a host read them; its revision and bytes may differ between batchings, which is harmless
-because surface 0 is excluded from the state hash. A state edit made between `advance` calls shows in the frame at the
-next `advance` or script read, never on a host read.
+restore always rebuilds. In the current implementation pixels and revisions can differ between `advance` batchings and host reads do not cause rebuilds. The adopted target must additionally preserve the correct history-dependent script-visible pixels and G3 determinism: exclusion of surface 0 from the hash does not make different future screen-read results harmless. A state edit currently appears at the next `advance` or script read, never on a host read.
 
 **What leaves the hash and what stays:**
 The hash includes the application store: script variables and globals, script-owned canvases (`cnvX`), and game-loop
