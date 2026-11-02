@@ -23,6 +23,7 @@ const entries = [
   { in: join(root, "packages/runner-web/app/video.ts"), out: "video.js" },
   { in: join(root, "packages/runner-web/app/storage.ts"), out: "storage.js" },
   { in: join(root, "packages/runner-web/src/decode-worker.ts"), out: "decode-worker.js" },
+  { in: join(root, "packages/runner-web/src/audio-worklet.ts"), out: "audio-worklet.js" },
   { in: join(root, "packages/runner-web/app/decode.ts"), out: "decode.js" },
   { in: join(root, "packages/runner-web/app/worker-probe.ts"), out: "worker-probe.js" },
 ];
@@ -60,6 +61,7 @@ const shellFiles = [
   "packages/runner-web/app/index.html",
   "apps/player.js",
   "apps/decode-worker.js",
+  "apps/audio-worklet.js",
   "apps/bundled.json",
   "golden/closing/plan.json",
 ];
@@ -86,6 +88,7 @@ const precache = {
     "/packages/runner-web/app/index.html",
     "/apps/player.js",
     "/apps/decode-worker.js",
+    "/apps/audio-worklet.js",
     "/apps/bundled.json",
     "/apps/precache.json",
     "/golden/closing/plan.json",

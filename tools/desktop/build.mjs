@@ -53,6 +53,16 @@ await build({
   target: "chrome120",
   logLevel: "warning",
 });
+// The AudioWorklet module the desktop player loads from `app://player/apps/audio-worklet.js`.
+await build({
+  entryPoints: [join(root, "packages/runner-web/src/audio-worklet.ts")],
+  outfile: join(root, "apps", "audio-worklet.js"),
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  target: "chrome120",
+  logLevel: "warning",
+});
 
 // The Electron app's own `package.json`, so `electron .` finds the main process.
 const manifest = {

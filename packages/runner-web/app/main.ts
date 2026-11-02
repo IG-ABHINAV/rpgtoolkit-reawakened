@@ -99,7 +99,7 @@ async function boot(context: WebGL2RenderingContext, screen: HTMLCanvasElement, 
       ].join("\n");
       return;
     }
-    const session = createLiveSession({ planText, gameName: game, files, bundled, gl: context });
+    const session = await createLiveSession({ planText, gameName: game, files, bundled, gl: context });
     await runParity(session, report, game, pack);
   } catch (error) {
     window.__report = { error: String(error) };
@@ -191,7 +191,7 @@ async function bootParityPackage(context: WebGL2RenderingContext, report: HTMLPr
   const { controller, source, bundled } = await loadPackage(params, report, pack);
   const clock = window.__playerClock ?? ((): number => performance.now());
   const decode = await prepareDecode();
-  const session = createLiveSession({ planText, gameName: game, source, bundled, gl: context, clock, decode });
+  const session = await createLiveSession({ planText, gameName: game, source, bundled, gl: context, clock, decode });
   window.__session = session;
   await runParity(session, report, game, pack, () => ({ load: controller.state(), assets: session.loadState(), audio: session.audioState() }));
 }
@@ -211,7 +211,7 @@ async function bootInteractive(
   const spinner = document.querySelector<HTMLElement>("#spinner");
   let overlay: StallOverlay | null = null;
   const decode = await prepareDecode();
-  const session = createLiveSession({
+  const session = await createLiveSession({
     interactive: true,
     source,
     bundled,

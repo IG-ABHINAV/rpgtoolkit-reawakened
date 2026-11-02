@@ -24,7 +24,7 @@ import { inputPhaseRegistration, inputResetRegistration, movementPhaseRegistrati
 import { parseClosingPlan, type ClosingFiles } from "@tk-reawakened/runner-harness";
 import { createWebgl2Renderer, type RenderStats } from "@tk-reawakened/render-webgl2";
 import { BUNDLED_BANK, CuePlayer, describePatchGap } from "@tk-reawakened/synth";
-import { connectSinkToGraph, PcmSink, type ScheduledPlay } from "./audio-sink.ts";
+import { connectSinkToGraph, defaultWorkletUrl, PcmSink, type ScheduledPlay } from "./audio-sink.ts";
 import { fontProvider, liveTextureProvider } from "./index.ts";
 import type { DecodeAhead } from "./decode-types.ts";
 import type { PackageSource } from "./package-source.ts";
@@ -134,7 +134,7 @@ export function observeViewport(
 }
 
 /** Persistent engine and host request pump shared by browser and desktop players. */
-export function createLiveSession(options: LiveSessionOptions): LiveSession {
+export async function createLiveSession(options: LiveSessionOptions): Promise<LiveSession> {
   const interactive = options.interactive === true;
   const plan = interactive ? null : parseClosingPlan(options.planText);
   const game = plan?.games.find((entry) => entry.name === (!interactive ? options.gameName : ""));
@@ -271,13 +271,13 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
       } else if (event.kind === "bank.substitution") console.warn(describePatchGap(event)); // playback continues; not game state
     },
   });
+  const graph = await connectSinkToGraph(audioContext, sink, { workletUrl: defaultWorkletUrl() });
   player = new CuePlayer({
-    send: (message) => sink.handle(message),
+    send: (message) => graph.send(message),
     readAsset: (key) => assets.peek(key) ?? bundled.get(key) ?? null,
     bankLayers: { player: null, runner: null, bundled: bundled.has(assetKey(BUNDLED_BANK.id)) ? BUNDLED_BANK : null },
     onEnded: (cueId) => audioEvents.push({ tick: currentTick, event: { kind: "audio.ended", cueId } }),
   });
-  const graph = connectSinkToGraph(audioContext, sink);
   if (audioContext.state !== "running") player.lock();
   audioContext.addEventListener("statechange", () => {
     if (audioContext.state === "running") player.unlock(currentTick);

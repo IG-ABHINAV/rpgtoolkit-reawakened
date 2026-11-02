@@ -35,7 +35,7 @@ async function start(): Promise<void> {
   }
   const gl = canvas.getContext("webgl2", { premultipliedAlpha: false, antialias: false, alpha: false, preserveDrawingBuffer: true });
   if (gl === null) throw new Error("no WebGL2 context for the visible player");
-  const session = createLiveSession({
+  const session = await createLiveSession({
     interactive: true,
     mainFile: pkg.main,
     gameIdentity: pkg.gameIdentity,

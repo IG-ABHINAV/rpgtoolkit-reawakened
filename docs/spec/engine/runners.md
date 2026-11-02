@@ -204,8 +204,12 @@ bytes, cached per runner and shared across games, with eviction that never remov
 `media.seek` and `media.fade` arithmetic as a pure function of the cue and the tick the voice became ready, and
 `CuePlayer` is the state machine over it — the `(track, voice)` map, the prepared voice from `media.load`, the
 pre-ready message queue, the autoplay lock's mirror and the focus hold. `runner-web` carries the output: `PcmSink` holds
-one `synth` source voice per protocol voice and **pulls** frames, which is the same call a browser `AudioContext` graph
-makes, with bus, master and voice volumes applied at the pull. The four bank ranks of
+one `synth` source voice per protocol voice and **pulls** frames. The shipped graph runs that pull inside an
+**AudioWorklet** (`apps/audio-worklet.js`), so the render quantum is the browser's render-quantum size rather than a
+fixed `ScriptProcessorNode` buffer; the one-shot onset target is **≤ 50 ms** measured as
+`baseLatency + renderQuantumSize / sampleRate`, and the browser lane asserts it. A `ScriptProcessorNode` fallback
+remains only for a platform that genuinely lacks AudioWorklet; it is logged explicitly and uses a documented
+2048-frame buffer. Bus, master and voice volumes are applied at the pull either way. The four bank ranks of
 [audio-media.md#soundfont-layers](audio-media.md#soundfont-layers) resolve in `synth` (`effectiveBank`: player, author,
 runner, bundled — never a fifth, which MEDIA-5 retired), a bank is validated as a RIFF `sfbk` container against the
 runner's ceiling (`bank.invalid`, `bank.unavailable`), and `BankCache` keys it by the SHA-256 of its bytes so two games
@@ -380,6 +384,11 @@ user-supplied `.sf2` that is SF3, and the page states which build it is.
 
 The browser lane **MUST** assert that the default path instantiates no WebAssembly, so the allowance can never widen
 silently. SF3 support itself is unverified and is not promised by this page.
+
+The AudioWorklet module is loaded by `audioWorklet.addModule` from a **same-origin** URL — `/apps/audio-worklet.js` in
+the browser and `app://player/apps/audio-worklet.js` under the desktop scheme. That fetch is governed by `script-src`,
+**not** `worker-src`, so the shipped `script-src 'self'` covers it and the policy is not widened. The browser lane loads
+the module under the real CSP; the desktop smoke does the same over `app://`.
 
 <a id="conformance-lane"></a>
 ## Conformance: the schema and the vector kit

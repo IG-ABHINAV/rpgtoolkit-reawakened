@@ -8,7 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import type { AssetKey } from "@tk-reawakened/core";
-import { PcmSink, ticksToSeconds } from "../src/audio-sink.ts";
+import { connectSinkToGraph, PcmSink, ticksToSeconds } from "../src/audio-sink.ts";
 import type { SinkEvent } from "../src/audio-sink.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -231,4 +231,82 @@ test("a bank over the ceiling is bank.unavailable, not a crash", () => {
   const last = events.at(-1);
   equal(last?.kind === "error" ? last.code : "", "bank.unavailable");
   equal(made.currentBank, null);
+});
+
+// ---------------------------------------------------------------- the AudioWorklet graph (issue #1044)
+
+/** A fake node the worklet path can construct and inspect. */
+class FakeWorkletNode {
+  static last: FakeWorkletNode | null = null;
+  readonly port = {
+    messages: [] as unknown[],
+    onmessage: null as ((event: MessageEvent) => void) | null,
+    postMessage(message: unknown): void {
+      this.messages.push(message);
+    },
+    addEventListener(): void {},
+    removeEventListener(): void {},
+  };
+  connect(): void {}
+  disconnect(): void {}
+  constructor() {
+    FakeWorkletNode.last = this;
+  }
+}
+
+function fakeContext(overrides: Record<string, unknown> = {}): AudioContext {
+  const destination = { connect(): void {}, disconnect(): void {} };
+  return {
+    sampleRate: 8_000,
+    baseLatency: 0.016,
+    destination,
+    audioWorklet: { addModule: async (): Promise<void> => undefined },
+    createScriptProcessor: (bufferSize: number) => ({
+      bufferSize,
+      connect(): void {},
+      disconnect(): void {},
+      onaudioprocess: null,
+    }),
+    ...overrides,
+  } as unknown as AudioContext;
+}
+
+test("connectSinkToGraph falls back to ScriptProcessorNode when AudioWorklet is unavailable", async () => {
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (message: string) => warnings.push(message);
+  try {
+    const made = sink();
+    const graph = await connectSinkToGraph(fakeContext({ audioWorklet: undefined }), made);
+    equal((graph.node as ScriptProcessorNode).bufferSize, 2_048);
+    ok(warnings.some((line) => line.includes("ScriptProcessorNode fallback")));
+    graph.disconnect();
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test("connectSinkToGraph loads the worklet and forwards setBank with the resolved bytes", async () => {
+  const original = (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode;
+  (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = FakeWorkletNode;
+  try {
+    const made = new PcmSink({
+      readAsset: () => null,
+      readBank: () => bundledBank(),
+      outputRateHz: 8_000,
+    });
+    const graph = await connectSinkToGraph(fakeContext(), made);
+    graph.send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "TK-16", sha256: null } });
+    const node = FakeWorkletNode.last;
+    ok(node !== null);
+    const posted = node.port.messages.at(-1) as { kind: string; message: { kind: string; bankBytes?: Uint8Array; bankSha?: string } };
+    equal(posted.kind, "message");
+    equal(posted.message.kind, "setBank");
+    ok(posted.message.bankBytes instanceof Uint8Array);
+    equal(posted.message.bankSha, "a79fa6d4ae3b8ab8b3f3e3ddd4ab3d59a0ac24222caffcdd914435d76872ede2");
+    graph.disconnect();
+  } finally {
+    if (original === undefined) delete (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode;
+    else (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = original;
+  }
 });
