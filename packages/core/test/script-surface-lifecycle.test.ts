@@ -12,7 +12,9 @@ import {
   createEmptyCharacter,
   createEmptyMainFile,
   createEngine,
+  IR_VERSION,
   PACKAGE_ROOT,
+  triggersPhaseRegistration,
   writeBoard,
   writeCharacter,
   writeMainFile,
@@ -38,7 +40,11 @@ type Game = {
   advance(ticks: number, keys?: readonly string[]): void;
 };
 
-function boot(program: string, extra: Readonly<Record<string, Uint8Array>> = {}): Game {
+function boot(
+  program: string,
+  extra: Readonly<Record<string, Uint8Array>> = {},
+  phaseRegistrations: NonNullable<Parameters<typeof createEngine>[0]["phaseRegistrations"]> = [],
+): Game {
   const empty = createEmptyBoard();
   const files = new Map<string, Uint8Array>();
   const paths = ["main.gam", "Boards/start.brd", "Chrs/hero.tem", "Prg/start.prg", ...Object.keys(extra)];
@@ -62,7 +68,7 @@ function boot(program: string, extra: Readonly<Record<string, Uint8Array>> = {})
     height: SIZE,
     maxTicks: 1000,
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
-    phaseRegistrations: [{ phase: "audio", run: (state) => { latest = state; } }],
+    phaseRegistrations: [{ phase: "audio", run: (state) => { latest = state; } }, ...phaseRegistrations],
   });
   let replies: { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: null; readonly down: boolean } }[] = [];
   const game: Game = {
@@ -178,6 +184,7 @@ test("the next outermost program start resets the stored message text and the sc
   equal(state.world.board?.key, "boards/start.brd", "the first board is up");
   equal(state.ui.message.text, "enter", "the title text was reset when the enter program started");
   equal(state.ui.message.visible, true, "the enter program's window is visible while it runs");
+  // Inference: the script text layer starts empty so nothing the previous program drew can reappear behind the next program.
   equal(state.ui.draws.length, 0, "the title screen's text draw did not survive into the next program");
   const list = game.engine.drawList();
   ok(hasText(list, "enter") && !hasText(list, "title") && !hasText(list, "press a key"), "only the enter program's own text is composed");
@@ -225,4 +232,228 @@ test("title program then first board shows no title text or message window over 
   ok(!hasText(list, "title"), "title message-window text is not composed over the board");
   ok(!hasText(list, "press a key"), "title screen text is not composed over the board");
   equal(state.ui.message.visible, false, "message window is hidden after the title program ends");
+});
+
+test("enter program of a board reached by send is composed while waiting and hidden after it ends (#1132)", () => {
+  const nextBoard = unwrap(writeBoard({
+    ...createEmptyBoard(),
+    sizeX: 10, sizeY: 10, sizeL: 1,
+    tileMatrix: Array.from({ length: 100 }, () => 0),
+    tileRuns: [{ lutIndex: 0, count: 100, marker: true }],
+    layerTitles: ["", ""],
+    properties: { ...createEmptyBoard().properties, enterPrg: "next-enter.prg", start: { x: 64, y: 64, layer: 1 } },
+  }));
+  const game = boot(
+    'end()',
+    {
+      "prg/enter.prg": encoder.encode('send("next.brd", 2, 2)'),
+      "boards/next.brd": nextBoard,
+      "prg/next-enter.prg": encoder.encode('mwin("welcome")\nwait()'),
+    },
+  );
+  // Advance past startup and the sending board's enter program.
+  game.advance(25);
+  const waitingState = sync(game);
+  equal(waitingState.world.board?.key, "boards/next.brd", "destination board is active");
+  equal(waitingState.ui.message.visible, true, "enter program window is visible while wait() is pending");
+  equal(waitingState.ui.message.text, "welcome", "enter program message text is stored");
+  const waitingList = game.engine.drawList();
+  ok(hasText(waitingList, "welcome"), "enter program message is composed and drawn while waiting after send");
+
+  // Dismiss the enter program's wait; it ends and hides the window.
+  game.advance(1, ["ENTER"]);
+  const endedState = sync(game);
+  equal(endedState.ui.message.visible, false, "message window is hidden after the enter program ends");
+  const endedList = game.engine.drawList();
+  ok(!hasText(endedList, "welcome"), "message is no longer drawn after the enter program ends");
+});
+
+test("engine displays and composes no-enemies message outside any program (#1133)", () => {
+  let fired = false;
+  const game = boot('mwin("title")\nwait()', {}, [
+    {
+      phase: "triggers",
+      run: (state, post) => {
+        // Only after the start-up program has ended, so the engine message is posted outside any program.
+        if (fired || post === undefined) return;
+        if (state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished")) return;
+        fired = true;
+        post("battle", {
+          thread: 0,
+          name: "battle.noEnemies",
+          kind: "state-write",
+          args: [{
+            trigger: "random",
+            board: { key: "boards/start.brd", skill: 1, background: "night.bkg" },
+            actor: { id: "player:0", kind: "player", index: 0, source: "hero.tem", x: 0, y: 0, layer: 1 },
+            message: "No enemies of skill level 1 found.",
+          }],
+          out: {},
+          result: null,
+          patch: null,
+          wait: null,
+          request: null,
+        });
+      },
+    },
+  ]);
+  // Dismiss startup program.
+  game.advance(10, ["ENTER"]);
+  // One tick to execute triggers phase posting the battle.noEnemies event.
+  game.advance(1);
+  const state = sync(game);
+  equal(state.ui.message.visible, true, "message window is visible for engine no-enemies message");
+  equal(state.ui.message.text, "No enemies of skill level 1 found.", "stale title text was reset before displaying no-enemies message");
+  const list = game.engine.drawList();
+  ok(hasText(list, "No enemies of skill level 1 found."), "no-enemies message is composed and drawn");
+});
+
+test("battle handoff program start resets the message window and does not prepend stale text (#1134)", () => {
+  let customBattleFired = false;
+  const game = boot(
+    'mwin("stale title text")\nwait()',
+    { "prg/fight.prg": encoder.encode('mwin("custom fight begins")\nwait()') },
+    [
+      {
+        phase: "triggers",
+        run: (state, post) => {
+          // Only after the start-up program has ended, so the handoff starts the outermost blocking program.
+          if (customBattleFired || post === undefined) return;
+          if (state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished")) return;
+          customBattleFired = true;
+          post("battle", {
+            thread: 0,
+            name: "battle.customFight",
+            kind: "state-write",
+            args: [{
+              trigger: "random",
+              board: { key: "boards/start.brd", skill: 1, background: "night.bkg" },
+              actor: { id: "player:0", kind: "player", index: 0, source: "hero.tem", x: 0, y: 0, layer: 1 },
+              program: "fight.prg",
+            }],
+            out: {},
+            result: null,
+            patch: null,
+            wait: null,
+            request: null,
+          });
+        },
+      },
+    ],
+  );
+  // Dismiss startup program.
+  game.advance(10, ["ENTER"]);
+  // Run custom fight handoff.
+  game.advance(1);
+  const state = sync(game);
+  equal(state.ui.message.visible, true, "battle program message window is visible");
+  equal(state.ui.message.text, "custom fight begins", "stale title text was reset when starting blocking battle request");
+  const list = game.engine.drawList();
+  ok(hasText(list, "custom fight begins") && !hasText(list, "stale title text"), "only custom fight text is composed");
+});
+
+test("trigger program start resets the stored message text and the script text layer (#1135)", () => {
+  const triggerBoard = unwrap(writeBoard({
+    ...createEmptyBoard(),
+    sizeX: 40, sizeY: 30, sizeL: 1,
+    tileMatrix: Array.from({ length: 1200 }, () => 0),
+    tileRuns: [{ lutIndex: 0, count: 1200, marker: true }],
+    layerTitles: ["", ""],
+    programs: [{
+      program: "trig.prg",
+      graphic: "",
+      initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+      activate: 0,
+      activationType: 0,
+      repeatDistance: 0,
+      layer: 1,
+      points: [{ x: 160, y: 160 }, { x: 256, y: 160 }, { x: 256, y: 256 }, { x: 160, y: 256 }],
+      closed: 1,
+      handle: "step_trig",
+    }],
+    properties: { ...createEmptyBoard().properties, start: { x: 64, y: 64, layer: 1 } },
+  }));
+
+  let stepTriggered = false;
+  const game = boot(
+    'mwin("stale title text")\ntext(1, 1, "stale draw text")\nwait()',
+    { "boards/start.brd": triggerBoard },
+    [
+      {
+        phase: "movement",
+        run: (state) => {
+          if (!stepTriggered && state.world.board?.key === "boards/start.brd") {
+            stepTriggered = true;
+            state.sprites.players = state.sprites.players.map((p) => ({
+              ...p,
+              x: 208,
+              y: 208,
+              movement: { ...p.movement, lastStepTick: state.time.tick, lastStepDistance: 32 },
+            }));
+          }
+        },
+      },
+      triggersPhaseRegistration({ programRef: () => ({ kind: "inline", text: 'mwin("trigger activated")\nwait()', ir: IR_VERSION }) }),
+    ],
+  );
+  // Dismiss startup program.
+  game.advance(10, ["ENTER"]);
+  // Step on trigger tile, then let the trigger program's first steps run.
+  game.advance(2);
+  const state = sync(game);
+  equal(state.ui.message.visible, true, "trigger program window is visible");
+  equal(state.ui.message.text, "trigger activated", "stale message text was reset when trigger program started");
+  equal(state.ui.draws.length, 0, "previous text layer was emptied when trigger program started");
+  const list = game.engine.drawList();
+  ok(hasText(list, "trigger activated"), "trigger text is composed");
+  ok(!hasText(list, "stale title text"), "stale message text is not composed");
+  ok(!hasText(list, "stale draw text"), "stale screen text is not composed");
+});
+
+test("edge-link program start resets the stored message text and the script text layer (#1135)", () => {
+  const edgeBoard = unwrap(writeBoard({
+    ...createEmptyBoard(),
+    sizeX: 40, sizeY: 30, sizeL: 1,
+    tileMatrix: Array.from({ length: 1200 }, () => 0),
+    tileRuns: [{ lutIndex: 0, count: 1200, marker: true }],
+    layerTitles: ["", ""],
+    links: { ...createEmptyBoard().links, north: "edge.prg" },
+    properties: { ...createEmptyBoard().properties, start: { x: 64, y: 64, layer: 1 } },
+  }));
+
+  let exitTriggered = false;
+  const game = boot(
+    'mwin("stale title text")\ntext(1, 1, "stale draw text")\nwait()',
+    {
+      "boards/start.brd": edgeBoard,
+      "prg/edge.prg": encoder.encode('mwin("edge link activated")\nwait()'),
+    },
+    [
+      {
+        phase: "movement",
+        run: (state) => {
+          if (!exitTriggered && state.world.board?.key === "boards/start.brd") {
+            exitTriggered = true;
+            state.sprites.players = state.sprites.players.map((actor) => ({
+              ...actor,
+              state: "moving",
+              movement: { ...actor.movement, pendingExit: "N" },
+            }));
+          }
+        },
+      },
+    ],
+  );
+  // Dismiss startup program.
+  game.advance(10, ["ENTER"]);
+  // Run edges phase with pending exit north to edge.prg.
+  game.advance(1);
+  const state = sync(game);
+  equal(state.ui.message.visible, true, "edge program window is visible");
+  equal(state.ui.message.text, "edge link activated", "stale message text was reset when edge program started");
+  equal(state.ui.draws.length, 0, "previous text layer was emptied when edge program started");
+  const list = game.engine.drawList();
+  ok(hasText(list, "edge link activated"), "edge program text is composed");
+  ok(!hasText(list, "stale title text"), "stale message text is not composed");
+  ok(!hasText(list, "stale draw text"), "stale screen text is not composed");
 });

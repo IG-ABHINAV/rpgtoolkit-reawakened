@@ -322,6 +322,7 @@ export function createEngine(init: EngineInit): Engine {
   let initialCharacterKey: AssetKey | null = null;
   let initialCharacterResolved = true;
   let mainKey: AssetKey | null = null;
+  let activeEnterThreadId: number | null = null;
   const installedFonts = new Map<AssetKey, Uint8Array>();
   const cache = new Map<AssetKey, Uint8Array>();
   const inventoryItemDefinitions = new Map<AssetKey, Item>();
@@ -574,6 +575,7 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     const kind = blockingAlive() ? "board" : "blocking";
+    if (kind === "blocking") resetUiForProgramStart(state.ui);
     const ref: ProgramRef = {
       kind: "inline",
       text: `${command}(${JSON.stringify(encodeInlineScriptString(serialized))})`,
@@ -599,6 +601,7 @@ export function createEngine(init: EngineInit): Engine {
         diagnostics.push({ code: "battle.bad-handoff", file: mainKey ?? "", line: 0, message: "random no-enemies event requires a message" });
         return;
       }
+      resetUiForProgramStart(state.ui);
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
       return;
     }
@@ -1791,15 +1794,16 @@ export function createEngine(init: EngineInit): Engine {
    * pre-compiled or syntactically wrong program is a located diagnostic and no
    * thread, never a throw out of `advance`.
    */
-  function startFileProgram(name: string, owner: string, kind: "board" | "blocking"): void {
-    if (loader === null) return;
+  function startFileProgram(name: string, owner: string, kind: "board" | "blocking"): Thread | null {
+    if (loader === null) return null;
     try {
       const ref = fileProgramRef(loader, name);
       services.programs.get(ref);
-      startThread(state.vm, { ref, kind, owner: kind === "blocking" ? "script" : "world" });
+      return startThread(state.vm, { ref, kind, owner: kind === "blocking" ? "script" : "world" });
     } catch (error) {
       if (!(error instanceof ScriptError)) throw error;
       diagnostics.push({ code: error.code, file: error.pos?.file ?? owner, line: error.pos?.line ?? 0, message: error.message });
+      return null;
     }
   }
   /**
@@ -2011,7 +2015,10 @@ export function createEngine(init: EngineInit): Engine {
       // A blocking enter program is a new outermost program; reset the message window.
       const blocking = blockingAlive();
       if (!blocking) resetUiForProgramStart(state.ui);
-      startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
+      const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
+      activeEnterThreadId = enterThread?.id ?? null;
+    } else {
+      activeEnterThreadId = null;
     }
   }
 
@@ -2857,6 +2864,15 @@ export function createEngine(init: EngineInit): Engine {
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
         withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET));
+        if (activeEnterThreadId !== null) {
+          const enterThread = state.vm.threads.find((thread) => thread.id === activeEnterThreadId);
+          if (enterThread === undefined || enterThread.status === "finished") {
+            activeEnterThreadId = null;
+          } else if (!blockingAlive()) {
+            enterThread.kind = "blocking";
+            enterThread.owner = "script";
+          }
+        }
         for (const thread of state.vm.threads) {
           if (thread.kind === "blocking" && thread.status === "finished" && liveBlockingBefore.has(thread.id)) {
             onBlockingThreadFinished(thread);
@@ -2976,6 +2992,7 @@ export function createEngine(init: EngineInit): Engine {
   /** Hide the message window when an outermost (blocking) program ends, without clearing its text. */
   function onBlockingThreadFinished(thread: Thread): void {
     if (thread.kind !== "blocking") return;
+    if (blockingAlive()) return;
     if (state.ui.message === undefined) return;
     state.ui.message = { ...state.ui.message, visible: false };
     state.ui.modal = null;
@@ -3043,9 +3060,17 @@ export function createEngine(init: EngineInit): Engine {
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
     const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
-    const programSurfaceActive = blockingAlive();
-    const uiForCompose = programSurfaceActive
-      ? state.ui
+    const activeSurface = blockingAlive() || state.vm.threads.some(
+      (thread) => thread.status !== "finished" && thread.kind === "board" && (thread.wait?.kind === "input.key" || state.ui.modal !== null),
+    );
+    const isMessageOpen = state.ui.message?.visible === true && state.ui.message.text !== "";
+    const uiForCompose = activeSurface || isMessageOpen
+      ? {
+          ...state.ui,
+          draws: activeSurface ? state.ui.draws : [],
+          message: { ...state.ui.message, visible: activeSurface ? (state.ui.message?.visible ?? false) : isMessageOpen },
+          modal: activeSurface ? state.ui.modal : null,
+        }
       : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
     const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection)] };
     return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection)] };
