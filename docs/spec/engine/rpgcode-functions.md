@@ -24,14 +24,14 @@ The Toolkit 3.1 engine registers 282 command names, grouped by area; 14 are alia
 |---|---|---|---|
 | `mwin` | `void mwin(string str)` | Show the message window. | Uses the logical-resolution message surface; the fixed 600×100 geometry, 50% default translucency and all-at-once text are defined below. |
 | `dialogue` | `string dialogue(string text)` | Show one dialogue message and wait for the player. | Uses the message window and waits for the next unclaimed input key; returns that key name and queues `dialogue.completed` on normal completion as defined by [E-123](plugins-and-battle.md#e-123). |
-| `wait` | `string wait([string &ret])` | Wait for a key press. The lowest unclaimed input sequence resumes the thread and is optionally written to `ret`. |  |
+| `wait` | `string wait([string &ret])` | Wait for a key press. The lowest unclaimed input sequence at or after the park sequence resumes the thread and is optionally written to `ret`. | Resolving the wait discards the buffered pre-park backlog; later `get()` calls cannot return those keys. |
 | `mwincls` | `void mwincls()` | Clear and hide the message window. |  |
 | `text` | `void text(double x, double y, string str, [canvas cnv])` | Displays text on the screen. | Uses square cells one current-font-size on a side with 1-based coordinates; non-integer cell coordinates are truncated. With a canvas handle the glyphs are drawn into that canvas's pixels, so clearing or redrawing the canvas replaces them; without one they join the screen text layer. An unknown canvas raises `surface.unknown`. |
 | `pixeltext` | `void pixeltext(int x, int y, string str, [canvas cnv])` | Displays text on the screen using pixel coordinates. | With a canvas handle the glyphs are drawn into that canvas's pixels (replaced when the canvas is cleared or redrawn); without one they join the screen text layer. An unknown canvas raises `surface.unknown`. |
 | `mbox` | `void mbox(string str)` | Show the message window. | alias of `mwin` |
 | `font` | `void font(string font)` | Load a true type font. TK2 fonts are not supported. |  |
 | `fontsize` | `void fontsize(int size)` | Set the font size. |  |
-| `get` | `string get([string &ret])` | Read the next buffered key. It claims that key's monotonic input sequence and optionally writes the name to `ret`. |  |
+| `get` | `string get([string &ret])` | Read the next buffered key. It claims that key's monotonic input sequence and optionally writes the name to `ret`. | A key discarded by a preceding `wait()` is no longer buffered and cannot be returned. |
 | `bold` | `void bold(bool enable)` | Toggle emboldening of text. |  |
 | `italics` | `void italics(bool enable)` | Toggle italicizing of text. |  |
 | `underline` | `void underline(bool enable)` | Toggle underlining of text. |  |
