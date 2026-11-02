@@ -362,6 +362,7 @@ test("engine displays no-enemies handoffs, runs custom starts as a program, and 
       run: (state, post) => {
         observed.state = state;
         if (post === undefined || triggerCount >= 3) return;
+        if (state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished")) return;
         const noEnemies = triggerCount === 0;
         const randomEncounter = triggerCount === 1;
         triggerCount += 1;
@@ -406,11 +407,16 @@ test("engine displays no-enemies handoffs, runs custom starts as a program, and 
   engine.advance(1, []);
   equal(uiEffects[0]?.name, "mwin");
   equal(uiEffects[0]?.args[0], "No enemies of skill level 1 found.");
-  engine.advance(1, []);
-  const missingPackage = engine.advance(1, []);
-  equal(missingPackage.diagnostics.some((diagnostic) => diagnostic.code === "battle.package-missing"), true);
-  const missingProgram = engine.advance(1, []);
-  equal(missingProgram.diagnostics.some((diagnostic) => diagnostic.code === "program.missing"), true, "a custom request whose program is not in the asset index reports program.missing");
+  for (let i = 0; i < 5 && !observed.state?.vm.threads.some((thread) => thread.wait?.kind === "input.key"); i += 1) engine.advance(1, []);
+  equal(observed.state?.vm.threads.some((thread) => thread.wait?.kind === "input.key"), true, "engine message is waiting for dismissal");
+  engine.advance(1, []); // Let the wait capture the input sequence before the key is pressed.
+  const tick = observed.state?.time.tick;
+  if (tick === undefined) throw new Error("engine did not advance");
+  const reports = [engine.advance(1, [{ tick, event: { kind: "key", name: "Z", code: "KeyZ", char: "z", down: true } }])];
+  for (let i = 0; i < 4; i += 1) reports.push(engine.advance(1, []));
+  const diagnostics = reports.flatMap((report) => report.diagnostics);
+  equal(diagnostics.some((diagnostic) => diagnostic.code === "battle.package-missing"), true);
+  equal(diagnostics.some((diagnostic) => diagnostic.code === "program.missing"), true, "a custom request whose program is not in the asset index reports program.missing");
   equal(observed.state?.battle, null);
 });
 

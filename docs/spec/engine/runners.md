@@ -102,9 +102,10 @@ Host accessor purity is guaranteed structurally rather than by trusting runners 
 **Two surfaces, not one.** A script that draws and names no canvas draws to the **script-screen layer**, a persistent
 surface with the reserved id `-1`. The id is fixed, never taken from the monotonic counter, so the first draw to the
 screen moves neither the counter nor any canvas handle, and a script cannot name the layer (handles are never
-negative). The layer is created on first use at the frame's size, and is composited between the board and the
-render-now overlay into surface 0, the **presented frame**. Drawing to the layer never overwrites the board, and
-rebuilding the frame never discards what the script drew. Both surfaces are saved; neither is hashed.
+negative). The layer is created on first use at the frame's size. While an outermost program runs it is composited
+between the board and the render-now overlay into surface 0, the **presented frame**; outside a program it is retained
+but not composed. Drawing to the layer never overwrites the board, and rebuilding the frame never discards what the script drew.
+Both surfaces are saved; neither is hashed.
 
 **When the core rebuilds the frame.** The core rebuilds surface 0 from game state alone, and only at three points: at
 the end of every `advance` call; immediately before a script reads the screen (`getpixel` on the screen,

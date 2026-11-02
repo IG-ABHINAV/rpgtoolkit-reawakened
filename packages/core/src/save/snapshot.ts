@@ -893,12 +893,14 @@ function validateAudioShape(value: unknown): void {
     validateAudioFade(entry.fade, `${path}.fade`);
   }
 }
-/** The `engine` section's battle counter, when a save carries one (BAT-2 "battle numbers"). */
+/** Validate engine-owned identifiers when a snapshot carries them. */
 function validateEngineShape(value: unknown): void {
   const engine = recordAt(value, "engine");
-  if (engine.nextBattleId === undefined) return;
-  if (typeof engine.nextBattleId !== "number" || !Number.isSafeInteger(engine.nextBattleId) || engine.nextBattleId < 1) {
-    shapeError("the snapshot's engine.nextBattleId must be a positive whole number");
+  for (const key of ["nextBattleId", "pendingEnterThread"] as const) {
+    const id = engine[key];
+    if (id !== undefined && (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1)) {
+      shapeError(`the snapshot's engine.${key} must be a positive whole number`);
+    }
   }
 }
 function validateShape(record: Record<string, unknown>): void {

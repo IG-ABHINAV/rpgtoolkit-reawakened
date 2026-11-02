@@ -322,7 +322,6 @@ export function createEngine(init: EngineInit): Engine {
   let initialCharacterKey: AssetKey | null = null;
   let initialCharacterResolved = true;
   let mainKey: AssetKey | null = null;
-  let activeEnterThreadId: number | null = null;
   const installedFonts = new Map<AssetKey, Uint8Array>();
   const cache = new Map<AssetKey, Uint8Array>();
   const inventoryItemDefinitions = new Map<AssetKey, Item>();
@@ -600,7 +599,10 @@ export function createEngine(init: EngineInit): Engine {
         diagnostics.push({ code: "battle.bad-handoff", file: mainKey ?? "", line: 0, message: "random no-enemies event requires a message" });
         return;
       }
-      resetUiForProgramStart(state.ui);
+      if (!blockingAlive()) {
+        resetUiForProgramStart(state.ui);
+        startProgram(state.vm, { kind: "inline", text: "wait()", ir: IR_VERSION });
+      }
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
       return;
     }
@@ -1385,6 +1387,7 @@ export function createEngine(init: EngineInit): Engine {
     if (state.engine.effectDiagnostics !== undefined) next.effectDiagnostics = state.engine.effectDiagnostics;
     if (state.engine.boot !== undefined) next.boot = state.engine.boot;
     if (state.engine.transition !== undefined) next.transition = state.engine.transition;
+    if (state.engine.pendingEnterThread !== undefined) next.pendingEnterThread = state.engine.pendingEnterThread;
     state.engine = next;
   }
   function finalizeBlobRequests(): void {
@@ -2017,9 +2020,10 @@ export function createEngine(init: EngineInit): Engine {
       const blocking = blockingAlive();
       if (!blocking) resetUiForProgramStart(state.ui);
       const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
-      activeEnterThreadId = enterThread?.id ?? null;
+      if (blocking && enterThread !== null) state.engine.pendingEnterThread = enterThread.id;
+      else delete state.engine.pendingEnterThread;
     } else {
-      activeEnterThreadId = null;
+      delete state.engine.pendingEnterThread;
     }
   }
 
@@ -2865,13 +2869,14 @@ export function createEngine(init: EngineInit): Engine {
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
         withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET));
-        if (activeEnterThreadId !== null) {
-          const enterThread = state.vm.threads.find((thread) => thread.id === activeEnterThreadId);
+        if (state.engine.pendingEnterThread !== undefined) {
+          const enterThread = state.vm.threads.find((thread) => thread.id === state.engine.pendingEnterThread);
           if (enterThread === undefined || enterThread.status === "finished") {
-            activeEnterThreadId = null;
+            delete state.engine.pendingEnterThread;
           } else if (!blockingAlive()) {
             enterThread.kind = "blocking";
             enterThread.owner = "script";
+            delete state.engine.pendingEnterThread;
           }
         }
         for (const thread of state.vm.threads) {
@@ -3053,25 +3058,17 @@ export function createEngine(init: EngineInit): Engine {
     const cursorSelection = waitingCursor?.wait?.kind === "input.key" ? waitingCursor.wait.cursorSelection : undefined;
     const fx = drawableFx();
     const withFx = applyFxDrawList(base, fx);
-    // E-57: the persistent script-screen layer sits above the board and below the render-now overlay.
-    const scriptLayer = surfaceBlit(state.surfaces, scriptScreen(state.surfaces));
+    // A script-screen layer is visible only while an outermost program runs (#1045).
+    const activeSurface = blockingAlive();
+    const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
     // E-57: the enabled render-now canvas sits above the board, sprites and animations and below UI text and the message window.
     const overlay = renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
     const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
-    const activeSurface = blockingAlive() || state.vm.threads.some(
-      (thread) => thread.status !== "finished" && thread.kind === "board" && (thread.wait?.kind === "input.key" || state.ui.modal !== null),
-    );
-    const isMessageOpen = state.ui.message?.visible === true && state.ui.message.text !== "";
-    const uiForCompose = activeSurface || isMessageOpen
-      ? {
-          ...state.ui,
-          draws: activeSurface ? state.ui.draws : [],
-          message: { ...state.ui.message, visible: activeSurface ? (state.ui.message?.visible ?? false) : isMessageOpen },
-          modal: activeSurface ? state.ui.modal : null,
-        }
+    const uiForCompose = activeSurface
+      ? state.ui
       : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
     const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection)] };
     return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection)] };

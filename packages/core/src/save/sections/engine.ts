@@ -59,6 +59,8 @@ export type EngineSection = {
   boot?: BootState;
   /** The `send` the engine will perform before the next tick. */
   transition?: BoardTransition;
+  /** Board enter program awaiting promotion after a sending program ends. */
+  pendingEnterThread?: number;
   /** The one outstanding video and whether its completion reply has arrived. */
   video?: { readonly reqId: number; readonly key: string; readonly presentation: "full" | "small"; readonly ended: boolean };
 };

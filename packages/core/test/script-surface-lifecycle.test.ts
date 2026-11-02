@@ -14,6 +14,8 @@ import {
   createEngine,
   IR_VERSION,
   PACKAGE_ROOT,
+  restoreGameState,
+  snapshot,
   triggersPhaseRegistration,
   writeBoard,
   writeCharacter,
@@ -268,7 +270,33 @@ test("enter program of a board reached by send is composed while waiting and hid
   ok(!hasText(endedList, "welcome"), "message is no longer drawn after the enter program ends");
 });
 
-test("engine displays and composes no-enemies message outside any program (#1133)", () => {
+test("an enter program awaiting promotion survives a snapshot (#1132)", () => {
+  const nextBoard = unwrap(writeBoard({
+    ...createEmptyBoard(),
+    sizeX: 10, sizeY: 10, sizeL: 1,
+    tileMatrix: Array.from({ length: 100 }, () => 0),
+    tileRuns: [{ lutIndex: 0, count: 100, marker: true }],
+    layerTitles: ["", ""],
+    properties: { ...createEmptyBoard().properties, enterPrg: "next-enter.prg", start: { x: 64, y: 64, layer: 1 } },
+  }));
+  const game = boot("end()", {
+    "prg/enter.prg": encoder.encode('send("next.brd", 2, 2)\nwait()'),
+    "boards/next.brd": nextBoard,
+    "prg/next-enter.prg": encoder.encode('sleep(80)\nmwin("welcome")\nwait()'),
+  });
+  const state = sync(game);
+  ok(state.engine.pendingEnterThread !== undefined, `destination enter program awaits promotion: ${JSON.stringify({ board: state.world.board?.key, threads: state.vm.threads })}`);
+  const restored = restoreGameState(snapshot(state));
+  state.engine = restored.engine;
+  state.vm = restored.vm;
+  game.advance(1, ["ENTER"]);
+  game.advance(90);
+  ok(hasText(game.engine.drawList(), "welcome"), "restored enter program is composed after its sender ends");
+  game.advance(1, ["ENTER"]);
+  ok(!hasText(game.engine.drawList(), "welcome"), "restored promoted program hides its window on ending");
+});
+
+test("engine presents no-enemies message in a blocking program (#1133)", () => {
   let fired = false;
   const game = boot('mwin("title")\nwait()', {}, [
     {
@@ -305,7 +333,11 @@ test("engine displays and composes no-enemies message outside any program (#1133
   equal(state.ui.message.visible, true, "message window is visible for engine no-enemies message");
   equal(state.ui.message.text, "No enemies of skill level 1 found.", "stale title text was reset before displaying no-enemies message");
   const list = game.engine.drawList();
+  ok(state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished"), "engine message owns an outermost program");
   ok(hasText(list, "No enemies of skill level 1 found."), "no-enemies message is composed and drawn");
+  game.advance(1, ["ENTER"]);
+  equal(sync(game).ui.message.visible, false, "dismissing the message ends its program and hides the window");
+  ok(!hasText(game.engine.drawList(), "No enemies of skill level 1 found."), "dismissed message is no longer composed");
 });
 
 test("battle handoff program start resets the message window and does not prepend stale text (#1134)", () => {
@@ -456,4 +488,33 @@ test("edge-link program start resets the stored message text and the script text
   ok(hasText(list, "edge link activated"), "edge program text is composed");
   ok(!hasText(list, "stale title text"), "stale message text is not composed");
   ok(!hasText(list, "stale draw text"), "stale screen text is not composed");
+});
+
+test("a background board thread cannot redisplay a finished program's title (#1145)", () => {
+  const game = boot("end()", {
+    "prg/enter.prg": encoder.encode('text(1,1,"TITLE OVER ROOM")\ndummy = thread("wait()", 0)\nend()'),
+  });
+  game.advance(30);
+  const state = sync(game);
+  equal(state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished"), false);
+  ok(state.vm.threads.some((thread) => thread.kind === "board" && thread.wait?.kind === "input.key"));
+  ok(state.ui.draws.some((draw) => draw.text === "TITLE OVER ROOM"));
+  ok(!hasText(game.engine.drawList(), "TITLE OVER ROOM"), "finished title must not be composed over room");
+});
+
+test("a visible message alone does not compose outside a program (#1145)", () => {
+  const game = boot('mwin("seed")');
+  const state = sync(game);
+  equal(state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished"), false);
+  state.ui.message = { ...state.ui.message, visible: true, text: "outside program" };
+  ok(!hasText(game.engine.drawList(), "outside program"), "an open window alone does not activate composition");
+});
+
+test("the script-screen pixels stop composing at outermost program end (#1145)", () => {
+  const game = boot('colorrgb(255,0,0)\nfillrect(0,0,10,10)\nwait()');
+  const hasScriptLayer = (list: DrawList): boolean =>
+    list.commands.some((cmd) => cmd.kind === "blit" && "surface" in cmd.source && Number(cmd.source.surface) === -1);
+  ok(hasScriptLayer(game.engine.drawList()), "the running program composes its script-screen layer");
+  game.advance(1, ["ENTER"]);
+  ok(!hasScriptLayer(game.engine.drawList()), "the ended program no longer composes its retained pixels");
 });
