@@ -378,6 +378,12 @@ jobs:
       - name: Measure the desktop runner under Xvfb
         if: (needs.changes.result != 'success' || needs.changes.outputs.full != 'false') && runner.os == 'Linux'
         run: xvfb-run -a pnpm desktop:measure --out tools/desktop/measurements/${{ runner.os }}.json
+      - name: Probe live desktop fitting and input
+        if: (needs.changes.result != 'success' || needs.changes.outputs.full != 'false') && runner.os != 'Linux'
+        run: pnpm desktop:input
+      - name: Probe live desktop fitting and input under Xvfb
+        if: (needs.changes.result != 'success' || needs.changes.outputs.full != 'false') && runner.os == 'Linux'
+        run: xvfb-run -a pnpm desktop:input
       # Inventory must run after measurement so the Electron binary has been downloaded and extracted.
       - run: pnpm desktop:inventory
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'

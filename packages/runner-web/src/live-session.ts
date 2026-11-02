@@ -116,6 +116,22 @@ export function fitCanvas(
   return scale;
 }
 
+/** Keep presentation in sync with a content area's size (docs/spec/engine/runners.md#draw-list). */
+export function observeViewport(
+  canvas: HTMLCanvasElement,
+  viewport: HTMLElement,
+  view: { readonly width: number; readonly height: number },
+): () => void {
+  const fit = (): void => {
+    const rect = viewport.getBoundingClientRect();
+    fitCanvas(canvas, view.width, view.height, { width: rect.width, height: rect.height });
+  };
+  fit();
+  const observer = new ResizeObserver(fit);
+  observer.observe(viewport);
+  return () => observer.disconnect();
+}
+
 /** Persistent engine and host request pump shared by browser and desktop players. */
 export function createLiveSession(options: LiveSessionOptions): LiveSession {
   const interactive = options.interactive === true;

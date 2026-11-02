@@ -7,13 +7,14 @@
     <title>TK Reawakened player</title>
     <style>
       :root { color-scheme: dark; }
-      body { margin: 0; min-height: 100vh; background: #111; color: #ddd; font: 13px/1.4 ui-monospace, monospace; display: grid; grid-template-rows: 1fr auto; }
-      canvas { image-rendering: pixelated; display: block; margin: auto; background: #000; touch-action: none; outline: none; }
+      body { margin: 0; height: 100vh; background: #000; color: #ddd; font: 13px/1.4 ui-monospace, monospace; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+      #viewport { min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+      canvas { image-rendering: pixelated; display: block; flex: none; background: #000; touch-action: none; outline: none; }
       pre { margin: 8px 12px 12px; white-space: pre-wrap; }
     </style>
   </head>
   <body>
-    <canvas id="screen" width="640" height="480" tabindex="0" aria-label="Game screen"></canvas>
+    <div id="viewport"><canvas id="screen" width="640" height="480" tabindex="0" aria-label="Game screen"></canvas></div>
     <pre id="live-status">Starting live player…</pre>
     <script src="/apps/player-desktop-live.js"></script>
   </body>

@@ -1,7 +1,7 @@
 import type { InputRecord } from "@tk-reawakened/core";
 import { interactivePackage } from "@tk-reawakened/runner-web";
 import { pointerEventToLogical } from "@tk-reawakened/runner-web/pointer";
-import { createLiveSession, fitCanvas, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { createLiveSession, observeViewport, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -21,7 +21,8 @@ async function start(): Promise<void> {
   const host = window.desktop;
   const canvas = document.querySelector<HTMLCanvasElement>("#screen");
   const status = document.querySelector<HTMLElement>("#live-status");
-  if (host === undefined || canvas === null || status === null) throw new Error("desktop player host or attached canvas is absent");
+  const viewport = document.querySelector<HTMLElement>("#viewport");
+  if (host === undefined || canvas === null || status === null || viewport === null) throw new Error("desktop player host or attached canvas is absent");
   const opened = await host.openPackage();
   if (opened === null) throw new Error("no package was named on the command line");
   const pkg = await interactivePackage(opened.name, new Uint8Array(opened.bytes), opened.descriptor);
@@ -47,19 +48,11 @@ async function start(): Promise<void> {
       list: (area, gameId) => host.listBlobs(area, gameId),
     },
   });
-  const view = session.viewSize();
-  const fit = (): void => {
-    fitCanvas(canvas, view.width, view.height, {
-      width: window.innerWidth,
-      height: Math.max(80, window.innerHeight - status.offsetHeight - 24),
-    });
-  };
-  fit();
-  window.addEventListener("resize", fit);
-  run(session, canvas, status);
+  const stopFitting = observeViewport(canvas, viewport, session.viewSize());
+  run(session, canvas, status, stopFitting);
 }
 
-function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement): void {
+function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, stopFitting: () => void): void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
@@ -89,6 +82,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   canvas.addEventListener("pointerup", onPointer);
   const dispose = (): void => {
     if (disposed) return;
+    stopFitting();
     disposed = true;
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);

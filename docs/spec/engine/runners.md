@@ -55,6 +55,17 @@ display in one of the two modes AD-33 allows — integer-scaled pixel-perfect le
 chosen by the player, never by the game state. `alpha` is presentation-only and is excluded from state and draw hashes,
 so a runner may interpolate between ticks and may not let interpolation reach anything the core reads.
 
+**Desktop fit — Approved ruling (owner: Jensen, 2026-11-02).** Show the whole game frame, centred on a black
+surround, even when the window or display is too small for its original size. Enlarge it in whole-number steps when
+possible, keeping its proportions; the only non-integer case is shrinking a frame that cannot fit at 1×.
+
+For logical dimensions `W × H` and available content dimensions `Cw × Ch`, let
+`r = min(Cw / W, Ch / H)`. Use `floor(r)` when `r >= 1`, otherwise use `r` without integer rounding. Present
+the frame at `W × scale` by `H × scale`, centred in the content area; any fractional margins are shared equally.
+Recompute on content-area resize, including changes imposed by display constraints. Map pointer coordinates through
+the same presented rectangle back to logical coordinates. This transformation is presentation only and changes
+neither simulation state nor its hash.
+
 **Textures come from the core, not from the runner's own decoder.** A runner fetches asset bytes through an AD-5
 request; the core decodes them (AD-28) and the runner pulls pixels it needs from surfaces with
 `engine.surfacePixels(id, rev)` (AD-27). A runner may keep a texture, glyph-atlas or tile cache keyed by `(id, rev)`,
