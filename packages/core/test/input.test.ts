@@ -6,6 +6,7 @@ import {
   inputView,
   processGamepadEvents,
   pruneClaimed,
+  type InputView,
 } from "../src/input/index.ts";
 import { createGameState, restoreGameState, snapshot } from "../src/save/index.ts";
 import { pollInputKey } from "../src/script/waits.ts";
@@ -91,4 +92,103 @@ test("focus and held state are owned by the input section", () => {
   applyInputEvent(state, { kind: "focus", state: "gained" });
   equal(state.focused, true);
   deepEqual(state.pointer, { x: 0, y: 0, buttons: 0 });
+});
+
+const GAMEPAD_RIGHT = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 8 } as const;
+
+function steeringSection(): InputView {
+  return createInputSection({
+    bindings: { keys: { ArrowRight: "right", ArrowDown: "down", Enter: "confirm" } },
+    allowDiagonals: false,
+  });
+}
+
+test("focus loss releases every held keyboard key exactly as its key-up would, and queues no press edge", () => {
+  const released = steeringSection();
+  const blurred = steeringSection();
+  for (const state of [released, blurred]) {
+    applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true });
+    applyInputEvent(state, { kind: "key", name: "DOWN", code: "ArrowDown", char: null, down: true });
+    applyInputEvent(state, { kind: "key", name: "ENTER", code: "Enter", char: null, down: true });
+    deepEqual(state.directionOrder, ["right", "down"]);
+  }
+  for (const [name, code] of [["RIGHT", "ArrowRight"], ["DOWN", "ArrowDown"], ["ENTER", "Enter"]] as const) {
+    applyInputEvent(released, { kind: "key", name, code, char: null, down: false });
+  }
+  applyInputEvent(blurred, { kind: "focus", state: "lost" });
+
+  equal(blurred.focused, false);
+  deepEqual({ ...blurred, focused: true }, released, "the only difference from three key-ups is the focus flag");
+  deepEqual(blurred.actions, { right: false, down: false, confirm: false });
+  deepEqual(blurred.keyboardActions, { right: false, down: false, confirm: false });
+  deepEqual(blurred.directionOrder, []);
+  equal(blurred.held.ArrowRight, false);
+  equal(blurred.held.RIGHT, false);
+  equal(blurred.pendingActions.length, 3, "the three press edges were queued once, at the presses; the blur adds none");
+});
+
+test("focus loss releases held keys of an unbound keyboard too", () => {
+  const state = createInputSection();
+  applyInputEvent(state, { kind: "key", name: "LEFT", code: "ArrowLeft", char: null, down: true });
+  equal(state.held.LEFT, true);
+  applyInputEvent(state, { kind: "focus", state: "lost" });
+  equal(state.held.LEFT, false);
+  equal(state.held.ArrowLeft, false);
+  applyInputEvent(state, { kind: "focus", state: "gained" });
+  equal(state.held.LEFT, false, "regaining focus does not bring the key back");
+});
+
+test("focus loss leaves an action a connected gamepad holds held; it follows the device, not the keyboard", () => {
+  const state = steeringSection();
+  applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true });
+  applyInputEvent(state, GAMEPAD_RIGHT);
+  processGamepadEvents(state);
+  equal(state.actions.right, true);
+
+  applyInputEvent(state, { kind: "focus", state: "lost" });
+  equal(state.keyboardActions.right, false, "the keyboard half is released");
+  equal(state.actions.right, true, "the pad still holds Right");
+  deepEqual(state.directionOrder, ["right"]);
+
+  applyInputEvent(state, { kind: "focus", state: "gained" });
+  applyInputEvent(state, { ...GAMEPAD_RIGHT, buttons: 0 });
+  processGamepadEvents(state);
+  equal(state.actions.right, false, "the pad's own release ends it");
+});
+
+test("a host auto-repeat of a key core does not hold is not a press and marks nothing held", () => {
+  const state = steeringSection();
+  applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true });
+  applyInputEvent(state, { kind: "focus", state: "lost" });
+  applyInputEvent(state, { kind: "focus", state: "gained" });
+  const before: InputView = JSON.parse(JSON.stringify(state));
+
+  // The key is still physically down, so the host keeps repeating it into the refocused window.
+  applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true, repeat: true });
+  deepEqual(state, before);
+  // A later device record recomputes every action from its sources; it must not resurrect the repeated key.
+  applyInputEvent(state, { ...GAMEPAD_RIGHT, buttons: 0 });
+  processGamepadEvents(state);
+  equal(state.actions.right, false);
+
+  // A repeat of a key core does hold stays a no-op, as before.
+  applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true });
+  const edges = state.pendingActions.length;
+  applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true, repeat: true });
+  equal(state.pendingActions.length, edges);
+  equal(state.actions.right, true);
+});
+
+test("a focus loss changes values only: the saved input section keeps its shape and round-trips exactly", () => {
+  const fresh = Object.keys(steeringSection()).sort();
+  const state = createGameState({ seed: 7 });
+  state.input = steeringSection();
+  applyInputEvent(state.input, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true });
+  applyInputEvent(state.input, { kind: "focus", state: "lost" });
+
+  deepEqual(Object.keys(state.input).sort(), fresh);
+  equal(state.input.version, 2);
+  const restored = restoreGameState(snapshot(state));
+  deepEqual(restored.input, state.input);
+  deepEqual(Object.keys(restored.input).sort(), fresh);
 });

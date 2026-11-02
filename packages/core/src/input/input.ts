@@ -118,6 +118,9 @@ function updateAllActions(state: InputSection, emitEdges: boolean, code: string)
 }
 
 function applyKey(state: InputSection, event: KeyInput): void {
+  // A host auto-repeat of a key core does not hold — for example one still physically down after a focus loss
+  // released it (rule 4) — is not a press, and must not mark the key held behind its action's back.
+  if (event.down && event.repeat === true && state.held[event.name] !== true) return;
   const priorRaw = state.held[event.name] === true;
   state.held[event.name] = event.down;
   if (event.code !== event.name) state.held[event.code] = event.down;
@@ -131,6 +134,19 @@ function applyKey(state: InputSection, event: KeyInput): void {
   if (event.down && event.repeat) return;
   if (event.down && priorRaw) return;
   updateAction(state, action, true, event.code);
+}
+
+/**
+ * Focus loss releases every held keyboard key (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement
+ * rule 4; issue #1120). A host delivers a key-up only to the focused window, so a key released while
+ * unfocused is never reported. Each held key takes exactly the state change its key-up would make — the raw
+ * flag, the keyboard half of its action, the action and the direction order — and queues no press edge.
+ * Actions a connected gamepad holds stay held: that is device state and follows the device's own records.
+ */
+function releaseKeyboard(state: InputSection): void {
+  for (const name of Object.keys(state.held)) if (state.held[name] === true) state.held[name] = false;
+  for (const action of Object.keys(state.keyboardActions)) if (state.keyboardActions[action] === true) state.keyboardActions[action] = false;
+  updateAllActions(state, false, "focus");
 }
 
 function slotAt(state: InputSection, x: number, y: number): InputButtonSlot | undefined {
@@ -157,7 +173,10 @@ export function applyInputEvent(state: InputSection, event: InputEvent): void {
     case "key": applyKey(state, event); return;
     case "pointer": applyPointer(state, event); return;
     case "gamepad": state.pendingGamepads.push(event); return;
-    case "focus": state.focused = event.state === "gained"; return;
+    case "focus":
+      state.focused = event.state === "gained";
+      if (!state.focused) releaseKeyboard(state);
+      return;
     case "asset":
     case "blob.loaded":
     case "blob.saved":

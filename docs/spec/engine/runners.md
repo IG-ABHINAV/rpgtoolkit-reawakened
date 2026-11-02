@@ -145,7 +145,10 @@ press edge; `pointer` in logical integer pixels; `gamepad` with a **physical** s
 never decides what a key is called and never decides what it does.
 
 Focus is the core's, not the runner's: after `focus.lost` the core consumes no ticks until `focus.gained` (E-03). A
-runner keeps calling `advance` — it must not stop its own loop — and lets the core return `ticksRun: 0`.
+runner keeps calling `advance` — it must not stop its own loop — and lets the core return `ticksRun: 0`. A runner
+sends only the `focus` record on blur and never synthesises key-ups: on `focus.lost` the core itself releases every held
+keyboard key, because the host reports no key-up for a key released while its window is unfocused
+([held direction movement](display-input-audio.md#reawakened-held-direction-movement), rule 4).
 
 Unlock is a runner event, not an input: a browser's first gesture releases audio without the core ever seeing it
 ([audio-media.md#audio-autoplay](audio-media.md#audio-autoplay)).

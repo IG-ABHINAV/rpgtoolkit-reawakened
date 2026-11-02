@@ -2926,6 +2926,21 @@ export function createEngine(init: EngineInit): Engine {
         if (state.engine.video?.reqId === record.event.reqId) state.engine.video = { ...state.engine.video, ended: true };
         consumed.push(record);
       } else if (record.event.kind === "focus") {
+        if (record.event.state === "lost" && state.engine.openTick === undefined) {
+          // Records queued before the blur happened before it. Apply the keys among them first, so a key pressed in
+          // the blur's own frame is released with the rest instead of surviving into the resumed game
+          // (display-input-audio.md rule 4; issue #1120).
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (earlier.event.kind !== "key") {
+              at += 1;
+              continue;
+            }
+            applyInputEvent(state.input, earlier.event);
+            consumed.push(earlier);
+            deferred.splice(at, 1);
+          }
+        }
         applyInputEvent(state.input, record.event);
         consumed.push(record);
       } else {
