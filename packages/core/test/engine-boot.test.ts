@@ -309,6 +309,73 @@ test("a scripted game boots from start.prg to its first board with the ruled eff
   equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
 });
 
+test("wait drops mid-delay keys before the same thread's following get (#1174, docs/spec/engine/display-input-audio.md#e-110)", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": {} },
+    programs: { "start.prg": "delay(3)\nkeyAfter = wait()\nkeyAfterGet = get()\nend()\n" },
+  });
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 40);
+
+  const sendKey = (tick: number, name: string): InputRecord => ({
+    tick,
+    event: { kind: "key", name, code: name, char: null, down: true },
+  });
+  const duringDelay = doubles.state().time.tick;
+  run(engine, game.files, 3, [sendKey(duringDelay, "A"), sendKey(duringDelay + 2, "B")]);
+  deepEqual(doubles.state().input.keys.map((key) => key.name), ["A", "B"]);
+
+  for (let tick = 0; tick < 240; tick += 1) {
+    const wait = doubles.state().vm.threads.find((thread) => thread.status !== "finished")?.wait;
+    if (wait?.kind === "input.key" && wait.parkSeq !== undefined) break;
+    run(engine, game.files, 1);
+  }
+  const waiting = doubles.state().vm.threads.find((thread) => thread.status !== "finished")?.wait;
+  ok(waiting?.kind === "input.key" && waiting.parkSeq !== undefined, "wait must park after the delay");
+  deepEqual(doubles.state().input.keys.map((key) => key.name), ["A", "B"]);
+
+  startThread(doubles.state().vm, {
+    ref: { kind: "inline", text: "otherThreadKey = get()\nend()\n", ir: IR_VERSION },
+    kind: "persistent",
+    owner: "script",
+  });
+
+  const afterPark = doubles.state().time.tick;
+  run(engine, game.files, 1, [sendKey(afterPark, "C"), sendKey(afterPark, "D")]);
+  equal(doubles.state().vm.globals.keyafter, "C");
+  equal(doubles.state().vm.globals.keyafterget, "D", "get must skip A and B while retaining the later post-park key");
+  equal(doubles.state().vm.globals.otherthreadkey, "", "the shared backlog is gone before another thread can call get");
+});
+test("wait captures its floor while the queue is empty and accepts the first later key (#1174, docs/spec/engine/display-input-audio.md#e-110)", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": {} },
+    programs: { "start.prg": "pressed = wait()\nend()\n" },
+  });
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 1);
+  for (let tick = 0; tick < 240; tick += 1) {
+    if (doubles.state().vm.threads.some((thread) => thread.wait?.kind === "input.key")) break;
+    run(engine, game.files, 1);
+  }
+  const state = doubles.state();
+  const waiting = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  if (waiting?.wait?.kind !== "input.key") throw new Error("script did not park on wait()");
+  equal(state.input.keys.length, 0, "the queue is empty when wait parks");
+  equal(waiting.wait.parkSeq, state.input.nextSeq, "the floor is captured when the wait is created");
+
+  run(engine, game.files, 1, [{
+    tick: state.time.tick,
+    event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true },
+  }]);
+  equal(doubles.state().vm.globals.pressed, "A", "the first key appended after the park is eligible");
+});
+
 test("E-02 requests initChar and creates its real party actor and sprite before startup and board entry", () => {
   const game = authorGame({
     startup: "start.prg",

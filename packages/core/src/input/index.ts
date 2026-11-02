@@ -4,6 +4,7 @@ export {
   createInputSection,
   inputView,
   processGamepadEvents,
+  claimInputBefore,
   pruneClaimed,
   takeInputActions,
 } from "./input.ts";

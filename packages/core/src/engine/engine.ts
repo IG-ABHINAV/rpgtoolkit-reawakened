@@ -62,7 +62,7 @@ import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
-import { applyInputEvent, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
+import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -2824,6 +2824,10 @@ export function createEngine(init: EngineInit): Engine {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
+        // Backfill older/manual waits before this tick's input records are appended.
+        for (const thread of state.vm.threads) {
+          if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
+        }
         const records = takeQueuedInputs(state.time.tick);
         for (const record of records) {
           if (record.event.kind === "asset") {
@@ -2838,16 +2842,15 @@ export function createEngine(init: EngineInit): Engine {
         return;
       }
       case "waits":
-        for (const thread of state.vm.threads) {
-          if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
-        }
-        // `get()` and `clearBuffer()` claim keys during the threads phase; remove those records before the claim list is
-        // rebuilt for the waiting threads, or the key would be returned again on the next tick.
+        // `get()` and `clearBuffer()` claims made during threads are pruned before rebuilding waits-phase claims.
         pruneClaimed(state.input, state.engine.claims ?? []);
         state.engine.claims = [];
         const videoBefore = state.engine.video;
-        runWaitsPhase(state.vm, phaseView(), defaultWaitPoll, (seq) => {
-          if (!(state.engine.claims ?? []).includes(seq)) (state.engine.claims ??= []).push(seq);
+        runWaitsPhase(state.vm, phaseView(), defaultWaitPoll, (seq, discardBefore) => {
+          const claims = state.engine.claims ??= [];
+          // Use this waiter's park floor, not its selected sequence: another input wait can preserve intervening keys.
+          if (discardBefore !== undefined) claimInputBefore(state.input, discardBefore, claims);
+          if (seq !== undefined && !claims.includes(seq)) claims.push(seq);
         }, undefined, (wait) => {
           if (wait.kind === "input.key" && wait.dialogue !== undefined) {
             queueNativeEvent(state.vm, state.events, "game", "dialogue.completed", wait.dialogue);

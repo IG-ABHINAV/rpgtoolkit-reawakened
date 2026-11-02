@@ -235,6 +235,13 @@ export function takeInputActions(state: InputSection): { actions: string[]; clic
   return result;
 }
 
+/** Add every queued key older than a waiter's park floor to the shared claim set. */
+export function claimInputBefore(state: InputSection, floor: number, claims: number[]): void {
+  for (const key of state.keys) {
+    if (key.seq < floor && !claims.includes(key.seq)) claims.push(key.seq);
+  }
+}
+
 /** Remove only claims made by the engine; an unclaimed key remains for later waiters. */
 export function pruneClaimed(state: InputSection, claimed: readonly number[]): void {
   if (claimed.length === 0) return;

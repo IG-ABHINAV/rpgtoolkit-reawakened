@@ -535,11 +535,32 @@ test("input key wait accepts the next key buffered after the thread parks", () =
   advanceScriptTick(state, services);
   const wait = state.vm.threads[0]?.wait;
   if (wait?.kind !== "input.key") throw new Error("expected the thread to park on a key wait");
-  equal(wait.parkSeq, undefined);
+  equal(wait.parkSeq, state.input.nextSeq);
   applyInputEvent(state.input, { kind: "key", name: "A", code: "KeyA", char: "a", down: true });
   advanceScriptTick(state, services);
   equal(state.vm.globals.pressed, "A");
   equal(state.vm.threads[0]?.status, "finished");
+});
+test("advanceScriptTick shares a host-key wait's backlog discard before any thread can get", () => {
+  const { state, plugins } = setup("pressed = wait()\nafter = get()\nend()\n");
+  applyInputEvent(state.input, { kind: "key", name: "A", code: "KeyA", char: "a", down: true });
+  applyInputEvent(state.input, { kind: "key", name: "B", code: "KeyB", char: "b", down: true });
+  const services = createScriptServices(state, plugins);
+  advanceScriptTick(state, services);
+  const waiting = state.vm.threads[0];
+  if (waiting?.wait?.kind !== "input.key") throw new Error("expected wait() to park");
+  equal(waiting.wait.parkSeq, state.input.nextSeq);
+  deepEqual(state.input.keys.map((key) => key.name), ["A", "B"], "pre-park backlog remains until the wait resolves");
+  // Simulate a legacy/manual wait without a persisted floor; the scheduler must backfill before polling.
+  delete waiting.wait.parkSeq;
+  startThread(state.vm, { ref: ref("other = get()\nend()\n"), kind: "persistent", owner: "script" });
+
+  waiting.wait.key = "C";
+  advanceScriptTick(state, services);
+  equal(state.vm.globals.pressed, "C", "the host-provided key wakes the waiter");
+  equal(state.vm.globals.after, "", "the resumed thread cannot get pre-park keys");
+  equal(state.vm.globals.other, "", "the shared backlog is cleared before another thread can get");
+  deepEqual(state.input.keys, [], "advanceScriptTick prunes the shared queue");
 });
 
 test("snapshot and replay: a mid-sleep and a mid-request restore with identical per-tick hashes", () => {

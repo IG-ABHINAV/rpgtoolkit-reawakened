@@ -90,11 +90,11 @@ export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
   if (view.input !== undefined) {
     for (const key of view.input.keys) {
       if (key.seq < floor || claimed.has(key.seq)) continue;
-      return { value: key.name, ok: true, claim: key.seq };
+      return { value: key.name, ok: true, claim: key.seq, discardBefore: floor };
     }
   }
   if (wait.key === null) return null;
-  return { value: wait.key, ok: true };
+  return { value: wait.key, ok: true, discardBefore: floor };
 }
 /** `menu.screen`: resolve provider input, or wait for the active shop context to close. */
 export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
