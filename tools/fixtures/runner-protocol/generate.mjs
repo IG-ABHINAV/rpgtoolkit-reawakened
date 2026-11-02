@@ -17,9 +17,12 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isEntryPoint } from "../fetch.mjs";
+import { refName, schemaErrors, schemaProblems } from "./schema.mjs";
+import { typeProblems } from "./types.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const output = join(here, "vectors.json");
+const schemaPath = join(here, "../../../packages/runner-harness/schema/runner-protocol-v1.schema.json");
 
 const B64 = Buffer.from([0, 1, 2, 255]).toString("base64");
 const rgb = { r: 10, g: 20, b: 30 };
@@ -106,28 +109,103 @@ const vectors = [
     record: { kind: "saveBlob", reqId: 10, blob: { area: "files", path: "log.txt" }, bytes: "not base64!" } },
 ];
 
-const document = JSON.stringify(
-  {
-    schema: 1,
-    protocol: "runner-protocol-v1",
-    note: "Records are the JSON projection of the runner boundary: Uint8Array leaves are base64 strings, every key of a kind is present, and an absent value is null (AD-14). Validate against packages/runner-harness/schema/runner-protocol-v1.schema.json; audio messages are the separate audio-protocol kit.",
-    counts: {
-      draw: vectors.filter((vector) => vector.family === "draw").length,
-      input: vectors.filter((vector) => vector.family === "input").length,
-      request: vectors.filter((vector) => vector.family === "request").length,
+export function documentOf(vectorList) {
+  return JSON.stringify(
+    {
+      schema: 1,
+      protocol: "runner-protocol-v1",
+      note: "Records are the JSON projection of the runner boundary: Uint8Array leaves are base64 strings, every key of a kind is present, and an absent value is null (AD-14). Validate against packages/runner-harness/schema/runner-protocol-v1.schema.json; audio messages are the separate audio-protocol kit.",
+      counts: {
+        draw: vectorList.filter((vector) => vector.family === "draw").length,
+        input: vectorList.filter((vector) => vector.family === "input").length,
+        request: vectorList.filter((vector) => vector.family === "request").length,
+      },
+      vectors: vectorList,
     },
-    vectors,
-  },
-  null,
-  2,
-) + "\n";
-
-export function check() {
-  if (!existsSync(output)) return [`missing ${output}`];
-  return readFileSync(output, "utf8") === document
-    ? []
-    : [`${output} differs; run node tools/fixtures/runner-protocol/generate.mjs`];
+    null,
+    2,
+  ) + "\n";
 }
+
+function deref(schema, name) {
+  return name === null || schema.$defs[name] === undefined ? undefined : schema.$defs[name];
+}
+
+function kindSetFromOneOf(schema, node) {
+  const targets = node?.$ref !== undefined ? [deref(schema, refName(node.$ref))] : node?.oneOf ?? [];
+  const values = targets.map((alternative) => {
+    const target = alternative?.$ref !== undefined ? deref(schema, refName(alternative.$ref)) : alternative;
+    return target?.properties?.kind?.const;
+  });
+  return new Set(values.filter((value) => value !== undefined));
+}
+
+function coveredKinds(schema) {
+  return {
+    draw: kindSetFromOneOf(schema, schema.$defs.drawCommand),
+    input: kindSetFromOneOf(schema, schema.$defs.inputEvent),
+    request: kindSetFromOneOf(schema, schema.$defs.request),
+  };
+}
+
+function actualKinds(vectorList) {
+  const actual = { draw: new Set(), input: new Set(), request: new Set() };
+  for (const vector of vectorList) {
+    if (!vector.valid) continue;
+    if (vector.family === "draw") {
+      for (const command of vector.record.commands) actual.draw.add(command.kind);
+    } else if (vector.family === "input") {
+      actual.input.add(vector.record.event.kind);
+    } else if (vector.family === "request") {
+      actual.request.add(vector.record.kind);
+    }
+  }
+  return actual;
+}
+
+export function check({ schema: schemaOverride, committed, vectors: vectorsOverride, sources = {} } = {}) {
+  const schema = schemaOverride ?? JSON.parse(readFileSync(schemaPath, "utf8"));
+  const committedText = committed ?? (existsSync(output) ? readFileSync(output, "utf8") : null);
+  const vectorList = vectorsOverride ?? vectors;
+
+  const problems = [];
+
+  // 1. Kit is reproducible.
+  const generated = documentOf(vectorList);
+  if (committedText !== null && committedText !== generated) {
+    problems.push(`${output} differs; run node tools/fixtures/runner-protocol/generate.mjs`);
+  }
+
+  // 2. Schema is well formed.
+  problems.push(...schemaProblems(schema));
+
+  // 3. Schema accepts every valid vector and refuses every refusal.
+  for (const vector of vectorList) {
+    const errors = schemaErrors(schema, vector.record);
+    if (vector.valid) {
+      if (errors.length > 0) problems.push(`vector ${vector.id}: should be valid but ${errors.join("; ")}`);
+    } else if (errors.length === 0) {
+      problems.push(`vector ${vector.id}: should be refused${vector.why === undefined ? "" : ` (${vector.why})`}`);
+    }
+  }
+
+  // 4. The kit covers every kind the schema lists.
+  const expected = coveredKinds(schema);
+  const actual = actualKinds(vectorList);
+  for (const family of ["draw", "input", "request"]) {
+    for (const kind of expected[family]) {
+      if (!actual[family].has(kind)) problems.push(`vector kit covers ${family} kind "${kind}" defined in the schema`);
+    }
+  }
+
+  // 5. The TypeScript types and the schema agree.
+  problems.push(...typeProblems(schema, { sources }));
+
+  return problems;
+}
+
+const document = documentOf(vectors);
+
 
 // Importing this module must have no side effect: `check()` is what the fixtures test
 // calls, and a write on import would let it compare a file against itself and always pass.

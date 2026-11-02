@@ -353,9 +353,27 @@ A runner proves itself by replaying vectors, not by sharing types. Two artefacts
   unknown kind, an omitted required key, an out-of-range value, a non-`https:` URL). A runner passes by validating and
   replaying them.
 
-The schema and the kit cannot drift from `core`: `packages/runner-harness/test/runner-protocol.test.ts` keeps an
-exhaustive kind map per family, so a command, input event or request added to `core` fails the type check until it has a
-vector, and `pnpm fixtures:test` fails if the committed kit differs from what the generator produces.
+<a id="drift-check"></a>
+The schema, the kit and the TypeScript types cannot drift from one another: **`pnpm runner-protocol:check`** fails when
+any one of them changes alone. It runs, in this order, and reports every problem it finds:
+
+1. **The kit is reproducible.** It regenerates the vectors and fails if the committed `vectors.json` differs.
+2. **The schema is well formed.** Every `$ref` resolves, every `$defs` entry is reachable from the three roots
+   (`drawList`, `inputRecord`, `request`), every object is closed (`additionalProperties: false`) with every `required`
+   key declared, and only the JSON Schema keywords the checker evaluates appear, so a keyword it would silently ignore
+   cannot weaken the schema.
+3. **The schema and the kit agree.** Every vector's verdict matches what the schema returns: a valid record is accepted
+   and a refusal is refused. A kit that holds no valid record for some kind the schema lists fails.
+4. **The schema and the TypeScript types agree.** The check reads `DrawList`, `InputRecord` and `RunnerRequest` from
+   `packages/core/src/ports/` with the TypeScript compiler and compares each with its schema definition in the JSON
+   projection, recursively: the keys a record carries, which are required (every key but `repeat`, AD-14), literal and
+   enum values, `null`, arrays, records and nested objects, with a `Uint8Array` leaf as a base64 string. It names the
+   path of every difference, so a type change with no schema change, or the reverse, fails. Numeric bounds, string
+   patterns and lengths exist only in the schema (TypeScript has no integer type), and the refusals in the kit hold
+   them.
+
+`packages/core` also fails its own type check when a request kind is missing from `HOST_REQUEST_KINDS`, so a request
+kind cannot be added to the wire without being declarable by a package. `pnpm fixtures:test` runs the same check.
 
 The browser lane is **Playwright 1.64.0** (Apache-2.0, Blue Oak Gold), one headless Chromium project, a required `gate`
 dependency that runs `pnpm fixtures:fetch` first and serves the fetched `fixtures/` folder over the local static server.
