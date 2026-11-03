@@ -2004,11 +2004,13 @@ export function createEngine(init: EngineInit): Engine {
     state.world = { board };
     resetTriggersSection(state.triggers);
     state.triggers.boardKey = board.key;
+    // Keep the boot poll pending through any blocking board-enter program.
+    if (!fromSend) state.triggers.lastKeySeq = -1;
     const placement: PlainData[] = [arrival.x, arrival.y, arrival.layer, arrival.unit];
     placeSelectedPlayer(state.sprites, arrival.x, arrival.y, arrival.layer, arrival.unit);
     bus.postEffect("sprites", engineEffect("sprites", "placeplayer", placement));
     state.camera = realignCamera(state.camera, board, cameraAim(board, arrival));
-    bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
+    if (fromSend) bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
     postBoardMusic(board);
     postPrefetch(board);
     boardLifecycle("entered", board, player);

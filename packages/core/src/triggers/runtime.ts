@@ -275,8 +275,19 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
     section.silentUntilIdle = false;
     return events;
   }
+  // docs/spec/engine/main-loop-and-startup.md#reawakened-boot-held-activation
+  // A boot poll is deferred until the enter program has released the blocking thread.
+  const bootPoll = section.lastKeySeq === -1;
+  if (bootPoll && hasLiveBlockingThread(state.vm)) return events;
+  const heldActivation = state.input.actions.confirm === true || state.input.actions.ENTER === true
+    || state.input.actions[" "] === true
+    || (Object.keys(state.input.bindings.keys).length === 0
+      && (state.input.held.ENTER === true || state.input.held.Enter === true
+        || state.input.held.Space === true || state.input.held[" "] === true));
   const step = stepTick(player) === state.time.tick;
-  const key = state.input.keys.some((entry) => entry.seq > section.lastKeySeq);
+  const key = (bootPoll && heldActivation) || state.input.keys.some((entry) => entry.seq > section.lastKeySeq
+    && (!bootPoll || entry.name === "confirm" || entry.name === "ENTER" || entry.name === " " || entry.action === "confirm"));
+  if (bootPoll) section.lastKeySeq = 0;
   for (const entry of state.input.keys) if (entry.seq > section.lastKeySeq) section.lastKeySeq = entry.seq;
   if (!step && !key) return events;
   const kind = key ? "key" : "step";

@@ -22,6 +22,8 @@ import {
   enqueueDirectionMove,
   IR_VERSION,
   BATTLE_BACKGROUND_MAGIC,
+  BinaryReader,
+  readBoard,
   createEmptyMainFile,
   ENGINE_DEFAULT_MANIFEST,
   hashDrawList,
@@ -30,6 +32,9 @@ import {
   nextUint32,
   createEngine,
   PACKAGE_ROOT,
+  inputPhaseRegistration,
+  movementPhaseRegistration,
+  triggerPhaseRegistration,
   runMovementPhase,
   writeBattleBackground,
   writeBoard,
@@ -58,7 +63,7 @@ const repoRoot = join(testDir, "..", "..", "..");
 const encoder = new TextEncoder();
 
 type Files = Map<string, Uint8Array>;
-type BoardSpec = { readonly music?: string; readonly enter?: string; readonly threads?: readonly string[]; readonly tiles?: readonly [number, number]; readonly start?: readonly [number, number]; readonly battleBackground?: string };
+type BoardSpec = { readonly music?: string; readonly enter?: string; readonly threads?: readonly string[]; readonly tiles?: readonly [number, number]; readonly start?: readonly [number, number]; readonly battleBackground?: string; readonly keyTrigger?: boolean };
 type GameSpec = {
   readonly startup?: string;
   readonly initChar?: string;
@@ -97,6 +102,12 @@ function boardBytes(spec: BoardSpec): Uint8Array {
     tileRuns: [{ lutIndex: 0, count: cells, marker: true }],
     threads: [...(spec.threads ?? [])],
     layerTitles: ["", ""],
+    programs: spec.keyTrigger ? [{
+      program: "trigger.prg", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+      activate: 0, activationType: 1, repeatDistance: 0, layer: 1,
+      points: [{ x: 32, y: 32 }, { x: 96, y: 32 }, { x: 96, y: 96 }, { x: 32, y: 96 }],
+      closed: 1, handle: "start-trigger",
+    }] : [],
     properties: {
       ...empty.properties,
       backgroundMusic: spec.music ?? "",
@@ -303,10 +314,89 @@ test("a scripted game boots from start.prg to its first board with the ruled eff
   equal(state.vm.globals.startdone, 1);
   equal(state.vm.globals.entered, 1);
   deepEqual(doubles.sprites.map((effect) => [effect.name, ...effect.args]), [["createplayer", "chrs/hero.tem"], ["placeplayer", 64, 64, 1, "pixel"]]);
-  deepEqual(doubles.triggers.map((effect) => [effect.name, ...effect.args]), [["deactivateat", 64, 64, 1, "pixel"]]);
+  deepEqual(doubles.triggers, [], "boot does not deactivate the program at the start position");
   deepEqual(doubles.audio.map((effect) => [effect.name, effect.kind, ...effect.args]), [["music.play", "draw-audio-cue", "media/theme.mid", true, null, "board"]]);
   deepEqual({ x: state.camera.x, y: state.camera.y }, { x: 0, y: 0 });
   equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
+});
+
+test("boot first free-roam frame polls held and queued activation without arrival deactivation (#1176)", () => {
+  for (const scenario of ["held", "queued", "none", "direction", "queued-direction", "deactivated", "enter"] as const) {
+    const game = authorGame({
+      startup: "start.prg", initChar: "hero.tem",
+      boards: { "start.brd": { keyTrigger: true, ...(scenario === "enter" ? { enter: "enter.prg" } : {}) } },
+      programs: { "start.prg": "wait()\ndelay(0.5)\nend()", "trigger.prg": "wait()\nend()", "enter.prg": "delay(0.3)\nend()" },
+    });
+    let latest: GameState | null = null;
+    const engine = createEngine({
+      seed: 11, assetIndex: game.index, assetRoot: game.root, mainFile: game.main,
+      gameIdentity: "boot-activation-test", width: 320, height: 240, maxTicks: 600,
+      startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+      spriteRuntime: createSpriteRuntime(),
+      input: { bindings: { keys: { Enter: "ENTER", ArrowRight: "right" } } },
+      phaseRegistrations: [
+        inputPhaseRegistration({ pixelStep: 8 }), movementPhaseRegistration(),
+        triggerPhaseRegistration({ programRef: () => ({ kind: "inline", text: "wait()\nend()", ir: IR_VERSION }) }),
+        { phase: "audio", run: (state) => { latest = state; } },
+      ],
+    });
+    const current = (): GameState => {
+      if (latest === null) throw new Error("no tick has run");
+      return latest;
+    };
+    run(engine, game.files, 5);
+    let state = current();
+    ok(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"), scenario);
+    const direction = scenario === "direction";
+    const name = direction ? "RIGHT" : "ENTER";
+    const code = direction ? "ArrowRight" : "Enter";
+    const key = (tick: number, down: boolean): InputRecord => ({
+      tick, event: { kind: "key", name, code, char: null, down },
+    });
+    run(engine, game.files, 1, [key(state.time.tick, true)]);
+    if (scenario === "none" || scenario === "queued" || scenario === "queued-direction") {
+      run(engine, game.files, 1, [key(state.time.tick, false)]);
+    }
+    if (scenario === "queued") {
+      run(engine, game.files, 2, [key(state.time.tick, true), key(state.time.tick + 1, false)]);
+    }
+    if (scenario === "queued-direction") {
+      run(engine, game.files, 1, [{
+        tick: state.time.tick, event: { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true },
+      }]);
+    }
+    for (let guard = 0; state.world.board == null && guard < 100; guard += 1) {
+      run(engine, game.files, 1);
+      state = current();
+    }
+    ok(state.world.board != null, `${scenario}: boot arrived`);
+    equal(state.triggers.active, null, `${scenario}: no trigger before the first board frame`);
+    if (scenario === "held" || scenario === "deactivated" || scenario === "direction" || scenario === "enter") {
+      equal(state.input.keys.length, 0, `${scenario}: title consumed the key`);
+    }
+    if (scenario === "queued") equal(state.input.keys.length, 1, "second key remains queued");
+    if (scenario === "queued-direction") deepEqual(state.input.keys.map((entry) => entry.name), ["right"]);
+    if (scenario === "deactivated") state.triggers.deactivateAt = { x: 64, y: 64, layer: 1 };
+    const beforeX = state.sprites.players[0]!.x;
+    run(engine, game.files, 1);
+    state = current();
+    if (scenario === "enter") {
+      equal(state.triggers.active, null, "the blocking enter program owns the first board frames");
+      for (let guard = 0; state.triggers.active === null && guard < 100; guard += 1) {
+        ok(state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished"), "the poll stays pending while enter runs");
+        run(engine, game.files, 1);
+        state = current();
+      }
+    }
+    if (scenario === "held" || scenario === "queued" || scenario === "enter") {
+      equal(state.triggers.active?.key, "region:0", `${scenario}: trigger starts on the first free-roam frame`);
+      ok(state.vm.threads.some((thread) => thread.id === state.triggers.active?.thread && thread.kind === "blocking"));
+    } else {
+      equal(state.triggers.active, null, `${scenario}: trigger does not start`);
+    }
+    if (scenario === "direction" || scenario === "queued-direction") ok(state.sprites.players[0]!.x > beforeX, "held direction starts walking immediately");
+    if (scenario === "deactivated") deepEqual(state.triggers.deactivated, ["region:0"], "restoring boot deactivation suppresses the held key");
+  }
 });
 
 test("wait drops mid-delay keys before the same thread's following get (#1174, docs/spec/engine/display-input-audio.md#e-110)", () => {
@@ -1180,6 +1270,55 @@ function sampleGame(name: string): { readonly files: Files; readonly index: Asse
   for (const path of relativePaths) files.set(assetKey(path), new Uint8Array(readFileSync(join(root, path))));
   return { files, index: createAssetIndex(paths), startup: "start.prg", initBoard, initChar };
 }
+
+test("demo start region responds to the held title key on its first free-roam frame (#1176)", { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
+  const sample = sampleGame("demo");
+  if (sample === null) throw new Error("demo fixture is missing");
+  sample.files.set(assetKey("prg/start.prg"), encoder.encode("wait()\ndelay(0.5)\nend()"));
+  const boardKey = assetKey(`boards/${sample.initBoard}`);
+  const boardBytes = sample.files.get(boardKey);
+  if (boardBytes === undefined) throw new Error("demo board missing");
+  const board = unwrap(readBoard(new BinaryReader(boardBytes)));
+  sample.files.set(boardKey, unwrap(writeBoard({
+    ...board,
+    programs: [{
+      program: "wait()", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+      activate: 0, activationType: 1, repeatDistance: 0, layer: 1,
+      points: [{ x: 180, y: 110 }, { x: 250, y: 110 }, { x: 250, y: 180 }, { x: 180, y: 180 }],
+      closed: 1, handle: "boot-key-region",
+    }],
+  })));
+  let latest: GameState | null = null;
+  const engine = createEngine({
+    seed: 3, assetIndex: sample.index, assetRoot: PACKAGE_ROOT, mainFile: "main.gam",
+    gameIdentity: "demo-boot-activation-test", width: 320, height: 240, maxTicks: 600,
+    startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    spriteRuntime: createSpriteRuntime(), input: { bindings: { keys: { Enter: "ENTER", ArrowRight: "right", Space: " " } } },
+    phaseRegistrations: [
+      inputPhaseRegistration(), movementPhaseRegistration(),
+      triggerPhaseRegistration({ programRef: () => ({ kind: "inline", text: "wait()\nend()", ir: IR_VERSION }) }),
+      { phase: "audio", run: (state) => { latest = state; } },
+    ],
+  });
+  const current = (): GameState => {
+    if (latest === null) throw new Error("no tick has run");
+    return latest;
+  };
+  run(engine, sample.files, 5);
+  let state = current();
+  ok(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"));
+  run(engine, sample.files, 1, [{ tick: state.time.tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } }]);
+  for (let guard = 0; state.world.board == null && guard < 100; guard += 1) {
+    run(engine, sample.files, 1);
+    state = current();
+  }
+  ok(state.world.board != null);
+  deepEqual([state.sprites.players[0]?.x, state.sprites.players[0]?.y], [213, 146]);
+  equal(state.input.keys.length, 0, "the title consumed the activation key");
+  equal(state.triggers.active, null);
+  run(engine, sample.files, 1);
+  equal(current().triggers.active?.key, "region:0");
+});
 
 for (const name of ["demo", "Basic"]) {
   test(`the ${name} sample game's start.prg boots through the real engine`, { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
