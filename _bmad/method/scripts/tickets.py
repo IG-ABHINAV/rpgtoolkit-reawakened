@@ -21,10 +21,11 @@ when the entry sets them: the orchestrator of an unattended run reads them, and 
 (low, medium, high) is the ticket's proposed risk, the leaf file's once it is pulled; the build settles it
 in its plan.
 
-A plan is an `.md` whose frontmatter has `ticket`, except that legacy `story`, `spike`, and `bug`
-files remain leaves even when they carry that field. A plan's `type` describes the plan, not its
-linked leaf. A `ticket` that is an id joins the entry with that id in the plan's folder; any other
-string joins the leaf file with that stem (a backlog leaf). A plan is never a row of its own. It holds
+A plan is an `.md` whose frontmatter has `ticket` and whose name ends in `-plan.md`, or whose
+type is not a legacy leaf type. Other `story`, `spike`, and `bug` files remain leaves even when
+they carry that field. A plan's `type` describes the plan, not its linked leaf. A `ticket` that is an
+id joins the entry with that id in the plan's folder; any other string joins the leaf file with that
+stem (a backlog leaf). A plan is never a row of its own. It holds
 the ticket's `status`, `assignee`, `blocked_at`, and `blocked_reason`; a leaf file's own fields are read only when
 the ticket has no plan, and a plan with no `assignee` key leaves the leaf file's. A plan whose `ticket`
 names nothing is skipped, and one whose `status` is unknown blocks its ticket; next and status list both
@@ -354,7 +355,7 @@ def load_folder(folder: Path, problems: list[str]) -> list[dict]:
         fm = parse_frontmatter(text, lenient=True)
         if not fm and text.startswith("---") and NAME_RE.match(path.name):
             raise TicketError(f"{where}/{path.name}: frontmatter does not close")
-        if "ticket" in fm and fm.get("type") not in LEGACY_LEAF_TYPES:
+        if "ticket" in fm and (path.name.endswith("-plan.md") or fm.get("type") not in LEGACY_LEAF_TYPES):
             plans.append((path.name, fm))
             continue
         if fm.get("type") not in LEAF_TYPES:

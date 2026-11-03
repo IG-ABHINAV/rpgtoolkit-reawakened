@@ -98,6 +98,38 @@ class ChoreTicketTests(unittest.TestCase):
         self.assertEqual(row["type"], "story")
         self.assertEqual(Path(row["story_file"]).resolve(), leaf.resolve())
 
+    def test_leaf_typed_plan_with_tracker_id_joins_entry(self):
+        self.write_entry("bug")
+        plan = self.epic / "bug-ci-change-classifier-plan.md"
+        plan.write_text(
+            "---\ntitle: CI change classifier\ntype: bug\nticket: '23'\n"
+            "status: blocked\ntracker_id: '#1045'\n---\n# Plan\n", encoding="utf-8"
+        )
+        (self.epic / "tickets.toml").write_text(
+            '[[entry]]\nid = 23\ntype = "bug"\ntitle = "CI change classifier"\ntracker_id = "#1045"\n',
+            encoding="utf-8",
+        )
+        result = self.run_ticket("find", str(self.epic), "23")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        row = json.loads(result.stdout)
+        self.assertEqual(Path(row["plan"]).resolve(), plan.resolve())
+        self.assertIsNone(row["story_file"])
+        self.assertEqual(row["status"], "blocked")
+
+    def test_duplicate_tracker_ids_still_fail(self):
+        (self.epic / "tickets.toml").write_text(
+            '[[entry]]\nid = 23\ntype = "bug"\ntitle = "First"\ntracker_id = "#1045"\n'
+            '[[entry]]\nid = 24\ntype = "story"\ntitle = "Second"\n',
+            encoding="utf-8",
+        )
+        (self.epic / "story-second.md").write_text(
+            "---\nid: 24\ntype: story\nticket: 'legacy metadata'\n"
+            "title: Second\ntracker_id: '#1045'\n---\n# Second\n", encoding="utf-8",
+        )
+        result = self.run_ticket("status", str(self.epic))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tracker_id", result.stderr)
+
     def test_unknown_entry_types_remain_rejected(self):
         self.write_entry("task")
         result = self.run_ticket("find", str(self.epic), "23")

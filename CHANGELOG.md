@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Ticket-store plans named `*-plan.md` join their tickets even when their type is `story`, `spike`, or `bug`, without disabling duplicate tracker checks (#1209).
 - Boot no longer deactivates a program under the player's start position; on the first free-roam frame a still-held activation key can start it even when the title consumed the key, and an unread queued activation key also works. A queued direction alone does not fire it. `send` arrivals retain deactivation (#1176, #1207; `docs/spec/engine/main-loop-and-startup.md#reawakened-boot-held-activation`). This is core behavior; live player trigger wiring is tracked by #1175.
   The boot trigger cursor now records the pending first-frame poll and boot no longer queues a deactivation effect, so state hashes and the Save/Load fixture's save size change. The audio-package, Save/Load and closing baselines are re-recorded; closing draw and pixel hashes are unchanged (demo tick 120 state `32e892e98b3d2a85` → `83235f72cfc30ec2`, Save/Load bytes 1,644,703 → 1,644,472).
 - `tickets.py` accepts `chore` as a leaf type while preserving legacy story/spike/bug leaves that carry `ticket`; chore plans still join by `ticket`. Its focused regressions run in the required `checks` CI job (#1200).
