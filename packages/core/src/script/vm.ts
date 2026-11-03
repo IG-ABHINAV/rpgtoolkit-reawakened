@@ -101,6 +101,7 @@ import {
   type ItemActionRecord,
 } from "./item-action.ts";
 import { INVENTORY_HOST_TYPE, INVENTORY_HOST_TYPE_NAME } from "./packs/inventory.ts";
+import { MENU_HOST_TYPE, MENU_HOST_TYPE_NAME, PARTY_HOST_TYPE, PARTY_HOST_TYPE_NAME } from "./packs/menu.ts";
 import {
   IR_VERSION,
   fileProgramRef,
@@ -222,6 +223,8 @@ export type ScriptServices = ScriptObservers & {
   readonly postRequest?: (request: CommandRequest) => void;
   /** The script-facing media owner (MEDIA-1), when the engine provides one. */
   readonly media?: MediaScriptService;
+  /** The main file's menu cursor sounds, read lazily because the main file may load after the services are built. */
+  readonly menuSounds?: () => { readonly move: string; readonly choose: string; readonly cancel: string };
 };
 
 function isMenuProviderResult(value: unknown): value is MenuProviderResult {
@@ -332,9 +335,10 @@ function createRpgcodeMenuContext(vm: VmState, screen: string): ObjectRecord {
   writeMember(context, "screen", screen);
   writeMember(context, "state", null);
   writeMember(context, "event", "enter");
-  const holder = vm.objects.find((record) => record.hostType === INVENTORY_HOST_TYPE_NAME) ??
-    createHostObject(vm, INVENTORY_HOST_TYPE_NAME);
-  writeMember(context, "inventory", { kind: "object", handle: holder.handle, className: holder.className });
+  for (const type of [INVENTORY_HOST_TYPE_NAME, PARTY_HOST_TYPE_NAME, MENU_HOST_TYPE_NAME]) {
+    const holder = vm.objects.find((record) => record.hostType === type) ?? createHostObject(vm, type);
+    writeMember(context, type, { kind: "object", handle: holder.handle, className: holder.className });
+  }
   return context;
 }
 
@@ -698,6 +702,7 @@ export function createScriptServices(
   requestRecoveryCapture?: () => void,
   beforeBattleStart?: () => void,
   refreshScreen?: () => void,
+  menuSounds?: () => { readonly move: string; readonly choose: string; readonly cancel: string },
 ): ScriptServices {
   const loader = typeof loaderOrGameId === "string" ? undefined : loaderOrGameId;
   const gameId = typeof loaderOrGameId === "string" ? loaderOrGameId : explicitGameId ?? null;
@@ -839,6 +844,8 @@ export function createScriptServices(
   hydratedTypes.set("actor", createActorHostType(actors));
   hydratedTypes.set(BATTLE_HOST_TYPE, createBattleHostType());
   hydratedTypes.set(INVENTORY_HOST_TYPE_NAME, INVENTORY_HOST_TYPE);
+  hydratedTypes.set(PARTY_HOST_TYPE_NAME, PARTY_HOST_TYPE);
+  hydratedTypes.set(MENU_HOST_TYPE_NAME, MENU_HOST_TYPE);
   if (media !== undefined) for (const type of MEDIA_HOST_TYPES) hydratedTypes.set(type.name, type);
   const menuOwners = menuPorts ?? createMenuOwnerPorts(state);
   for (const plugin of plugins) {
@@ -912,6 +919,7 @@ export function createScriptServices(
     ...(onThreadRemoved === undefined ? {} : { onThreadRemoved }),
     ...(requestRecoveryCapture === undefined ? {} : { requestRecoveryCapture }),
     ...(media === undefined ? {} : { media }),
+    ...(menuSounds === undefined ? {} : { menuSounds }),
     ...observers,
     ...(observers?.postCall === undefined ? {} : {
       callPlugin: (name: string, namespace?: string): string | undefined => {
@@ -970,6 +978,7 @@ function runNativeMenuProvider(
   saved: { readonly [key: string]: PlainData },
   event: MenuProviderEvent,
   parkSeq: number | null,
+  pointer: PlainData = null,
 ): void {
   const providerId = saved.providerId as string;
   const provider = services.menuProviders.get(providerId);
@@ -991,7 +1000,7 @@ function runNativeMenuProvider(
       }
       thread.wait = {
         ...transition.wait,
-        payload: [{ ...saved, state: transition.state, phase: "input", childScreen: null, parkSeq }, ...transition.wait.payload],
+        payload: [{ ...saved, state: transition.state, phase: "input", childScreen: null, parkSeq, pointer }, ...transition.wait.payload],
       };
       thread.status = "waiting";
       return;
@@ -1063,6 +1072,12 @@ function runNativeMenuProvider(
   }
 }
 
+/** The five pointer fields a wait compares, as plain data (`null` before any input section exists). */
+function pointerBaselineOf(pointer: NonNullable<WaitView["input"]>["pointer"]): PlainData {
+  if (pointer === undefined) return null;
+  return { x: pointer.x, y: pointer.y, buttons: pointer.buttons, downs: pointer.downs ?? 0, ups: pointer.ups ?? 0 };
+}
+
 /** Poll one thread's wait; claim input progress or hand a wake value to a resolved thread. */
 function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number | undefined, discardBefore?: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
   const wait = thread.wait;
@@ -1072,6 +1087,11 @@ function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread
   if (menuContinuation !== null && typeof menuContinuation === "object" && !Array.isArray(menuContinuation) &&
       menuContinuation.parkSeq === null) {
     menuContinuation.parkSeq = view.input?.nextSeq ?? 0;
+  }
+  if (menuContinuation !== null && typeof menuContinuation === "object" && !Array.isArray(menuContinuation) &&
+      (menuContinuation.pointer === null || menuContinuation.pointer === undefined)) {
+    // The pointer baseline of a native provider is taken when it parks, like the key floor (E-111 pointer record).
+    menuContinuation.pointer = pointerBaselineOf(view.input?.pointer);
   }
   const result = poll(view, wait);
   if (result === null) return;
@@ -1125,12 +1145,22 @@ function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread
       }
       return;
     }
+    const record = result.record;
     const event: MenuProviderEvent = saved.phase === "enter"
       ? { type: "enter" }
       : saved.phase === "child.closed"
         ? { type: "child.closed", screen: String(saved.childScreen) as MenuScreenId }
-        : { type: "input", key: String(result.value) };
-    runNativeMenuProvider(thread, vm, services, frame, saved, event, view.input?.nextSeq ?? null);
+        : record !== undefined
+          ? {
+            type: "pointer", x: Number(record.x), y: Number(record.y), buttons: Number(record.buttons), downs: Number(record.downs),
+            ups: Number(record.ups), downX: Number(record.downx), downY: Number(record.downy), button: Number(record.button),
+            moved: Number(record.moved), newDowns: Number(record.newdowns), newUps: Number(record.newups),
+          }
+          : { type: "input", key: String(result.value) };
+    // A pointer event consumes the record as it is now; a key leaves the old baseline, so a pointer change that arrived
+    // with it is delivered by the next wake instead of being lost.
+    const reparked = event.type === "pointer" ? pointerBaselineOf(view.input?.pointer) : (saved.pointer ?? null);
+    runNativeMenuProvider(thread, vm, services, frame, saved, event, view.input?.nextSeq ?? null, reparked);
     return;
   }
   if (wait.kind === "request" || wait.kind === "blob") {
@@ -1149,12 +1179,19 @@ function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread
     frame.operands.push({ value: result.ok ? result.value : 0, ref: null });
     return;
   }
+  // A resolver cannot allocate VM objects, so `waitInput` hands back plain fields and the VM builds the dictionary here.
+  let resumed = result.value;
+  if (result.record !== undefined) {
+    const object = createObject(vm, null);
+    for (const [field, value] of Object.entries(result.record)) writeMember(object, field, value as Value);
+    resumed = objectValue(object);
+  }
   if ("resumeRefs" in wait && wait.resumeRefs !== undefined) {
     const topIndex = thread.frames.length - 1;
-    for (const ref of wait.resumeRefs) writeRef(vm, thread, topIndex, ref as RefId, result.value, services);
+    for (const ref of wait.resumeRefs) writeRef(vm, thread, topIndex, ref as RefId, resumed, services);
   }
   if (wait.kind === "sleep" && !wait.resumesCall) return;
-  frame.operands.push({ value: result.value, ref: null });
+  frame.operands.push({ value: resumed, ref: null });
 }
 
 
@@ -1553,6 +1590,7 @@ function hostContext(services: ScriptServices, record: ObjectRecord): HostObject
     vm: state.vm,
     record,
     ...(services.media === undefined ? {} : { media: services.media }),
+    ...(services.menuSounds === undefined ? {} : { menuSounds: services.menuSounds }),
     ...(services.view.battle === undefined ? {} : { battle: services.view.battle }),
   };
 }

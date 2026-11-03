@@ -1,5 +1,6 @@
 import type { EnginePhaseRegistration, EngineResetRegistration } from "../engine/engine.ts";
-import { scriptOwnsInput } from "../script/state.ts";
+import { IR_VERSION } from "../script/program.ts";
+import { scriptOwnsInput, startThread } from "../script/state.ts";
 import { enqueueDirectionMove } from "../sprites/movement.ts";
 import type { Facing } from "../sprites/model.ts";
 import { enqueuePathMove } from "../sprites/runtime.ts";
@@ -27,7 +28,28 @@ export type InputPhaseOptions = {
   readonly rank?: number;
   readonly pixelMovement?: number;
   readonly pixelStep?: number;
+  /** Replaces the engine-owned menu-key entry; tests use it to observe the key without opening a screen. */
+  readonly openMenu?: (state: GameState) => boolean;
+  /** Script-facing action corresponding to the configured keyboard menu key. */
+  readonly menuKey?: { readonly action: string; readonly code: string };
 };
+
+/**
+ * The menu key's entry (E-80, docs/spec/engine/plugins-and-battle.md#e-80-stock-menu): start an ordinary blocking
+ * thread whose whole program is `mainmenu()`, so the menu opened by the key is a normal script frame that saves,
+ * restores and is pre-empted like any other. It refuses while anything else owns the screen: an open menu, a battle,
+ * a boot that has not reached free roam, another blocking thread, no board, or no live party member.
+ */
+export function openMainMenu(state: GameState): boolean {
+  const boot = state.engine.boot;
+  if (boot !== undefined && boot.stage !== "running") return false;
+  if (state.menu.screens.length > 0 || state.battle !== null) return false;
+  if (state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished")) return false;
+  if (state.world.board == null) return false;
+  if (!state.actors.actors.some((actor) => actor.kind === "party" && state.party.members.includes(actor.id) && actor.stats.hp > 0)) return false;
+  startThread(state.vm, { ref: { kind: "inline", text: "mainmenu()", ir: IR_VERSION }, kind: "blocking", owner: "script" });
+  return true;
+}
 
 function selectedPlayer(state: GameState): string | null {
   if (state.input.playerId !== null) return state.input.playerId;
@@ -60,7 +82,15 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   // A running program or any global wait owns script input until it finishes. Keys and clicks are still recorded
   // (the key queue and the pointer state keep receiving them), but none of them turns into movement
   // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement, #reawakened-click-movement-freeze).
-  const directionBlocked = scriptOwnsInput(state.vm);
+  let directionBlocked = scriptOwnsInput(state.vm);
+  const configured = options.menuKey;
+  const lastConfiguredEdge = configured === undefined ? undefined : [...state.input.keys].reverse().find((key) => key.action === configured.action);
+  if (!directionBlocked && (actions.includes("menu") ||
+      (configured !== undefined && actions.includes(configured.action) && lastConfiguredEdge?.code === configured.code))) {
+    // A menu opened by this very press owns input from now on, so a direction pressed on the same tick queues no step
+    // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement: a blocking script freezes movement).
+    if ((options.openMenu ?? openMainMenu)(state)) directionBlocked = true;
+  }
   if (id === null) return;
   if (!directionBlocked && actions.some((action) => FACING_BY_ACTION[action] !== undefined) && canAcceptDirection(state, id)) {
     const facing = heldFacing(state);

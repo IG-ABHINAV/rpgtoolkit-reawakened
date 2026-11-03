@@ -1,6 +1,6 @@
 /** Owner: core/input (AD-10/AD-14; E-110..E-112). */
 
-export const INPUT_SCHEMA_VERSION = 2;
+export const INPUT_SCHEMA_VERSION = 3;
 
 export type InputKeyState = {
   readonly seq: number;
@@ -41,12 +41,28 @@ export type InputGamepad = {
   mask: number;
 };
 
+export type InputPointer = {
+  x: number;
+  y: number;
+  buttons: number;
+  downs: number;
+  ups: number;
+  downX: number;
+  downY: number;
+  button: number;
+};
+
 export type InputSection = {
   version: number;
   nextSeq: number;
   keys: InputKeyState[];
   held: { [name: string]: boolean };
-  pointer: { x: number; y: number; buttons: number };
+  /**
+   * The last pointer position and pressed-button bitmask, plus the monotonic press/release edge counters
+   * (docs/spec/engine/display-input-audio.md#reawakened-pointer-record): `downs`/`ups` count every button bit that went
+   * 0→1 / 1→0, `downX`/`downY` is where the last press happened and `button` the bit value of the last edge.
+   */
+  pointer: InputPointer;
   focused: boolean;
   buttons: InputButton[];
   bindings: InputBindings;

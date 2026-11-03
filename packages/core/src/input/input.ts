@@ -19,11 +19,11 @@ const DIRECTIONS: Readonly<Record<string, true>> = { up: true, down: true, left:
 
 export function createInputSection(config: InputConfig = {}): InputSection {
   const state: InputSection = {
-    version: 2,
+    version: 3,
     nextSeq: 1,
     keys: [],
     held: {},
-    pointer: { x: 0, y: 0, buttons: 0 },
+    pointer: { x: 0, y: 0, buttons: 0, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 },
     focused: true,
     buttons: [],
     bindings: { keys: {} },
@@ -166,8 +166,27 @@ export function heldPointerGoal(state: InputSection): { x: number; y: number } |
   return { x: state.pointer.x + state.camera.x, y: state.pointer.y + state.camera.y };
 }
 
+/** The pointer record after one `pointer` event: position and buttons, then one edge per changed button bit, lowest bit first. */
+function pointerAfter(previous: InputSection["pointer"], event: PointerInput): InputSection["pointer"] {
+  const next = { ...previous, x: event.x, y: event.y, buttons: event.buttons };
+  for (let bit = 1; bit <= 4; bit *= 2) {
+    const was = (previous.buttons & bit) !== 0;
+    const now = (event.buttons & bit) !== 0;
+    if (!was && now) {
+      next.downs += 1;
+      next.downX = event.x;
+      next.downY = event.y;
+      next.button = bit;
+    } else if (was && !now) {
+      next.ups += 1;
+      next.button = bit;
+    }
+  }
+  return next;
+}
+
 function applyPointer(state: InputSection, event: PointerInput): void {
-  state.pointer = { x: event.x, y: event.y, buttons: event.buttons };
+  state.pointer = pointerAfter(state.pointer, event);
   if ((event.buttons & 1) === 0) return;
   const slot = slotAt(state, event.x, event.y);
   if (slot !== undefined) {

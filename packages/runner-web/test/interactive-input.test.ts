@@ -1,10 +1,10 @@
-import { equal, ok } from "node:assert/strict";
+import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assetKey, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, PACKAGE_ROOT, writeBoard, writeCharacter, writeMainFile, type GameState } from "@tk-reawakened/core";
-import { INTERACTIVE_INPUT_BINDINGS } from "../src/input-bindings.ts";
+import { assetKey, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, inputPhaseRegistration, IR_VERSION, PACKAGE_ROOT, writeBoard, writeCharacter, writeMainFile, type GameState } from "@tk-reawakened/core";
+import { INTERACTIVE_INPUT_BINDINGS, interactiveMenuBinding } from "../src/input-bindings.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const font = new Uint8Array(readFileSync(join(here, "..", "..", "..", "media", "fonts", "tkr-8x8.fnt")));
@@ -21,6 +21,7 @@ type KeyEvent = {
 
 type Game = {
   state(): GameState;
+  booted(): boolean;
   step(events?: readonly KeyEvent[]): void;
 };
 
@@ -29,11 +30,11 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
   return result.value;
 }
 
-function boot(program: string): Game {
+function boot(program: string, stockMenu = false): Game {
   const empty = createEmptyBoard();
   const paths = ["main.gam", "Boards/start.brd", "Chrs/hero.tem", "Prg/start.prg"];
   const files = new Map<string, Uint8Array>();
-  files.set(assetKey("main.gam"), unwrap(writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, startupPrg: "start.prg", initBoard: "start.brd", initChar: "hero.tem" })));
+  files.set(assetKey("main.gam"), unwrap(writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, startupPrg: "start.prg", initBoard: "start.brd", initChar: "hero.tem", ...(stockMenu ? { packagePlugins: ["stock_menu"] } : {}) })));
   files.set(assetKey("boards/start.brd"), unwrap(writeBoard({
     ...empty,
     sizeX: 40,
@@ -44,7 +45,7 @@ function boot(program: string): Game {
     layerTitles: ["", ""],
     properties: { ...empty.properties, start: { x: 64, y: 64, layer: 1 }, enterPrg: "" },
   })));
-  files.set(assetKey("chrs/hero.tem"), unwrap(writeCharacter({ ...createEmptyCharacter(), minor: 5, name: "Hero", movementAnimations: Array(8).fill(""), battleStances: ["", "", "", "", "", ""] })));
+  files.set(assetKey("chrs/hero.tem"), unwrap(writeCharacter({ ...createEmptyCharacter(), minor: 5, name: "Hero", stats: { ...createEmptyCharacter().stats, hp: 10, maxHp: 20, level: 1 }, movementAnimations: Array(8).fill(""), battleStances: ["", "", "", "", "", ""] })));
   files.set(assetKey("prg/start.prg"), encoder.encode(program));
 
   let latest: GameState | null = null;
@@ -55,15 +56,23 @@ function boot(program: string): Game {
     mainFile: "main.gam",
     gameIdentity: "runner-web-interactive-input-test",
     startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
-    width: SIZE,
-    height: SIZE,
+    width: stockMenu ? 320 : SIZE,
+    height: stockMenu ? 240 : SIZE,
     maxTicks: 1000,
-    input: { bindings: INTERACTIVE_INPUT_BINDINGS },
+    input: { bindings: interactiveMenuBinding(0).bindings },
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
-    phaseRegistrations: [{ phase: "audio", run: (state) => { latest = state; } }],
+    ...(stockMenu ? { packageCatalogue: [{
+      name: "stock_menu", version: "1.0.0", namespace: "stock_menu", requests: [],
+      definition: { id: "stock_menu", version: "1.0.0", commands: [] },
+      startup: { kind: "inline" as const, text: readFileSync(join(here, "..", "..", "..", "stock", "stock_menu", "startup.prg"), "utf8"), ir: IR_VERSION, dialect: "tk3" as const },
+    }] } : {}),
+    phaseRegistrations: [...(stockMenu ? [inputPhaseRegistration({ menuKey: interactiveMenuBinding(0).menuKey })] : []), { phase: "audio", run: (state) => { latest = state; } }],
   });
   let replies: { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } }[] = [];
   const game: Game = {
+    booted() {
+      return latest?.engine.boot?.stage === "running";
+    },
     state() {
       if (latest === null) throw new Error("no tick has run");
       return latest;
@@ -79,7 +88,10 @@ function boot(program: string): Game {
       }
     },
   };
-  for (let tick = 0; tick < 40; tick += 1) game.step();
+  for (let tick = 0; tick < 40; tick += 1) {
+    game.step();
+    if (game.booted()) break;
+  }
   return game;
 }
 
@@ -103,4 +115,25 @@ test("interactive Space selects a cursor-map point through the live binding", ()
   for (let tick = 0; tick < 4; tick += 1) game.step();
   equal(game.state().vm.globals.selected, 0);
   ok(!game.state().vm.threads.some((thread) => thread.wait?.kind === "input.key"), "the interactive Space key resolves the cursor-map wait");
+});
+
+test("the shipped bindings open, navigate, confirm and cancel the stock menu", () => {
+  const game = boot("end()", true);
+  // A screen reads keys only once its thread has parked: a key that arrives while it is still drawing is older than its
+  // park floor and is ignored, exactly as for `wait()`. So each step waits for the settled state and for the park.
+  const parked = (state: GameState): boolean => state.vm.threads.some((thread) => thread.status === "waiting" && thread.wait?.kind === "input.key") || state.menu.screens.length === 0;
+  const press = (name: string, code: string, settled: (state: GameState) => boolean): void => {
+    game.step([{ kind: "key", name, code, char: null, down: true }]);
+    game.step([{ kind: "key", name, code, char: null, down: false }]);
+    for (let i = 0; i < 40 && !(settled(game.state()) && parked(game.state())); i += 1) game.step();
+    ok(settled(game.state()), `${code} took effect`);
+    ok(parked(game.state()), `the menu is waiting for input after ${code}`);
+  };
+  const stack = (): string[] => game.state().menu.screens.map((screen) => screen.screen);
+  press("Enter", "Enter", (state) => state.menu.screens[0]?.screen === "main");
+  press("ArrowDown", "ArrowDown", (state) => state.menu.screens[0]?.selection === 1);
+  press("Space", "Space", (state) => state.menu.screens.length === 2);
+  deepEqual(stack(), ["main", "equipment"]);
+  press("Escape", "Escape", (state) => state.menu.screens.length === 1);
+  press("Escape", "Escape", (state) => state.menu.screens.length === 0);
 });

@@ -3,6 +3,7 @@ import { restoreGameSave, snapshotGameSave, restoreRecoveryCandidate, snapshotRe
 import { deriveGameId } from "../save/game-id.ts";
 import { restoreGameState, snapshot } from "../save/snapshot.ts";
 import { createPluginLayers, type PluginLayers } from "../script/layers.ts";
+import { MENU_GRAPHIC_EFFECT } from "../script/packs/menu.ts";
 import { actorEmitterKey, actorId } from "../actors/model.ts";
 import type { AudioSaveProjection } from "../audio/save.ts";
 import { projectGameLedger, type GameLedgerV1, type LedgerProgramRef, type LedgerTile } from "../save/ledger.ts";
@@ -239,7 +240,7 @@ type RequestEntry = { readonly reqId: number; readonly key: AssetKey; readonly k
 type PendingBlobRequest = {
   readonly reqId: number;
   readonly vmReqId: number;
-  readonly kind: "loadBlob" | "saveBlob";
+  readonly kind: "loadBlob" | "saveBlob" | "listBlobs";
   readonly blob: BlobKey;
   readonly gameSave: boolean;
   readonly gameLoad: boolean;
@@ -341,6 +342,8 @@ export function createEngine(init: EngineInit): Engine {
   let lastPrefetch = "";
   /** Backgrounds unavailable for prefetch, including decode failures; do not request them again. */
   const missingBattleBackgrounds = new Set<AssetKey>();
+  /** Menu-graphic references already reported missing (E-80 item 12): one `asset.missing` each, and never fatal. */
+  const missingMenuGraphics = new Set<string>();
   /** Sound facts from battle backgrounds fetched only for prefetch; kept out of the saved asset cache so prefetch hints stay hash-neutral. */
   const prefetchedBattleBackgrounds = new Map<AssetKey, PrefetchFacts["battle"]>();
   /** In-flight prefetch-only asset requests and their ids; these deliberately do not live in the saved engine section. */
@@ -959,6 +962,34 @@ export function createEngine(init: EngineInit): Engine {
           }
         }
         const scriptArea = request.kind === "asset" && typeof request.area === "string" && Object.hasOwn(SCRIPT_ASSET_AREAS, request.area) ? SCRIPT_ASSET_AREAS[request.area] : undefined;
+        if (request.kind === "listBlobs" &&
+            typeof request.reqId === "number" && Number.isSafeInteger(request.reqId) &&
+            request.reqId > 0 && request.reqId < SCRIPT_REQUEST_BASE &&
+            (request.area === "saves" || request.area === "files")) {
+          // The stock menu's save/load picker reads the area through `savelist()`; a listing publishes nothing, so it
+          // never blocks a snapshot and never becomes a game save (docs/spec/engine/rpgcode-functions.md).
+          if (currentGameId === null) {
+            diagnostics.push({
+              code: "save.no-game-identity",
+              file: mainKey ?? "",
+              line: 0,
+              message: "listBlobs refused: this engine has no game identity (docs/spec/formats/save-game.md#reawakened-full-engine-save-and-load)",
+            });
+            try {
+              replyToRequest(state.vm, request.reqId, { ok: false, value: "" });
+            } catch (error) {
+              if (error instanceof ScriptError) diagnostics.push(toDiagnostic(error));
+            }
+            return;
+          }
+          const reqId = SCRIPT_REQUEST_BASE + request.reqId;
+          pendingBlobs.set(reqId, {
+            reqId, vmReqId: request.reqId, kind: "listBlobs", blob: { area: request.area, path: "" },
+            gameSave: false, gameLoad: false, hex: null, published: true,
+          });
+          requestsOut.push({ kind: "listBlobs", reqId, area: request.area });
+          return;
+        }
         if (request.kind === "asset" && scriptArea !== undefined &&
             typeof request.path === "string" && typeof request.reqId === "number" &&
             Number.isSafeInteger(request.reqId) && request.reqId > 0 && request.reqId < SCRIPT_REQUEST_BASE) {
@@ -989,6 +1020,11 @@ export function createEngine(init: EngineInit): Engine {
       () => { recoveryCaptureRequested = true; },
       capturePreBattleRecoveryCandidate,
       () => refreshFrame(true),
+      () => ({
+        move: mainFile?.cursorMoveSound ?? "",
+        choose: mainFile?.cursorSelectSound ?? "",
+        cancel: mainFile?.cursorCancelSound ?? "",
+      }),
     );
     media.activateDeclared();
     if (runStartups) {
@@ -1089,6 +1125,7 @@ export function createEngine(init: EngineInit): Engine {
     setimagetransparent: true,
     setimagetranslucent: true,
     setimageadditive: true,
+    [MENU_GRAPHIC_EFFECT]: true,
   };
   function imageTexture(key: AssetKey): DecodedTexture | null {
     const cached = decodedImages.get(key);
@@ -1371,8 +1408,16 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
+    const optional = effect.name === MENU_GRAPHIC_EFFECT;
+    const reference = typeof effect.args[0] === "string" ? effect.args[0] : "";
+    if (optional && missingMenuGraphics.has(reference)) return;
     const key = imageAsset(effect.args[0]);
     if (key === null) {
+      if (optional) {
+        missingMenuGraphics.add(reference);
+        diagnostics.push({ code: "asset.missing", file: reference, line: 0, message: `menu graphic: image "${reference}" is not in the asset index` });
+        return;
+      }
       imageDiagnostic(effect.args[0], `${effect.name}: image is not in the asset index`);
       return;
     }
@@ -1505,6 +1550,13 @@ export function createEngine(init: EngineInit): Engine {
     }
     if (record.event.bytes === null) {
       diagnostics.push({ code: "asset.missing", file: entry.key, line: 0, message: `asset not found: ${entry.key}` });
+      const waiting = pendingImageEffects.filter((item) => item.key === entry.key);
+      if (waiting.length > 0 && waiting.every((item) => item.effect.name === MENU_GRAPHIC_EFFECT)) {
+        // An optional menu graphic that the host cannot supply is reported once and skipped on every later redraw.
+        for (const item of waiting) if (typeof item.effect.args[0] === "string") missingMenuGraphics.add(item.effect.args[0]);
+        pendingImageEffects.splice(0, pendingImageEffects.length, ...pendingImageEffects.filter((item) => item.key !== entry.key));
+        return;
+      }
       failed = true;
       pendingImageEffects.splice(0, pendingImageEffects.length, ...pendingImageEffects.filter((item) => item.key !== entry.key));
       pendingBoardPreviews.splice(0, pendingBoardPreviews.length, ...pendingBoardPreviews.filter((item) => item.key !== entry.key));
@@ -1540,13 +1592,19 @@ export function createEngine(init: EngineInit): Engine {
   }
   function consumeBlob(record: InputRecord, consumed: InputRecord[]): BlobReplyResult {
     const event = record.event;
-    if (event.kind !== "blob.loaded" && event.kind !== "blob.saved") return "ignored";
+    if (event.kind !== "blob.loaded" && event.kind !== "blob.saved" && event.kind !== "blob.listed") return "ignored";
     const entry = pendingBlobs.get(event.reqId);
     if (entry === undefined ||
         (entry.kind === "loadBlob" && event.kind !== "blob.loaded") ||
-        (entry.kind === "saveBlob" && event.kind !== "blob.saved")) return "ignored";
+        (entry.kind === "saveBlob" && event.kind !== "blob.saved") ||
+        (entry.kind === "listBlobs" && event.kind !== "blob.listed")) return "ignored";
     pendingBlobs.delete(entry.reqId);
     consumed.push(record);
+    if (entry.kind === "listBlobs") {
+      // Names are newline-separated in the reply: no save name may contain a newline, and `savelist` splits on it.
+      replyToRequest(state.vm, entry.vmReqId, { ok: true, value: event.kind === "blob.listed" ? event.names.join("\n") : "" });
+      return "consumed";
+    }
     if (entry.gameLoad && event.kind === "blob.loaded") {
       if (event.bytes === null) {
         replyToRequest(state.vm, entry.vmReqId, { ok: false, value: "saved game was not found" });
@@ -1574,7 +1632,7 @@ export function createEngine(init: EngineInit): Engine {
         ok: event.bytes !== null,
         value: event.bytes === null ? "" : encodeHex(event.bytes),
       });
-    } else {
+    } else if (event.kind === "blob.saved") {
       // Game saves report success as 1 so scripts can observe the result; file writes keep the legacy null value.
       const value = event.ok && entry.gameSave ? 1 : null;
       replyToRequest(state.vm, entry.vmReqId, { ok: event.ok, value });
@@ -1709,7 +1767,7 @@ export function createEngine(init: EngineInit): Engine {
       resetLifecycle(second);
       return;
     }
-    if (effect.name === "quit" && !quitRequested) {
+    if ((effect.name === "quitgame" || effect.name === "dos" || effect.name === "windows") && !quitRequested) {
       quitRequested = true;
       requestsOut.push({ kind: "quit", reqId: nextRequestId++ });
     }
@@ -2974,12 +3032,12 @@ export function createEngine(init: EngineInit): Engine {
       const record = records[index]!;
       if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
-      } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved") {
+      } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
           for (const queued of records.slice(index + 1)) {
-            if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved") continue;
+            if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved" || queued.event.kind === "blob.listed") continue;
             deferred.push({ ...queued, tick: state.time.tick });
           }
           break;

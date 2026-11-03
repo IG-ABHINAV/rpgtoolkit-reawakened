@@ -7,6 +7,8 @@
 // writing `build()` output to the files; the schema-v1 migration fixture `battle-v1.json` is untouched.
 // #744 regenerated `battle-v2-mid.json` once, for the added `engine.nextBattleId: 2`; no section
 // schema version moved and no other key changed.
+// #585 regenerated both fixtures once: the input section moved to schema 3 (the pointer record gained downs, ups, downX,
+// downY and button), so `schema.input` is 3 and `input.version`/`input.pointer` changed; no other key moved.
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

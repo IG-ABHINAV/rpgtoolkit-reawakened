@@ -1152,9 +1152,9 @@ const REAWAKENED = [GROUP, "reawakened-additions-not-part-of-the-282-legacy-cata
 
 const MOVE_ASSET = {
   name: "__battle_move_asset", aliases: [], params: [parameter("ok"), parameter("bytes")],
-  doc: internalDocumentation("Resume a special-move asset request.", "Reads the `.spc` bytes and returns only the normalized battle fields and the description as a dictionary with lowercase keys.", [...ASSET_REPLY_THROWS, { code: "format.special-move", when: "the bytes are not a valid special move `.spc` file" }]),
+  doc: internalDocumentation("Resume a special-move asset request.", "Reads the `.spc` bytes and returns only the display name, the normalized battle fields and the description as a dictionary with lowercase keys.", [...ASSET_REPLY_THROWS, { code: "format.special-move", when: "the bytes are not a valid special move `.spc` file" }]),
   call: dataAssetContinuation("special move", "format.special-move", readSpecialMove, (view, _args, move) => dictionary(view, {
-    fp: move.damage, smp: move.smpCost, targetsmp: move.targetSmpDrain,
+    name: move.name, fp: move.damage, smp: move.smpCost, targetsmp: move.targetSmpDrain,
     animation: move.animation, program: move.program, statuseffect: move.statusEffect,
     battle: move.usableInBattle, menu: move.usableFromMenu,
     description: move.description,
@@ -1165,7 +1165,7 @@ const MOVE_DATA = {
   name: "battlemovedata", aliases: [], params: [parameter("file")],
   doc: {
     summary: "Read a special move file's battle numbers, references and description.",
-    behaviour: "Loads SpcMove/<file>.spc (the prefix and extension may be omitted) and returns a dictionary of its stored values without changing any actor, inventory or battle state: `fp` (damage), `smp` (cost to the user), `targetsmp` (SMP drained from the target), `animation`, `program`, `statuseffect` (file names, possibly empty), and `battle` / `menu`, the stored usability bytes passed through unchanged, and `description`, the move's description text exactly as stored (an empty string when the file stores none). The stored byte is 0 for usable and non-zero (1, or -1 in old files) for not usable; comparing it is left to the calling script. Member names are matched ignoring case. It makes no rules about damage, cost or affordability. Failures raise the ordinary asset and format errors, which the standard script error policy turns into a null result.",
+    behaviour: "Loads SpcMove/<file>.spc (the prefix and extension may be omitted) and returns a dictionary of its stored values without changing any actor, inventory or battle state: `name` (the move's stored display name exactly as read, the empty string when the file stores none), `fp` (damage), `smp` (cost to the user), `targetsmp` (SMP drained from the target), `animation`, `program`, `statuseffect` (file names, possibly empty), and `battle` / `menu`, the stored usability bytes passed through unchanged, and `description`, the move's description text exactly as stored (an empty string when the file stores none). The stored byte is 0 for usable and non-zero (1, or -1 in old files) for not usable; comparing it is left to the calling script. Member names are matched ignoring case. It makes no rules about damage, cost or affordability. Failures raise the ordinary asset and format errors, which the standard script error policy turns into a null result.",
     groups: REAWAKENED, tags: ["experimental"], waits: ASSET_WAIT,
     throws: [...ASSET_REPLY_THROWS, { code: "format.special-move", when: "the bytes are not a valid special move `.spc` file" }, { code: "builtin.bad-arg", when: "the file name is empty" }],
   },
@@ -1332,7 +1332,7 @@ const ENEMY_DATA = {
  * (progression-and-levels.md#special-moves): experience at least `minExp`, level at least `minLevel`, or the named
  * script variable equal to the required value (compared as text, or as numbers when both read as finite numbers).
  */
-function specialAvailable(view: CommandView, actorId: number, slot: { readonly minExp: number; readonly minLevel: number; readonly condVar: string; readonly condValue: string }): boolean {
+export function specialAvailable(view: CommandView, actorId: number, slot: { readonly minExp: number; readonly minLevel: number; readonly condVar: string; readonly condValue: string }): boolean {
   const actor = actorRecord(view, actorId);
   if (actor !== null && (actor.stats.experience >= slot.minExp || actor.stats.level >= slot.minLevel)) return true;
   if (slot.condVar === "") return false;

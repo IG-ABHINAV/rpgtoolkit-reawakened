@@ -123,6 +123,8 @@ export type ClosingGameRun = {
 
 const INCLUDE: DrawListInclude = { shading: true, images: true, sprites: true };
 const PNG_DIRECTORY = "golden/regression/closing";
+// #585 re-pinned demo and Basic state hashes only: their startup menuGraphic now stores menu.graphic. Reverting
+// that command to its former mixed/ui responder restores all eight previous closing baselines; pixels did not move.
 export const CLOSING_BASELINE_PATH = "golden/regression/closing.json";
 export const CLOSING_PLAN_PATH = "golden/closing/plan.json";
 

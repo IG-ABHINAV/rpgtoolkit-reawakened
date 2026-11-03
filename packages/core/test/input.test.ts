@@ -9,7 +9,7 @@ import {
   type InputView,
 } from "../src/input/index.ts";
 import { createGameState, restoreGameState, snapshot } from "../src/save/index.ts";
-import { pollInputKey } from "../src/script/waits.ts";
+import { pollInputKey, pollMenuScreen } from "../src/script/waits.ts";
 
 test("input records have monotonic sequences and claims deliver each key once", () => {
   const state = createInputSection();
@@ -93,7 +93,7 @@ test("focus and held state are owned by the input section", () => {
   equal(state.focused, false);
   applyInputEvent(state, { kind: "focus", state: "gained" });
   equal(state.focused, true);
-  deepEqual(state.pointer, { x: 0, y: 0, buttons: 0 });
+  deepEqual(state.pointer, { x: 0, y: 0, buttons: 0, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
 });
 
 const GAMEPAD_RIGHT = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 8 } as const;
@@ -189,8 +189,83 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 2);
+  equal(state.input.version, 3);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);
+});
+
+const FRESH_POINTER = { x: 0, y: 0, buttons: 0, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 };
+
+test("the pointer record counts every press and release edge, even stamped to one tick", () => {
+  const state = createInputSection();
+  deepEqual(state.pointer, FRESH_POINTER);
+  // A stalled host delivers the press and the release together; both edges must survive.
+  applyInputEvent(state, { kind: "pointer", x: 40, y: 50, buttons: 1 });
+  applyInputEvent(state, { kind: "pointer", x: 44, y: 52, buttons: 0 });
+  deepEqual(state.pointer, { x: 44, y: 52, buttons: 0, downs: 1, ups: 1, downX: 40, downY: 50, button: 1 });
+  // A move with the buttons unchanged is no edge.
+  applyInputEvent(state, { kind: "pointer", x: 60, y: 70, buttons: 0 });
+  equal(state.pointer.downs + state.pointer.ups, 2);
+  // The secondary button is its own edge and names itself in `button`.
+  applyInputEvent(state, { kind: "pointer", x: 60, y: 70, buttons: 2 });
+  applyInputEvent(state, { kind: "pointer", x: 61, y: 70, buttons: 0 });
+  deepEqual(state.pointer, { x: 61, y: 70, buttons: 0, downs: 2, ups: 2, downX: 60, downY: 70, button: 2 });
+  // Two buttons that change in one event are handled lowest bit first, so `button` ends on the higher one.
+  applyInputEvent(state, { kind: "pointer", x: 1, y: 2, buttons: 3 });
+  deepEqual([state.pointer.downs, state.pointer.button], [4, 2]);
+});
+
+test("a focus loss releases the buttons without counting a release", () => {
+  const state = createInputSection();
+  applyInputEvent(state, { kind: "pointer", x: 5, y: 6, buttons: 1 });
+  applyInputEvent(state, { kind: "focus", state: "lost" });
+  deepEqual(state.pointer, { x: 5, y: 6, buttons: 0, downs: 1, ups: 0, downX: 5, downY: 6, button: 1 });
+});
+
+test("the pointer record round-trips a snapshot and a version-2 section migrates with zeroed counters", () => {
+  const state = createGameState({ seed: 7 });
+  state.input = createInputSection({ bindings: { keys: { ArrowUp: "up" } } });
+  applyInputEvent(state.input, { kind: "pointer", x: 9, y: 8, buttons: 1 });
+  deepEqual(restoreGameState(snapshot(state)).input, state.input);
+
+  const raw = JSON.parse(snapshot(state)) as { schema: Record<string, number>; input: Record<string, unknown> };
+  raw.schema.input = 2;
+  raw.input.version = 2;
+  raw.input.pointer = { x: 9, y: 8, buttons: 1 };
+  const migrated = restoreGameState(JSON.stringify(raw)).input;
+  deepEqual(migrated.pointer, { x: 9, y: 8, buttons: 1, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
+  equal(migrated.version, 3);
+  deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
+});
+
+const BASE = { x: 0, y: 0, buttons: 0, downs: 0, ups: 0 };
+
+test("waitInput wakes for a key before the pointer and reports the baseline so the pointer change is not lost", () => {
+  const state = createInputSection();
+  const wait = { kind: "input.key" as const, global: true, key: null, parkSeq: 1, pointer: { ...BASE } };
+  equal(pollInputKey({ tick: 0, input: inputView(state), claims: [] }, wait), null, "nothing changed");
+  applyInputEvent(state, { kind: "pointer", x: 7, y: 9, buttons: 1 });
+  applyInputEvent(state, { kind: "key", name: "A", code: "KeyA", char: "a", down: true });
+  const key = pollInputKey({ tick: 1, input: inputView(state), claims: [] }, wait);
+  deepEqual(key?.record, { kind: "key", key: "A", ...BASE, downx: 7, downy: 9, button: 1, moved: 0, newdowns: 0, newups: 0 });
+  equal(key?.claim, 1, "the key is claimed like wait() claims it");
+  const pointer = pollInputKey({ tick: 1, input: inputView(state), claims: [1] }, wait);
+  deepEqual(pointer?.record, { kind: "pointer", key: "", x: 7, y: 9, buttons: 1, downs: 1, ups: 0, downx: 7, downy: 9, button: 1, moved: 1, newdowns: 1, newups: 0 });
+  const settled = pollInputKey({ tick: 2, input: inputView(state), claims: [1] }, { ...wait, pointer: { x: 7, y: 9, buttons: 1, downs: 1, ups: 0 } });
+  equal(settled, null, "a baseline equal to the record waits again");
+});
+
+test("a native menu wait wakes for a pointer change against its parked baseline", () => {
+  const state = createInputSection();
+  const wait = (pointer: unknown) => ({ kind: "menu.screen" as const, global: true, id: "p", resumeRefs: [], payload: [{ providerId: "p", screen: "main", state: null, phase: "input", childScreen: null, parkSeq: 1, pointer }] as never });
+  const baseline = { ...BASE };
+  equal(pollMenuScreen({ tick: 0, input: inputView(state), claims: [] }, wait(baseline)), null);
+  applyInputEvent(state, { kind: "pointer", x: 3, y: 4, buttons: 0 });
+  const moved = pollMenuScreen({ tick: 1, input: inputView(state), claims: [] }, wait(baseline));
+  deepEqual(moved?.record, { x: 3, y: 4, buttons: 0, downs: 0, ups: 0, downx: 0, downy: 0, button: 0, moved: 1, newdowns: 0, newups: 0 });
+  applyInputEvent(state, { kind: "key", name: "ENTER", code: "Enter", char: null, down: true });
+  const tie = pollMenuScreen({ tick: 1, input: inputView(state), claims: [] }, wait(baseline));
+  equal(tie?.value, "ENTER", "a key wins a same-tick tie");
+  equal(tie?.record, undefined);
 });

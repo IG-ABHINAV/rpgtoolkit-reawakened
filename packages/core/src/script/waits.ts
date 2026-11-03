@@ -14,6 +14,7 @@
  */
 
 import type { Wait, WaitKindResolver, WaitPoll, WaitResult, WaitView } from "../ports/wait.ts";
+import type { PlainData } from "../ports/plain-data.ts";
 import { ScriptError } from "./errors.ts";
 import { DICTIONARY_CLASS } from "./objects.ts";
 
@@ -69,6 +70,7 @@ export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
     }
     return null;
   }
+  if (wait.pointer !== undefined) return pollInputPointer(view, wait, wait.pointer, floor, claimed);
   if (view.input !== undefined) {
     for (const key of view.input.keys) {
       if (key.seq < floor || claimed.has(key.seq)) continue;
@@ -77,6 +79,38 @@ export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
   }
   if (wait.key === null) return null;
   return { value: wait.key, ok: true, discardBefore: floor };
+}
+
+/**
+ * `waitInput`: the `input.key` poll plus the pointer record. A key wins a same-tick tie and reports the baseline's
+ * pointer fields, so a pointer change that came with it is seen by the next wait; a pointer change reports the record.
+ */
+function pollInputPointer(view: WaitView, wait: InputKeyWait, baseline: NonNullable<InputKeyWait["pointer"]>, floor: number, claimed: ReadonlySet<number>): WaitResult | null {
+  const now = view.input?.pointer;
+  const current = {
+    x: now?.x ?? 0, y: now?.y ?? 0, buttons: now?.buttons ?? 0, downs: now?.downs ?? 0, ups: now?.ups ?? 0,
+    downX: now?.downX ?? 0, downY: now?.downY ?? 0, button: now?.button ?? 0,
+  };
+  const base = { x: baseline.x, y: baseline.y, buttons: baseline.buttons, downs: baseline.downs, ups: baseline.ups };
+  const keyRecord = (name: string): { readonly [field: string]: PlainData } => ({ kind: "key", key: name, ...base, downx: current.downX, downy: current.downY, button: current.button, moved: 0, newdowns: 0, newups: 0 });
+  if (view.input !== undefined) {
+    for (const key of view.input.keys) {
+      if (key.seq < floor || claimed.has(key.seq)) continue;
+      return { value: null, ok: true, record: keyRecord(key.name), claim: key.seq, discardBefore: floor };
+    }
+  }
+  if (wait.key !== null) return { value: null, ok: true, record: keyRecord(wait.key), discardBefore: floor };
+  if (current.x !== base.x || current.y !== base.y || current.buttons !== base.buttons || current.downs !== base.downs || current.ups !== base.ups) {
+    const { downX, downY, ...rest } = current;
+    return {
+      value: null, ok: true,
+      record: {
+        kind: "pointer", key: "", ...rest, downx: downX, downy: downY,
+        moved: current.x !== base.x || current.y !== base.y ? 1 : 0, newdowns: current.downs - base.downs, newups: current.ups - base.ups,
+      },
+    };
+  }
+  return null;
 }
 /** `menu.screen`: resolve provider input, or wait for the active shop context to close. */
 export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
@@ -89,6 +123,18 @@ export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
     for (const key of view.input?.keys ?? []) {
       if (key.seq < floor || claimed.has(key.seq)) continue;
       return { value: key.name, ok: true, claim: key.seq };
+    }
+    const base = saved.pointer;
+    const now = view.input?.pointer;
+    if (base !== null && typeof base === "object" && !Array.isArray(base) && now !== undefined &&
+        (now.x !== base.x || now.y !== base.y || now.buttons !== base.buttons || (now.downs ?? 0) !== base.downs || (now.ups ?? 0) !== base.ups)) {
+      return {
+        value: null, ok: true,
+        record: {
+          x: now.x, y: now.y, buttons: now.buttons, downs: now.downs ?? 0, ups: now.ups ?? 0, downx: now.downX ?? 0, downy: now.downY ?? 0, button: now.button ?? 0,
+          moved: now.x !== base.x || now.y !== base.y ? 1 : 0, newdowns: (now.downs ?? 0) - Number(base.downs), newups: (now.ups ?? 0) - Number(base.ups),
+        },
+      };
     }
     return null;
   }

@@ -57,6 +57,7 @@ import {
   PARTY_SCHEMA_VERSION, INVENTORY_SCHEMA_VERSION, MENU_SCHEMA_VERSION,
 } from "../menu/model.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection } from "../battle/model.ts";
+import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
 
 /** Every `GameState` section key (AD-10), i.e. the schema version map's keys. */
 export const SCHEMA_VERSIONS = {
@@ -70,7 +71,7 @@ export const SCHEMA_VERSIONS = {
   vm: 7,
   battle: BATTLE_SCHEMA_VERSION,
   menu: MENU_SCHEMA_VERSION,
-  input: 2,
+  input: INPUT_SCHEMA_VERSION,
   ui: 1,
   camera: 1,
   fx: 1,

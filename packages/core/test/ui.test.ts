@@ -150,7 +150,7 @@ test("cursor maps navigate with wrapping, select by keyboard, and ignore mouse a
   applyUiEffect(state, "cursormaprun", firstEffect(run).args ?? []);
   const pointerCursor = command("mousecursor", state, [arg("TK DEFAULT"), arg(0), arg(0), arg(255), arg(0), arg(255)]);
   applyUiEffect(state, "mousecursor", firstEffect(pointerCursor).args ?? []);
-  state.input.pointer = { x: 12, y: 14, buttons: 0 };
+  state.input.pointer = { ...state.input.pointer, x: 12, y: 14, buttons: 0 };
   const wait = run.wait as Wait;
   equal(wait.kind, "input.key");
   if (wait.kind !== "input.key") throw new Error("expected cursor map input wait");
@@ -226,7 +226,7 @@ test("mouseCursor restores the bundled arrow and button slots stay in the overla
   const state = createGameState({ seed: 0 });
   const cursor = command("mousecursor", state, [arg("TK DEFAULT"), arg(0), arg(0), arg(255), arg(0), arg(255)]);
   applyUiEffect(state, "mousecursor", firstEffect(cursor).args ?? []);
-  state.input.pointer = { x: 12, y: 14, buttons: 0 };
+  state.input.pointer = { ...state.input.pointer, x: 12, y: 14, buttons: 0 };
   state.input.buttons = [{ slot: 1, asset: "button.png", x: 2, y: 3, width: 10, height: 11 }];
   const commands = composeUi(state.ui, 100, 100, state.input);
   const arrow = commands.at(-1);

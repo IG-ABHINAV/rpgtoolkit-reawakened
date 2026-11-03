@@ -1331,6 +1331,8 @@ export function runAllCorpusPrograms(seed = 0): readonly ProgramResult[] {
   return results;
 }
 
+// golden/scripts/golden.json: #585 re-pinned only the two sample-start hashes when menuGraphic began storing its
+// image in menu.graphic; reverting that command to the old mixed/ui responder reproduces the prior hashes.
 export function formatScriptsGolden(results: readonly ProgramResult[]): string {
   const payload: ScriptsGolden = {
     schema: 1,

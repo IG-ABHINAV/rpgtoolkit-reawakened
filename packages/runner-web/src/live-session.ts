@@ -30,7 +30,7 @@ import type { DecodeAhead } from "./decode-types.ts";
 import type { PackageSource } from "./package-source.ts";
 import { createSessionAssets, packageOrigin, type AssetLoadState } from "./session-assets.ts";
 import { dispatchRequests } from "./dispatch-requests.ts";
-import { INTERACTIVE_INPUT_BINDINGS } from "./input-bindings.ts";
+import { interactiveMenuBinding } from "./input-bindings.ts";
 
 export type LiveBlobHost = {
   read(area: "saves" | "files", gameId: string, path: string): Promise<Uint8Array | null>;
@@ -172,6 +172,8 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   const mainBytes = source !== null ? source.peek(source.main) ?? undefined : files.get(assetKey(mainFile));
   if (mainBytes === undefined) throw new Error(`runner-web: main file ${mainFile} is absent`);
   if (source !== null && !synthesised) files.set(assetKey(mainFile), mainBytes);
+  const mainInput = readMainFile(new BinaryReader(mainBytes, assetKey(mainFile)));
+  const interactiveInput = interactiveMenuBinding(mainInput.ok ? mainInput.value.menuKey : 0);
   const gameId = deriveGameId(mainBytes, gameIdentity);
   if (source !== null && gameId !== source.gameId) throw new Error(`runner-web: the package source's GameId ${source.gameId} is not the session's ${gameId}`);
   const clock = options.clock ?? ((): number => performance.now());
@@ -190,7 +192,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   let latest: GameState | null = null;
   const phaseRegistrations = interactive
     ? [
-      inputPhaseRegistration({ pixelStep: 8 }),
+      inputPhaseRegistration({ pixelStep: 8, menuKey: interactiveInput.menuKey }),
       movementPhaseRegistration(),
       { phase: "audio" as const, rank: 0, run: (state: GameState) => { latest = state; } },
     ]
@@ -226,7 +228,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       getEntityPosition: () => null,
     },
     ...(interactive ? {
-      input: { bindings: INTERACTIVE_INPUT_BINDINGS },
+      input: { bindings: interactiveInput.bindings },
       resetRegistrations: [inputResetRegistration()],
     } : {}),
     ...(spriteRuntime === undefined ? {} : { spriteRuntime }),

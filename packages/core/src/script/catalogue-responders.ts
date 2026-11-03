@@ -24,6 +24,7 @@ import { RENDER_PLUGIN } from "./packs/render.ts";
 import { toNumberValue, toStringValue } from "./values.ts";
 import { INVENTORY_COMMANDS, INVENTORY_COMMAND_NAMES } from "./packs/inventory.ts";
 import { BATTLE_COMMAND_NAMES } from "./packs/battle.ts";
+import { STOCK_MENU_COMMANDS, STOCK_MENU_COMMAND_NAMES } from "./packs/menu.ts";
 const MENU_SCREENS = ["main", "items", "equipment", "abilities"] as const;
 const MENU_COMMANDS: readonly BuiltinSpec[] = [
   ...MENU_SCREENS.map((screen) => ({
@@ -505,6 +506,7 @@ const CATALOGUE_OWNED_NAMES = new Set([
   ...CATALOGUE_RESPONDERS_PLUGIN.commands.map((command) => command.name).filter((name) => !CATALOGUE_GRAPHICS_NAMES.has(name)),
   ...INVENTORY_COMMAND_NAMES,
   ...BATTLE_COMMAND_NAMES,
+  ...STOCK_MENU_COMMAND_NAMES,
 ]);
 const CORE_FILE_COMMANDS = new Set(["save", "load", "openfileinput", "openfileoutput", "openfileappend", "openfilebinary", "fileinput", "fileprint", "fileget", "fileput"]);
 const MOVEMENT_PACK_NAMES: Record<string, true> = {
@@ -523,12 +525,13 @@ export const CATALOGUE_PLUGIN: PluginDefinition = {
   id: "catalogue",
   version: "1.0.0",
   commands: [
-    ...documentCommands(CATALOGUE_STUBS_PLUGIN.commands.filter((command) => command.name !== "internalmenu" && MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name))),
+    ...documentCommands(CATALOGUE_STUBS_PLUGIN.commands.filter((command) => command.name !== "internalmenu" && MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name) && !STOCK_MENU_COMMAND_NAMES.has(command.name))),
     ...CATALOGUE_RESPONDERS_PLUGIN.commands.filter(
-      (command) => MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !CORE_FILE_COMMANDS.has(command.name) && !CORE_PURE_COMMANDS.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name),
+      (command) => MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !CORE_FILE_COMMANDS.has(command.name) && !CORE_PURE_COMMANDS.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name) && !STOCK_MENU_COMMAND_NAMES.has(command.name),
     ),
     ...INVENTORY_COMMANDS,
     ...MENU_COMMANDS,
+    ...STOCK_MENU_COMMANDS,
     ...PACK_CATALOGUE_FALLBACKS.filter((command) => !CATALOGUE_OWNED_NAMES.has(command.name)),
     ...documentCommands(RENDER_PACK_FALLBACKS.filter((command) => !CATALOGUE_OWNED_NAMES.has(command.name))),
   ],

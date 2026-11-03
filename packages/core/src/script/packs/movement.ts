@@ -255,6 +255,36 @@ const PLAYER_GET_PATH: BuiltinSpec = { name: "playergetpath", aliases: [], param
 const ITEM_GET_PATH: BuiltinSpec = { ...PLAYER_GET_PATH, name: "itemgetpath", doc: docs("Read one queued item path point.", "Returns whether the point exists and writes its pixel coordinates to x and y."), call: (view, args) => { const point = actor(view, itemId(view, args[0]?.value as number | string ?? ""))?.queue.moves[number(args, 1)]?.target; return { value: point === undefined ? 0 : 1, out: [...output(args, 2, point?.x ?? 0), ...output(args, 3, point?.y ?? 0)] }; } };
 const WANDER: BuiltinSpec = { name: "wander", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "restrict", optional: true, byRef: false, variadic: false }], doc: docs("Take a deterministic random step.", "Draws one direction from the injected seedable RNG and emits a one-step item movement effect."), call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const draw = view.rng.nextUint32(); const dir = DIRECTIONS[draw % DIRECTIONS.length] ?? "S"; return { value: null, effects: [moveEffect("wander", [{ value: id, ref: null }, { value: dir, ref: null }, ...args])] }; } };
 const WAIT: BuiltinSpec = { name: "wait", aliases: [], params: [{ name: "dest", optional: true, byRef: true, variadic: false }], doc: docs("Wait for a key press.", "Parks the script until the lowest unclaimed key in the input queue is available, then returns it and optionally writes it by reference.", { kind: "until-input", summary: "Waits for a key press." }), call: (_view, args) => ({ value: null, wait: { kind: "input.key", global: true, key: null, resumeRefs: args.flatMap((arg) => arg.ref === null ? [] : [arg.ref]) } as Wait }) };
+const POINTER_FIELDS = ["x", "y", "buttons", "downs", "ups"] as const;
+/** The baseline a `waitinput` call passes back: the five compared pointer fields of a previous result, or the record as it is now. */
+function pointerBaseline(view: CommandView, last: Value | undefined): NonNullable<Extract<Wait, { readonly kind: "input.key" }>["pointer"]> {
+  // RPGCode's `null` is 0, so an omitted, null or zero `last` all mean "the record as it is now".
+  if (last === undefined || last === null || last === 0 || last === "") {
+    const now = view.state?.input.pointer;
+    return { x: now?.x ?? 0, y: now?.y ?? 0, buttons: now?.buttons ?? 0, downs: now?.downs ?? 0, ups: now?.ups ?? 0 };
+  }
+  if (typeof last !== "object" || !("kind" in last) || last.kind !== "object") throw new ScriptError("builtin.bad-arg", "waitinput: `last` must be the dictionary an earlier waitinput returned");
+  const members = view.objectMembers?.(last.handle);
+  if (members === undefined) throw new ScriptError("builtin.bad-arg", "waitinput: `last` must be a live dictionary");
+  const found: Record<string, number> = {};
+  for (const field of POINTER_FIELDS) {
+    const value = members[field];
+    if (typeof value !== "number" || !Number.isFinite(value)) throw new ScriptError("builtin.bad-arg", `waitinput: \`last\` has no numeric \`${field}\``);
+    found[field] = Math.trunc(value);
+  }
+  return { x: found.x!, y: found.y!, buttons: found.buttons!, downs: found.downs!, ups: found.ups! };
+}
+const WAIT_INPUT: BuiltinSpec = {
+  name: "waitinput", aliases: [], params: [{ name: "last", optional: true, byRef: false, variadic: false }],
+  doc: {
+    summary: "Wait for the next key or pointer change.",
+    behaviour: "In plain terms: like `wait()`, but it also wakes for the mouse or a finger, so a menu written in RPGCode can answer hovers and taps; pass back the dictionary the previous call returned as `last` (omitted, `null` or 0 means the record as it is now) so nothing that happened while the script was busy is missed. Technically: parks as an input wait exactly like `wait()` (global, the lowest unclaimed key with the same sequence floor) and also resumes when the pointer record's `x`, `y`, `buttons`, `downs` or `ups` differs from the baseline, `last` when given or the record as it was when the command ran. Returns a dictionary `{ kind, key, x, y, buttons, downs, ups, downx, downy, button }`: `kind` is \"key\" or \"pointer\" (a key wins a same-tick tie), `key` is the key name or the empty string, and for a key the first five pointer fields repeat the baseline so the next call still sees a pointer change that arrived with it. `wait()` and `get()` never wake for the pointer.",
+    groups: ["mouse-buttons-cursor-maps-11", "reawakened-additions-not-part-of-the-282-legacy-catalogue"],
+    waits: { kind: "until-input", summary: "Waits for a key press or a pointer change." },
+    throws: [{ code: "builtin.bad-arg", when: "`last` is not a dictionary carrying numeric x, y, buttons, downs and ups" }],
+  },
+  call: (view, args) => ({ value: null, wait: { kind: "input.key", global: true, key: null, pointer: pointerBaseline(view, args[0]?.value) } as Wait }),
+};
 const GET: BuiltinSpec = { name: "get", aliases: [], params: [{ name: "dest", optional: true, byRef: true, variadic: false }], doc: docs("Get the next buffered key.", "Returns and claims the lowest unclaimed key immediately, or returns an empty string when the buffer has no eligible key.") , call: (view, args) => { const key = view.state?.input.keys.find((candidate) => !(view.state?.engine.claims ?? []).includes(candidate.seq)); if (key === undefined) return { value: "", out: output(args, 0, "") }; return { value: key.name, out: output(args, 0, key.name), effects: [{ kind: "state-write", section: "input", args: [key.seq] }] }; } };
 const CLEAR_BUFFER: BuiltinSpec = { name: "clearbuffer", aliases: [], params: [], doc: docs("Clear all buffered keys.", "Claims every currently buffered key through the engine sequence protocol and removes only those claimed records immediately."), call: (_view) => ({ value: null, effects: [{ kind: "state-write", section: "input", args: [] }] }) };
 const SET_BUTTON: BuiltinSpec = { name: "setbutton", aliases: [], params: [{ name: "file", optional: false, byRef: false, variadic: false }, { name: "slot", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "width", optional: false, byRef: false, variadic: false }, { name: "height", optional: false, byRef: false, variadic: false }], doc: docs("Create a clickable button.", "Creates or replaces a button slot at pixel x,y with the supplied dimensions until clearButtons removes it."), call: (_view, args) => ({ value: null, effects: [{ kind: "state-write", section: "input", args: args.map((arg) => arg.value as never) }] }) };
@@ -265,7 +295,7 @@ const MOUSE_CLICK: BuiltinSpec = { name: "mouseclick", aliases: [], params: [{ n
 const PLAYER_STANCE: BuiltinSpec = { name: "playerstance", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "stance", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }], doc: docs("Play a player's stance animation.", "Starts the named stance through the sprite animation owner, then waits for that owner to report completion."), call: (view, args) => stanceResult(view, playerId(view, args[0]?.value as number | string ?? ""), string(args, 1), args) };
 const ITEM_STANCE: BuiltinSpec = { ...PLAYER_STANCE, name: "itemstance", doc: docs("Play an item's stance animation.", "Starts the named item stance through the sprite animation owner, then waits for that owner to report completion."), call: (view, args) => stanceResult(view, itemId(view, args[0]?.value as number | string ?? ""), string(args, 1), args) };
 
-export const MOVEMENT_COMMANDS: readonly BuiltinSpec[] = [PUSH, PUSH_ITEM, PLAYER_STEP, ITEM_STEP, pathCommand("playerpath"), pathCommand("itempath"), PLAYER_LOCATION, ITEM_LOCATION, ACTIVE_PLAYER, ADD_PLAYER, REMOVE_PLAYER, RESTORE_PLAYER, DESTROY_PLAYER, NEW_PLAYER, ADD_PLAYER_ASSET, NEW_PLAYER_ASSET, PLAYER_DIRECTION, ITEM_DIRECTION, PLAYER_SPEED, ITEM_SPEED, PLAYER_GET_PATH, ITEM_GET_PATH, WANDER, WAIT, GET, CLEAR_BUFFER, SET_BUTTON, CHECK_BUTTON, CLEAR_BUTTONS, MOUSE_MOVE, MOUSE_CLICK, PLAYER_STANCE, ITEM_STANCE];
+export const MOVEMENT_COMMANDS: readonly BuiltinSpec[] = [PUSH, PUSH_ITEM, PLAYER_STEP, ITEM_STEP, pathCommand("playerpath"), pathCommand("itempath"), PLAYER_LOCATION, ITEM_LOCATION, ACTIVE_PLAYER, ADD_PLAYER, REMOVE_PLAYER, RESTORE_PLAYER, DESTROY_PLAYER, NEW_PLAYER, ADD_PLAYER_ASSET, NEW_PLAYER_ASSET, PLAYER_DIRECTION, ITEM_DIRECTION, PLAYER_SPEED, ITEM_SPEED, PLAYER_GET_PATH, ITEM_GET_PATH, WANDER, WAIT, WAIT_INPUT, GET, CLEAR_BUFFER, SET_BUTTON, CHECK_BUTTON, CLEAR_BUTTONS, MOUSE_MOVE, MOUSE_CLICK, PLAYER_STANCE, ITEM_STANCE];
 
 export function applyInputEffect(state: GameState, name: string, args: readonly Value[]): void {
   state.engine.claims ??= [];

@@ -10,7 +10,7 @@
  * ignored findings.
  */
 
-import { commandDocumentation, foldAscii, type ResolvedPlugin } from "@tk-reawakened/core";
+import { commandDocumentation, foldAscii, HOST_METHOD_NAMES, type ResolvedPlugin } from "@tk-reawakened/core";
 import { legacyFixes } from "./fixes.ts";
 import type { Diagnostic } from "./diagnostics.ts";
 import { rangeOf } from "./diagnostics.ts";
@@ -233,6 +233,12 @@ function rulesFor(program: IndexProgram, catalogue: Catalogue, resolveIncludes: 
   // A parameter is called as a callable without a load, so the index states the
   // parameter names; a call to one is not an unknown command.
   for (const param of program.parameters) callableVariables.add(foldAscii(param));
+  // A host object's methods are call targets that are not registered commands (`context.inventory.use`, `fighter.damage`).
+  const hostMethods = new Set<string>();
+  for (const name of HOST_METHOD_NAMES) {
+    callableVariables.add(foldAscii(name));
+    hostMethods.add(foldAscii(name));
+  }
 
   for (const call of program.calls) {
     if (call.file !== null) continue;
@@ -245,6 +251,9 @@ function rulesFor(program: IndexProgram, catalogue: Catalogue, resolveIncludes: 
 
   for (const call of program.calls) {
     if (call.file !== null) continue;
+    // A name that is also a host method (`context.inventory.replace`) may be that method rather than the command of
+    // the same name, so its arity is not the catalogue's to state.
+    if (hostMethods.has(foldAscii(call.name))) continue;
     const entry = catalogue.byName.get(foldAscii(call.name));
     if (entry === undefined) continue;
     const bounds = arityOf(entry);

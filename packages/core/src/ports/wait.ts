@@ -60,6 +60,12 @@ export type InputKeyWait = {
   cursorMap?: number;
   cursorSelection?: number;
   dialogue?: { actorId: number; targetId: number | null; text: string };
+  /**
+   * `waitInput`: also resume when the pointer record differs from this baseline
+   * (docs/spec/engine/rpgcode-functions.md#reawakened-waitinput). The baseline travels with the script, not the park
+   * time, so a press and release that arrive while the script is busy are still seen by the next wait.
+   */
+  pointer?: { x: number; y: number; buttons: number; downs: number; ups: number };
 };
 
 /** A wait for coupled sprite movement (`multiRun`, E-33). */
@@ -102,7 +108,7 @@ export type WaitInputView = {
   readonly nextSeq?: number;
   readonly keys: readonly { readonly seq: number; readonly name: string; readonly code: string; readonly char: string | null }[];
   readonly focused: boolean;
-  readonly pointer?: { readonly x: number; readonly y: number; readonly buttons: number };
+  readonly pointer?: { readonly x: number; readonly y: number; readonly buttons: number; readonly downs?: number; readonly ups?: number; readonly downX?: number; readonly downY?: number; readonly button?: number };
 };
 export type WaitUiView = { readonly [name: string]: unknown };
 
@@ -159,6 +165,8 @@ export type WaitResult =
   | {
       readonly value: Value;
       readonly ok: boolean;
+      /** A dictionary the VM builds as the resumed call's value (`waitInput`); `value` is then ignored. */
+      readonly record?: { readonly [field: string]: PlainData };
       readonly claim?: number;
       /** Per-waiter sequence floor: claim queued input records older than this when resolving. */
       readonly discardBefore?: number;
@@ -169,6 +177,7 @@ export type WaitResult =
       readonly ok: true;
       readonly claim: number;
       readonly discardBefore?: never;
+      readonly record?: never;
       readonly keepWaiting: true;
     };
 

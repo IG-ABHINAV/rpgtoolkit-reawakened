@@ -374,7 +374,10 @@ export function applyMenuStateEffect(ports: MenuOwnerPorts, effect: EffectRecord
     if (result.error !== null) throw new ScriptError("menu.state-invalid", `${result.error.path}: ${result.error.message}`);
     return;
   }
-  if (effect.name !== "state" && effect.name !== "menu.state" && !(section === "inventory" && effect.kind === "state-write")) return;
+  // A section-owning command that posts one plain action (`inn`, `menugraphic`, an internal menu or stack action) reaches
+  // the same router as a script `state` effect; the section decides which actions it accepts.
+  if (effect.name !== "state" && effect.name !== "menu.state" &&
+      !((section === "inventory" || section === "menu") && effect.kind === "state-write")) return;
   if (section !== "party" && section !== "inventory" && section !== "menu") {
     throw new ScriptError("menu.state-invalid", "menu.action: expected a party, inventory or menu section");
   }

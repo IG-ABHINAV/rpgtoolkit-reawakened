@@ -200,6 +200,22 @@ export type MenuScreenId = "main" | "items" | "equipment" | "abilities";
 export type MenuProviderEvent =
   | { readonly type: "enter" }
   | { readonly type: "input"; readonly key: string }
+  | {
+    readonly type: "pointer";
+    readonly x: number;
+    readonly y: number;
+    readonly buttons: number;
+    readonly downs: number;
+    readonly ups: number;
+    readonly downX: number;
+    readonly downY: number;
+    readonly button: number;
+    /** 1 when the position differs from the one the provider last handled. */
+    readonly moved: number;
+    /** Press and release edges since the provider last handled the pointer. */
+    readonly newDowns: number;
+    readonly newUps: number;
+  }
   | { readonly type: "child.closed"; readonly screen: MenuScreenId }
   | { readonly type: "item.action.completed"; readonly result: ItemActionCompletion };
 export type ItemActionCommand = ItemActionRequest;

@@ -360,17 +360,22 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // screen (`clear()`); the other programs never put a screen entry into the saved state.
   // Re-pinned by #589: `vm` moved to schema version 7 (the per-frame `itemActions` stack). Nothing else moved:
   // with the version put back to 6 every previous value (see git history) is reproduced exactly.
+  // #585 (menu graphic): only both sample-start hashes moved because their menuGraphic("layout.png") now writes menu.graphic.
+  // Re-pinned again by #585 (pointer record): the input section moved to schema 3 (`downs`, `ups`, `downX`, `downY`, `button`
+  // joined `input.pointer`), so every state hash moved once and nothing else did. With the schema put back to 2 and the
+  // pointer record reduced to {x, y, buttons}, every previous value above and in golden/scripts/golden.json is reproduced exactly.
+  // Restoring the old mixed/ui responder reproduces both previous hashes and all eight closing baselines exactly.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "3c9570df369b99ee",
-    "sample-system-demo": "7eea74147387c5ce",
-    "sample-sys-test-demo": "7eea74147387c5ce",
-    "sample-win-demo": "ca4bcc0a4d207f84",
-    "sample-oldman-demo": "793d61748a516877",
-    "sample-man-demo": "32680483084d42f5",
-    "sample-man-wander-demo": "b7261458ac67e304",
-    "sample-start-basic": "22ee04bf53f84146",
-    "sample-system-basic": "7eea74147387c5ce",
-    "sample-wander-basic": "48c259bcfb158d0a",
+    "sample-start-demo": "6f090f49ce67a410",
+    "sample-system-demo": "e1999ddbd152af86",
+    "sample-sys-test-demo": "e1999ddbd152af86",
+    "sample-win-demo": "146b00f4f77cea1c",
+    "sample-oldman-demo": "81c9647c77af178f",
+    "sample-man-demo": "29b8d4fc424c31ed",
+    "sample-man-wander-demo": "cb4cefc06ebccf02",
+    "sample-start-basic": "11de430addc86038",
+    "sample-system-basic": "e1999ddbd152af86",
+    "sample-wander-basic": "b79b37884bda3c8e",
   };
 
   for (const res of results) {
@@ -393,7 +398,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "48c259bcfb158d0a"); // re-pinned by #589 (vm schema 7); was 2694ff0a5f3079c7
+  equal(hash1, "b79b37884bda3c8e"); // re-pinned by #585 (input schema 3, pointer record); was 48c259bcfb158d0a (#589)
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

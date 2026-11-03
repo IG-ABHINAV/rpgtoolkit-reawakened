@@ -284,3 +284,4 @@ export { ERROR_SPECS } from "./builtins/errors.ts";
 export { FILE_SPECS } from "./builtins/files.ts";
 export { PURE_SPECS } from "./builtins/pure.ts";
 export { createCollectingSink, createLogger, LOG_LEVELS, NULL_LOGGER } from "./logging.ts";
+export { HOST_METHOD_NAMES } from "./host-methods.ts";

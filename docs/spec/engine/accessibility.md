@@ -37,7 +37,7 @@ The engine computes the ratio with the deterministic maths of [ADR 0002](../../a
 <a id="a11y-7"></a>
 **Target size (SC 2.5.8).** An interactive target in engine chrome is at least **24 by 24 logical pixels** at 1× scale, or meets the spacing exception. Legacy surfaces are drawn on a 16-pixel grid, so the engine provides:
 
-1. **nearest-target resolution** — a pointer position inside the spacing envelope selects the nearest target, deterministically by distance then by list order;
+1. **nearest-target resolution** — a pointer position inside the spacing envelope selects the nearest target, deterministically by distance then by list order; the stock menu's rows are themselves 24 logical pixels high and tile their list, so each is a full 24 × 24 target;
 2. a **large-cursor option** that scales the stock theme to 1.5× and 2× with nearest-neighbour sampling, so text and targets scale without blurring;
 3. a documented exception list for targets embedded in a legacy game's own art.
 
@@ -85,7 +85,7 @@ An author who needs narration beyond label and value supplies it through the mes
 3. **State is never colour alone.** Enabled, disabled, on cooldown, selected and "unusable here" are each conveyed by a distinct icon, glyph or text as well as a tint, and the accessibility tree carries the same state (`state.disabled`, `value` for a cooldown). A player who cannot distinguish the tints loses no information.
 4. **Cooldowns are announced at the edges, not continuously.** A cooldown produces one polite announcement when it starts and one when the action becomes ready; it never updates per frame, so a screen reader is not flooded while a timer runs.
 
-A surface with more slots than fit on the frame scrolls or pages; it MUST NOT shrink its slots below the target-size rule ([A11Y-7](#a11y-7)) to fit them.
+A surface with more slots than fit on the frame scrolls or pages; it MUST NOT shrink its slots below the target-size rule ([A11Y-7](#a11y-7)) to fit them. The stock menu pages by viewport capacity, `P = max(1, floor((h − 90) / 24))` rows ([plugins-and-battle.md](plugins-and-battle.md#e-80-stock-menu) item 5), and draws a list that fits whole.
 
 <a id="a11y-14"></a>
 **A11Y-14 Script-drawn content is described by default (OWNER; ruled 2026-11-01).** In plain terms: a game made with ordinary RPGCode commands is already described to a screen reader, because the engine describes what the script drew — the message window reads its own text out, and `text()` lines become readable text without the author doing anything.

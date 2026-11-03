@@ -17,6 +17,8 @@ export type HostObjectContext = {
   readonly media?: MediaScriptService;
   /** Owner-mediated access to the saved battle section. */
   readonly battle?: BattleOwner;
+  /** The main file's menu cursor sounds, when the engine knows them (E-80, #585). */
+  readonly menuSounds?: () => { readonly move: string; readonly choose: string; readonly cancel: string };
 };
 
 /** The result of an owner-backed host member write. */

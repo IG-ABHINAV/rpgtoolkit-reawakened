@@ -250,6 +250,32 @@ function hostAction(name: string, kind: ItemActionRequest["kind"], summary: stri
   };
 }
 const USE_ITEM = hostAction("__inventory_use", "use", "Use an inventory stack on a party member from the menu context.");
+const REMOVE_STACK: BuiltinSpec = {
+  name: "__inventory_remove_stack", aliases: [], params: params([{ name: "self" }, { name: "action" }]),
+  doc: internalDocs("Remove available units from one inventory stack from the menu context.", "Validates `entryId` and `amount`, then applies the E-81 primitive `removeItem` through the inventory owner and returns its standard result. It runs no item program and changes nothing when the owner refuses."),
+  call: (view, args) => {
+    const value = args[1]?.value;
+    if (typeof value !== "object" || value === null || !("kind" in value) || value.kind !== "object") {
+      throw new ScriptError("builtin.bad-arg", "__inventory_remove_stack: the action must be a dictionary");
+    }
+    const members = view.objectMembers?.(value.handle);
+    if (members === undefined) throw new ScriptError("builtin.bad-arg", "__inventory_remove_stack: the action must be a live dictionary");
+    const folded = new Map<string, Value>();
+    for (const key of Object.keys(members)) folded.set(foldAscii(key), members[key]!);
+    if (folded.size !== 2 || !folded.has("entryid") || !folded.has("amount")) {
+      throw new ScriptError("builtin.bad-arg", "__inventory_remove_stack: the action takes exactly entryId, amount");
+    }
+    const entryId = folded.get("entryid")!;
+    const amount = folded.get("amount")!;
+    if (typeof entryId !== "number" || !Number.isSafeInteger(entryId) || entryId < 1) {
+      throw new ScriptError("builtin.bad-arg", "__inventory_remove_stack: entryId must be a positive safe integer");
+    }
+    if (typeof amount !== "number" || !Number.isSafeInteger(amount) || amount < 1) {
+      throw new ScriptError("builtin.bad-arg", "__inventory_remove_stack: amount must be a positive safe integer");
+    }
+    return menuAction(view, { type: "removeItem", entryId, amount });
+  },
+};
 const REPLACE_EQUIPMENT = hostAction("__inventory_replace", "replace", "Replace an occupied or empty equipment slot from the menu context.");
 const REMOVE_EQUIPMENT = hostAction("__inventory_remove_equipment", "removeEquipment", "Remove an equipped item from the menu context.");
 const ITEM_ACTION_ASSET: BuiltinSpec = {
@@ -282,6 +308,8 @@ export const INVENTORY_HOST_TYPE: HostObjectType = {
     replace: "__inventory_replace",
     removeEquipment: "__inventory_remove_equipment",
     removeequipment: "__inventory_remove_equipment",
+    removeItem: "__inventory_remove_stack",
+    removeitem: "__inventory_remove_stack",
   },
   readOnlyMembers: ["items", "equipment", "gold"],
   /**
@@ -298,7 +326,7 @@ export const INVENTORY_HOST_TYPE: HostObjectType = {
     }
     if (name === "equipment") {
       return dictionary(context.vm, state.inventory.equipment.map((entry) => ({
-        actorId: entry.actorId, slot: entry.slot, itemId: entry.itemId,
+        actorid: entry.actorId, slot: entry.slot, itemid: entry.itemId,
       })));
     }
     return undefined;
@@ -373,6 +401,6 @@ const INN: BuiltinSpec = {
   doc: { ...docs("Fully heal the player party.", "Sets every party member's current HP and SMP to their maxima immediately, including fallen members; it does not change status effects, equipment, inventory, roster or gold."), groups: [INVENTORY_GROUP, "battle-stats-menus-33"] },
   call: () => ({ value: null, effects: [{ kind: "state-write", section: "party", args: [{ type: "inn" }] }] }),
 };
-export const INVENTORY_COMMANDS: readonly BuiltinSpec[] = [GIVE_ITEM, TAKE_ITEM, ITEM_COUNT, GIVE_GOLD, TAKE_GOLD, GET_GOLD, EQUIP, REMOVE, EQUIP_SELECT, USE_ITEM, REPLACE_EQUIPMENT, REMOVE_EQUIPMENT, ITEM_ACTION_ASSET, ITEM_ACTION_COMPLETE, ITEM_ASSET_CONTINUATION, CALL_SHOP, SHOP_ASSET_CONTINUATION, INN];
-export const INVENTORY_COMMAND_NAMES = new Set<string>([...ITEM_NAMES, "inn", "callshop", "__inventory_item_asset", "__inventory_equip_select", "__inventory_use", "__inventory_replace", "__inventory_remove_equipment", ITEM_ACTION_ASSET_COMMAND, ITEM_ACTION_COMPLETE_COMMAND, "__inventory_shop_asset"]);
+export const INVENTORY_COMMANDS: readonly BuiltinSpec[] = [GIVE_ITEM, TAKE_ITEM, ITEM_COUNT, GIVE_GOLD, TAKE_GOLD, GET_GOLD, EQUIP, REMOVE, EQUIP_SELECT, USE_ITEM, REPLACE_EQUIPMENT, REMOVE_EQUIPMENT, REMOVE_STACK, ITEM_ACTION_ASSET, ITEM_ACTION_COMPLETE, ITEM_ASSET_CONTINUATION, CALL_SHOP, SHOP_ASSET_CONTINUATION, INN];
+export const INVENTORY_COMMAND_NAMES = new Set<string>([...ITEM_NAMES, "inn", "callshop", "__inventory_item_asset", "__inventory_equip_select", "__inventory_use", "__inventory_replace", "__inventory_remove_equipment", "__inventory_remove_stack", ITEM_ACTION_ASSET_COMMAND, ITEM_ACTION_COMPLETE_COMMAND, "__inventory_shop_asset"]);
 export const INVENTORY_PLUGIN: PluginDefinition = { id: "inventory", version: "1.0.0", commands: INVENTORY_COMMANDS };
