@@ -3,7 +3,7 @@ title: "Default menu screens and player-facing behaviors"
 type: 'feature'
 ticket: 8
 created: '2026-10-22'
-status: in-progress
+status: done
 baseline_revision: '961603b596f938ac2ec73c7333b2607ea1f44411'
 risk: "high"
 context:
@@ -63,3 +63,9 @@ These are TKR engineering decisions taken during review, recorded here and in `d
 - **Pointer gestures.** Hover moves the cursor; press only moves it; release over the pressed row confirms; leaving the row cancels the press for good; secondary-button release is `cancel`.
 - **Quit** asks first (`No` focused, `Yes`).
 - **Side finding, tracked separately.** Button slots activate on press (ACT-4, `input/input.ts` `applyPointer`), which A11Y-6 forbids.
+
+## Completion evidence
+
+Merged PR #1216 as `f73450ff32a943ccdaa8681fbde9684e6c199c9e`; it closes #585 and the three defects it fixed on the way (#1217, #1219, #1220).
+
+Every CONTRIBUTING gate ran at the squashed head `9175314d`: `install`, `build`, `typecheck`, `lint`, `fixtures:fetch`, `fixtures:check`, `test` and `test:strict` (3,093 tests, 0 failed, 0 skipped), `golden` (24 compared), `closing` (8/8), `dump:check`, `oracle:check`, `graph`, `licence`, `audit`, `provenance` (963 files, 0 violations), `fixtures:test`, `catalogue:check`, `command-docs`, `no-skips:test`, `icons:test`, `golden:bun`, `script:dogfood`; required CI including `gate` passed on the same head. `packages/core/test/stock-menu.test.ts` holds 63 cases, each proved by removing its guard (17 targeted perturbations on `startup.prg` plus the replay-input swap).
