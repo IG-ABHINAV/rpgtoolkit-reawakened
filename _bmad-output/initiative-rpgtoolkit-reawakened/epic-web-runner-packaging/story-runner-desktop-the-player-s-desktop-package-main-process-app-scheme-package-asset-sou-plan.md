@@ -88,3 +88,20 @@ it landed. This turns the Linux and Windows measurements on in CI.
   a blob host in the browser, which is entry 10's.
 - `tools/desktop/measure.mjs`, which measures any built shell and writes its record where the job uploads it — entry 10 and
   entry 12 can reuse it rather than inventing a second harness.
+
+## Close-out record
+
+Merged in PR #1004 (merge commit `95cca777f`, 2026-11-01). Measurement
+caveat, current as of the 2026-11-03 audit: at that landing only macOS was
+measured and the PR body said so; now all three desktop runners measure every
+required run — macOS natively, Windows natively, Ubuntu under `xvfb-run` — and
+the artifacts `desktop-measurement-macOS/Windows/Linux` of main's merged run
+(41618490317) are that evidence. The committed
+`tools/desktop/measurements/macos.json` is a historical record: its demo
+tick-120 hashes predate the #1048 re-record (the measure lane asserts the
+`demo` `board` tick-120 baseline from `golden/regression/closing.json` at run
+time), which is why the record carries its retirement note. The G6 inventory
+check reports `LICENSES.chromium.html` and `libffmpeg*` per built artefact.
+The player application itself — launch resolution, library, baked-default
+export, three-OS cold-start acceptance — is entry 9.10 / #936 and stays open.
+Ledger entry reconciled to closed issue #938 in the 2026-11-03 ticket audit.

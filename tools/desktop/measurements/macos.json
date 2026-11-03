@@ -28,5 +28,6 @@
     "path": "slot-1.json",
     "written": true,
     "bytes": 42
-  }
+  },
+  "note": "Historical record: this macOS measurement predates the #1048 closing-baseline re-record, so its demo tick-120 state/draw hashes are retired. The desktop:measure lane does not read this file at run time; it asserts the demo board tick-120 baseline from golden/regression/closing.json."
 }

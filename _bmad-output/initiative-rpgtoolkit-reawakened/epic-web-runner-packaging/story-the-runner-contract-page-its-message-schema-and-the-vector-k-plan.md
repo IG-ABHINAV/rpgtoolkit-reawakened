@@ -47,3 +47,10 @@ and adding a field to `BlitCommand` now fails the type check until the schema an
 `pnpm typecheck`; `node --test "packages/runner-harness/test/"*.test.ts` 136 pass (the new file: 5 tests, 298 ms);
 `pnpm fixtures:test` 99 pass; `pnpm runner-protocol:check`; `node tools/no-skips/run.mjs --verify-groups` 8 groups /
 189 files; `pnpm lint`; `pnpm provenance` 725 files, 0 violations. No dependency added.
+
+## Close-out record
+
+Merged in PR #972 (merge commit `a9c23513f`, 2026-10-31). Verified against the
+2026-11-03 audit: `pnpm runner-protocol:check` exists at merged main and was
+rerun green during the #1218 gate; the audio protocol schema and vectors are
+reused rather than duplicated. Ledger entry reconciled to closed issue #927.

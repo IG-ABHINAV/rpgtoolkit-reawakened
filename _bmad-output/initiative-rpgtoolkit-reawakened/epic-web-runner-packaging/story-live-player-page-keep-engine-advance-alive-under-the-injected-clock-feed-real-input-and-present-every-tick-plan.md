@@ -167,3 +167,18 @@ Closing that gap is a product decision, not a defect fix: it needs either an exp
 - `pnpm browser:test` → 11/11, including the parity test at state `91172695de52cfd6` / draw `9a40be8a0b5ca816`, the interactive movement test (a held ArrowRight moves the player one 32-pixel step and changes the frame), the empty-`startupPrg` boot regression, and focus pause/resume.
 - `pnpm desktop:build && pnpm desktop:measure --out tools/desktop/measurements/macos.json` → state `91172695de52cfd6`, draw `9a40be8a0b5ca816`, frame worst 0.
 - `pnpm desktop:run --package /tmp/tkr-authored-1018.dVCVR0/tiny-example.tpk` → a temporary package built from `docs/spec/examples/game` (no legacy download, not committed) showed its own village board after Enter, with the status reporting a player position.
+
+## Gap record (2026-11-03 audit; open work, no status change)
+
+The web leg of acceptance is provable from the merged battery at main:
+`tools/browser/tests/live-player.spec.ts` boots demo to the board on a visible canvas and moves the
+player under a held key; `tools/browser/tests/live-parity.spec.ts` pins the
+live page's tick-120 parity against `golden/regression/closing.json`; `mobile.spec.ts`,
+`storage.spec.ts` and `package.spec.ts` cover the wrapper, per-host durable saves and the
+no-start-up-program package; and the trigger phase is live since PR #1218 (merged 3fa7f68d).
+Remaining gap precisely: no committed evidence shows the desktop shell running the shared live loop
+interactively on an authored non-demo package (macOS measurement is demo-only; desktop evidence is
+tap/hold probes), and the acceptance asks for an authored non-demo package rendering its own board in
+the desktop player, with saves staying per-host (= #1021's round trip for hosts). Implementation gap:
+one interactive desktop run recording hashes and a screenshot; nothing about the web page itself is
+missing.

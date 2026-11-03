@@ -162,6 +162,7 @@ references = ["spec - _bmad-output/initiative-rpgtoolkit-reawakened/spec-rpgtool
 [[entry]]
 id = 10
 tracker_id = "#936"
+notes = ["Gap recorded 2026-11-03 (read-only audit, evidence-based): the player application itself is unbuilt — Electron launch resolution (--game/deep link, player.json, baked default, library), the baked-package export and the editor-exclusion are not implemented, so acceptance rests on no merged work yet. Remaining evidence: three-OS cold-start acceptance in CI covering all four launch paths, the four measurements (WebGL2, D-7 blend bound, audio length, package from disk), one PWA-vs-player frame-equality check, and the explicit done-checkpoint record of a person accepting ADR 0013 (the ADR is already marked Accepted 2026-10-31 citing the owner's D-1 ruling; the signature line is what is missing). Not a device or review blocker: it is implementation that would satisfy the verify."]
 type = "story"
 title = "Player application: the ruled Electron shell, launch resolution, library and default game"
 description = "Builds the **player** application on `runner-desktop` (entry 11) rather than settling a shell choice: **Electron 45.2.1**, player-only and carrying no editor code or chrome, serving its pages over the `app://` scheme entry 11 registers and registering no service worker because a desktop application is already offline. It resolves the game it opens in the ruled order — an explicit `--game` argument or a deep link, then `player.json` beside the executable or in the OS configuration directory when installed, then an embedded default project baked in at export, then the installed-game library — with no per-game stub and no file association, because the single-project case is configuration, not packaging, and handing someone \"the player plus my game\" is a pre-configured build or a config file. It adds the **library** (a versioned registry in the application-data directory holding each installed package's identity, path on disk and per-game settings, outside the AD-17 save blobs, where installing means registering a package) with the default-game setting, so a cold start opens the configured or baked game and otherwise shows the library and says why. It writes **ADR 0013** — the shell, the `app://` requirement, the resolution order, and one `guardrail-exception: G6 ADR-0013` inventory that names **both** desktop binaries from the same Electron version, the player's artefact read here and the editor's when epic `desktop-shell` first builds it — and measures the **exported player** with its baked default, plus the PWA, on Chromium and on macOS, Windows and Linux in CI, adding no WKWebView, WebView2 or WebKitGTK leg unless a system-webview application is ever shipped. The editor application is epic `desktop-shell`'s; this entry neither builds nor measures it. **The shell choice is closed:** Tauri stays the recorded fallback and its flip conditions are the escape route, not a comparison to be re-run, and a later divergence needs its own ADR superseding 0013."
@@ -180,7 +181,7 @@ tracker_id = "#940"
 type = "story"
 title = "runner-mobile: the Capacitor wrapper on a device or emulator"
 description = "Wraps the web build in runner-mobile with Capacitor 8.5.3 and the mobile asset and storage sources it needs, proving a sample game runs on a real device or emulator; store submission, signing, icons, splash screens and per-platform chrome are out of scope."
-verify = "The Capacitor build runs `demo` to the board on a device or emulator with a person confirming it, and the tick-120 state hash on the device is `91172695de52cfd6`, the current headless baseline."
+verify = "The Capacitor build runs `demo` to the board on a device or emulator with a person confirming it, and the tick-120 state hash on the device matches the demo board baseline in `golden/regression/closing.json`."
 covers = ["CAP-12"]
 after = [3, 5]
 hitl = true
@@ -190,6 +191,7 @@ references = ["spec - _bmad-output/initiative-rpgtoolkit-reawakened/spec-rpgtool
 [[entry]]
 id = 13
 tracker_id = "#942"
+notes = ["Open with the gap recorded 2026-11-03 (audit): not started — no sweep plan paper exists for this epic and the ledger's `after` correctly keeps it blocked on 9.10 (implementation) and 9.12 (device acceptance). Cleanup list must come from the twelve landed plans when the sweep starts; nothing to accept today."]
 type = "story"
 title = "Refactor sweep"
 description = "Land the cleanups deferred during this epic from the twelve preceding plans and their review findings, taking cleanup only: no scope pushed out of another entry and no behaviour change, with the goldens untouched."
@@ -202,6 +204,7 @@ risk = "low"
 [[entry]]
 id = 14
 tracker_id = "#944"
+notes = ["Open with the gap recorded 2026-11-03 (audit): not started — the one-command browser+desktop closing run does not exist yet (the browser `closing` lane and `desktop:measure` are separate tools today), and the entry is correctly blocked on 9.13. Tile-decoder prerequisite 16.8 is done, so no other prerequisite is missing."]
 type = "story"
 title = "Closing suite: the sample games in browser and desktop, the packaged file, and the CAP-12 signal"
 description = "Closes the epic with one end-to-end run that plays every game in golden/closing/plan.json in the browser (all eight, each to the outcome the plan records, so the six TK2 games exercise entry 16.8's decoder registration) and on desktop, loads a packaged single-file game in both, and replays one recorded input log under Node and headless Chromium, reporting the CAP-12 success check against the same core build the headless runner uses."

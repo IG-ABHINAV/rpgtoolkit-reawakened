@@ -80,3 +80,15 @@ test:strict` (2506/2506, none skipped), `pnpm closing` (8/8), `pnpm browser:test
 (runner-web)` shard and the coverage `gate`.
 
 No golden, state hash, draw hash or snapshot moved.
+
+## Close-out record
+
+Merged in PR #977 (merge commit `892fff188`, 2026-10-31). Honest caveat on the
+verify text: its literal demo tick-120 hash was the current baseline when this
+landed but is retired; the committed baseline is the `demo` game's `board`
+frame at tick 120 in `golden/regression/closing.json`, and the browser lane
+reads that committed baseline at test time, so the equality check kept its
+force (satisfied, not fossilised). The
+lane is a required `gate` dependency and the VP9+Opus / no-WebAssembly probes
+run in the committed `tracer.spec.ts`. Ledger entry reconciled to closed issue
+#928 in the 2026-11-03 ticket audit.
