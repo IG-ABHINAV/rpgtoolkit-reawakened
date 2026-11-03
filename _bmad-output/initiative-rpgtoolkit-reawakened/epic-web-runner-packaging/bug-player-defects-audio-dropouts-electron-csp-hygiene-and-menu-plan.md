@@ -1,9 +1,9 @@
 ---
-title: "Player defects: audio dropouts, Electron CSP hygiene and menu cell layout"
+title: "Player buffer, Electron CSP hygiene and menu cell layout"
 ticket: 22
 status: done
 ---
 
 # Plan
 
-Merged: PR #1042 (ee3db47e) fixes the live-player audio buffer underruns, desktop/browser CSP hygiene and the Electron console-message listener, and corrects menu cell layout; #1042 is merged (2026-11-01). The larger AudioWorklet migration is #1044 / entry 9.18.
+PR #1042 (ee3db47e) adjusts the buffer size based on an inferred underrun cause and fixes CSP/menu issues; it does not establish that the dropouts were fixed. #1043 remains open; the AudioWorklet migration in PR #1165 (0ddb39b9) supersedes the buffer workaround.

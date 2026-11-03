@@ -13,5 +13,6 @@ PR #1042 proposes the normal-player policy and event-object listener. Issue #104
 
 ## Notes
 
-- Merged: PR #1155 (adbc5e93) gives every desktop/web player page the strict shared CSP and makes the test enumerate all player pages (a bare page fails it); desktop measurement passes end to end under the policy. Issue #1049 is closed.
-- Residual: PR #1155 filed #1156 for the mobile player page CSP gap; #1065's fix (PR #1095) is separate.
+- Merged: PR #1155 (adbc5e93) gives every desktop/web player page the strict shared CSP and makes the test enumerate all player pages; desktop measurement passes end to end under the policy. Issue #1049 is closed.
+- Verification gap: the current evidence asserts CSP policy text, but does not prove execution of a disallowed script is blocked.
+- PR #1155 filed #1156 for the mobile player page CSP gap; that issue is now closed by merged PR #1159 (b215d1bd).

@@ -6,4 +6,4 @@ status: done
 
 # Plan
 
-Merged: PR #1036 (350738c9) implements ADR 0016 (`docs/adr/0016-ci-classified-steps.md`); issue #1036 is closed.
+Merged: PR #1036 (350738c9) implements ADR 0016 (`docs/adr/0016-ci-classified-steps.md`), fixing issue #664 (closed).
