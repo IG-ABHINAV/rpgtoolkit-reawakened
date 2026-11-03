@@ -130,7 +130,7 @@ stockMenu = {
     },
     footer: () => {
         if (stockMenu.message != "") {
-            stockMenu.words(stockMenu.labelX, stockMenu.h - 40, stockMenu.message, 16, stockMenu.markR, stockMenu.markG, stockMenu.markB)
+            stockMenu.words(stockMenu.labelX, stockMenu.h - 24, stockMenu.message, 16, stockMenu.markR, stockMenu.markG, stockMenu.markB)
         }
         return 0
     },
@@ -159,7 +159,7 @@ stockMenu = {
         if (rows > cap) {
             local(pages) = integermuldiv(rows + cap - 1, 1, cap)
             local(page) = integermuldiv(selection, 1, cap) + 1
-            stockMenu.words(stockMenu.w - 168, stockMenu.listTop, "Page " + page + " of " + pages, 16, stockMenu.inkR, stockMenu.inkG, stockMenu.inkB)
+            stockMenu.words(stockMenu.w - 168, stockMenu.h - 40, "Page " + page + " of " + pages, 16, stockMenu.inkR, stockMenu.inkG, stockMenu.inkB)
         }
         return 0
     },

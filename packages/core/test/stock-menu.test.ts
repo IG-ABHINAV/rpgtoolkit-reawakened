@@ -473,9 +473,10 @@ function textRows(session: Session): number[] {
   for (let k = 0; 52 + 24 * k + 16 <= pixels.h; k += 1) if (hasInk(pixels, 52 + 24 * k, 24, 150)) rows.push(k);
   return rows;
 }
-/** Whether the page indicator's ink is on the header line, right of the header's own text. */
+/** Whether the page indicator's ink is on its dedicated line above the footer. */
 function hasPageIndicator(session: Session): boolean {
-  return hasInk(pixelsOf(session), 24, 190, 300);
+  const pixels = pixelsOf(session);
+  return hasInk(pixels, pixels.h - 40, 190, 300);
 }
 /** The first and last y of the focus bar (the rows whose pixel at x = 20 is the bar colour), or null. */
 function focusBar(session: Session): { readonly top: number; readonly bottom: number } | null {
