@@ -8,7 +8,7 @@ context:
   - "spec - docs/spec/engine/plugins-and-battle.md#e-80 to E-87, E-123"
   - "spec - docs/spec/formats/save-game.md"
   - "initiative - CAP-5, CAP-9, CAP-10, CAP-11"
-status: review
+status: done
 baseline_revision: eacdf6a9d04678caf389e228a4973def315cb827
 ---
 
