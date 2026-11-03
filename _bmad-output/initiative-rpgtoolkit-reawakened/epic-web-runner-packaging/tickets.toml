@@ -386,8 +386,8 @@ covers = ["CAP-12"]
 after = [2]
 hitl = false
 risk = "medium"
-references = ["issue - #1066", "merged - PR #1066 (28732627)", "merged follow-up - PR #1116 (624e7d01)", "code - tools/fixtures/runner-protocol/"]
-notes = ["Merged: PR #1066 (28732627) and follow-up PR #1116 (624e7d01). Issue #1066 is closed."]
+references = ["issue - #1066", "merged - PR #1108 (28732627) fixes #1066; the earlier PR #1066 reference named the issue number", "merged follow-up - PR #1116 (624e7d01)", "code - tools/fixtures/runner-protocol/"]
+notes = ["Merged: PR #1108 (28732627) fixes #1066 and follow-up PR #1116 (624e7d01). Issue #1066 is closed. The previous note said PR #1066, which is the issue number."]
 
 [[entry]]
 id = 27

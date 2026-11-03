@@ -1,8 +1,7 @@
 ---
 title: "tkr script: the CLI, its result protocol, generated help and the dogfooding CI job"
 ticket: 9
-status: in progress
-blocked_reason: ""
+status: in-progress
 ---
 
 ## Intent
