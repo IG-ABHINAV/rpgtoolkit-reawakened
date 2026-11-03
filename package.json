@@ -10,6 +10,7 @@
     "test": "tsc -b && node --test \"packages/*/test/*.test.ts\"",
     "coverage": "tsc -b && mkdir -p coverage && node --experimental-test-coverage --test-coverage-lines=91 --test-coverage-branches=81 --test-coverage-include='packages/*/src/**' --test-coverage-exclude='**/catalogue-stubs.ts' --test-reporter=spec --test-reporter=lcov --test-reporter-destination=stdout --test-reporter-destination=coverage/lcov.info --test \"packages/*/test/*.test.ts\"",
     "test:strict": "tsc -b && node tools/no-skips/run.mjs",
+    "bmad:tickets:test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s _bmad/method/scripts/tests -v",
     "lint": "node tools/check-core-deps.mjs && eslint .",
     "ci:classify:test": "node --test tools/ci/test/classify-changes.test.mjs",
     "graph": "node tools/deps/graph.mjs",

@@ -103,6 +103,7 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm bmad:tickets:test
       # `typecheck` starts with `tsc -b`, so subsequent checks reuse the built output.
       - run: pnpm typecheck
       - run: pnpm lint
