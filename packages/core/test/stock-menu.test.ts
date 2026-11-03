@@ -338,6 +338,14 @@ test("dirsav can be entered directly and returns the selected base name", () => 
   deepEqual(session.diagnostics, []);
 });
 
+test("a long dirsav title and the page indicator render on separate lines", () => {
+  const session = boot({ saves: 7, startup: 'dirsav("Long Save Picker XXX", 0, 0, 0, "")\n' });
+  session.pump((state) => session.requests.includes("listBlobs") && state.vm.threads.some((thread) => thread.wait?.kind === "input.key"));
+  const pixels = pixelsOf(session);
+  ok(hasInk(pixels, 24, 190, 300), "the long title reaches the old page-indicator area");
+  ok(hasPageIndicator(session), "the page indicator is drawn on its own line");
+});
+
 test("MenuGraphic is stored on the menu section and drawn by the screen", () => {
   const session = boot({ startup: 'menugraphic("layout.png")\nmainmenu()\n' });
   const state = session.pump((current) => current.menu.screens.length === 1);
@@ -473,9 +481,10 @@ function textRows(session: Session): number[] {
   for (let k = 0; 52 + 24 * k + 16 <= pixels.h; k += 1) if (hasInk(pixels, 52 + 24 * k, 24, 150)) rows.push(k);
   return rows;
 }
-/** Whether the page indicator's ink is on the header line, right of the header's own text. */
+/** Whether the page indicator's ink is on its dedicated line above the footer. */
 function hasPageIndicator(session: Session): boolean {
-  return hasInk(pixelsOf(session), 24, 190, 300);
+  const pixels = pixelsOf(session);
+  return hasInk(pixels, pixels.h - 40, 190, 300);
 }
 /** The first and last y of the focus bar (the rows whose pixel at x = 20 is the bar colour), or null. */
 function focusBar(session: Session): { readonly top: number; readonly bottom: number } | null {
