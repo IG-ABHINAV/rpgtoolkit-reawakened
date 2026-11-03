@@ -7,8 +7,15 @@ import {
   createSpriteRuntime,
   deriveGameId,
   derivePackageIdentity,
+  fileProgramRef,
+  placeplayerPixel,
+  resolveProgram,
   DEFAULT_FONT_ASSET,
   hashDrawList,
+  inputPhaseRegistration,
+  inputResetRegistration,
+  movementPhaseRegistration,
+  triggerPhaseRegistration,
   PACKAGE_ROOT,
   readMainFile,
   writeMainFile,
@@ -20,7 +27,6 @@ import {
   type RunnerRequest,
   type SurfaceId,
 } from "@tk-reawakened/core";
-import { inputPhaseRegistration, inputResetRegistration, movementPhaseRegistration } from "@tk-reawakened/core";
 import { parseClosingPlan, type ClosingFiles } from "@tk-reawakened/runner-harness";
 import { createWebgl2Renderer, type RenderStats } from "@tk-reawakened/render-webgl2";
 import { BUNDLED_BANK, CuePlayer, describePatchGap } from "@tk-reawakened/synth";
@@ -56,6 +62,8 @@ export type LiveSession = {
     readonly open: readonly { readonly id: number; readonly track: string; readonly asset: AssetKey }[];
   };
   readonly cuesSettled: () => Promise<void>;
+  /** The located diagnostics the engine has reported so far, capped like the effect audit. */
+  readonly diagnostics: () => readonly { code: string; file: string; line: number; message: string }[];
   readonly advance: (ticks: number, inputs?: readonly InputRecord[]) => Promise<void>;
 };
 type LiveSessionBase = {
@@ -190,10 +198,16 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   let hasPlayer = false;
   let cameraPosition: { x: number; y: number } | null = null;
   let latest: GameState | null = null;
+  const triggerProgramLoader = { index, root: PACKAGE_ROOT, read: (key: AssetKey) => files.get(key) };
   const phaseRegistrations = interactive
     ? [
       inputPhaseRegistration({ pixelStep: 8, menuKey: interactiveInput.menuKey }),
       movementPhaseRegistration(),
+      triggerPhaseRegistration({
+        programRef: (name) => resolveProgram(triggerProgramLoader, name) === undefined
+          ? null
+          : fileProgramRef(triggerProgramLoader, name),
+      }),
       { phase: "audio" as const, rank: 0, run: (state: GameState) => { latest = state; } },
     ]
     : [{ phase: "audio" as const, run: (state: GameState) => { latest = state; } }];
@@ -239,8 +253,8 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
         applier(effect) {
           if (effect.name === "createplayer") hasPlayer = true;
           if (effect.name === "placeplayer") {
-            const [x, y, , unit] = effect.args as [number, number, number, string];
-            cameraPosition = unit === "tile" ? { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 } : { x, y };
+            const [x, y, , unit, coordType, sizeX] = effect.args as [number, number, number, string, number, number];
+            cameraPosition = placeplayerPixel(x, y, unit, coordType, sizeX);
           }
         },
       },
@@ -254,6 +268,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   const fonts = fontProvider(options.bundled);
   let currentTick = 0;
   let currentStateHash = "";
+  const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
   let closed = false;
   let cueChain: Promise<void> = Promise.resolve();
   let processing: Promise<void> = Promise.resolve();
@@ -337,6 +352,10 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       inputs = [];
       currentTick = report.tickAfter;
       currentStateHash = report.stateHash;
+      for (const diagnostic of report.diagnostics) {
+        sessionDiagnostics.push({ code: diagnostic.code, file: diagnostic.file, line: diagnostic.line, message: diagnostic.message });
+      }
+      if (sessionDiagnostics.length > 256) sessionDiagnostics.splice(0, sessionDiagnostics.length - 256);
       // Cues are handed to the player on their own chain, in report order, once the assets they name are cached (the
       // player and the sink read assets synchronously). The simulation never waits on this chain, and a stall in the
       // chain cannot reorder cues, because each report's cues run only after the previous report's.
@@ -368,6 +387,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     loadState: () => assets.state(),
     audioState: () => ({ scheduled: [...sink.scheduled], open: sink.open }),
     cuesSettled: () => cueChain,
+    diagnostics: () => [...sessionDiagnostics],
     engine,
     gameId,
     close() {

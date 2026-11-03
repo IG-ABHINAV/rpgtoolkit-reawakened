@@ -48,6 +48,12 @@ import {
   snapshotGameSave,
   startProgram,
   startThread,
+  placeplayerPixel,
+  coordLayout,
+  tileToPixel,
+  fileProgramRef,
+  resolveProgram,
+  type AssetKey,
 } from "../src/index.ts";
 import { engineEffect, pluginManifestFor, resolveManifestPlugins } from "../src/engine/boot.ts";
 import { hashWithRequestCounter } from "./hash-projections.ts";
@@ -63,7 +69,7 @@ const repoRoot = join(testDir, "..", "..", "..");
 const encoder = new TextEncoder();
 
 type Files = Map<string, Uint8Array>;
-type BoardSpec = { readonly music?: string; readonly enter?: string; readonly threads?: readonly string[]; readonly tiles?: readonly [number, number]; readonly start?: readonly [number, number]; readonly battleBackground?: string; readonly keyTrigger?: boolean };
+type BoardSpec = { readonly music?: string; readonly enter?: string; readonly threads?: readonly string[]; readonly tiles?: readonly [number, number]; readonly start?: readonly [number, number]; readonly battleBackground?: string; readonly keyTrigger?: boolean; readonly coordType?: number; /** A step-on region centred on the arrival tile's own-layout pixel, to pin send-arrival deactivation. */ readonly arrivalRegion?: { readonly tile: readonly [number, number] } };
 type GameSpec = {
   readonly startup?: string;
   readonly initChar?: string;
@@ -91,23 +97,39 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
 
 function boardBytes(spec: BoardSpec): Uint8Array {
   const [sizeX, sizeY] = spec.tiles ?? [40, 30];
-  const cells = sizeX * sizeY;
   const empty = createEmptyBoard();
+  const layout = coordLayout(spec.coordType ?? 0);
+  // Isometric boards store the projected grid, which is (sizeX + sizeY) square for both layouts.
+  const cells = layout === "2d" ? sizeX * sizeY : (sizeX + sizeY) ** 2;
+  const arrivalRegion = spec.arrivalRegion === undefined ? [] : (() => {
+    const centre = tileToPixel(layout, sizeX, spec.arrivalRegion.tile[0], spec.arrivalRegion.tile[1]);
+    return [{
+      program: "arrival.prg", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+      activate: 0, activationType: 0, repeatDistance: 0, layer: 1,
+      // A square no bigger than the player's base around the destination tile's own-layout pixel.
+      points: [{ x: centre.x - 6, y: centre.y - 6 }, { x: centre.x + 6, y: centre.y - 6 }, { x: centre.x + 6, y: centre.y + 6 }, { x: centre.x - 6, y: centre.y + 6 }],
+      closed: 1, handle: "arrival-region",
+    }];
+  })();
   return unwrap(writeBoard({
     ...empty,
     sizeX,
     sizeY,
     sizeL: 1,
+    coordType: spec.coordType ?? 0,
     tileMatrix: Array.from({ length: cells }, () => 0),
     tileRuns: [{ lutIndex: 0, count: cells, marker: true }],
     threads: [...(spec.threads ?? [])],
     layerTitles: ["", ""],
-    programs: spec.keyTrigger ? [{
-      program: "trigger.prg", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
-      activate: 0, activationType: 1, repeatDistance: 0, layer: 1,
-      points: [{ x: 32, y: 32 }, { x: 96, y: 32 }, { x: 96, y: 96 }, { x: 32, y: 96 }],
-      closed: 1, handle: "start-trigger",
-    }] : [],
+    programs: [
+      ...(spec.keyTrigger ? [{
+        program: "trigger.prg", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+        activate: 0, activationType: 1, repeatDistance: 0, layer: 1,
+        points: [{ x: 32, y: 32 }, { x: 96, y: 32 }, { x: 96, y: 96 }, { x: 32, y: 96 }],
+        closed: 1, handle: "start-trigger",
+      }] : []),
+      ...arrivalRegion,
+    ],
     properties: {
       ...empty.properties,
       backgroundMusic: spec.music ?? "",
@@ -210,8 +232,8 @@ function makeDoubles(
             sprites.push(effect);
             if (effect.name === "createplayer") players.push(effect.args[0] ?? null);
             if (effect.name === "placeplayer") {
-              const [x, y, , unit] = effect.args as [number, number, number, string];
-              position = unit === "tile" ? { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 } : { x, y };
+              const [x, y, , unit, coordType, sizeX] = effect.args as [number, number, number, string, number, number];
+              position = placeplayerPixel(x, y, unit, coordType, sizeX);
             }
           },
         },
@@ -1193,7 +1215,7 @@ test("send leaves the ruled state: old board threads dead, a persistent thread a
   equal(state.engine.transition, undefined);
   // Tile (30, 20) is pixel (944, 639) on a 2D board (E-11): the camera centres on it without smoothing.
   deepEqual({ x: state.camera.x, y: state.camera.y, prevX: state.camera.prevX, prevY: state.camera.prevY }, { x: 784, y: 519, prevX: 784, prevY: 519 });
-  deepEqual(doubles.sprites.map((effect) => [effect.name, ...effect.args]).slice(-1), [["placeplayer", 30, 20, 1, "tile"]]);
+  deepEqual(doubles.sprites.map((effect) => [effect.name, ...effect.args]).slice(-1), [["placeplayer", 30, 20, 1, "tile", 0, 50]]);
   deepEqual(doubles.triggers.map((effect) => [effect.name, ...effect.args]).slice(-1), [["deactivateat", 30, 20, 1, "tile"]]);
   // Both boards name theme.mid and every arrival posts its music; the audio applier, not the engine, decides to carry on (E-16).
   deepEqual(doubles.audio.map((effect) => [effect.name, ...effect.args]), [
@@ -1232,6 +1254,79 @@ test("send validates its arguments with a catchable script error", () => {
   const game = authorGame({ ...SEND_GAME, programs: { ...SEND_GAME.programs, "enter.prg": 'send("", 1, 1)\nend()\n' } });
   const result = run(bootEngine(game, makeDoubles()), game.files, 4);
   equal(result.diagnostics.some((diagnostic) => diagnostic.message.includes("send")), true, JSON.stringify(result.diagnostics));
+});
+
+/** Destination boards for the send-arrival layout rule: a stacked and a rotated 32x32 board, each with a region exactly under the arrival tile. */
+const ISO_SEND_GAME: GameSpec = {
+  startup: "start.prg",
+  initChar: "hero.tem",
+  boards: {
+    "start.brd": { enter: "enter.prg" },
+    "stacked.brd": { coordType: 1, tiles: [32, 32], arrivalRegion: { tile: [4, 4] } },
+    "rotated.brd": { coordType: 2, tiles: [32, 32], arrivalRegion: { tile: [5, 3] } },
+  },
+  programs: {
+    "start.prg": "end()\n",
+    "enter.prg": "end()\n",
+    "arrival.prg": "arrived = 1\nend()\n",
+  },
+};
+
+test("send arrival places the destination-layout pixel and deactivates the region under it on iso boards", () => {
+  for (const spec of [
+    { board: "stacked.brd", coordType: 1, x: 4, y: 4 },
+    { board: "rotated.brd", coordType: 2, x: 5, y: 3 },
+  ]) {
+    const game = authorGame({
+      ...ISO_SEND_GAME,
+      programs: { ...ISO_SEND_GAME.programs, "enter.prg": `send("${spec.board}", ${spec.x}, ${spec.y}, 1)\nend()` },
+    });
+    const layout = coordLayout(spec.coordType);
+    const destination = tileToPixel(layout, 32, spec.x, spec.y);
+    const loader = { index: game.index, root: PACKAGE_ROOT, read: (key: AssetKey) => game.files.get(key) };
+    const spriteRuntime = createSpriteRuntime();
+    const stateRef: { current: GameState | null } = { current: null };
+    const engine = createEngine({
+      seed: 11,
+      assetIndex: game.index,
+      assetRoot: game.root,
+      mainFile: game.main,
+      gameIdentity: "engine-boot-iso-send",
+      startup: {
+        presence: { hasPlayer: () => spriteRuntime.hasPlayer() },
+        savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+      },
+      width: 320,
+      height: 240,
+      maxTicks: 600,
+      spriteRuntime,
+      phaseRegistrations: [
+        { phase: "audio", run: (state) => { stateRef.current = state; } },
+        triggerPhaseRegistration({
+          programRef: (name) => resolveProgram(loader, name) === undefined ? null : fileProgramRef(loader, name),
+        }),
+      ],
+    });
+    const result = run(engine, game.files, 12);
+    const state = stateRef.current;
+    if (state === null) throw new Error("no tick ran");
+    const label = `the ${layout} board`;
+    deepEqual(result.diagnostics, []);
+    deepEqual(state.world.board?.key, `boards/${spec.board}`);
+    // The placed player is the destination board's own-layout pixel (E-11), and the `placeplayer`
+    // effect carries the board's coordType and sizeX so every consumer can convert the same way.
+    deepEqual({ x: state.sprites.players[0]!.x, y: state.sprites.players[0]!.y }, destination, `${label}: the placed pixel`);
+    deepEqual(state.vm.effects.filter((effect) => effect.name === "placeplayer" && effect.args[3] === "tile").map((effect) => effect.args), [
+      [spec.x, spec.y, 1, "tile", spec.coordType, 32],
+    ], `${label}: the placeplayer effect args`);
+    deepEqual(state.vm.effects.filter((effect) => effect.name === "deactivateat").map((effect) => effect.args), [
+      [spec.x, spec.y, 1, "tile"],
+    ], `${label}: the deactivateat effect args`);
+    // The trigger phase consumed the arrival between ticks, so the region under the destination is deactivated.
+    ok(state.triggers.deactivated.includes("region:0"), `${label}: the arrival region is deactivated`);
+    equal(state.triggers.active, null, `${label}: nothing fires on the arrival`);
+    equal(state.vm.globals.arrived, undefined, `${label}: the region program did not run`);
+  }
 });
 
 // The sample games: their start.prg boots through the real engine with the doubles above.
@@ -1318,6 +1413,83 @@ test("demo start region responds to the held title key on its first free-roam fr
   equal(state.triggers.active, null);
   run(engine, sample.files, 1);
   equal(current().triggers.active?.key, "region:0");
+});
+
+test("a region naming an absent .prg reports one located program.missing and the engine keeps running", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: {
+      "start.brd": { keyTrigger: true },
+    },
+    programs: {
+      "start.prg": "end()\n",
+      // keyTrigger authors a key region whose trigger.prg is not part of the game.
+    },
+  });
+  const loader = { index: game.index, root: PACKAGE_ROOT, read: (key: AssetKey) => game.files.get(key) };
+  const spriteRuntime = createSpriteRuntime();
+  const stateRef: { current: GameState | null } = { current: null };
+  const engine = createEngine({
+    seed: 11,
+    assetIndex: game.index,
+    assetRoot: game.root,
+    mainFile: game.main,
+    gameIdentity: "engine-boot-long-running",
+    startup: {
+      presence: { hasPlayer: () => spriteRuntime.hasPlayer() },
+      savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+    },
+    width: 320,
+    height: 240,
+    maxTicks: 600,
+    spriteRuntime,
+    input: { bindings: { keys: { Enter: "ENTER", ArrowRight: "right" } } },
+    phaseRegistrations: [
+      inputPhaseRegistration({ pixelStep: 8 }),
+      movementPhaseRegistration(),
+      triggerPhaseRegistration({
+        programRef: (name) => resolveProgram(loader, name) === undefined ? null : fileProgramRef(loader, name),
+      }),
+      { phase: "audio", run: (state) => { stateRef.current = state; } },
+    ],
+  });
+  interface RunFold { readonly diagnostics: RunResult["diagnostics"]; }
+  const play = (ticks: number, inputs: readonly InputRecord[] = []): RunFold => {
+    let remaining = ticks;
+    const diagnostics: RunResult["diagnostics"] = [];
+    let replies = [...inputs];
+    for (let guard = 0; guard < 400; guard += 1) {
+      const report = engine.advance(remaining, replies);
+      replies = [];
+      remaining -= report.ticksRun;
+      diagnostics.push(...report.diagnostics);
+      if (report.loading) { replies = report.requests.flatMap((request) => (request.kind === "asset" ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: game.files.get(request.key) ?? null } }] : [])); continue; }
+      if (remaining <= 0 || report.ticksRun === 0) return { diagnostics };
+    }
+    throw new Error("the host loop did not settle");
+  };
+  play(5);
+  const state = stateRef.current;
+  if (state === null) throw new Error("no tick ran");
+  ok(state.world.board !== null, "boot reached its board");
+  const pressed = play(2, [{ tick: state.time.tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } }]);
+  // The region's trigger starts, reports the missing program once through the engine's own
+  // diagnostic routing, and the game keeps running afterwards.
+  const missing = (pressed as { readonly diagnostics: RunResult["diagnostics"] }).diagnostics.filter((diagnostic) => diagnostic.code === "program.missing");
+  equal(missing.length, 1, "exactly one located report");
+  equal(missing[0]?.file, "boards/start.brd", "the report locates the authored board");
+  equal(missing[0]?.line, 0);
+  equal(state.triggers.active, null, "no trigger runs");
+  ok(state.time.tick > 0, "ticks ran past the diagnostic");
+  const afterTick = stateRef.current?.time.tick ?? 0;
+  const after = play(12, [{ tick: afterTick, event: { kind: "key", name: "ArrowRight", code: "ArrowRight", char: null, down: true } }]);
+  equal(after.diagnostics.filter((diagnostic) => diagnostic.code === "program.missing").length, 0, "one held press reports once, never per frame");
+  const afterState = stateRef.current;
+  if (afterState === null) throw new Error("no tick ran");
+  ok(afterState.time.tick > afterTick, "the engine keeps ticking after the diagnostic");
+  // The vm effect audit carries the diagnostic record this report came from.
+  equal(state.vm.effects.filter((effect) => effect.name === "diagnostic").length, 1, "one engine diagnostic effect");
 });
 
 for (const name of ["demo", "Basic"]) {

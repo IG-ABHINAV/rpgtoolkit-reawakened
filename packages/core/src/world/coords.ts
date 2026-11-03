@@ -61,7 +61,7 @@ export function tileToPixel(layout: CoordLayout, sizeX: number, x: number, y: nu
 }
 
 /**
- * Pixel to tile (1-based). Ordinary boards subtract the base point and floor.
+ * Pixel-to-tile (1-based). Ordinary boards subtract the base point and floor.
  * The rotated layout uses the spec's closed form. The stacked layout snaps to the
  * nearest 32×16 diamond centre, where nearness is the diamond's own metric
  * `|dx| + 2·|dy|` and an exact tie keeps the upper (lower-`y`) row.
@@ -100,4 +100,27 @@ export function pixelToTile(layout: CoordLayout, sizeX: number, px: number, py: 
  */
 export function stackedToRotated(x: number, y: number, sizeX: number): CoordPoint {
   return { x: x + Math.floor((y - 1) / 2), y: Math.floor(y / 2) + 1 - x + sizeX };
+}
+
+/**
+ * The pixel where a `placeplayer(x, y, layer, unit, …)` effect puts the player
+ * (docs/spec/engine/main-loop-and-startup.md#reawakened-board-entry): a pixel
+ * position is its own conversion, and a tile position is converted through the
+ * destination board's own coordinate layout — `coordType` and `sizeX`, sent
+ * along with tile placements, select that layout. Without a recorded
+ * `coordType` a tile position still converts with the ordinary 2D table, exactly
+ * as older saves and older effect records keep playing.
+ */
+export function placeplayerPixel(
+  x: number,
+  y: number,
+  unit: string | number | null | undefined,
+  coordType: string | number | null | undefined,
+  sizeX: string | number | null | undefined,
+): CoordPoint {
+  if (unit !== "tile") return { x, y };
+  if (typeof coordType !== "number" || typeof x !== "number" || typeof y !== "number") {
+    return { x: (Number(x) - 1) * 32 + 16, y: (Number(y) - 1) * 32 + 31 };
+  }
+  return tileToPixel(coordLayout(coordType), Number(sizeX ?? 0), x, y);
 }

@@ -6,6 +6,7 @@ import type { PlayerPresencePort } from "../ports/startup.ts";
 import type { SpriteDraw } from "../render/compose.ts";
 import type { Character } from "../formats/actor/model.ts";
 import type { WorldBoard } from "../world/model.ts";
+import { coordLayout, tileToPixel, type CoordLayout } from "../world/coords.ts";
 import {
   actorFromSource,
   actorLinkForSource,
@@ -113,11 +114,19 @@ export function createInitialPlayer(
 }
 
 /** Place the selected player without changing its queue or actor identity. */
-export function placeSelectedPlayer(section: SpritesSection, x: number, y: number, layer: number, unit: "pixel" | "tile" = "pixel"): boolean {
+export function placeSelectedPlayer(
+  section: SpritesSection,
+  x: number,
+  y: number,
+  layer: number,
+  unit: "pixel" | "tile" = "pixel",
+  layout: CoordLayout = "2d",
+  sizeX = 0,
+): boolean {
   const index = section.players.findIndex((player) => player.id === section.selectedPlayer);
   if (index < 0) return false;
   const player = section.players[index]!;
-  const point = unit === "pixel" ? { x, y } : { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 };
+  const point = unit === "pixel" ? { x, y } : tileToPixel(layout, sizeX, x, y);
   section.players = section.players.map((actor, current) => current === index
     ? { ...actor, x: point.x, y: point.y, layer, prev: null, state: "waiting", queue: { moves: [], waypoint: null } }
     : actor);
@@ -291,7 +300,7 @@ export type SpriteRuntime = CameraTarget & PlayerPresencePort & {
   /** Prepare without mutation; a throwing commit must be reversible by rollback. */
   prepareRecovery(board: WorldBoard, sprites: SpritesSection): { commit(): void; rollback(): void };
   createPlayer(board: WorldBoard | null, source: SpriteActorSource): SpriteActor;
-  placePlayer(x: number, y: number, layer: number, unit?: "pixel" | "tile"): boolean;
+  placePlayer(x: number, y: number, layer: number, unit?: "pixel" | "tile", layout?: CoordLayout, sizeX?: number): boolean;
   showItem(id: string | number): boolean;
   hideItem(id: string | number): boolean;
   removeItem(id: string | number): boolean;
@@ -337,7 +346,14 @@ export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteR
       board = currentBoard;
       return createInitialPlayer(section, currentBoard, source);
     },
-    placePlayer(x, y, layer, unit = "pixel") { return placeSelectedPlayer(section, x, y, layer, unit); },
+    placePlayer(
+      x,
+      y,
+      layer,
+      unit = "pixel",
+      layout = board === null ? "2d" : coordLayout(board.coordType),
+      sizeX = board?.sizeX ?? 0,
+    ) { return placeSelectedPlayer(section, x, y, layer, unit, layout, sizeX); },
     showItem(id) { return setItemVisible(section, id, true, vm, resolver); },
     hideItem(id) { return setItemVisible(section, id, false, vm, resolver); },
     removeItem(id) { return removeItem(section, id, vm); },
@@ -362,8 +378,11 @@ export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteR
         return true;
       }
       if (effect.name === "placeplayer") {
-        const [x, y, layer, unit] = effect.args;
-        return typeof x === "number" && typeof y === "number" && typeof layer === "number" && runtime.placePlayer(x, y, layer, unit === "tile" ? "tile" : "pixel");
+        const [x, y, layer, unit, coordType, sizeX] = effect.args;
+        const layout = typeof coordType === "number" ? coordLayout(coordType) : board === null ? "2d" : coordLayout(board.coordType);
+        const tileCount = typeof sizeX === "number" ? sizeX : board?.sizeX ?? 0;
+        return typeof x === "number" && typeof y === "number" && typeof layer === "number"
+          && runtime.placePlayer(x, y, layer, unit === "tile" ? "tile" : "pixel", layout, tileCount);
       }
       if (effect.name === "showitem") return effect.args[0] !== undefined && runtime.showItem(effect.args[0]);
       if (effect.name === "hideitem") return effect.args[0] !== undefined && runtime.hideItem(effect.args[0]);

@@ -20,6 +20,7 @@ import {
   fnv1a64,
   hashDrawList,
   PACKAGE_ROOT,
+  placeplayerPixel,
   writeMainFile,
 } from "@tk-reawakened/core";
 import type {
@@ -169,8 +170,8 @@ function createBootDoubles(options: ClosingRunOptions = {}) {
   const sprites = (effect: EffectRecord): void => {
     if (effect.name === "createplayer") hasPlayer = true;
     if (effect.name === "placeplayer") {
-      const [x, y, , unit] = effect.args as [number, number, number, string];
-      position = unit === "tile" ? { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 } : { x, y };
+      const [x, y, , unit, coordType, sizeX] = effect.args as [number, number, number, string, number, number];
+      position = placeplayerPixel(x, y, unit, coordType, sizeX);
     }
   };
   const phaseRegistrations: EnginePhaseRegistration[] = [

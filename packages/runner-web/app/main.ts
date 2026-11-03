@@ -22,6 +22,8 @@ type LiveReport = {
   load?: { mode: string | null; storage: LoadState["storage"] };
   /** Every completed asset stall and the asset the engine waits on now, for the lane and for a person reading it. */
   stalls?: { count: number; hinted: number; unhinted: number; blocking: string | null; spinner: boolean };
+  /** The last advance's located diagnostics, so a probe can assert what the engine reported. */
+  diagnostics?: readonly { code: string; file: string; line: number; message: string }[];
 };
 
 declare global {
@@ -356,6 +358,7 @@ function startLiveLoop(
           player,
           load: { mode: state.mode, storage: state.storage },
           stalls: summary(overlay?.update() ?? false),
+          diagnostics: session.diagnostics(),
         };
         window.__live = live;
         window.__report = live;

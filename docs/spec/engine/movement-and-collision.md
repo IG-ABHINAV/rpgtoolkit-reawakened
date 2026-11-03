@@ -140,7 +140,7 @@ A trigger fires according to its activation type ([../formats/board.md](../forma
 | repeat | again every `distanceRepeat` pixels of movement inside the area |
 | + stop movement | additionally clears the player's queued movement |
 
-Conditional triggers fire only when their variable condition holds. The program to run may be a file or inline code. It runs to completion before the game continues.
+Conditional triggers fire only when their variable condition holds. The program to run may be a file or inline code. It runs to completion before the game continues. A file program that names nothing in `Prg` is one located `program.missing` diagnostic (`rpgcode-functions.md:136`; Reawakened makes board programs the same as every other caller there): no thread runs, the trigger *counts as run* so a step-on region does not repeat its report until the player leaves, and a key-press region reports once per activation-key press, and the game carries on.
 
 <a id="e-40"></a>
 **E-40 Board program region, step-on.** Fires once when the player's collision base enters the region on the same layer; it re-arms on leaving.
@@ -191,7 +191,7 @@ When the player steps off an edge that has a link:
 Scripts can also move the player with `Send(board, x, y, layer)`.
 
 <a id="e-19"></a>
-**E-19 Board transitions.** `Send(board, x, y, layer)` loads a board, positions the player, re-aligns the camera, rebuilds the z-order, clears the path-finding caches, **deactivates any program the player arrives on top of** (so the destination does not fire immediately), switches the music and runs the enter program. Board threads of the old board are stopped; persistent threads survive.
+**E-19 Board transitions.** `Send(board, x, y, layer)` loads a board, positions the player, re-aligns the camera, rebuilds the z-order, clears the path-finding caches, **deactivates any program the player arrives on top of** (so the destination does not fire immediately; Reawakened rule: the deactivated program re-arms the moment the player's collision base leaves that program's own area, the same once-per-entry rule as E-40, so a region or item under a destination fires again on a later step or activation key and suppression never outlives the overlap), switches the music and runs the enter program. Board threads of the old board are stopped; persistent threads survive.
 <a id="reawakened-send-board"></a>
 **Reawakened rule (OWNER; `send` timing, unverified default).** `send(board, x, y, [layer])` takes tile coordinates (one-based, as `put` does) and a one-based layer, where a layer below 1 means layer 1. The script cannot wait on a file, so the call records the request and parks the calling thread until the next tick; the engine then swaps the boards between ticks, freezing time while the board and its tiles load, and runs the board-entry rule of [main-loop-and-startup.md](main-loop-and-startup.md#reawakened-board-entry). The caller resumes at the start of the next tick on the new board, unless it was a `board` thread of the old board (it dies with the board). A second `send` posted in the same tick replaces the first. A board name that resolves to no asset is a located diagnostic and the request is dropped.
 
