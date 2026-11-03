@@ -1,8 +1,7 @@
 ---
 title: "tkr script: the CLI, its result protocol, generated help and the dogfooding CI job"
 ticket: 9
-status: in progress
-blocked_reason: ""
+status: in-progress
 ---
 
 ## Intent
@@ -28,6 +27,8 @@ Entry 10.9 builds `packages/script-cli`, the `tkr script` command-line front end
 - Deterministic `--json` output so the same inputs produce the same bytes.
 - A `script-dogfood` CI job that runs the four ready subcommands over `stock/` and `docs/spec/examples/game`, and `test` over authored passing fixtures, comparing against committed baselines in `packages/script-cli/baselines/`.
 
+The CLI implementation merged in PR #1017 (merge commit 6b4357ed).
+
 ## Owner-gated matchers: `test` refuses to run silently
 
 The 10.8 runner cannot be claimed complete while the following matchers are still owner decisions:
@@ -41,4 +42,4 @@ The 10.8 runner cannot be claimed complete while the following matchers are stil
 
 ## What remains blocked
 
-This entry stays `status: in progress` until 10.8 closes. When the owner rules on F-A/F-D/F-E/F-G (and the proposed PKG-7 load path / F-F tear-off in #1010), the preflight scanner is removed or narrowed and `test` is claimed complete against the full approved matcher API.
+This entry stays `status: in-progress` until 10.8 closes. When the owner rules on F-A/F-D/F-E/F-G (and the proposed PKG-7 load path / F-F tear-off in #1010), the preflight scanner is removed or narrowed and `test` is claimed complete against the full approved matcher API.

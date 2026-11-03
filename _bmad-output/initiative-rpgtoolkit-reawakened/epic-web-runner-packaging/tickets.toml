@@ -281,7 +281,7 @@ hitl = false
 risk = "high"
 refine = true
 references = ["issue - #1049", "proposed fix - PR #1042 (ee3db47e)", "merged fix - PR #1155 (adbc5e93)", "code - packages/runner-desktop/src/main.ts"]
-notes = ["Merged: PR #1155 (adbc5e93) gives every player page a strict Content-Security-Policy and makes the test enumerate all eight player pages. Issue #1049 is closed."]
+notes = ["Merged: PR #1155 (adbc5e93) gives every player page a strict Content-Security-Policy and makes the test enumerate all eight player pages. Issue #1049 is closed. The evidence asserts policy text but does not probe that a disallowed script is blocked. Mobile CSP gap #1156 is closed by PR #1159 (b215d1bd)."]
 
 [[entry]]
 id = 20
@@ -297,7 +297,7 @@ hitl = true
 risk = "medium"
 refine = true
 references = ["issue - #1050", "merged fix - PR #1085 (81503cf8)", "spec - docs/spec/engine/runners.md"]
-notes = ["Merged: PR #1085 (81503cf8) fits desktop game frames to the viewport. Issue #1050 is closed."]
+notes = ["Merged: PR #1085 (81503cf8) fits desktop game frames to the viewport per the approved ruling in docs/spec/engine/runners.md. Issue #1050 is closed. State neutrality rests on the design separation; the PR does not claim a paired state-hash test."]
 
 [[entry]]
 id = 21
@@ -308,30 +308,30 @@ title = "Live player page slices: shared player page, mobile wrapper and descrip
 description = "Lands the first slices of the live interactive player page: a shared player page used by web, desktop and mobile, the mobile Capacitor wrapper and its host services, descriptor identity, viewport fix and desktop input proof."
 verify = "The shared player page boots in the mobile wrapper and desktop shell; descriptor identity and the viewport fix are under test; the desktop input probe proves one-tile tap and axis-clean hold."
 covers = ["CAP-12"]
-after = [3, 11, 12]
+after = [3, 11]
 hitl = false
 risk = "high"
-references = ["merged - PR #1006 (436c78d6)", "merged - PR #1028 (9954e783)", "commit - aca8aea8", "follow-up - #1018 (residual gaps still open)"]
-notes = ["Merged via aca8aea8 (PR #1006 436c78d6 and PR #1028 9954e783). Residual live-player gaps remain tracked by #1018."]
+references = ["merged - PR #1006 (436c78d6)", "merged - PR #1028 (9954e783)", "desktop tap/hold probe - PR #1141 (3b121ad3)", "follow-up - #1018 (residual gaps still open)"]
+notes = ["The shared player page, mobile wrapper and descriptor/viewport slices landed in PR #1006 (436c78d6) and PR #1028 (9954e783); do not attribute direct-main commit aca8aea8 to either PR. PR #1141 (3b121ad3) supplies the one-tile tap / axis-clean hold probe. These slices landed independently of mobile device acceptance; residual live-player gaps remain tracked by #1018."]
 
 [[entry]]
 id = 22
 tracker_id = "#1042"
 tracker_status = "done"
 type = "bug"
-title = "Player defects: audio dropouts, Electron CSP hygiene and menu cell layout"
-description = "Fixes live-player audio buffer underruns, adds strict Content-Security-Policy to desktop and browser pages and updates the Electron console-message listener, and corrects menu cell text layout so each newline occupies one cell row."
+title = "Player buffer, Electron CSP hygiene and menu cell layout"
+description = "Adjusts the live-player audio buffer after inferred underrun symptoms, adds strict Content-Security-Policy to desktop and browser pages and updates the Electron console-message listener, and corrects menu cell text layout so each newline occupies one cell row. The underlying live-player audio issue remains tracked by #1043."
 verify = "The browser buffer-size assertion passes at the shipped value and fails when perturbed; removing the CSP meta tag fails the CSP test; the menu layout test fails when cell-row assignment is broken."
 covers = ["CAP-12"]
 after = [5, 11]
 hitl = false
 risk = "medium"
-references = ["issue - #1042", "merged fix - ee3db47e", "code - packages/runner-web/src/audio-sink.ts", "code - packages/runner-desktop/src/main.ts"]
-notes = ["Merged: commit ee3db47e. The larger AudioWorklet migration is tracked by #1044."]
+references = ["PR - #1042 (ee3db47e)", "open audio issue - #1043", "superseding AudioWorklet migration - PR #1165 (0ddb39b9)", "code - packages/runner-web/src/audio-sink.ts", "code - packages/runner-desktop/src/main.ts"]
+notes = ["Merged: PR #1042 (ee3db47e) changes the buffer size based on an inferred underrun cause and fixes CSP/menu issues. #1043 remains open; the AudioWorklet migration in PR #1165 (0ddb39b9) supersedes the buffer workaround."]
 
 [[entry]]
 id = 23
-tracker_id = "#1036"
+tracker_id = "#664"
 tracker_status = "done"
 type = "chore"
 title = "CI change classifier: each job judges its own applicability"
@@ -341,27 +341,24 @@ covers = ["CAP-12", "CAP-13"]
 after = [1]
 hitl = false
 risk = "medium"
-references = ["issue - #1036", "merged - PR #1036 (350738c9)", "adr - docs/adr/0016-ci-classified-steps.md"]
-notes = ["Merged: PR #1036 (350738c9)."]
+references = ["issue - #664", "merged - PR #1036 (350738c9)", "adr - docs/adr/0016-ci-classified-steps.md"]
+notes = ["Merged: PR #1036 (350738c9) fixes issue #664, which is closed."]
 
 [[entry]]
 id = 24
-tracker_id = "#1014"
-tracker_status = "done"
 type = "story"
-title = "Document how to run the desktop player and add the desktop CI lane"
-description = "Writes the runnable recipe for the desktop player (docs/playing-the-desktop-player.md and CONTRIBUTING.md) and adds the desktop CI job that exercises the player build and measurement harness."
-verify = "The desktop CI lane builds and measures the player; the docs page gives exact commands and honest output without claiming post-E-02 visible interactive play."
+title = "Add the desktop player CI measurement lane"
+description = "Adds the desktop CI job that exercises the player build and measurement harness; the runnable recipe and CONTRIBUTING.md instructions belong to entry 15 / issue #1013."
+verify = "The desktop CI lane builds and measures the player."
 covers = ["CAP-12"]
 after = [11]
 hitl = false
 risk = "low"
-references = ["issue - #1014", "merged - PR #1014 (c5d65a49)", "code - tools/desktop/measure.mjs", "code - .github/workflows/ci.yml"]
-notes = ["Merged: PR #1014 (c5d65a49)."]
+references = ["source issue - #1013 (documenting the desktop player, entry 15)", "merged CI implementation - PR #1014 (c5d65a49)", "code - tools/desktop/measure.mjs", "code - .github/workflows/ci.yml"]
+notes = ["PR #1014 (c5d65a49) merged and delivered the desktop CI measurement-lane portion of issue #1013. No separate issue exists for this split CI-only ledger entry."]
 
 [[entry]]
 id = 25
-tracker_id = "#1030"
 tracker_status = "done"
 type = "chore"
 title = "Move desktop macOS CI runner to macos-15"
@@ -371,8 +368,8 @@ covers = ["CAP-12"]
 after = [24]
 hitl = false
 risk = "low"
-references = ["issue - #1030", "merged - PR #1030 (a0e65fc6)", "code - .github/workflows/ci.yml"]
-notes = ["Merged: PR #1030 (a0e65fc6)."]
+references = ["merged - PR #1030 (a0e65fc6)", "code - .github/workflows/ci.yml"]
+notes = ["Merged: PR #1030 (a0e65fc6) moves the desktop macOS job to macos-15; no separate issue."]
 
 [[entry]]
 id = 26
@@ -386,8 +383,8 @@ covers = ["CAP-12"]
 after = [2]
 hitl = false
 risk = "medium"
-references = ["issue - #1066", "merged - PR #1066 (28732627)", "merged follow-up - PR #1116 (624e7d01)", "code - tools/fixtures/runner-protocol/"]
-notes = ["Merged: PR #1066 (28732627) and follow-up PR #1116 (624e7d01). Issue #1066 is closed."]
+references = ["issue - #1066", "merged - PR #1108 (28732627) fixes #1066", "merged follow-up - PR #1116 (624e7d01)", "code - tools/fixtures/runner-protocol/"]
+notes = ["Merged: PR #1108 (28732627) fixes #1066 and follow-up PR #1116 (624e7d01). Issue #1066 is closed."]
 
 [[entry]]
 id = 27
@@ -402,7 +399,7 @@ after = [9]
 hitl = false
 risk = "medium"
 references = ["issue - #1065", "merged - PR #1095 (55561f19)", "code - packages/runner-web/src/asset-cache.ts"]
-notes = ["Merged: PR #1095 (55561f19). Issue #1065 is closed."]
+notes = ["Merged: PR #1095 (55561f19). Issue #1065 is closed. The PR's perturbation evidence is unit-level."]
 
 [[entry]]
 id = 28
@@ -417,7 +414,7 @@ after = [24]
 hitl = false
 risk = "medium"
 references = ["issue - #1076", "merged fix - PR #1149 (efe6f7ee)", "code - tools/desktop/measure.mjs"]
-notes = ["Merged: PR #1149 (efe6f7ee). Issue #1076 is closed."]
+notes = ["Merged: PR #1149 (efe6f7ee) hardens the desktop measurement harness; issue #1076 is closed. The underlying root cause of the timeout/hang remains undiagnosed."]
 
 [[entry]]
 id = 29
@@ -451,7 +448,6 @@ notes = ["Merged: PR #1144 (4eb1c9f8) also fixes #1142. Issue #1081 is closed."]
 
 [[entry]]
 id = 31
-tracker_id = "#1154"
 tracker_status = "done"
 type = "chore"
 title = "Correct retired demo closing hashes quoted as current"
@@ -461,5 +457,5 @@ covers = ["CAP-12"]
 after = [15, "4.41"]
 hitl = false
 risk = "low"
-references = ["issue - #1154", "merged - PR #1154 (503ea161)", "doc - docs/playing-the-desktop-player.md"]
-notes = ["Merged: PR #1154 (503ea161). Issue #1154 is closed.", "The closing-baseline re-record was delivered by board-rendering entry 4.41 / #1048 (PR #1131, d3838a7e); this cross-epic prerequisite was incorrectly recorded as local entry 41."]
+references = ["issue fixed by PR - #1146", "merged - PR #1154 (503ea161)", "doc - docs/playing-the-desktop-player.md"]
+notes = ["Merged: PR #1154 (503ea161), which fixes issue #1146 (closed).", "The closing-baseline re-record was delivered by board-rendering entry 4.41 / #1048 (PR #1131, d3838a7e); this cross-epic prerequisite is entry 4.41."]
