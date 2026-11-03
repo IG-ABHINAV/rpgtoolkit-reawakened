@@ -41,6 +41,35 @@ Movement is queued: the keyboard, the mouse, scripts (`Push`, `PlayerPath`, `Ite
 
 Evidence: E-23 (step sizes), E-87 (the step count is exposed and saved), R-50 (fixed tick), R-54 (wall sliding), save field 24 (steps are whole tiles). **Rejected alternative:** counting per 4-pixel advance, which counts travel that never becomes a completed move and needs its own rounding rule; counting tiles with `max(abs(dx), abs(dy))`, which makes a diagonal tile cheaper than walking its two legs; and any threshold on the completed distance — the exploratory implementation that opened issue #1231 in this branch counted a move only at 16 px or more, which silently dropped every 8-pixel pixel-push advance. Before that exploratory commit the counter simply never advanced, so `main` had no counting rule at all.
 
+<a id="reawakened-movement-events"></a>
+**Reawakened rule — movement event vocabulary (OWNER; approved 2026-11-03; issue #1235).** In plain terms: while a sprite moves, the engine reports what happened as a small set of named events. These events are internal to the engine for v1; scripts and packages do not receive them. Scripts see movement through the step count ([party steps](#reawakened-party-steps)) and the existing movement commands. The events exist so the engine and its tests can check movement exactly.
+
+Technically, and deterministically: each event carries the tick it fired on, and events within a tick are returned in the order the engine processes them, which follows the total order of [R-50](#r-50-ratifications). The vocabulary is:
+
+| Event | Fields | Fires when |
+|---|---|---|
+| `step-complete` | `actor`, `distance`, `partyDistance256` | once for each move that completes without being blocked (see [party steps](#reawakened-party-steps) for the counted distance) |
+| `movement-complete` | `actor`, `blocked` | once, when the sprite's queue drains: no queued move remains and no waypoint is active. `blocked` is `true` when the move that drained the queue was blocked. |
+| `blocked` | `actor`, `vector`, `blocked` (always `true`) | a step is stopped by a board vector, board edge or solid cell |
+| `sprite-collision` | `actor`, `winner`, `loser`, `blocker` | two sprites bump ([R-51](#r-51)) |
+| `diversion` | `actor`, `blocker`, `via` | a path-following sprite walks around a blocker ([R-51](#r-51) item 3) |
+| `waiting-for-blocker` | `actor`, `blocker` | a sprite waits for a blocker to move |
+| `path-stopped` | `actor`, `blocker` | a sprite gives up on its path after a blocker |
+| `edge-exit` | `actor`, `direction` | a sprite leaves the board by an edge link |
+| `under-enter` / `under-leave` | `actor`, `vector` | a sprite starts or stops overlapping an under-vector |
+| `layer-change` | `actor`, `from`, `to`, `vector` | a sprite changes layer on a layer vector |
+| `thaw` | `actor` | a frozen sprite ([R-51](#r-51) item 2) returns to waiting |
+
+Rules for the two completion events, which are the ones most often misread:
+
+1. **`movement-complete` is a queue event, not a per-move event.** A completed move that still has queued moves or an active waypoint emits no `movement-complete`. This holds for every completion path, including a wall slide ([E-26](#e-26)): a slide that completes with moves still queued emits `step-complete` and no `movement-complete`. A slide that completes the queue emits `step-complete`, then `movement-complete` with `blocked: false`.
+2. **`step-complete` is a per-move event.** It fires once for each successful completed move, whether or not the queue drains, and never for a blocked move.
+3. A blocked move that drains the queue emits `blocked`, then `movement-complete` with `blocked: true`, and no `step-complete`.
+
+Rejected alternative: emit `movement-complete` after every completed move, so a listener can read "a slide finished" directly. That makes the event mean two things, and a queued sprite would report completion between each step of a path. Rejected alternative: expose the events to scripts and packages now. That would make their order and fields a public contract before the engine has had a second consumer; it can be proposed later as its own ruling.
+
+The current implementation ([`packages/core/src/sprites/movement.ts`](../../../packages/core/src/sprites/movement.ts)) and the movement oracle fixtures (`packages/core/test/fixtures/movement/`) already follow this vocabulary, including the slide row above. This ruling ratifies that behaviour; it does not change it.
+
 <a id="e-24"></a>
 **E-24 Keyboard movement.** Eight configurable direction bindings. Holding two orthogonal keys gives a diagonal where diagonals are allowed. Movement is relative to the board's axes, so on isometric boards "north" runs along the iso axis.
 
