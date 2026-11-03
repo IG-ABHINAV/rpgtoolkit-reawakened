@@ -3,7 +3,7 @@ title: 'Item use, equip and remove programs'
 type: 'feature'
 ticket: 5
 created: '2026-10-22'
-status: 'in-progress'
+status: done
 baseline_revision: '1be218bae605d09e7707ecae5441203d0a4da0ca'
 route: 'full'
 route_source: 'auto'
