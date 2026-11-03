@@ -1143,6 +1143,7 @@ export function restoreGameState(
   migrateInput(record, schema as Record<string, unknown>);
   migrateTriggers(record, schema as Record<string, unknown>);
   migrateAudio(record, schema as Record<string, unknown>);
+  migrateEngine(record, schema as Record<string, unknown>);
   applyIrCompatibility(record, options);
   // The loaded state now runs the current instruction version: every position is
   // either unchanged or was restarted, and position-free references keep their

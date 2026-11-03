@@ -206,7 +206,7 @@ export function ledgerPoint(value: unknown, path: string): { readonly x: number;
 }
 
 /** A non-finite script number in its tagged plain-data form; a finite one is unchanged. */
-export function tagLedgerNumber(value: number): number | LedgerTaggedNumber {
+function tagLedgerNumber(value: number): number | LedgerTaggedNumber {
   if (Number.isFinite(value)) return value;
   if (Number.isNaN(value)) return { t: "nan" };
   return value > 0 ? { t: "inf" } : { t: "-inf" };
@@ -227,7 +227,7 @@ function ledgerValue(value: Value): LedgerValue {
 }
 
 /** Project one program reference, encoding `includes`/`redirects`/`dialect`/`owner` explicitly. */
-export function ledgerProgramRef(value: unknown, path: string): LedgerProgramRef | null {
+function ledgerProgramRef(value: unknown, path: string): LedgerProgramRef | null {
   if (value === null) return null;
   const record = ledgerRecord(value, path);
   const ir = ledgerText(record.ir, `${path}.ir`);

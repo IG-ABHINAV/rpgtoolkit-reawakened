@@ -39,6 +39,7 @@ import {
   type ResolvedPlugin,
   type ScriptError,
 } from "../src/index.ts";
+import { slotLocation, slotTokenAt } from "../src/menu/equipment.ts";
 import { createScriptServices } from "./script-test-services.ts";
 import { writeItem } from "../src/formats/actor/item.ts";
 import { INVENTORY_COMMANDS } from "../src/script/packs/inventory.ts";
@@ -70,6 +71,24 @@ function actorState(): GameState {
 function fixture(name: string): string {
   return readFileSync(join(saveFixtureDirectory, name), "utf8");
 }
+
+test("every editor equipment location names its slot token and back, and no other value names a slot", () => {
+  const expected = ["head", "neck", "right-hand", "left-hand", "body", "legs",
+    "accessory-7", "accessory-8", "accessory-9", "accessory-10", "accessory-11", "accessory-12",
+    "accessory-13", "accessory-14", "accessory-15", "accessory-16"];
+  for (const [index, token] of expected.entries()) {
+    const location = index + 1;
+    equal(slotTokenAt(location), token, `${location} names ${token}`);
+    equal(slotLocation(token), location, `${token} is location ${location}`);
+    equal(slotLocation(slotTokenAt(location)!), location, `${location} round-trips`);
+  }
+  for (const location of [0, 17, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    equal(slotTokenAt(location), null, `${location} names no slot`);
+  }
+  for (const token of ["", "head ", "accessory-6", "accessory-17", "accessory", "accessory-x"]) {
+    equal(slotLocation(token), null, `"${token}" names no location`);
+  }
+});
 
 test("fresh party, inventory and menu sections are exact v2 plain JSON values", () => {
   equal(PARTY_SCHEMA_VERSION, 2);

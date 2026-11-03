@@ -114,7 +114,7 @@ function run(game: Game, loadBytes: Uint8Array | null): { saved: Uint8Array | nu
 }
 
 type Json = {
-  schema: { ir: string; schema?: number } | null;
+  schema: { ir: string; schema?: number; engine?: number } | null;
   audio: unknown;
   vm: {
     threads: { frames: { program: { ir: string } }[] }[];
@@ -282,6 +282,17 @@ test("a save from a newer schema version is refused before malformed audio", () 
   ok(codes.includes("restore.shape"), `diagnostics: ${JSON.stringify(codes)}`);
   equal(codes.includes("audio"), false, `diagnostics: ${JSON.stringify(codes)}`);
   equal((loader.state()!.vm.globals as Record<string, unknown>).after, 9);
+});
+
+test("a save from a newer engine section is refused whole, like every other section", () => {
+  const loader = boot(LOADER);
+  const bytes = tamper(capturedSave(), (json) => {
+    if (json.schema === null) throw new Error("the saved game has no schema object");
+    json.schema.engine = 2;
+  });
+  const { codes } = run(loader, bytes);
+  ok(codes.includes("restore.shape"), `diagnostics: ${JSON.stringify(codes)}`);
+  equal((loader.state()!.vm.globals as Record<string, unknown>).after, 9, "nothing from the newer save was applied");
 });
 
 test("a position-free object program from an older instruction version loads", () => {

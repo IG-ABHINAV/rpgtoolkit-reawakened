@@ -12,6 +12,7 @@ import { readItem } from "../../formats/actor/item.ts";
 import { readCharacter } from "../../formats/actor/character.ts";
 import { specialAvailable } from "./battle.ts";
 import type { Item } from "../../formats/actor/model.ts";
+import { ACCESSORY_FLAG_INDEX, ACCESSORY_LOCATIONS, ACCESSORY_SLOT_TOKEN, accessoryNameIndex, BODY_SLOT_TOKENS, slotFlagIndex } from "../../menu/equipment.ts";
 import type { Result } from "../../formats/result.ts";
 import { objectValue } from "../../audio/script.ts";
 import type { PlainData } from "../../ports/plain-data.ts";
@@ -104,23 +105,16 @@ function replyBytes(args: readonly Arg[], what: string): Uint8Array {
 /**
  * The slot fit a `.itm` file states, keyed by canonical E-82 slot token.
  *
- * The stored flags use the editor's locations (`packages/core/src/menu/equipment.ts#slotLocation`): the two hand
- * locations are stored in the opposite order to the canonical tokens, and every named accessory shares one flag plus
- * the file's accessory name. This reads the same indices the owner validates, so the list the menu offers and the
- * owner's refusal cannot disagree about the item side of the rule.
+ * The stored flags use the editor's locations, and every named accessory shares one flag plus the file's accessory
+ * name; `slotFlagIndex` is the owner's own index rule, so the list the menu offers and the owner's refusal cannot
+ * disagree about the item side of the rule.
  */
 function slotDictionary(vm: Parameters<typeof createObject>[0], item: Item): Value {
   const record = createObject(vm, null);
-  const flags: readonly [string, number][] = [
-    ["head", item.equipSlots[1] ?? 0],
-    ["neck", item.equipSlots[2] ?? 0],
-    ["right-hand", item.equipSlots[4] ?? 0],
-    ["left-hand", item.equipSlots[3] ?? 0],
-    ["body", item.equipSlots[5] ?? 0],
-    ["legs", item.equipSlots[6] ?? 0],
-    ["accessory", item.equipSlots[7] ?? 0],
-  ];
-  for (const [token, flag] of flags) writeMember(record, token, flag === 1 ? 1 : 0);
+  for (const token of [...BODY_SLOT_TOKENS, ACCESSORY_SLOT_TOKEN]) {
+    const index = token === ACCESSORY_SLOT_TOKEN ? ACCESSORY_FLAG_INDEX : slotFlagIndex(token);
+    writeMember(record, token, index !== null && item.equipSlots[index] === 1 ? 1 : 0);
+  }
   return objectValue(record);
 }
 
@@ -209,18 +203,13 @@ const CHARACTER_ASSET: BuiltinSpec = {
     const character = parsed.value;
     const vm = view.state!.vm;
     const body = createObject(vm, null);
-    const bodyFlags: readonly [string, number][] = [
-      ["head", character.bodySlots[1] ?? 0],
-      ["neck", character.bodySlots[2] ?? 0],
-      ["right-hand", character.bodySlots[4] ?? 0],
-      ["left-hand", character.bodySlots[3] ?? 0],
-      ["body", character.bodySlots[5] ?? 0],
-      ["legs", character.bodySlots[6] ?? 0],
-    ];
-    for (const [token, flag] of bodyFlags) writeMember(body, token, flag === 1 ? 1 : 0);
+    for (const token of BODY_SLOT_TOKENS) {
+      const index = slotFlagIndex(token);
+      writeMember(body, token, index !== null && character.bodySlots[index] === 1 ? 1 : 0);
+    }
     const accessories = createObject(vm, null);
-    for (let location = 7; location <= 16; location += 1) {
-      writeMember(accessories, `accessory-${location}`, character.accessorySlots[location - 6] ?? "");
+    for (const location of ACCESSORY_LOCATIONS) {
+      writeMember(accessories, `accessory-${location}`, character.accessorySlots[accessoryNameIndex(location)] ?? "");
     }
     const actorId = numeric(args, 2);
     const moves = createObject(vm, null);
@@ -332,7 +321,7 @@ const DRAW_GRAPHIC: BuiltinSpec = {
 /** The hydrated `context.menu` object of an RPGCode menu provider (E-80, #585). */
 export const MENU_HOST_TYPE: HostObjectType = {
   name: MENU_HOST_TYPE_NAME,
-  methods: { updatecurrent: UPDATE_CURRENT_COMMAND, updateCurrent: UPDATE_CURRENT_COMMAND, drawgraphic: DRAW_GRAPHIC_COMMAND, drawGraphic: DRAW_GRAPHIC_COMMAND },
+  methods: { updatecurrent: UPDATE_CURRENT_COMMAND, drawgraphic: DRAW_GRAPHIC_COMMAND },
   readOnlyMembers: ["screens", "graphic", "saveallowed", "movesound", "choosesound", "cancelsound"],
   read(context, name) {
     const state = context.state;

@@ -11,6 +11,7 @@ import { createObject, writeMember } from "../objects.ts";
 import { objectValue } from "../../audio/script.ts";
 import { isItemActionRequest, ITEM_ACTION_ASSET_COMMAND, ITEM_ACTION_COMPLETE_COMMAND } from "../item-action.ts";
 import type { ItemActionRequest } from "../../menu/ports.ts";
+import { slotTokenAt } from "../../menu/equipment.ts";
 import type { CommandEffect, CommandResult, CommandView, PluginDefinition } from "../plugin.ts";
 
 const INVENTORY_GROUP = "items-inventory-shop-gold-28";
@@ -103,15 +104,9 @@ function partyActor(view: CommandView, handle: unknown): number | undefined {
 }
 function slotAt(location: number): string {
   const clamped = Math.min(16, Math.max(1, location));
-  switch (clamped) {
-    case 1: return "head";
-    case 2: return "neck";
-    case 3: return "right-hand";
-    case 4: return "left-hand";
-    case 5: return "body";
-    case 6: return "legs";
-    default: return `accessory-${clamped}`;
-  }
+  // A location that names no slot keeps the old `accessory-<location>` token, which the owner then refuses; it must not
+  // be rounded into a neighbouring slot.
+  return slotTokenAt(clamped) ?? `accessory-${clamped}`;
 }
 function params(names: readonly { name: string; optional?: boolean; byRef?: boolean }[]): BuiltinSpec["params"] {
   return names.map(({ name, optional = false, byRef = false }) => ({ name, optional, byRef, variadic: false }));
@@ -306,9 +301,7 @@ export const INVENTORY_HOST_TYPE: HostObjectType = {
   methods: {
     use: "__inventory_use",
     replace: "__inventory_replace",
-    removeEquipment: "__inventory_remove_equipment",
     removeequipment: "__inventory_remove_equipment",
-    removeItem: "__inventory_remove_stack",
     removeitem: "__inventory_remove_stack",
   },
   readOnlyMembers: ["items", "equipment", "gold"],

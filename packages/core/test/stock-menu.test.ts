@@ -145,6 +145,11 @@ type GameOptions = {
   readonly allies?: number;
   /** The host keeps the bytes it is asked to save and lists, loads and overwrites them like a real save area. */
   readonly persist?: boolean;
+  /**
+   * `Item/amulet.itm` fits only the named-accessory slots (`equipSlots[7]`) and is named `Amulet`; this value is what
+   * `hero.tem` wears in `accessory-7`, so passing `"Amulet"` fits and any other name does not.
+   */
+  readonly accessory?: string;
 };
 
 function authoredGame(options: GameOptions): { readonly files: Files; readonly index: AssetIndex; readonly main: string } {
@@ -155,6 +160,7 @@ function authoredGame(options: GameOptions): { readonly files: Files; readonly i
     "SpcMove/fire.spc", "Prg/fire.prg",
     ...Array.from({ length: options.allies ?? 0 }, (_, index) => `Chrs/ally${index + 1}.tem`),
     ...Array.from({ length: options.gear ?? 0 }, (_, index) => `Item/gear${index + 1}.itm`),
+    ...(options.accessory !== undefined ? ["Item/amulet.itm"] : []),
     ...Array.from({ length: options.moves ?? 0 }, (_, index) => `SpcMove/mv${index + 1}.spc`),
   ];
   const main = {
@@ -169,12 +175,17 @@ function authoredGame(options: GameOptions): { readonly files: Files; readonly i
   };
   files.set(assetKey("main.gam"), unwrap(writeMainFile(main)));
   files.set(assetKey("boards/start.brd"), boardBytes(options.disableSaving ?? 0));
+  const emptyCharacter = createEmptyCharacter();
+  const accessorySlots = [...emptyCharacter.accessorySlots];
+  // `accessorySlots[1]` is the name `accessory-7` wears (docs/spec/engine/plugins-and-battle.md#e-82).
+  if (options.accessory !== undefined) accessorySlots[1] = options.accessory;
   files.set(assetKey("chrs/hero.tem"), unwrap(writeCharacter({
-    ...createEmptyCharacter(),
+    ...emptyCharacter,
     minor: 5,
     name: "Hero",
-    stats: { ...createEmptyCharacter().stats, hp: 10, maxHp: 20, level: 1 },
+    stats: { ...emptyCharacter.stats, hp: 10, maxHp: 20, level: 1 },
     bodySlots: [0, 1, 1, 1, 1, 1, 1],
+    accessorySlots,
     profilePicture: "layout.png",
     hasSpecialMoves: 0,
     specialMoves: createEmptyCharacter().specialMoves.map((slot, index) => index === 0
@@ -209,6 +220,17 @@ function authoredGame(options: GameOptions): { readonly files: Files; readonly i
     equipable: 1,
     // Stored slot order: the hands are swapped, so index 4 is the canonical right hand (docs/spec: slotLocation).
     equipSlots: [0, 0, 0, 0, 1, 0, 0, 0],
+  })));
+  if (options.accessory !== undefined) files.set(assetKey("item/amulet.itm"), unwrap(writeItem({
+    ...createEmptyItem(),
+    minor: 4,
+    movementAnimations: Array(8).fill(""),
+    name: "Amulet",
+    description: "",
+    equipable: 1,
+    // Index 7 is the one flag every named accessory shares; the name must match the member's `accessory-7` entry.
+    equipSlots: [0, 0, 0, 0, 0, 0, 0, 1],
+    accessoryName: "Amulet",
   })));
   files.set(assetKey("item/key.itm"), unwrap(writeItem({
     ...createEmptyItem(),
@@ -574,6 +596,28 @@ test("the right hand offers the sword that fits it and not the potion that does 
   press(session, "ENTER");
   deepEqual(session.state().inventory.equipment.map((entry) => [entry.slot, entry.itemId]), [["right-hand", 2]]);
   deepEqual(session.diagnostics, []);
+});
+
+test("the accessory slot offers a matching accessory item, and equipping it fills accessory-7", () => {
+  const session = boot({ accessory: "Amulet", startup: 'giveitem("amulet")\nequipmentmenu()\n' });
+  session.pump((state) => state.menu.screens.length === 1);
+  press(session, "ENTER");
+  // Six body-slot rows fill the page at 320 x 240, so one page right puts the cursor on accessory-7.
+  press(session, "RIGHT");
+  press(session, "ENTER");
+  deepEqual(drawn(session).texts, ["accessory-7", "Amulet"], "the item's shared accessory flag and its name both fit");
+  press(session, "ENTER");
+  deepEqual(session.state().inventory.equipment.map((entry) => [entry.slot, entry.itemId]), [["accessory-7", 1]], "the accessory is worn in accessory-7");
+  deepEqual(session.diagnostics, []);
+});
+
+test("an accessory item whose name the member does not wear is offered nowhere", () => {
+  const session = boot({ accessory: "Bracelet", startup: 'giveitem("amulet")\nequipmentmenu()\n' });
+  session.pump((state) => state.menu.screens.length === 1);
+  press(session, "ENTER");
+  press(session, "RIGHT");
+  press(session, "ENTER");
+  deepEqual(drawn(session).texts, ["accessory-7", "Nothing fits"], "the accessory's own flag and name fit, but this hero wears another");
 });
 
 test("the left hand has nothing that fits, so the list says so and confirming changes nothing", () => {

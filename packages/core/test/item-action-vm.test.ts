@@ -679,6 +679,18 @@ test("an empty slot skips the remove program, and removing an empty slot complet
   equal(state.vm.globals.after, 1);
 });
 
+test("a fractional slot location keeps the old accessory-<location> token instead of rounding into a slot", () => {
+  const { state, hero } = newState();
+  const h = harness({ hooks: { use: null, remove: null, equip: hook("equip.prg", "Potion") } });
+  const loader = loaderOf({ "game.prg": 'equip("Hero", 2.5, "Potion")\nafter = 1\nend()\n', "equip.prg": LOG_HOOK("equip") });
+  const services = servicesFor(state, h, loader);
+  startProgram(state.vm, fileProgramRef(loader, "game.prg"));
+  runToEnd(state, services);
+  const log = String(state.vm.globals.log);
+  ok(log.includes(`equip:${hero}:accessory-2.5:Potion`), log);
+  equal(log.includes(":neck:"), false, "a fractional location is not rounded into neck");
+});
+
 test("the same equip is identical under a one-step budget and a full budget", () => {
   const logs: string[] = [];
   for (const budget of [1, 1000]) {
