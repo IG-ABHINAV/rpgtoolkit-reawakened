@@ -229,7 +229,7 @@ test("a mid-script Save carries every section and restores to the same state", (
   equal(actor.stats.hp, 9, "current hp is saved, not the maximum");
   deepEqual(actor.statuses, { "poison.ste": 2 }, "status counters are saved");
   equal(actor.behaviour, "stock-rpg.hero", "the behaviour name, never the callable, is saved");
-  deepEqual(restored.party, { version: 2, members: [actorId], selected: actorId, steps: 3 });
+  deepEqual(restored.party, { version: 3, members: [actorId], selected: actorId, steps: 3, stepRemainder: 0 });
   deepEqual(restored.inventory.items, [
     { id: 1, source: "item/potion.itm", handle: "Potion", quantity: 2 },
     { id: 2, source: "item/sword.itm", handle: "Sword", quantity: 1 },

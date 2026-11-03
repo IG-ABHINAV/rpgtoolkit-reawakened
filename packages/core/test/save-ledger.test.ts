@@ -319,7 +319,7 @@ test("the v1 projection maps exactly the accepted fields and keeps their order",
   const state = fixture();
   const ledger = projected(state);
 
-  deepEqual(ledger.party, { members: [1], selected: 1, steps: 12 });
+  deepEqual(ledger.party, { members: [1], selected: 1, steps: 12, stepRemainder: 0 });
   equal(ledger.actors.nextId, 4);
   equal(ledger.actors.actors.length, 3);
   deepEqual(ledger.actors.actors.map((actor) => actor.kind), ["party", "enemy", "npc"]);
@@ -437,10 +437,10 @@ test("the ledger hash is the tagged envelope hash and not hashGameState", () => 
   const state = fixture();
   const ledger = projectGameLedger(state);
   equal(GAME_LEDGER_DOMAIN, "tkr.game-ledger");
-  equal(GAME_LEDGER_VERSION, 2);
+  equal(GAME_LEDGER_VERSION, 3);
   equal(
     hashGameLedger(ledger),
-    hashState({ domain: "tkr.game-ledger", version: 2, ledger } as never),
+    hashState({ domain: "tkr.game-ledger", version: 3, ledger } as never),
   );
   differs(hashGameLedger(ledger), hashGameState(state));
   const minimal = minimalLedger();
@@ -449,16 +449,16 @@ test("the ledger hash is the tagged envelope hash and not hashGameState", () => 
   // the domain, version and ledger are all covered.
   equal(
     MINIMAL_LEDGER_HASH,
-    fnv1a64(canon({ domain: "tkr.game-ledger", version: 2, ledger: minimal } as never)),
+    fnv1a64(canon({ domain: "tkr.game-ledger", version: 3, ledger: minimal } as never)),
   );
   // A different domain or version hashes differently even for the same ledger.
-  differs(hashState({ domain: "tkr.game-ledger", version: 3, ledger } as never), hashGameLedger(ledger));
+  differs(hashState({ domain: "tkr.game-ledger", version: 2, ledger } as never), hashGameLedger(ledger));
 });
 
 /** The smallest whole v1 ledger, used to pin the envelope vector. */
 function minimalLedger(): GameLedgerV1 {
   return {
-    party: { members: [], selected: null, steps: 0 },
+    party: { members: [], selected: null, steps: 0, stepRemainder: 0 },
     actors: { nextId: 1, actors: [] },
     inventory: { nextId: 1, items: [], equipment: [], gold: 0 },
     script: {
@@ -475,7 +475,7 @@ function minimalLedger(): GameLedgerV1 {
   };
 }
 
-const MINIMAL_LEDGER_HASH = "139cd5bf7a38dbab";
+const MINIMAL_LEDGER_HASH = "ce947a5a9ea08d85";
 
 test("each excluded continuation and metadata field changes the full save but not the ledger", () => {
   const baseline = ledgerHash();
@@ -526,6 +526,7 @@ test("each ledger-bearing field changes the projection hash independently", () =
   const baseline = ledgerHash();
   const changes: Array<[string, (state: GameState) => void]> = [
     ["party steps", (state) => { state.party.steps += 1; }],
+    ["party step remainder", (state) => { state.party.stepRemainder += 1; }],
     ["party members", (state) => { addActor(state.actors, { kind: "party", source: "Characters/two.chr" }); state.party.members.push(4); }],
     ["actor hp", (state) => { state.actors.actors[0]!.stats.hp = 43; }],
     ["actor statuses", (state) => { state.actors.actors[0]!.statuses.poison = 3; }],

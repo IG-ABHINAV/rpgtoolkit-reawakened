@@ -139,6 +139,7 @@ export function createMenuOwnerPorts(
   const commitParty = (next: PartySection, destroyActorId?: number): MenuStateResult => {
     const previous = state.party;
     const same = previous.selected === next.selected && previous.steps === next.steps &&
+      previous.stepRemainder === next.stepRemainder &&
       previous.members.length === next.members.length &&
       previous.members.every((actorId, index) => actorId === next.members[index]);
     if (same) {

@@ -1,7 +1,7 @@
 /** Section-owned save data; docs/spec/formats/save-game.md#reawakened-canonical-party-inventory-and-menu-state. */
 import type { ActorsSection } from "../actors/model.ts";
 
-export const PARTY_SCHEMA_VERSION = 2;
+export const PARTY_SCHEMA_VERSION = 3;
 export const INVENTORY_SCHEMA_VERSION = 2;
 export const MENU_SCHEMA_VERSION = 2;
 
@@ -10,6 +10,8 @@ export type PartySection = {
   members: number[];
   selected: number | null;
   steps: number;
+  /** Accumulated movement below one tile, in 1/256-pixel units. */
+  stepRemainder: number;
 };
 export type InventoryItem = { id: number; source: string; handle: string; quantity: number };
 export type InventoryEquipment = { actorId: number; slot: string; itemId: number };
@@ -29,7 +31,7 @@ export type DeepReadonly<T> = T extends readonly (infer U)[]
   : T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
 
 export function createPartySection(): PartySection {
-  return { version: PARTY_SCHEMA_VERSION, members: [], selected: null, steps: 0 };
+  return { version: PARTY_SCHEMA_VERSION, members: [], selected: null, steps: 0, stepRemainder: 0 };
 }
 export function createInventorySection(): InventorySection {
   return { version: INVENTORY_SCHEMA_VERSION, nextId: 1, items: [], equipment: [], gold: 0 };
@@ -66,10 +68,10 @@ function actorExists(actors: ActorsSection, id: unknown, partyOnly = false): boo
 
 /** Validate decoded data once at the section boundary, returning a located issue. */
 export function validatePartySection(value: unknown, actors: ActorsSection): StateIssue | null {
-  const shape = fields(value, ["version", "members", "selected", "steps"], "party");
+  const shape = fields(value, ["version", "members", "selected", "steps", "stepRemainder"], "party");
   if (shape !== null) return shape;
   const section = value as Record<string, unknown>;
-  if (section.version !== PARTY_SCHEMA_VERSION) return issue("party.version", "expected version 2");
+  if (section.version !== PARTY_SCHEMA_VERSION) return issue("party.version", "expected version 3");
   if (!Array.isArray(section.members)) return issue("party.members", "expected an array");
   if (section.members.length > 5) return issue("party.members", "expected at most five members");
   const seen = new Set<number>();
@@ -82,6 +84,9 @@ export function validatePartySection(value: unknown, actors: ActorsSection): Sta
     return issue("party.selected", "expected a member id, or null for an empty party");
   }
   if (!integer(section.steps, 0)) return issue("party.steps", "expected a non-negative safe integer");
+  if (!integer(section.stepRemainder, 0) || section.stepRemainder >= 32 * 256) {
+    return issue("party.stepRemainder", "expected a non-negative safe integer below 8192");
+  }
   return null;
 }
 

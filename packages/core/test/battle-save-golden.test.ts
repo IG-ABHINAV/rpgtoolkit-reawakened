@@ -4,7 +4,10 @@
 // start advances. The mid-battle section is produced by the real battle owner (`start`,
 // `setCharge`, `addCharge`) over pre-created actors: it isolates the saved section, not a full engine start.
 // Fixtures: fixtures/save/battle-v2-{out,mid}.json. Regenerate deliberately by
-// writing `build()` output to the files; the schema-v1 migration fixture `battle-v1.json` is untouched.
+// writing `build()` output to the files; the schema-v1 migration fixture `battle-v1.json` is untouched,
+// and the party-schema-2 migration fixture is `party-v2.json`.
+// #1231 regenerated both fixtures once: the party section moved to schema 3 (it gained the saved
+// `stepRemainder`), so `schema.party` is 3 and `party.stepRemainder` is 0; no other key changed.
 // #744 regenerated `battle-v2-mid.json` once, for the added `engine.nextBattleId: 2`; no section
 // schema version moved and no other key changed.
 // #585 regenerated both fixtures once: the input section moved to schema 3 (the pointer record gained downs, ups, downX,

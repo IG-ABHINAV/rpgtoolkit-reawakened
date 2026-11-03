@@ -365,17 +365,19 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // joined `input.pointer`), so every state hash moved once and nothing else did. With the schema put back to 2 and the
   // pointer record reduced to {x, y, buttons}, every previous value above and in golden/scripts/golden.json is reproduced exactly.
   // Restoring the old mixed/ui responder reproduces both previous hashes and all eight closing baselines exactly.
+  // Re-pinned by #1231: the party section gained the saved `stepRemainder` and moved to schema 3, so every
+  // state hash moved once and nothing else did (draw hashes, ticks and diagnostics are unchanged).
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "6f090f49ce67a410",
-    "sample-system-demo": "e1999ddbd152af86",
-    "sample-sys-test-demo": "e1999ddbd152af86",
-    "sample-win-demo": "146b00f4f77cea1c",
-    "sample-oldman-demo": "81c9647c77af178f",
-    "sample-man-demo": "29b8d4fc424c31ed",
-    "sample-man-wander-demo": "cb4cefc06ebccf02",
-    "sample-start-basic": "11de430addc86038",
-    "sample-system-basic": "e1999ddbd152af86",
-    "sample-wander-basic": "b79b37884bda3c8e",
+    "sample-start-demo": "4fa5f696c0eed1d3",
+    "sample-system-demo": "9bab3f5f1c5707c5",
+    "sample-sys-test-demo": "9bab3f5f1c5707c5",
+    "sample-win-demo": "74716f4480794887",
+    "sample-oldman-demo": "9166f736d1965256",
+    "sample-man-demo": "51dc8fa86fb9fbe8",
+    "sample-man-wander-demo": "afb0e9d840b47ce5",
+    "sample-start-basic": "ed8dd75eac6674af",
+    "sample-system-basic": "9bab3f5f1c5707c5",
+    "sample-wander-basic": "3317060cd68120f5",
   };
 
   for (const res of results) {
@@ -398,7 +400,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "b79b37884bda3c8e"); // re-pinned by #585 (input schema 3, pointer record); was 48c259bcfb158d0a (#589)
+  equal(hash1, "3317060cd68120f5"); // re-pinned by #1231 (party schema 3, stepRemainder); was b79b37884bda3c8e (#585)
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

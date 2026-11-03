@@ -226,7 +226,8 @@ records its detailed classifications, evidence and unresolved engineering
 proofs. The 3.1 baseline is context, not a claim that every proposed field has
 been independently verified against the historical engine.
 
-The ledger includes party membership, selection and steps; all live actor
+The ledger includes party membership, selection, steps and the sub-tile step
+remainder; all live actor
 identities and game values, including stats, statuses and progression; inventory
 items, equipment assignments and gold; script globals and redirects; current
 board identity, placements, items, board edits and trigger progress; encounter
@@ -316,17 +317,25 @@ previous-version restore fixture, whenever the persisted actor shape changes.
 ### Reawakened canonical party, inventory and menu state
 
 The party, bag and open menu save as three owned sections of the same canonical
-game state, not as a second store. Schema version **2** replaces each section's
-version-1 empty placeholder. A version-1 section MUST be exactly `{}` and
-migrates to the fresh version-2 value below; other old or future versions and
-malformed current sections fail with `restore.shape` and an offending field
-path. Migration changes no actor, VM, RNG or time data.
+game state, not as a second store. Schema version **2** replaced each section's
+version-1 empty placeholder; the party section is now version **3**, because it
+gained the sub-tile movement remainder. A version-2 party migrates with its
+`steps` intact and `stepRemainder` set to zero. A version-1 section
+MUST be exactly `{}` and migrates to the fresh current value below; other old or
+future versions and malformed current sections fail with `restore.shape` and an
+offending field path. Migration changes no actor, VM, RNG or time data.
 
-| Section | Version-2 fields | Fresh value |
+| Section | Fields | Fresh value |
 | --- | --- | --- |
-| `party` | `version`, `members` (ordered, distinct actor ids; at most five), `selected` (member id or `null`), `steps` (non-negative safe integer) | `{ version: 2, members: [], selected: null, steps: 0 }` |
+| `party` | `version`, `members` (ordered, distinct actor ids; at most five), `selected` (member id or `null`), `steps` (non-negative safe integer), `stepRemainder` (integer 0–8191, in units of 1/256 board pixel) | `{ version: 3, members: [], selected: null, steps: 0, stepRemainder: 0 }` |
 | `inventory` | `version`, `nextId` (positive monotonic item identity), `items`, `equipment`, `gold` (non-negative safe integer) | `{ version: 2, nextId: 1, items: [], equipment: [], gold: 0 }` |
 | `menu` | `version`, `screens` (ordered navigation stack), `graphic` (asset reference or `null`) | `{ version: 2, screens: [], graphic: null }` |
+
+`steps` is whole tiles and `stepRemainder` the sub-tile part of the same
+distance; the rule that turns completed travel into them, and what never counts,
+is [the movement page's party-steps rule](../engine/movement-and-collision.md#reawakened-party-steps). The remainder is saved so that a
+save taken between two moves restores the exact accumulation, never a rounded
+tile count.
 
 An inventory item is exactly `{ id, source, handle, quantity }`: a positive
 safe integer identity below `nextId`, a non-empty item asset reference, its
@@ -363,8 +372,8 @@ preserve selection. Removing the selected member selects the member now at its
 former index, or the last remaining member if that index is past the end;
 removing the final member selects `null`. Reordering preserves selection by
 actor id.
-The party section stores membership, order, selection,
-and steps only; actor stats, progression, statuses, and equipment-derived
+The party section stores membership, order, selection, steps and the sub-tile
+remainder only; actor stats, progression, statuses, and equipment-derived
 state remain actor-owned. A roster operation validates its complete party and
 actor references before committing; failure changes neither owner. Snapshot and
 restore preserve the ordered ids and selected id, then restore the referenced

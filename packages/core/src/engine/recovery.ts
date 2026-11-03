@@ -200,7 +200,13 @@ export function applyRecoveryLedger(
   ledger: GameLedgerV1,
   listenerHandles: ReadonlyMap<number, number> = new Map(),
 ): void {
-  state.party = { ...state.party, members: [...ledger.party.members], selected: ledger.party.selected, steps: ledger.party.steps };
+  state.party = {
+    ...state.party,
+    members: [...ledger.party.members],
+    selected: ledger.party.selected,
+    steps: ledger.party.steps,
+    stepRemainder: ledger.party.stepRemainder,
+  };
   restoreActors(state, ledger);
   state.inventory = {
     ...state.inventory,

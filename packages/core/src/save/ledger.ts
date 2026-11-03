@@ -91,13 +91,14 @@ export type {
 export const GAME_LEDGER_DOMAIN = "tkr.game-ledger";
 
 /** The ledger projection version; it is independent of every section schema version. */
-export const GAME_LEDGER_VERSION = 2;
+export const GAME_LEDGER_VERSION = 3;
 
-/** Party roster, selection and steps; `party.version` is schema metadata. */
+/** Party roster, selection, steps and the sub-tile movement remainder. */
 export type LedgerParty = {
   readonly members: number[];
   readonly selected: number | null;
   readonly steps: number;
+  readonly stepRemainder: number;
 };
 
 /** The compatibility stats an actor owns. */
@@ -532,7 +533,10 @@ function projectParty(section: PartySection, actorKinds: ReadonlyMap<number, Led
   if (selected === null ? members.length > 0 : !seen.has(selected)) {
     failLedger(LEDGER_REFERENCE, "party.selected", "must name a member, or be null for an empty party");
   }
-  return { members, selected, steps: ledgerInteger(record.steps, "party.steps", 0) };
+  const steps = ledgerInteger(record.steps, "party.steps", 0);
+  const stepRemainder = ledgerInteger(record.stepRemainder, "party.stepRemainder", 0);
+  if (stepRemainder >= 32 * 256) failLedger(LEDGER_SHAPE, "party.stepRemainder", "must be below 8192");
+  return { members, selected, steps, stepRemainder };
 }
 
 function projectInventory(section: InventorySection, actorIds: ReadonlySet<number>): LedgerInventory {

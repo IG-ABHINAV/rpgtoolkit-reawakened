@@ -36,6 +36,8 @@ export type MovementEvent = {
   readonly to?: number;
   readonly vector?: string;
   readonly blocked?: boolean;
+  readonly distance?: number;
+  readonly partyDistance256?: number;
   readonly direction?: Facing;
   readonly mode?: number;
   readonly goal?: SpritePoint;
@@ -286,7 +288,15 @@ function finishActor(actor: SpriteActor, active: SpriteActiveMove, blocked: bool
   const queue = actor.queue.moves.length > 0 || nextWaypoint !== null;
   const dx = actor.x - active.start.x;
   const dy = actor.y - active.start.y;
-  const movement = { ...cloneMovement(actor.movement), active: null, waitTicks: 0, lastStepTick: tick, lastStepDistance: blocked ? 0 : Math.sqrt(dx * dx + dy * dy) };
+  const distance = blocked ? 0 : Math.sqrt(dx * dx + dy * dy);
+  // Distance travelled in 1/256 board pixels (docs/spec/engine/movement-and-collision.md#reawakened-party-steps):
+  // integer deltas, Euclidean length, rounded half-up. Both pixel positions are whole 1/256 units, so
+  // `fixed` is exact and the sum below is an exact integer.
+  const dx256 = fixed(dx);
+  const dy256 = fixed(dy);
+  const partyDistance256 = blocked ? 0 : Math.floor(Math.sqrt(dx256 * dx256 + dy256 * dy256) + 0.5);
+  const movement = { ...cloneMovement(actor.movement), active: null, waitTicks: 0, lastStepTick: tick, lastStepDistance: distance };
+  if (!blocked) event(tick, "step-complete", { actor: actor.id, distance, partyDistance256 }, sink);
   const state = queue ? "moving" : "waiting";
   if (!queue) event(tick, "movement-complete", { actor: actor.id, blocked }, sink);
   return { ...actor, state, movement, queue: { ...actor.queue, waypoint: nextWaypoint }, ...(queue ? {} : { frozenUntil: null }), prev: { x: actor.x, y: actor.y } };
@@ -430,9 +440,12 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
           const remainingDx = fixed(active.target.x) - sx;
           const remainingDy = fixed(active.target.y) - sy;
           const done = passed || Math.sqrt(remainingDx * remainingDx + remainingDy * remainingDy) <= ADVANCE;
-          moved = { ...moved, movement: { ...cloneMovement(moved.movement), active: done ? null : { ...active, cadence: tpa - 1 } }, state: done ? (moved.queue.moves.length === 0 ? "waiting" : "moving") : "moving" };
+          if (done) {
+            moved = finishActor(moved, active, false, tpa, tick, sink);
+          } else {
+            moved = { ...moved, movement: { ...cloneMovement(moved.movement), active: { ...active, cadence: tpa - 1 } }, state: "moving" };
+          }
           replaceActor(section, moved);
-          if (done) event(tick, "movement-complete", { actor: actor.id }, sink);
           return;
         }
       }
@@ -536,7 +549,19 @@ export function movementPhaseRegistration(options: MovementOptions & { readonly 
     phase: "movement",
     rank: options.rank ?? 0,
     run(state: GameState): void {
-      runMovementPhase(state.sprites, state.world.board ?? null, state.time.tick, { ...options, freezePointer: scriptOwnsInput(state.vm) });
+      runMovementPhase(state.sprites, state.world.board ?? null, state.time.tick, {
+        ...options,
+        freezePointer: scriptOwnsInput(state.vm),
+        onEvent: (ev) => {
+          options.onEvent?.(ev);
+          if (ev.type === "step-complete" && ev.actor === state.sprites.selectedPlayer &&
+            ev.partyDistance256 !== undefined && ev.partyDistance256 > 0) {
+            const total = state.party.stepRemainder + ev.partyDistance256;
+            state.party.steps += Math.floor(total / (32 * FP));
+            state.party.stepRemainder = total % (32 * FP);
+          }
+        },
+      });
     },
   };
 }

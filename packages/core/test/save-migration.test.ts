@@ -114,6 +114,17 @@ test("schema-v1 menu, party and inventory sections migrate without moving saved 
   equal(canon(restoreGameState(snapshot(restored))), canon(restored));
 });
 
+test("party schema 2 migrates with its steps intact and a zero distance remainder", () => {
+  const saved = JSON.parse(fixtureText("party-v2.json")) as { schema: { party: number }; party: { steps: number } };
+  equal(saved.schema.party, 2, "party-v2.json is a real party-schema-2 save");
+  saved.party.steps = 7;
+  const restored = restoreGameState(JSON.stringify(saved));
+  equal(restored.schema.party, 3);
+  equal(restored.party.steps, 7, "the completed step count is carried over");
+  equal(restored.party.stepRemainder, 0, "a version-2 save had no sub-tile remainder accumulated");
+  equal(snapshot(restoreGameState(snapshot(restored))), snapshot(restored));
+});
+
 
 test("snapshot restoration rejects malformed or dimension-mismatched surface base64", () => {
   const snapshotText = snapshot(createGameState({ seed: 0 }));

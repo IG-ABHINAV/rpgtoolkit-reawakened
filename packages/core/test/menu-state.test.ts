@@ -90,14 +90,14 @@ test("every editor equipment location names its slot token and back, and no othe
   }
 });
 
-test("fresh party, inventory and menu sections are exact v2 plain JSON values", () => {
-  equal(PARTY_SCHEMA_VERSION, 2);
+test("fresh party, inventory and menu sections are exact plain JSON values", () => {
+  equal(PARTY_SCHEMA_VERSION, 3);
   equal(INVENTORY_SCHEMA_VERSION, 2);
   equal(MENU_SCHEMA_VERSION, 2);
   const party = createPartySection();
   const inventory = createInventorySection();
   const menu = createMenuSection();
-  deepEqual(party, { version: 2, members: [], selected: null, steps: 0 });
+  deepEqual(party, { version: 3, members: [], selected: null, steps: 0, stepRemainder: 0 });
   deepEqual(inventory, { version: 2, nextId: 1, items: [], equipment: [], gold: 0 });
   deepEqual(menu, { version: 2, screens: [], graphic: null });
   deepEqual(JSON.parse(JSON.stringify(party)), party);
@@ -113,12 +113,14 @@ test("validators reject malformed fields, duplicates and dead actor or item refe
   const menu = createMenuSection();
 
   issue(validatePartySection({ members: [actorIds[0], actorIds[0]], selected: actorIds[0], steps: 0 }, state.actors));
-  issue(validatePartySection({ version: 2, members: [999], selected: 999, steps: 0 }, state.actors));
+  issue(validatePartySection({ ...party, members: [999], selected: 999 }, state.actors));
   const sixIds = [...actorIds, ...Array.from({ length: 4 }, (_, index) =>
     addActor(state.actors, { kind: "party", source: `extra-${index}.tem` }).id)];
-  issue(validatePartySection({ version: 2, members: sixIds, selected: sixIds[0], steps: 0 }, state.actors));
-  issue(validatePartySection({ version: 2, members: [], selected: undefined, steps: 0 }, state.actors));
-  issue(validatePartySection({ version: 2, members: [], selected: null, steps: -1 }, state.actors));
+  issue(validatePartySection({ ...party, members: sixIds, selected: sixIds[0] }, state.actors));
+  issue(validatePartySection({ ...party, selected: undefined }, state.actors));
+  issue(validatePartySection({ ...party, steps: -1 }, state.actors));
+  issue(validatePartySection({ ...party, stepRemainder: -1 }, state.actors));
+  issue(validatePartySection({ ...party, stepRemainder: 8192 }, state.actors));
   issue(validateInventorySection({ ...inventory, items: [{ id: 1, source: "a.itm", handle: "A", quantity: -1 }] }, state.actors));
   issue(validateInventorySection({ ...inventory, items: [{ id: 1, source: "a.itm", handle: "A", quantity: 0 }, { id: 1, source: "b.itm", handle: "B", quantity: 1 }] }, state.actors));
   issue(validateInventorySection({ ...inventory, items: [{ id: 1, source: "a.itm", handle: "A", quantity: 0 }, { id: 2, source: "a.itm", handle: "A", quantity: 1 }], nextId: 3 }, state.actors));
@@ -711,7 +713,7 @@ test("existing ports follow section replacement and restored sections", () => {
   equal(ports.inventory.read().gold, 0);
   equal(ports.menu.read().graphic, null);
   const restored = restoreGameState(snapshot(state));
-  restored.party = { version: 2, members: [actorId], selected: actorId, steps: 8 };
+  restored.party = { version: 3, members: [actorId], selected: actorId, steps: 8, stepRemainder: 0 };
   restored.inventory = { version: 2, nextId: 2, items: [{ id: 1, source: "potion.itm", handle: "Potion", quantity: 1 }], equipment: [], gold: 12 };
   restored.menu = { version: 2, screens: [{ screen: "status", actorId, selection: 0 }], graphic: "menu.png" };
   state.party = restored.party;

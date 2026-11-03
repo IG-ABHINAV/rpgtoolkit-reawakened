@@ -549,6 +549,9 @@ export class World {
     const finish = (blocked) => {
       a.cur = null;
       a.waitLeft = 0;
+      // A successful step reports that it completed (the party step count reads this event, see
+      // docs/spec/engine/movement-and-collision.md#reawakened-party-steps); a blocked step does not complete.
+      if (!blocked) this.emit("step-complete", { actor: a.id });
       if (a.queue.length === 0 && a.wp !== null && this.waypointFinished(a)) {
         a.wp = null;
         this.emit("waypoint-complete", { actor: a.id });
