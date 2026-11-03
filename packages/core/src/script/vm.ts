@@ -27,6 +27,7 @@ import { BATTLE_HOST_TYPE, createBattleHostType } from "../battle/host.ts";
 import { createActorEventSink } from "../actors/object.ts";
 import { createBehaviourRegistry, resolveBehaviour, type BehaviourRegistry } from "../actors/behaviour.ts";
 import { createMenuOwnerPorts, type ItemActionRequest, type ItemActionResult, type MenuOwnerPorts } from "../menu/ports.ts";
+import { SHOP_SCREEN } from "../menu/shop.ts";
 import type { Arg, BuiltinSpec } from "./builtins.ts";
 import { createDefaultVirtuals, type VirtualVariablePort } from "./virtuals.ts";
 import { MEDIA_HOST_TYPES, objectValue, mediaVoiceRef, type MediaPlayOptions, type MediaScriptService } from "../audio/script.ts";
@@ -91,6 +92,7 @@ import { runModuleCommand } from "./modules.ts";
 import { MODULE_COMMANDS } from "./parse.ts";
 import type { SourcePos, StepOp } from "./ops.ts";
 import type { CommandResult, CommandRequest, CommandView, ResolvedPlugin, MenuProvider, MenuProviderContext, MenuProviderEvent, MenuProviderResult, MenuScreenId } from "./plugin.ts";
+import { MENU_SCREEN_IDS } from "./plugin.ts";
 import {
   assetKey,
   isHookStage,
@@ -101,7 +103,7 @@ import {
   type ItemActionRecord,
 } from "./item-action.ts";
 import { INVENTORY_HOST_TYPE, INVENTORY_HOST_TYPE_NAME } from "./packs/inventory.ts";
-import { MENU_HOST_TYPE, MENU_HOST_TYPE_NAME, PARTY_HOST_TYPE, PARTY_HOST_TYPE_NAME } from "./packs/menu.ts";
+import { MENU_HOST_TYPE, MENU_HOST_TYPE_NAME, PARTY_HOST_TYPE, PARTY_HOST_TYPE_NAME, SHOP_HOST_TYPE, SHOP_HOST_TYPE_NAME } from "./packs/menu.ts";
 import {
   IR_VERSION,
   fileProgramRef,
@@ -234,7 +236,7 @@ function isMenuProviderResult(value: unknown): value is MenuProviderResult {
   if (!Object.hasOwn(result, "state") || !Object.hasOwn(result, "kind")) return false;
   if (result.kind === "open") {
     return Object.keys(result).length === 3 &&
-      (result.screen === "main" || result.screen === "items" || result.screen === "equipment" || result.screen === "abilities");
+      typeof result.screen === "string" && MENU_SCREEN_IDS.some((id) => id === result.screen);
   }
   if (result.kind === "item.action") {
     return Object.keys(result).length === 3 && isPlainData(result.state) && isItemActionRequest(result.action);
@@ -273,6 +275,8 @@ function handleMenuProviderFailure(
     screens: services.menuOwners.menu.read().screens.slice(0, baseDepth),
   });
   if (!cleanup.ok) throw new ScriptError("menu.state-refused", cleanup.error?.message ?? "menu frame cleanup was refused");
+  // A failed shop provider ends its session too, so no stock outlives the screen that presented it.
+  if (continuation.screen === SHOP_SCREEN) services.menuOwners.shop.close();
   const frameIndex = Number(continuation.frameIndex);
   const opIp = Number(continuation.opIp);
   const depth = Number(continuation.depth);
@@ -293,6 +297,26 @@ function handleMenuProviderFailure(
   thread.frames.length = frameIndex + 1;
   delete callerFrame.itemActions;
   handleFailure(thread, vm, services, callerProgram, callerFrame, op, opIp, depth, error);
+}
+
+/**
+ * Commit the stock a `CallShop` command resolved, so the presenting screen and the inventory owner already see
+ * it (E-83). The owner validates every source against its item definitions and refuses atomically; a refusal is
+ * the command's own `menu.state-invalid` error, exactly as the effect path reported it.
+ */
+function activateShopStock(services: ScriptServices, value: PlainData | undefined, pos: SourcePos): string[] {
+  if (!Array.isArray(value)) throw new ScriptError("builtin.bad-arg", "shop.open: expected the resolved item sources", pos);
+  const sources: string[] = [];
+  for (const source of value) {
+    if (typeof source !== "string") throw new ScriptError("builtin.bad-arg", "shop.open: expected item asset sources", pos);
+    sources.push(source);
+  }
+  if (sources.length === 0) throw new ScriptError("menu.shop-invalid", "shop stock requires at least one item source", pos);
+  const activated = services.menuOwners.shop.activate(sources);
+  if (!activated.ok) {
+    throw new ScriptError("menu.state-invalid", `${activated.error?.path ?? "shop.stock"}: ${activated.error?.message ?? "the shop was refused"}`, pos);
+  }
+  return sources;
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -335,7 +359,12 @@ function createRpgcodeMenuContext(vm: VmState, screen: string): ObjectRecord {
   writeMember(context, "screen", screen);
   writeMember(context, "state", null);
   writeMember(context, "event", "enter");
-  for (const type of [INVENTORY_HOST_TYPE_NAME, PARTY_HOST_TYPE_NAME, MENU_HOST_TYPE_NAME]) {
+  // The shop view exists only for the screen that presents a shop session, so the other screens' object
+  // allocation — and therefore their recorded state — stays exactly what it was.
+  const hostTypes = screen === SHOP_SCREEN
+    ? [INVENTORY_HOST_TYPE_NAME, PARTY_HOST_TYPE_NAME, MENU_HOST_TYPE_NAME, SHOP_HOST_TYPE_NAME]
+    : [INVENTORY_HOST_TYPE_NAME, PARTY_HOST_TYPE_NAME, MENU_HOST_TYPE_NAME];
+  for (const type of hostTypes) {
     const holder = vm.objects.find((record) => record.hostType === type) ?? createHostObject(vm, type);
     writeMember(context, type, { kind: "object", handle: holder.handle, className: holder.className });
   }
@@ -846,6 +875,7 @@ export function createScriptServices(
   hydratedTypes.set(INVENTORY_HOST_TYPE_NAME, INVENTORY_HOST_TYPE);
   hydratedTypes.set(PARTY_HOST_TYPE_NAME, PARTY_HOST_TYPE);
   hydratedTypes.set(MENU_HOST_TYPE_NAME, MENU_HOST_TYPE);
+  hydratedTypes.set(SHOP_HOST_TYPE_NAME, SHOP_HOST_TYPE);
   if (media !== undefined) for (const type of MEDIA_HOST_TYPES) hydratedTypes.set(type.name, type);
   const menuOwners = menuPorts ?? createMenuOwnerPorts(state);
   for (const plugin of plugins) {
@@ -1042,6 +1072,8 @@ function runNativeMenuProvider(
       screens: services.menuOwners.menu.read().screens.slice(0, -1),
     });
     if (!popped.ok) throw new ScriptError("menu.state-refused", popped.error?.message ?? "menu frame close was refused");
+    // A shop session ends with the provider that presented it, whichever kind of provider it was.
+    if (saved.screen === SHOP_SCREEN) services.menuOwners.shop.close();
     if (parents.length > 0) {
       const parent = parents[parents.length - 1]!;
       if (!services.menuProviders.has(parent.providerId)) {
@@ -2419,7 +2451,7 @@ function registerPluginCall(
   if (menuProvidersKey !== undefined) {
     const rawMenuProviders = readMember(definition, menuProvidersKey);
     const providers = liveObject(vm, rawMenuProviders, pos, `"registerPlugin" takes a menuProviders dictionary`);
-    const validScreens = new Set(["main", "items", "equipment", "abilities"]);
+    const validScreens = new Set<string>(MENU_SCREEN_IDS);
     for (const screen of providers.keys) {
       if (!validScreens.has(screen)) {
         throw new ScriptError("builtin.bad-arg", `registerPlugin: unknown menu screen "${screen}"`, pos);
@@ -2886,11 +2918,20 @@ function dispatchResolved(
       const action = effect.args?.[0];
       if (action === "menu.open") {
         const screen = effect.args?.[1];
-        if (typeof screen !== "string" || !["main", "items", "equipment", "abilities"].includes(screen)) {
+        if (typeof screen !== "string" || !MENU_SCREEN_IDS.some((id) => id === screen)) {
           throw new ScriptError("builtin.bad-arg", "menu.open: invalid screen", pos);
         }
+        // A shop screen presents an active CallShop session (E-83): activation commits first, then either the
+        // registered presenter runs on this thread or the standalone menu.screen wait resumes the command.
+        const stock = screen === SHOP_SCREEN ? activateShopStock(services, effect.args?.[2], pos) : null;
         const menuBaseDepth = services.menuOwners.menu.read().screens.length;
         const registered = topMenuProvider(services.layers, screen);
+        if (stock !== null && registered === undefined) {
+          thread.wait = { kind: "menu.screen", global: true, id: "callshop", payload: [stock], resumeRefs: [] };
+          thread.status = "waiting";
+          parked = true;
+          continue;
+        }
         if (registered?.kind === "rpgcode") {
           const opened = services.menuOwners.menu.apply({
             type: "navigation",
@@ -2928,6 +2969,7 @@ function dispatchResolved(
               menuBaseDepth,
               file: pos.file,
               line: pos.line,
+              ...(stock === null ? {} : { stock }),
             };
           }
           continue;
@@ -2954,6 +2996,7 @@ function dispatchResolved(
           menuBaseDepth,
           file: pos.file,
           line: pos.line,
+          ...(stock === null ? {} : { stock }),
         };
         let transition: MenuProviderResult;
         try {
@@ -4359,6 +4402,8 @@ export function stepThread(
         thread.frames.pop();
         if (menuScreen !== undefined) {
           services.menuOwners.menu.apply({ type: "navigation", screens: services.menuOwners.menu.read().screens.slice(0, -1) });
+          // Returning from a shop presenter ends its session: the caller's CallShop resumes with no stock to reopen.
+          if (menuScreen === SHOP_SCREEN) services.menuOwners.shop.close();
         }
         if (menuContinuation !== undefined && menuContinuation !== null && typeof menuContinuation === "object" && !Array.isArray(menuContinuation)) {
           const saved = menuContinuation as Record<string, unknown>;

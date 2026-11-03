@@ -1051,8 +1051,10 @@ test("RPGCode CallShop rejects empty and unavailable stock before opening", () =
     { value: 1, ref: null }, { value: secondBytes, ref: null }, { value: "Elixir.itm", ref: null },
     { value: JSON.stringify(paths), ref: null }, { value: JSON.stringify(["item/potion.itm"]), ref: null },
   ], next);
-  deepEqual(opened.effects?.[0]?.args?.[0], { type: "shop.open", sources: ["item/potion.itm", "item/elixir.itm"] });
-  equal(opened.wait?.kind, "menu.screen");
+  // The resolved stock reaches the VM's own control, which activates it and either enters a registered `shop`
+  // provider or leaves the standalone `menu.screen` wait (docs/spec/engine/rpgcode-functions.md#e-83).
+  deepEqual(opened.effects?.[0], { kind: "vm.control", args: ["menu.open", "shop", ["item/potion.itm", "item/elixir.itm"]] });
+  equal(opened.wait, undefined);
   deepEqual(firstContinuation.request, { kind: "asset", area: "items", path: "Elixir.itm" });
   throws(() => continuation.call(services.view, [
     { value: 0, ref: null }, { value: "", ref: null }, { value: "Elixir.itm", ref: null },

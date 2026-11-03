@@ -566,7 +566,7 @@ stockMenu = {
         }
         local(data) = menuitemdata(source)
         if (data == null) {
-            data = { description: "", keyitem: 0, menuy: 0, equipable: 0, slots: {}, accessory: "", usedby: 0, allowed: {} }
+            data = { name: "", description: "", buyprice: 0, sellprice: 0, keyitem: 0, menuy: 0, equipable: 0, slots: {}, accessory: "", usedby: 0, allowed: {} }
         }
         stockMenu.itemCache[source] = data
         return data
@@ -1383,6 +1383,249 @@ stockMenu = {
         return 0
     },
 
+    // ---- the shop screen (E-83, #1234) -----------------------------------------------------------------------
+    // The screen presents the session an active `CallShop` command owns: one row per `context.shop.stock` entry with
+    // the name and both prices, the party's gold on the bottom right, then Buy/Sell and an amount row per unit.
+    // Transactions go through the inventory owner only; leaving the list clears the stock so the caller resumes.
+    shopLoad: (context) => {
+        local(stock) = context.shop.stock
+        local(total) = stock.length
+        local(index) = 0
+        local(entry)
+        local(data)
+        stockMenu.shopSources = {}
+        stockMenu.shopNames = {}
+        stockMenu.shopBuy = {}
+        stockMenu.shopSell = {}
+        stockMenu.shopCount = total
+        for (index = 0; index < total; index = index + 1) {
+            entry = stock[index]
+            stockMenu.shopSources[index] = entry.source
+            data = stockMenu.itemData(entry.source)
+            stockMenu.shopNames[index] = data.name
+            if (data.name == "") {
+                stockMenu.shopNames[index] = entry.source
+            }
+            stockMenu.shopBuy[index] = data.buyprice
+            stockMenu.shopSell[index] = data.sellprice
+        }
+        return total
+    },
+    // The available units of one source, and the lowest stack id holding them (the E-83 sell target).
+    shopHeld: (context, source) => {
+        local(items) = context.inventory.items
+        local(total) = 0
+        local(index) = 0
+        stockMenu.shopEntryId = 0
+        stockMenu.shopAvailable = 0
+        for (index = 0; index < items.length; index = index + 1) {
+            if (items[index].source == source && items[index].quantity > 0) {
+                total = total + items[index].quantity
+                if (stockMenu.shopEntryId == 0 || items[index].id < stockMenu.shopEntryId) {
+                    stockMenu.shopEntryId = items[index].id
+                }
+            }
+        }
+        stockMenu.shopAvailable = total
+        return total
+    },
+    shopGold: (context) => {
+        stockMenu.words(stockMenu.w - 168, stockMenu.h - 40, "Gold " + context.inventory.gold, 16,
+        stockMenu.inkR, stockMenu.inkG, stockMenu.inkB)
+        return 0
+    },
+    drawShop: (context, ui) => {
+        local(index) = 0
+        local(amount) = 0
+        local(total) = 0
+        local(price) = 0
+        local(labels) = {}
+        local(values) = {}
+        local(dims) = {}
+        local(available) = 0
+        local(count) = stockMenu.shopLoad(context)
+        if (ui.mode == "list") {
+            stockMenu.clampSel(ui, count)
+            for (index = 0; index < count; index = index + 1) {
+                labels[index] = stockMenu.shopNames[index]
+                values[index] = "Buy " + stockMenu.shopBuy[index] + " / Sell " + stockMenu.shopSell[index]
+                dims[index] = 0
+                if (stockMenu.shopBuy[index] < 0 || stockMenu.shopSell[index] < 0) {
+                    dims[index] = 1
+                }
+            }
+            stockMenu.list(ui, "Shop", labels, values, dims, count, "Nothing for sale")
+            stockMenu.shopGold(context)
+        }
+        if (ui.mode == "action") {
+            available = stockMenu.shopHeld(context, stockMenu.shopSources[ui.stack])
+            labels[0] = "Buy"
+            labels[1] = "Sell"
+            values[0] = "" + stockMenu.shopBuy[ui.stack] + " GP each"
+            values[1] = "" + stockMenu.shopSell[ui.stack] + " GP each"
+            dims[0] = 0
+            dims[1] = 0
+            if (available < 1) {
+                dims[1] = 1
+            }
+            stockMenu.list(ui, stockMenu.shopNames[ui.stack], labels, values, dims, 2, "")
+            stockMenu.shopGold(context)
+        }
+        if (ui.mode == "amount") {
+            if (ui.action == "buy") {
+                price = stockMenu.shopBuy[ui.stack]
+            } else {
+                price = stockMenu.shopSell[ui.stack]
+                available = stockMenu.shopHeld(context, stockMenu.shopSources[ui.stack])
+            }
+            for (index = 0; index < 9; index = index + 1) {
+                amount = index + 1
+                total = price * amount
+                labels[index] = "" + amount
+                values[index] = "" + amount + " x " + price + " = " + total + " GP"
+                dims[index] = 0
+                if (ui.action == "buy" && total > context.inventory.gold) {
+                    dims[index] = 1
+                }
+                if (ui.action == "sell" && amount > available) {
+                    dims[index] = 1
+                }
+            }
+            stockMenu.list(ui, stockMenu.shopNames[ui.stack], labels, values, dims, 9, "")
+            stockMenu.shopGold(context)
+            // The message line carries the focused row's own total, so the price to pay is always visible.
+            stockMenu.words(stockMenu.labelX, stockMenu.h - 40, values[stockMenu.getSel(ui)], 16,
+            stockMenu.markR, stockMenu.markG, stockMenu.markB)
+        }
+        return 0
+    },
+    shopScreen: (context) => {
+        local(key) = ""
+        local(done) = 0
+        local(selection) = 0
+        local(amount) = 0
+        local(price) = 0
+        local(total) = 0
+        local(available) = 0
+        local(name) = ""
+        local(parent) = stockMenu.begin(context, "shop")
+        local(ui) = stockMenu.newUi(context)
+        // The shop's own screen state is created here, not in the shared helpers, so no other screen's
+        // recorded state changes when the shop screen exists (golden/epic8/acceptance.json).
+        ui.amount = 1
+        ui.action = "buy"
+        while (done == 0) {
+            if (ui.dirty == 1) {
+                stockMenu.drawShop(context, ui)
+                ui.dirty = 0
+            }
+            key = stockMenu.read(ui)
+            if (key != "") {
+                selection = stockMenu.getSel(ui)
+                if (ui.mode == "list") {
+                    stockMenu.nav(ui, key, stockMenu.shopCount)
+                    if (key == "cancel" || key == "menu") {
+                        context.shop.close()
+                        done = 1
+                        if (key == "menu") { stockMenu.closeAll = 1 }
+                        stockMenu.cue("cancel")
+                    }
+                    if (key == "confirm") {
+                        if (stockMenu.shopCount > 0) {
+                            ui.stackSel = selection
+                            ui.stack = selection
+                            stockMenu.enter(ui, "action", ui.actor0, 0, 0)
+                            stockMenu.cue("choose")
+                        }
+                    }
+                } else {
+                    if (ui.mode == "action") {
+                        stockMenu.nav(ui, key, 2)
+                        if (key == "cancel") {
+                            stockMenu.enter(ui, "list", ui.actor0, ui.stackSel, 0)
+                            stockMenu.cue("cancel")
+                        }
+                        if (key == "menu") {
+                            context.shop.close()
+                            done = 1
+                            stockMenu.closeAll = 1
+                            stockMenu.cue("cancel")
+                        }
+                        if (key == "confirm") {
+                            if (stockMenu.shopBuy[ui.stack] < 0 || stockMenu.shopSell[ui.stack] < 0) {
+                                stockMenu.message = "That price cannot be traded"
+                                stockMenu.cue("cancel")
+                            } else {
+                                if (selection == 1) {
+                                    if (stockMenu.shopHeld(context, stockMenu.shopSources[ui.stack]) < 1) {
+                                        stockMenu.message = "Nothing to sell"
+                                        stockMenu.cue("cancel")
+                                    } else {
+                                        ui.action = "sell"
+                                        ui.actionSel = 1
+                                        stockMenu.enter(ui, "amount", ui.actor0, 0, 0)
+                                        stockMenu.cue("choose")
+                                    }
+                                } else {
+                                    ui.action = "buy"
+                                    ui.actionSel = 0
+                                    stockMenu.enter(ui, "amount", ui.actor0, 0, 0)
+                                    stockMenu.cue("choose")
+                                }
+                            }
+                        }
+                    } else {
+                        if (ui.mode == "amount") {
+                            stockMenu.nav(ui, key, 9)
+                            if (key == "cancel") {
+                                stockMenu.enter(ui, "action", ui.actor0, ui.actionSel, 0)
+                                stockMenu.cue("cancel")
+                            }
+                            if (key == "menu") {
+                                context.shop.close()
+                                done = 1
+                                stockMenu.closeAll = 1
+                                stockMenu.cue("cancel")
+                            }
+                            if (key == "confirm") {
+                                amount = selection + 1
+                                name = stockMenu.shopNames[ui.stack]
+                                if (ui.action == "buy") {
+                                    price = stockMenu.shopBuy[ui.stack]
+                                    total = price * amount
+                                    if (total > context.inventory.gold) {
+                                        stockMenu.message = "Not enough gold"
+                                        stockMenu.cue("cancel")
+                                    } else {
+                                        ui.amount = amount
+                                        context.inventory.buyItem({ source: stockMenu.shopSources[ui.stack], amount: amount })
+                                        stockMenu.message = "Bought " + name + " x " + amount
+                                        stockMenu.enter(ui, "list", ui.actor0, ui.stackSel, 0)
+                                        stockMenu.cue("choose")
+                                    }
+                                } else {
+                                    available = stockMenu.shopHeld(context, stockMenu.shopSources[ui.stack])
+                                    if (amount > available) {
+                                        stockMenu.message = "Not enough to sell"
+                                        stockMenu.cue("cancel")
+                                    } else {
+                                        ui.amount = amount
+                                        context.inventory.sellItem({ entryId: stockMenu.shopEntryId, amount: amount })
+                                        stockMenu.message = "Sold " + name + " x " + amount
+                                        stockMenu.enter(ui, "list", ui.actor0, ui.stackSel, 0)
+                                        stockMenu.cue("choose")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stockMenu.close(parent)
+        return 0
+    },
+
     // ---- the save/load picker (dirsav) -----------------------------------------------------------------------
     // The cursor lives in the menu frame when one exists (and the opening screen's selection comes back when the
     // picker closes); a direct `dirsav()` call has no frame and keeps the cursor in `ui.sel`.
@@ -1518,6 +1761,9 @@ registerplugin({
         },
         abilities: (context) => {
             return stockMenu.abilitiesScreen(context)
+        },
+        shop: (context) => {
+            return stockMenu.shopScreen(context)
         },
     },
 })

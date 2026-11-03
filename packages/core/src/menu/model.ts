@@ -1,5 +1,6 @@
 /** Section-owned save data; docs/spec/formats/save-game.md#reawakened-canonical-party-inventory-and-menu-state. */
 import type { ActorsSection } from "../actors/model.ts";
+import type { PlainData } from "../ports/plain-data.ts";
 
 export const PARTY_SCHEMA_VERSION = 3;
 export const INVENTORY_SCHEMA_VERSION = 2;
@@ -152,7 +153,15 @@ export function validateMenuSection(value: unknown, actors: ActorsSection): Stat
   return null;
 }
 
-/** Owner views share no mutable data; freezing avoids a copy on every query. */
+/**
+ * A frozen deep copy of a section an owner publishes (E-80/E-81). The *live* section is never frozen: a reader must
+ * not be able to change an owner's state, and an owner's own in-place writer must not be broken by a read.
+ */
+export function readonlyCopy<T extends PlainData>(value: T): DeepReadonly<T> {
+  return readonlySection(JSON.parse(JSON.stringify(value)) as T);
+}
+
+/** Freeze `value` and its children in place. Callers publishing live state use `readonlyCopy`. */
 export function readonlySection<T>(value: T): DeepReadonly<T> {
   if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) readonlySection(child);

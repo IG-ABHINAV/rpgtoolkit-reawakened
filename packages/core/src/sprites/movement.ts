@@ -557,8 +557,13 @@ export function movementPhaseRegistration(options: MovementOptions & { readonly 
           if (ev.type === "step-complete" && ev.actor === state.sprites.selectedPlayer &&
             ev.partyDistance256 !== undefined && ev.partyDistance256 > 0) {
             const total = state.party.stepRemainder + ev.partyDistance256;
-            state.party.steps += Math.floor(total / (32 * FP));
-            state.party.stepRemainder = total % (32 * FP);
+            // Copy on write: an owner read may have frozen the live section (menu/ports.ts `read`), exactly as it
+            // does for every other section the owners publish.
+            state.party = {
+              ...state.party,
+              steps: state.party.steps + Math.floor(total / (32 * FP)),
+              stepRemainder: total % (32 * FP),
+            };
           }
         },
       });

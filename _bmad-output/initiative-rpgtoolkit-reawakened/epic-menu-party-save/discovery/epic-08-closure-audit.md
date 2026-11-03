@@ -54,3 +54,35 @@ At **`dc09ccd1`** plus the sweep's own commits. Every child of the epic is now `
 
 Sweep-specific: one rule gained a single owner (the E-82 slot flag indices, F-01 in the plan) and one spec paragraph was
 corrected to the shipped contract (F-02); no behaviour, draw list, state hash or baseline moved.
+
+## Epic 8 end-to-end acceptance (8.14 / #595)
+
+The acceptance branch adds a real-engine stock-menu play-through and a new
+`golden/epic8/acceptance.json` with state and draw checkpoints. The fixture exercises item use,
+equipment, ability information and execution, key-item refusal, custom menu graphics and UI sounds,
+with a separate saving-disabled board case. Real-engine companion scenarios exercise the
+player-operated shop, Inn, save bytes and instruction-version compatibility, the stock dialogue
+bridge, and battle item consumption. These are additional acceptance evidence; the separate unit
+and integration suites listed above remain relevant.
+
+Both previously blocked items are closed:
+
+- **Shop screen (#1234).** `epic-8-shop-party.test.ts` drives the stock menu's shop from scripted
+  input only: the board script calls `CallShop`, keys open the shop, buy, meet both refusals, sell
+  and close, and a pointer press/release plus a pad press reach the same rows. No test phase hook
+  dispatches owner actions any more; the session ends and the caller resumes.
+- **Player steps (E-87, #1231).** The same scenario walks one 32-pixel tile with a held arrow and
+  reads the count back through a game-shipped RPGCode provider's `context.party.steps`; the count
+  and its sub-tile remainder survive a canonical save/restore. A third case opens the main screen
+  with the engine menu key, closes it and then walks one tile, which proves a menu frame no longer freezes the party
+  section (the menu owner now publishes a frozen copy and the movement accumulator writes
+  copy-on-write).
+
+`epic-8-restore-acceptance.test.ts` compares the complete ruled replay-hash projection at settled
+checkpoints and proves the single permitted load cue, including the saved party section with the
+step count and remainder.
+
+What is not claimed: the earlier caveat that a headless probe left `party.steps` at `0` described
+the #1231 defect and is withdrawn. The acceptance does not assert active-voice equivalence on Load
+(the no-active-audio case is what the ruling scopes), and it does not cover a shop opened by a
+custom (non-stock) menu provider.

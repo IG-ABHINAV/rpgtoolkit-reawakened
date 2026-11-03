@@ -5,7 +5,7 @@ import { addActor, removeActor, type ActorCreateInput } from "../actors/model.ts
 import { assetKey } from "../formats/resolver/resolver.ts";
 import { ScriptError } from "../script/errors.ts";
 import {
-  readonlySection,
+  readonlyCopy,
   validateActionFields,
   validateMenuSection,
   validatePartySection,
@@ -175,7 +175,7 @@ export function createMenuOwnerPorts(
       },
     },
     party: {
-      read: () => readonlySection(state.party),
+      read: () => readonlyCopy(state.party),
       apply(action: unknown): MenuStateResult {
         const record = actionRecord(action);
         if (record === null) return rejected({ path: "party.action", message: "expected an action object" });
@@ -258,7 +258,7 @@ export function createMenuOwnerPorts(
       },
     },
     inventory: {
-      read: () => readonlySection(state.inventory),
+      read: () => readonlyCopy(state.inventory),
       apply(action: unknown): MenuStateResult {
         const outcome = applyInventoryAction(state, action, inventoryRuntime);
         for (const event of outcome.events) onInventoryEvent?.(event);
@@ -278,7 +278,7 @@ export function createMenuOwnerPorts(
       },
     },
     menu: {
-      read: () => readonlySection(state.menu),
+      read: () => readonlyCopy(state.menu),
       apply(action: unknown): MenuStateResult {
         const record = actionRecord(action);
         if (record === null) return rejected({ path: "menu.action", message: "expected an action object" });

@@ -13,6 +13,7 @@ import { readCharacter } from "../../formats/actor/character.ts";
 import { specialAvailable } from "./battle.ts";
 import type { Item } from "../../formats/actor/model.ts";
 import { ACCESSORY_FLAG_INDEX, ACCESSORY_LOCATIONS, ACCESSORY_SLOT_TOKEN, accessoryNameIndex, BODY_SLOT_TOKENS, slotFlagIndex } from "../../menu/equipment.ts";
+import { shopStockFromThreads } from "../../menu/shop.ts";
 import type { Result } from "../../formats/result.ts";
 import { objectValue } from "../../audio/script.ts";
 import type { PlainData } from "../../ports/plain-data.ts";
@@ -36,6 +37,7 @@ const ITEM_DATA_CONTINUATION = "__menu_item_asset";
 const SAVE_LIST_CONTINUATION = "__save_list_continue";
 const UPDATE_CURRENT_COMMAND = "__menu_update_current";
 const DRAW_GRAPHIC_COMMAND = "__menu_draw_graphic";
+const SHOP_CLOSE_COMMAND = "__menu_shop_close";
 /** The recorded name of `context.menu.drawGraphic`: the image effect the engine treats as optional decoration. */
 export const MENU_GRAPHIC_EFFECT = "host:menu:drawgraphic";
 
@@ -135,7 +137,7 @@ const ITEM_DATA: BuiltinSpec = {
   name: "menuitemdata", aliases: [], params: [parameter("file")],
   doc: nativeDocs(
     "Read an item file's menu fields and description.",
-    "Loads Item/<file>.itm (the prefix and extension may be omitted) and returns its stored menu-relevant values as a dictionary without changing any actor, inventory or menu state: `name` and `description` (the text exactly as stored, the empty string when none), `keyitem` and `menuy` (the stored bytes passed through unchanged: a non-zero `keyitem` is a key item, and `menuy` follows the file's own 1 = usable-from-the-menu rule), `equipable`, `slots` (the six body slots keyed by their canonical E-82 tokens, 1 when the file fits that slot), `accessory` (the file's accessory name, the empty string when it names none), and `usedby` with `allowed` (the stored flag and the stored character names). It refuses nothing itself, checks no quantity and waits for the host to load the file.",
+    "Loads Item/<file>.itm (the prefix and extension may be omitted) and returns its stored menu-relevant values as a dictionary without changing any actor, inventory or menu state: `name` and `description` (the text exactly as stored, the empty string when none), `buyprice` and `sellprice` (the stored shop prices, unchanged and possibly negative; the E-83 shop screen prints them and the inventory owner refuses a negative price), `keyitem` and `menuy` (the stored bytes passed through unchanged: a non-zero `keyitem` is a key item, and `menuy` follows the file's own 1 = usable-from-the-menu rule), `equipable`, `slots` (the six body slots keyed by their canonical E-82 tokens, 1 when the file fits that slot), `accessory` (the file's accessory name, the empty string when it names none), and `usedby` with `allowed` (the stored flag and the stored character names). It refuses nothing itself, checks no quantity and waits for the host to load the file.",
     ASSET_WAIT,
   ),
   call: (_view, args) => ({
@@ -161,6 +163,8 @@ const ITEM_ASSET: BuiltinSpec = {
       value: record(view.state!.vm, {
         name: item.name,
         description: item.description,
+        buyprice: item.buyPrice,
+        sellprice: item.sellPrice,
         keyitem: item.keyItem,
         menuy: item.menuUsable,
         equipable: item.equipable,
@@ -402,13 +406,43 @@ export const PARTY_HOST_TYPE: HostObjectType = {
   },
 };
 
+const SHOP_CLOSE: BuiltinSpec = {
+  name: SHOP_CLOSE_COMMAND, aliases: [], params: [parameter("self")],
+  doc: internalDocs(
+    "Close the active shop session from a menu provider.",
+    "Clears the active `CallShop` stock through the menu owner, so `shop.stock` is empty afterwards, `buyItem` and `sellItem` refuse, and a save taken after the close cannot reopen the shop. It is idempotent, changes no other state, and returning from the provider after it resumes the command's caller.",
+    NO_WAIT,
+  ),
+  call: () => ({ value: null, effects: [{ kind: "state-write", section: "menu", args: [{ type: "shop.close" }] }] }),
+};
+
+/** The hydrated `context.shop` object of an RPGCode menu provider (E-83, #1234). */
+export const SHOP_HOST_TYPE_NAME = "shop";
+export const SHOP_HOST_TYPE: HostObjectType = {
+  name: SHOP_HOST_TYPE_NAME,
+  methods: { close: SHOP_CLOSE_COMMAND },
+  readOnlyMembers: ["stock"],
+  /** The active session's ordered sources as a fresh dictionary per read; empty outside a shop. */
+  read(context, name) {
+    if (name.toLowerCase() !== "stock") return undefined;
+    const stock = shopStockFromThreads(context.state.vm.threads) ?? [];
+    return dictionary(context.vm, stock.map((source) => ({ source })));
+  },
+  write() {
+    return "read-only";
+  },
+  remove() {
+    return "system-owned";
+  },
+};
+
 export const STOCK_MENU_COMMANDS: readonly BuiltinSpec[] = [
-  MENU_GRAPHIC, ITEM_DATA, ITEM_ASSET, CHARACTER_DATA, CHARACTER_ASSET, SAVE_LIST, SAVE_LIST_REPLY, UPDATE_CURRENT, DRAW_GRAPHIC,
+  MENU_GRAPHIC, ITEM_DATA, ITEM_ASSET, CHARACTER_DATA, CHARACTER_ASSET, SAVE_LIST, SAVE_LIST_REPLY, UPDATE_CURRENT, DRAW_GRAPHIC, SHOP_CLOSE,
 ];
 
 /** The names the menu pack owns, so the catalogue layer does not also answer them. */
 export const STOCK_MENU_COMMAND_NAMES = new Set<string>([
-  "menugraphic", "menuitemdata", "menucharacterdata", "savelist", ITEM_DATA_CONTINUATION, CHARACTER_DATA_CONTINUATION, SAVE_LIST_CONTINUATION, UPDATE_CURRENT_COMMAND, DRAW_GRAPHIC_COMMAND,
+  "menugraphic", "menuitemdata", "menucharacterdata", "savelist", ITEM_DATA_CONTINUATION, CHARACTER_DATA_CONTINUATION, SAVE_LIST_CONTINUATION, UPDATE_CURRENT_COMMAND, DRAW_GRAPHIC_COMMAND, SHOP_CLOSE_COMMAND,
 ]);
 
 export const STOCK_MENU_PLUGIN: PluginDefinition = pack(

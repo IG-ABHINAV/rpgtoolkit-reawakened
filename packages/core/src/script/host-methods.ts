@@ -9,7 +9,7 @@
 import { MEDIA_HOST_TYPES } from "../audio/script.ts";
 import { createBattleHostType } from "../battle/host.ts";
 import { INVENTORY_HOST_TYPE } from "./packs/inventory.ts";
-import { MENU_HOST_TYPE, PARTY_HOST_TYPE } from "./packs/menu.ts";
+import { MENU_HOST_TYPE, PARTY_HOST_TYPE, SHOP_HOST_TYPE } from "./packs/menu.ts";
 import type { HostObjectType } from "./host.ts";
 
 const ACTOR_METHODS: readonly string[] = ["damage"];
@@ -24,6 +24,7 @@ export const HOST_METHOD_NAMES: ReadonlySet<string> = new Set([
   ...methodsOf(INVENTORY_HOST_TYPE),
   ...methodsOf(MENU_HOST_TYPE),
   ...methodsOf(PARTY_HOST_TYPE),
+  ...methodsOf(SHOP_HOST_TYPE),
   ...methodsOf(createBattleHostType()),
   ...MEDIA_HOST_TYPES.flatMap((type) => methodsOf(type)),
 ]);

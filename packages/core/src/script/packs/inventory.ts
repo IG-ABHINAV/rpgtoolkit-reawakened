@@ -303,6 +303,8 @@ export const INVENTORY_HOST_TYPE: HostObjectType = {
     replace: "__inventory_replace",
     removeequipment: "__inventory_remove_equipment",
     removeitem: "__inventory_remove_stack",
+    buyitem: "__inventory_buy",
+    sellitem: "__inventory_sell",
   },
   readOnlyMembers: ["items", "equipment", "gold"],
   /**
@@ -382,18 +384,60 @@ const SHOP_ASSET_CONTINUATION: BuiltinSpec = {
     const sources = [...jsonStrings(text(args, 4), "shop sources"), itemSource(path)];
     if (paths.length === 0 || paths[sources.length - 1] !== path) throw new ScriptError("request.bad-reply", "shop request sequence is inconsistent");
     if (sources.length < paths.length) return shopRequest(paths, sources.length, sources);
-    return {
-      value: null,
-      effects: [{ kind: "state-write", section: "menu", args: [{ type: "shop.open", sources }] }],
-      wait: { kind: "menu.screen", global: true, id: "callshop", payload: [sources], resumeRefs: [] },
-    };
+    // The menu owner activates the stock and presents it (E-83): a registered `shop` provider runs on this
+    // thread and the caller resumes when it returns; with none registered the control leaves the standalone
+    // `menu.screen` wait that the wait poll resolves once the stock is cleared.
+    return { value: null, effects: [{ kind: "vm.control", args: ["menu.open", "shop", sources] }] };
   },
+};
+/**
+ * One shop transaction from the menu context (E-83): read `{ source|entryId, amount }` from the provider's
+ * dictionary and post the inventory owner's own action, which is the only transaction owner and refuses
+ * atomically. The screen pre-checks the two refusals a player can reach, so a refused action changes nothing.
+ */
+function shopAction(view: CommandView, args: readonly Arg[], name: string, kind: "buyItem" | "sellItem"): CommandResult {
+  const value = args[1]?.value;
+  if (typeof value !== "object" || value === null || !("kind" in value) || value.kind !== "object") {
+    throw new ScriptError("builtin.bad-arg", `${name}: the action must be a dictionary`);
+  }
+  const members = view.objectMembers?.(value.handle);
+  if (members === undefined) throw new ScriptError("builtin.bad-arg", `${name}: the action must be a live dictionary`);
+  const folded = new Map<string, Value>();
+  for (const key of Object.keys(members)) folded.set(foldAscii(key), members[key]!);
+  const fields = kind === "buyItem" ? ["source", "amount"] : ["entryId", "amount"];
+  if (folded.size !== fields.length || !fields.every((key) => folded.has(foldAscii(key)))) {
+    throw new ScriptError("builtin.bad-arg", `${name}: the action takes exactly ${fields.join(", ")}`);
+  }
+  const amount = folded.get(foldAscii("amount"));
+  if (typeof amount !== "number" || !Number.isSafeInteger(amount) || amount < 1) {
+    throw new ScriptError("builtin.bad-arg", `${name}: amount must be a positive safe integer`);
+  }
+  if (kind === "buyItem") {
+    const source = folded.get(foldAscii("source"));
+    if (typeof source !== "string" || source.trim() === "") throw new ScriptError("builtin.bad-arg", `${name}: source must be a non-empty item source`);
+    return menuAction(view, { type: "buyItem", source, amount });
+  }
+  const entryId = folded.get(foldAscii("entryId"));
+  if (typeof entryId !== "number" || !Number.isSafeInteger(entryId) || entryId < 1) {
+    throw new ScriptError("builtin.bad-arg", `${name}: entryId must be a positive safe integer`);
+  }
+  return menuAction(view, { type: "sellItem", entryId, amount });
+}
+const BUY_ITEM: BuiltinSpec = {
+  name: "__inventory_buy", aliases: [], params: params([{ name: "self" }, { name: "action" }]),
+  doc: internalDocs("Buy one shop row's units from the menu context.", "Validates `source` and `amount`, then applies the E-83 `buyItem` action through the inventory owner, which checks the active shop stock, the definition, the gold and the resulting quantity and refuses atomically. It runs no item program and changes nothing when the owner refuses."),
+  call: (view, args) => shopAction(view, args, "__inventory_buy", "buyItem"),
+};
+const SELL_ITEM: BuiltinSpec = {
+  name: "__inventory_sell", aliases: [], params: params([{ name: "self" }, { name: "action" }]),
+  doc: internalDocs("Sell one inventory stack to the active shop from the menu context.", "Validates `entryId` and `amount`, then applies the E-83 `sellItem` action through the inventory owner, which checks the active shop, the stack's available quantity and the resulting gold and refuses atomically. It runs no item program and changes nothing when the owner refuses."),
+  call: (view, args) => shopAction(view, args, "__inventory_sell", "sellItem"),
 };
 const INN: BuiltinSpec = {
   name: "inn", aliases: [], params: [],
   doc: { ...docs("Fully heal the player party.", "Sets every party member's current HP and SMP to their maxima immediately, including fallen members; it does not change status effects, equipment, inventory, roster or gold."), groups: [INVENTORY_GROUP, "battle-stats-menus-33"] },
   call: () => ({ value: null, effects: [{ kind: "state-write", section: "party", args: [{ type: "inn" }] }] }),
 };
-export const INVENTORY_COMMANDS: readonly BuiltinSpec[] = [GIVE_ITEM, TAKE_ITEM, ITEM_COUNT, GIVE_GOLD, TAKE_GOLD, GET_GOLD, EQUIP, REMOVE, EQUIP_SELECT, USE_ITEM, REPLACE_EQUIPMENT, REMOVE_EQUIPMENT, REMOVE_STACK, ITEM_ACTION_ASSET, ITEM_ACTION_COMPLETE, ITEM_ASSET_CONTINUATION, CALL_SHOP, SHOP_ASSET_CONTINUATION, INN];
-export const INVENTORY_COMMAND_NAMES = new Set<string>([...ITEM_NAMES, "inn", "callshop", "__inventory_item_asset", "__inventory_equip_select", "__inventory_use", "__inventory_replace", "__inventory_remove_equipment", "__inventory_remove_stack", ITEM_ACTION_ASSET_COMMAND, ITEM_ACTION_COMPLETE_COMMAND, "__inventory_shop_asset"]);
+export const INVENTORY_COMMANDS: readonly BuiltinSpec[] = [GIVE_ITEM, TAKE_ITEM, ITEM_COUNT, GIVE_GOLD, TAKE_GOLD, GET_GOLD, EQUIP, REMOVE, EQUIP_SELECT, USE_ITEM, REPLACE_EQUIPMENT, REMOVE_EQUIPMENT, REMOVE_STACK, ITEM_ACTION_ASSET, ITEM_ACTION_COMPLETE, ITEM_ASSET_CONTINUATION, CALL_SHOP, SHOP_ASSET_CONTINUATION, BUY_ITEM, SELL_ITEM, INN];
+export const INVENTORY_COMMAND_NAMES = new Set<string>([...ITEM_NAMES, "inn", "callshop", "__inventory_item_asset", "__inventory_equip_select", "__inventory_use", "__inventory_replace", "__inventory_remove_equipment", "__inventory_remove_stack", ITEM_ACTION_ASSET_COMMAND, ITEM_ACTION_COMPLETE_COMMAND, "__inventory_shop_asset", "__inventory_buy", "__inventory_sell"]);
 export const INVENTORY_PLUGIN: PluginDefinition = { id: "inventory", version: "1.0.0", commands: INVENTORY_COMMANDS };

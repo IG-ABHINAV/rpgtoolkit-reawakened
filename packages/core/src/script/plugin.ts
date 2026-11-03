@@ -195,8 +195,10 @@ export type PluginDoc = {
   readonly requires?: readonly string[];
 };
 
-/** Menu facade screen identifiers (E-80, #588). */
-export type MenuScreenId = "main" | "items" | "equipment" | "abilities";
+/** Menu screen identifiers (E-80, #588; `shop` presents a `CallShop` session, #1234). */
+export type MenuScreenId = "main" | "items" | "equipment" | "abilities" | "shop";
+/** Every token a `menuProviders` dictionary may key; the four facade screens first, in facade order. */
+export const MENU_SCREEN_IDS: readonly MenuScreenId[] = ["main", "items", "equipment", "abilities", "shop"];
 export type MenuProviderEvent =
   | { readonly type: "enter" }
   | { readonly type: "input"; readonly key: string }
