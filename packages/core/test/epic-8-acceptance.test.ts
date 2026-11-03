@@ -51,10 +51,11 @@ function readGolden(): AcceptanceGolden | null {
   return JSON.parse(readFileSync(goldenPath, "utf8")) as AcceptanceGolden;
 }
 
-// Recorded state hashes moved twice, both times in `stateHash` only (every `drawHash` and event list is
+// Recorded state hashes moved three times, each in `stateHash` only (every `drawHash` and event list is
 // byte-identical to the previous recording, so the recorded screens, actions and events are unchanged):
 //   #1234 - the menu context and the menu's own item cache carry the E-83 shop data (item prices, shop actions);
-//   #1231 - the party section gained `stepRemainder` and its version number (party schema 3).
+//   #1231 - the party section gained `stepRemainder` and its version number (party schema 3);
+//   #1224 - the stock menu source moved its page indicator to a separate line from its caller-supplied title.
 function recordCheckpoint(checkpoints: GoldenCheckpoint[], id: string, session: Session, events: EventView[]): void {
   const state = session.state();
   const stateHash = hashGameState(state);

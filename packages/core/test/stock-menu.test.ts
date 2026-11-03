@@ -338,6 +338,14 @@ test("dirsav can be entered directly and returns the selected base name", () => 
   deepEqual(session.diagnostics, []);
 });
 
+test("a long dirsav title and the page indicator render on separate lines", () => {
+  const session = boot({ saves: 7, startup: 'dirsav("Long Save Picker XXX", 0, 0, 0, "")\n' });
+  session.pump((state) => session.requests.includes("listBlobs") && state.vm.threads.some((thread) => thread.wait?.kind === "input.key"));
+  const pixels = pixelsOf(session);
+  ok(hasInk(pixels, 24, 190, 300), "the long title reaches the old page-indicator area");
+  ok(hasPageIndicator(session), "the page indicator is drawn on its own line");
+});
+
 test("MenuGraphic is stored on the menu section and drawn by the screen", () => {
   const session = boot({ startup: 'menugraphic("layout.png")\nmainmenu()\n' });
   const state = session.pump((current) => current.menu.screens.length === 1);
