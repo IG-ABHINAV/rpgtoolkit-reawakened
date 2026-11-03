@@ -3,7 +3,7 @@ title: "Refactor sweep"
 type: 'chore'
 ticket: 13
 created: '2026-10-22'
-status: in-progress
+status: done
 baseline_revision: 'dc09ccd12fc1452c5a54ed1fc881d2ad0632a3df'
 risk: "low"
 context:
@@ -123,3 +123,11 @@ criteria are now backed by merged, passing headless coverage; the sweep moved no
 ## Gates
 
 The full CONTRIBUTING set at the swept head, recorded in the PR body with counts.
+
+## Completion evidence
+
+Merged PR #1225 as `928a0375d999ea51c448698861a1a6a2d77ebde7`; it closes #594. Required CI, including `gate`, passed on the reviewed head `b72d7a01` (the `mobile` job's emulator failure was re-run and passed; no bypass was used).
+
+At that head: `pnpm test` and `pnpm test:strict` 3,098 tests, 0 failed, 0 skipped; `golden` 24 compared and `closing` 8/8 unchanged, as is `golden:bun`; `dump:check` 11 projects with every digest matching; `oracle:check`, `graph`, `licence` (36), `audit`, `provenance` (56 tests, 948 files, 0 violations), `fixtures:test` (108), `catalogue:check`, `command-docs` (8), `no-skips:test` (12), `icons:test` (5), `script:dogfood` all pass.
+
+Two review rounds found four things this sweep had wrong and they are fixed here, each with a test that fails when its guard is removed: the accessory flag (F-01), the unwired `migrateEngine` (F-07), the fractional slot location, and the two record errors in this plan.
