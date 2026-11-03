@@ -35,13 +35,14 @@
  * `SCHEMA_VERSIONS.vm` is migrated forward before it is returned: v2 → v3 adds
  * the effect log that ticket 3.21 introduced, v3 → v4 the thread, wait and
  * request fields of ticket 3.9, v4 → v5 advances both ticket 3.8 module
- * metadata and ticket 3.16's sandboxed file-handle table, and v5 → v6 renames
- * each program reference's `compiler` to `ir`. The `schema` section v1 → v2
- * turns its `compiler` into `ir` the same way. The chain is keyed by the
- * per-section numbers (AD-23). A save whose `schema.audio` is 1 carried the empty
- * placeholder; it is replaced by a fresh schema-2 audio section
- * (docs/spec/engine/audio-media.md#audio-state), because a placeholder held no
- * playback to keep.
+ * metadata and ticket 3.16's sandboxed file-handle table, v5 → v6 renames
+ * each program reference's `compiler` to `ir`, and v6 → v7 establishes the
+ * composable same-thread item-action continuation shape. The `schema` section
+ * v1 → v2 turns its `compiler` into `ir` the same way. A save whose
+ * `schema.audio` is 1 carried the empty placeholder; it is replaced by a fresh
+ * schema-2 audio section (docs/spec/engine/audio-media.md#audio-state), because
+ * a placeholder held no playback to keep. The chain is keyed by the
+ * per-section numbers (AD-23).
  *
  * AD-10 (the state tree) and AD-11 (the canonical form); docs/spec/formats/save-game.md#layout-minor-4 (the
  * saved game).
@@ -57,6 +58,7 @@ import {
   RESTORE_CELL_SEQ,
   ScriptError,
 } from "../script/errors.ts";
+import { itemActionRecordIssue, ITEM_ACTION_COMPLETE_COMMAND } from "../script/item-action.ts";
 import { IR_VERSION } from "../script/program.ts";
 import { SCHEMA_VERSIONS, type GameState } from "./state.ts";
 import { asActorsSection, createActorsSection, ACTORS_SCHEMA_VERSION, validateActorProgression, type ActorProgression, type ActorStats } from "../actors/model.ts";
@@ -170,6 +172,7 @@ function migrateVm(record: Record<string, unknown>, schema: Record<string, unkno
   if (version < 5) {
     if (!Array.isArray(vmRecord.files)) vmRecord.files = [];
   }
+  // v6 → v7 adds an optional per-frame itemActions stack; older frames remain absent until needed.
   schema.vm = SCHEMA_VERSIONS.vm;
 }
 
@@ -448,6 +451,15 @@ function validateVmShape(vm: Record<string, unknown>): ReadonlyMap<number, strin
       recordAt(frame.locals, `vm.threads[${index}].frames[${frameIndex}].locals`);
       arrayAt(frame.operands, `vm.threads[${index}].frames[${frameIndex}].operands`);
       if (frame.errorHandler !== null) recordAt(frame.errorHandler, `vm.threads[${index}].frames[${frameIndex}].errorHandler`);
+      if (Object.hasOwn(frame, "itemActions")) {
+        const itemActionsPath = `vm.threads[${index}].frames[${frameIndex}].itemActions`;
+        const records = arrayAt(frame.itemActions, itemActionsPath);
+        if (records.length === 0) shapeError(`the snapshot's ${itemActionsPath} is empty`);
+        for (const [actionIndex, actionValue] of records.entries()) {
+          const issue = itemActionRecordIssue(actionValue);
+          if (issue !== null) shapeError(`the snapshot's ${itemActionsPath}[${actionIndex}] ${issue}`);
+        }
+      }
       if (typeof frame.autoLocal !== "boolean") shapeError(`the snapshot's vm.threads[${index}].frames[${frameIndex}].autoLocal is invalid`);
       if (frame.programRoot !== undefined) {
         const rootPath = `vm.threads[${index}].frames[${frameIndex}].programRoot`;
@@ -466,6 +478,14 @@ function validateVmShape(vm: Record<string, unknown>): ReadonlyMap<number, strin
           if (restore.target !== null) stringAt(restore.target, `${rootPath}.restore.target`);
         }
       }
+    }
+    const topFrame = arrayAt(thread.frames, `vm.threads[${index}].frames`).at(-1);
+    const topRecords: unknown[] = isRecord(topFrame) && Array.isArray(topFrame.itemActions) ? topFrame.itemActions : [];
+    const lastRecord = topRecords.at(-1);
+    const completing = isRecord(lastRecord) && lastRecord.phase === "completion";
+    const pendingComplete = isRecord(thread.pending) && thread.pending.command === ITEM_ACTION_COMPLETE_COMMAND;
+    if (completing !== pendingComplete) {
+      shapeError(`the snapshot's vm.threads[${index}] item action completion and its pending dispatch disagree`);
     }
   }
   const objectClasses = validateVmObjects(vm);

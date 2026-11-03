@@ -1,51 +1,86 @@
 ---
-title: "Item use, equip and remove programs"
+title: 'Item use, equip and remove programs'
 type: 'feature'
 ticket: 5
 created: '2026-10-22'
-risk: "high"
+status: 'in-progress'
+baseline_revision: '1be218bae605d09e7707ecae5441203d0a4da0ca'
+route: 'full'
+route_source: 'auto'
+risk: 'high'
+review: ''
+review_source: ''
+lenses_ran: []
+review_loop_iteration: 0
 context:
-  - "spec - docs/spec/engine/plugins-and-battle.md#e-73"
-  - "spec - docs/spec/engine/plugins-and-battle.md#e-81"
-  - "spec - docs/spec/engine/plugins-and-battle.md#e-82"
-  - "spec - docs/spec/formats/item.md"
-status: draft
-blocked_at: "2026-10-31"
-blocked_reason: "Complete the doc-first contract amendments, including provider continuations and outcomes, and obtain independent review before implementation; the owner choices require no further clarification."
+  - 'docs/spec/engine/plugins-and-battle.md#epic-85-item-action-proposal'
+  - 'docs/spec/formats/save-game.md#game-ledger-and-savable-continuation'
+  - 'docs/spec/engine/interruption-recovery.md#recovery-and-pause'
 ---
+
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
 
 ## Intent
 
-Deliver item-use and equipment-program behavior through the existing inventory and actor owners, without moving battle rules or its item program out of Epic 7.
+**Problem:** Menu item use and equipment program actions lack a shared resumable operation, and RPGCode can select the wrong same-source stack (#1198).
 
-## Boundaries
+**Approach:** Implement the independently reviewed contract merged in #1199 across both provider languages, script adapters, owner operations and save/recovery. Return displaced equipment to its exact retained inventory stack. The owner selected shared validated use and prevalidated replacement; exact-stack return is the engineering choice, not an additional owner ruling.
 
-Apply documented HP/SMP effects, use/equip/remove programs, quantity changes, bonuses, caps, and event order. Do not implement screen navigation or duplicate battle inventory state.
+## Boundaries & Constraints
 
-## Acceptance
+**Always:** Follow G1–G7 and the normative item-action contract, including atomic preflight, staged actor and inventory publication, current identity revalidation, exact program and event order, deterministic continuation, and all specified error distinctions. Use clean-room documentation only.
 
-Script and Epic 7 battle fixtures demonstrate valid use, invalid targets, successful and refused equip/remove, exact program/effect order, one-time quantity consumption, and the approved displaced-item contract. Exercise the shared menu-use action and the existing battle inventory path without applying battle effects twice.
+**Never:** Change hook-free E-81 primitives, duplicate battle effects, silently replace a selected stack, claim rollback of item-program or external native-hook side effects, or serialize unanswered host requests. Do not merge without independent review.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|---|---|---|---|
+| Menu use | Live party actor and available menu-usable stack | Clamp HP/SMP once, run use program, consume exact stack | Preflight refusal is atomic; changed stack after effects interrupts |
+| Replacement | Empty or occupied slot, eligible available incoming item | Run old remove, atomically publish final projection, return displaced unit to exact stack, run new equip | Changed identity, overflow, invalid hook or projection fails with specified status and retained prior effects |
+| Same stack | Available quantity including maximum safe integer | Net unchanged; programs run in order; no quantity events | No overflowing intermediate quantity |
+| Removal | Empty slot or occupied slot | Empty is a no-op; occupied runs remove and returns exact stack | Validate before program and revalidate before commit |
+| Continuation | Native or RPGCode caller, cold assets, yielding or nested programs | Resume on same thread, dispatch completion on the next budgeted VM step | Preserve missing-program versus hook-local errors and cleanup on handler transfer, kill or replacement |
+| Restore | Request-free saved phase; changed source/IR; interruption recovery | Resume valid saved action exactly once; restart compatibility discards pending work; recovery retains durable ledger only | Validate saved shape and all provider identities before resume |
+| Identity | Duplicate handles and same-source stacks | Exact then unique case-insensitive handle; filename canonical/sole-stack fallback | Ambiguity yields located menu.state-invalid; never pick an arbitrary stack |
+
+</frozen-after-approval>
+
+## Code Map
+
+- `packages/core/src/menu/inventory.ts`, `equipment.ts`, `ports.ts` — inventory ownership, canonical catalog and event publication; retain primitives and add composed action preparation/commit.
+- `packages/core/src/actors/rules.ts`, `port.ts`, `object.ts`, `engine/engine.ts` — factor actor equipment prepare/commit, stage hook-emitted events and reconcile the final projection before either owner publishes.
+- `packages/core/src/script/vm.ts`, `state.ts`, `plugin.ts`, `restore-check.ts`, `waits.ts` — provider transitions, program frames, scheduler, saved continuations and restoration identity checks.
+- `packages/core/src/script/packs/inventory.ts` — preserve legacy adapter signatures/location mapping, fix #1198 selection, request cold assets and route calls to composed operations.
+- `packages/core/src/save/state.ts`, `snapshot.ts`, `equipment-check.ts`, `engine/recovery.ts` — migrate VM shape, validate and restore pending actions, retain existing durable-only recovery and equipment gate.
+- `packages/core/test/menu-state.test.ts`, `actor-rules.test.ts`, `actor-behaviour.test.ts`, `save-equipment-check.test.ts`, `battle-actions.test.ts`, `battle-item-stack-identity.test.ts` — reuse existing owner, program, save and battle harnesses; add authored focused cross-layer fixtures.
+
+## Tasks & Acceptance
+
+**Execution:**
+- [ ] `packages/core/src/actors/{rules,port,object}.ts`, `packages/core/src/engine/engine.ts` — stage hook results and queued events, validate the canonical actor projection and publish atomically.
+- [ ] `packages/core/src/menu/{inventory,equipment,ports}.ts` — implement shared preflight, safe clamping, exact-stack commit and event payloads without changing primitive semantics.
+- [ ] `packages/core/src/script/{plugin,state,vm,waits,restore-check}.ts`, `packages/core/src/script/packs/inventory.ts` — implement both provider protocols, nested saveable action phases, cold asset acquisition, cleanup and adapter resolution.
+- [ ] `packages/core/src/save/{state,snapshot}.ts` and recovery integration — bump and migrate VM schema, validate continuations, preserve request and restart/recovery rules.
+- [ ] `packages/core/test/` — assert every matrix scenario and the detailed fixtures in the merged contract, including perturbation of each guarded transition or revalidation.
+- [ ] `docs/spec/engine/plugins-and-battle.md`, related command docs, `CHANGELOG.md` — remove obsolete not-implemented claims and accurately describe shipped behavior.
+
+**Acceptance Criteria:**
+- Given native and RPGCode providers, when each invokes the same action, then results, effects, hook order and queued events agree, including save and restore at each phase.
+- Given interleaving, invalid or unavailable assets, hook errors and thread abandonment, when execution resumes, then the contract's exact refusal/interruption/cleanup behavior holds without loss or duplication.
+- Given battle item use, when consumption completes, then the existing Epic 7 inventory path applies no duplicate stat effects and seeded results remain stable.
+- Given full and focused checks and an independently reviewed PR, when the work is handed off, then the actual results and unresolved CI/review state are reported without merging.
+
+## Implementation Notes
+
+## Plan Change Log
+
+Rebaselined from the pre-contract draft after #1199 merged and the ticket resolver repairs landed; baseline is the current origin/main commit. The original draft's owner direction, exact-stack engineering choice and #1198 defect are retained above.
+
+## Review Triage Log
 
 ## Verification
 
-Run deterministic tests at each side-effect boundary; assert final state and queued event sequences and replay from a saved point. Cover exact-handle selection among same-source stacks, displaced zero-quantity and maximum-quantity stacks, same old/new stack with correct net quantities, synchronous hook mutation, explicit waits, and instruction-budget preemption while another action changes the item or equipment.
-
-## Implementation map
-
-Compose entry 4's existing inventory and actor operations with a saveable script continuation. Preserve Epic 7's battle-owned effects, program and existing `battleconsume` owner path; board-item activation is a separate path and must not be conflated with inventory-item use.
-
-## Owner direction and doc-first proposal — 2026-11-02
-
-**Owner chose:** (A) a shared, validated item-use action for replacement menus, and (A) occupied-slot replacement with the new item prevalidated. Both TypeScript and RPGCode providers must have equivalent semantics. These choices do not settle the action's spelling, parameters, result, continuation or failure protocol. E-81's menu order remains HP/SMP, use program, then consume; battle order remains HP/SMP, consume, animation and program. Battle behavior stays in `stock_battle`, and the inventory owner must not apply battle stat effects a second time.
-
-**Owner's exact additional wording:** “there is still a way to get the handle of the item that was being replaced or that the item goes back into the inventory.” The owner offered return to inventory as one alternative; returning to the exact existing stack is the engineering design chosen here, not an additional owner ruling. No further choice between both guarantees is required.
-
-**Existing identity and ownership evidence:** E-81 and `docs/spec/formats/save-game.md` specify one stack per `(source, handle)`, with a separately allocated stable numeric `id`/`entryId`; quantity counts available, unequipped units. Equipment records reference the stack's `itemId`; even a zero-quantity stack is retained while equipped. The derived actor equipment reference is distinct from both the display handle and inventory stack ID. In `packages/core/src/menu/inventory.ts`, `equip` currently refuses an occupied slot, and `unequip` finds that existing stack by `itemId`, increments its available quantity, preserves its source, handle and ID, and emits `itemAdded`. No separate per-copy identity exists.
-
-**Existing equip adapter identity defect:** tracked independently as #1198. `packages/core/src/script/packs/inventory.ts:177-182` finds a matching handle but then selects the first stack with that source, which can be a different handle or have zero available quantity. Coordinate the fix with #589.
-
-**Implementation design:** after prevalidation succeeds, return the displaced unit to its existing retained `(source, handle)` stack, preserving its `entryId`. The existing stack handle remains readable naturally; this is not a claim that the owner mandated both return and a separate handle-access guarantee. There is no per-copy handle.
-
-**Contract work before implementation:** complete and independently review doc-first amendments to E-80/E-81/E-82 and affected script rules. The existing synchronous native provider has only wait/open/complete transitions; specify how both native and RPGCode providers invoke a shared action that can run a yielding program, how the caller resumes, its arguments and result, and the plain-data saved continuation. An action's preflight refusal must remain atomic under E-81; distinguish it from a composed operation interrupted or failing after a program has run, where already completed script side effects cannot be assumed rolled back. Do not silently change E-81 primitive equip/unequip semantics or place hooks inside E-82's primitive operations.
-
-**Engineering constraints to resolve in that amendment:** prevalidate the incoming item, actor, slot, quantity and the displaced stack's capacity to accept its returned unit; use net quantity for a same-stack replacement, not an overflowing intermediate increment. Revalidate stack identity, quantity, slot and capacity after every hook returns, including synchronously mutating hooks, and at every continuation boundary where execution can interleave, including VM budget preemption. Define safe outcomes for changes after preflight without losing or duplicating the displaced item, and preserve documented hook order, context, events, caps and G1 save/restore. A review of this proposal alone does not unblock implementation. Keep #585 dependent on this ticket; #1195 remains deferred.
+**Commands:**
+- Run focused behavioral tests for item actions, actor staging, provider scheduling, saves/recovery, adapters and battle consumption, including per-test duration and specified perturbations.
+- Run the applicable CONTRIBUTING gates, including build, typecheck, lint, strict tests, golden, graph, catalogue, command documentation, licence and provenance; record actual outcomes.

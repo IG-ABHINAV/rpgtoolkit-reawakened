@@ -986,11 +986,11 @@ test("RPGCode equipment locations map and clamp to all canonical inventory slots
       { value: "Hero", ref: null },
       { value: location, ref: null },
     ], () => ({ value: null }));
-    deepEqual(result.effects?.[0]?.args?.[0], {
-      type: "unequip",
-      actorId: actor.id,
-      slot: expected[location],
-    });
+    deepEqual(result.effects?.[0]?.args, [
+      "itemAction.start",
+      { kind: "removeEquipment", actorId: actor.id, slot: expected[location] },
+      "remove",
+    ]);
   }
 });
 test("RPGCode CallShop rejects empty and unavailable stock before opening", () => {

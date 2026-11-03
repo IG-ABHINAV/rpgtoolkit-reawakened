@@ -193,11 +193,15 @@ its saved position cannot be honoured — while a newer one refuses the save. Th
 no `restore.restarted` diagnostic, and `restore.compiler-mismatch` retires with the
 old gate.
 
-The save shape is `schema` version 2 (`ir` replaces `compiler`) and `vm` version 6
-(`ProgramRef.ir` replaces `ProgramRef.compiler`). A version-1 `schema` migrates
-its `compiler` to `ir` and a version-5 `vm` migrates every saved program
-reference the same way; every committed save fixture from before the split
-exercises both.
+The save shape is `schema` version 2 (`ir` replaces `compiler`) and `vm` version 7
+(`ProgramRef.ir` replaces `ProgramRef.compiler`; version 7 adds the optional
+per-frame `itemActions` stack of pending item actions, see
+[the item-action contract](../engine/plugins-and-battle.md#epic-85-item-action-proposal)).
+A version-1 `schema` migrates its `compiler` to `ir`, a version-5 `vm` migrates every
+saved program reference the same way, and a version-6 `vm` migrates with no change
+beyond its version because the new field is absent until an action starts; every
+committed save fixture from before the split exercises the first two, and the
+`vm6-battle-*` fixtures exercise the last.
 
 Audio game saves add only the playback projection defined in
 [audio-media.md](../engine/audio-media.md#audio-save-load), not runtime audio

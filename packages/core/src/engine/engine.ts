@@ -7,7 +7,7 @@ import { actorEmitterKey, actorId } from "../actors/model.ts";
 import type { AudioSaveProjection } from "../audio/save.ts";
 import { projectGameLedger, type GameLedgerV1, type LedgerProgramRef, type LedgerTile } from "../save/ledger.ts";
 import { applyRecoveryLedger, installRecoveryBoard } from "./recovery.ts";
-import { updateActorStats, type ActorTransition } from "../actors/rules.ts";
+import { updateActorStats, type ActorRuleResult, type ActorTransition } from "../actors/rules.ts";
 import { queueActorTransition, registerActorObject } from "../actors/object.ts";
 import { resolveAsset, assetKey, resolveTileReference } from "../formats/resolver/resolver.ts";
 import { classifyImageReference } from "../formats/animation/image-reference.ts";
@@ -93,6 +93,7 @@ import {
   compileRestoredPrograms,
   verifyRestoredHandles,
   runThreadsPhase,
+  discardMenuFrames,
   runWaitsPhase,
   layerRoots,
   withOwner,
@@ -411,6 +412,18 @@ export function createEngine(init: EngineInit): Engine {
       },
       applyEquipment(actorId, equipped, catalog) {
         return services.actors.applyEquipment(actorId, equipped, catalog) !== null;
+      },
+      updateStats(actorId, patch) {
+        return services.actors.updateStats(actorId, patch, { cause: "script", source: null }) !== null;
+      },
+      prepareEquipment(actorId, equipped, catalog) {
+        return services.actors.prepareEquipment(actorId, equipped, catalog);
+      },
+      commitPreparedEquipment(prepared) {
+        return services.actors.commitPreparedEquipment(prepared) !== null;
+      },
+      discardPreparedEquipment(prepared) {
+        services.actors.discardPreparedEquipment(prepared);
       },
       shopStock: () => shopSession.stock(),
       setShopStock: shopSession.setStock,
@@ -1967,6 +1980,12 @@ export function createEngine(init: EngineInit): Engine {
   }
 
   function stopOldBoardThreads(): void {
+    // Every thread this teardown ends loses the menu frames its open provider or item action added.
+    for (const thread of state.vm.threads) {
+      const doomed = thread.kind === "board" ||
+        (thread.kind === "item" && state.sprites.items.some((item) => (item.handle === null ? item.id : `item:${item.source}`) === thread.source));
+      if (doomed) discardMenuFrames(services, thread);
+    }
     endBoardThreads(state.vm);
     for (const item of state.sprites.items) {
       const source = item.handle === null ? item.id : `item:${item.source}`;

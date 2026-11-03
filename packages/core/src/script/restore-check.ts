@@ -23,6 +23,7 @@ import { parseHostMethodDef } from "./host.ts";
 import { programKey, restartProgramRef, type Program, type ProgramLoader, type ProgramRef } from "./program.ts";
 import type { CommandLookup } from "./registry.ts";
 import type { VmState } from "./state.ts";
+import { ITEM_ACTION_ASSET_COMMAND, type ItemActionRecord } from "./item-action.ts";
 import type { EventsSection } from "../events/model.ts";
 import type { HostObjectType } from "./host.ts";
 
@@ -119,6 +120,20 @@ export function verifyRestoredHandles(vm: VmState, services: RestoreCheckService
     }
     for (const frame of thread.frames) {
       if (frame.menuContinuation !== undefined) continuations.push(frame.menuContinuation);
+      for (const entry of frame.itemActions ?? []) {
+        const record = entry as unknown as ItemActionRecord;
+        if (record.provider !== null) continuations.push(record.provider);
+        // Definitions live in the engine's session cache, which a save does not carry: forget what this run
+        // already asked for, so a restore with a cold cache requests the missing definitions again.
+        record.requested = [];
+      }
+    }
+    const asking = thread.wait;
+    if (asking?.kind === "request" && asking.then?.command === ITEM_ACTION_ASSET_COMMAND) {
+      // An unanswered request cannot be restored: resume the action as if its reply had arrived, so it re-requests.
+      thread.wait = null;
+      thread.status = "ready";
+      thread.pending = { command: ITEM_ACTION_ASSET_COMMAND, args: [1, ""], file: asking.file, line: asking.line };
     }
     for (const candidate of continuations) {
       if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) {

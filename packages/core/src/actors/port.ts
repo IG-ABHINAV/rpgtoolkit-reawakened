@@ -7,6 +7,7 @@ import {
   beginLegacyBattleExperienceAward,
   completeLegacyBattleLevelStep,
   removeActorStatus,
+  prepareEquipment,
   updateActorStats,
   type ActorHooks,
   type ActorSource,
@@ -18,7 +19,7 @@ import {
   type StatsChangeOptions,
   type StatusChangeOptions,
 } from "./rules.ts";
-import type { ActorEventSink } from "./object.ts";
+import type { ActorEventSink, ActorEventStage } from "./object.ts";
 import type { HostObjectType } from "../script/host.ts";
 import type { Value } from "../ports/value.ts";
 /**
@@ -42,6 +43,15 @@ export type ActorOperationService = {
   removeStatus(actor: ActorId | number, status: string, options?: Omit<StatusChangeOptions, "hooks">): ActorRuleResult | null;
   advanceStatus(actor: ActorId | number, amount: number, options?: Omit<AdvanceStatusOptions, "hooks">): ActorRuleResult | null;
   applyEquipment(actor: ActorId | number, equipped: readonly string[], items: readonly EquipmentItemDefinition[]): ActorRuleResult | null;
+  /**
+   * Run equipment hooks once against private state without publishing the actor patch, its transitions or any
+   * event the hooks queued (those are staged). Pair with `commitPreparedEquipment` or `discardPreparedEquipment`.
+   */
+  prepareEquipment(actor: ActorId | number, equipped: readonly string[], items: readonly EquipmentItemDefinition[]): ActorRuleResult | null;
+  /** Publish a prepared result: keep staged hook events, then queue its fallen/revived transitions. */
+  commitPreparedEquipment(prepared: ActorRuleResult): ActorRuleResult | null;
+  /** Drop a prepared result and every event its hooks staged. Idempotent. */
+  discardPreparedEquipment(prepared: ActorRuleResult): void;
   awardExperience(actor: ActorId | number, amount: number): ActorRuleResult | null;
   /** Add battle XP before legacy level-up programs, then apply growth one ordered step at a time. */
   beginLegacyBattleExperience(actor: ActorId | number, amount: number): LegacyBattleExperiencePlan | null;
@@ -61,6 +71,7 @@ export function createActorService(
   resolveHooks: (actor: Readonly<ActorRecord>) => ActorHooks = () => ({}),
   events?: ActorEventSink,
 ): ActorService {
+  const stages = new WeakMap<ActorRuleResult, ActorEventStage>();
   const hooksFor = (actor: ActorId | number): ActorHooks => {
     const record = getActor(section, actorId(actor));
     return record === null ? {} : resolveHooks(record);
@@ -110,6 +121,39 @@ export function createActorService(
       const result = applyEquipment(section, actor, equipped, items, hooksFor(actor));
       if (result !== null) events?.(result);
       return result;
+    },
+    prepareEquipment(actor, equipped, items) {
+      const stage = events?.stage?.();
+      try {
+        const prepared = prepareEquipment(section, actor, equipped, items, hooksFor(actor));
+        if (prepared === null) stage?.discard();
+        else if (stage !== undefined) stages.set(prepared, stage);
+        return prepared;
+      } catch (error) {
+        stage?.discard();
+        throw error;
+      }
+    },
+    commitPreparedEquipment(prepared) {
+      try {
+        const actor = patchActorModel(section, prepared.actor.id, { equipment: prepared.actor.equipment, stats: prepared.actor.stats });
+        if (actor === null) {
+          stages.get(prepared)?.discard();
+          return null;
+        }
+        const result = { ...prepared, actor };
+        stages.delete(prepared);
+        events?.(result);
+        return result;
+      } catch (error) {
+        stages.get(prepared)?.discard();
+        stages.delete(prepared);
+        throw error;
+      }
+    },
+    discardPreparedEquipment(prepared) {
+      stages.get(prepared)?.discard();
+      stages.delete(prepared);
     },
     awardExperience(actor, amount) {
       const result = awardExperience(section, actor, amount, hooksFor(actor));

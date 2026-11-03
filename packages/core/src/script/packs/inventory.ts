@@ -1,13 +1,23 @@
 import type { Value } from "../../ports/value.ts";
+import type { PlainData } from "../../ports/plain-data.ts";
 import { assetKey } from "../../formats/resolver/resolver.ts";
 import { BinaryReader } from "../../formats/binary/reader.ts";
 import { readItem } from "../../formats/actor/item.ts";
 import type { Arg, BuiltinDoc, BuiltinSpec } from "../builtins.ts";
 import { ScriptError } from "../errors.ts";
+import { foldAscii } from "../values.ts";
+import type { HostObjectType } from "../host.ts";
+import { createObject, writeMember } from "../objects.ts";
+import { objectValue } from "../../audio/script.ts";
+import { isItemActionRequest, ITEM_ACTION_ASSET_COMMAND, ITEM_ACTION_COMPLETE_COMMAND } from "../item-action.ts";
+import type { ItemActionRequest } from "../../menu/ports.ts";
 import type { CommandEffect, CommandResult, CommandView, PluginDefinition } from "../plugin.ts";
 
 const INVENTORY_GROUP = "items-inventory-shop-gold-28";
 const ITEM_NAMES = ["giveitem", "takeitem", "itemcount", "givegp", "takegp", "getgp", "equip", "remove"] as const;
+
+/** The hydrated host object the RPGCode menu context carries as `context.inventory` (E-81, #589). */
+export const INVENTORY_HOST_TYPE_NAME = "inventory";
 
 type ItemOperation = "addItem" | "removeItem";
 
@@ -29,6 +39,9 @@ function menuAction(view: CommandView, action: object): CommandResult {
 function docs(summary: string, behaviour: string): BuiltinDoc {
   return { summary, behaviour, groups: [INVENTORY_GROUP], tags: ["legacy"], waits: { kind: "never", summary: "Does not wait." } };
 }
+function waitingDocs(summary: string, behaviour: string): BuiltinDoc {
+  return { ...docs(summary, behaviour), waits: { kind: "other", summary: "Blocks the calling thread while item programs and definition requests run; does not wait when nothing needs them." } };
+}
 function itemFilename(value: string): string {
   const filename = value.trim().replaceAll("\\", "/");
   return filename.toLowerCase().endsWith(".itm") ? filename : `${filename}.itm`;
@@ -37,38 +50,19 @@ function itemSource(filename: string): string {
   const relative = filename.replace(/^item\//i, "");
   return assetKey(`item/${relative}`);
 }
-type AssetTarget = { readonly area: "items" | "characters"; readonly path: string };
-function equipmentAssets(view: CommandView, actorId: number, entryId?: number, includeActor = true): AssetTarget[] {
-  const state = view.state;
-  if (state === undefined) return [];
-  const targets: AssetTarget[] = [];
-  for (const equipment of state.inventory.equipment) {
-    if (equipment.actorId !== actorId) continue;
-    const item = state.inventory.items.find((candidate) => candidate.id === equipment.itemId);
-    if (item !== undefined) targets.push({ area: "items", path: item.source.replace(/^item\//, "") });
-  }
-  if (entryId !== undefined) {
-    const item = state.inventory.items.find((candidate) => candidate.id === entryId);
-    if (item !== undefined) targets.push({ area: "items", path: item.source.replace(/^item\//, "") });
-  }
-  const actor = state.actors.actors.find((candidate) => candidate.id === actorId);
-  if (includeActor && actor !== undefined) targets.push({ area: "characters", path: actor.source });
-  return [...new Map(targets.map((target) => [`${target.area}:${target.path.toLowerCase()}`, target])).values()];
+function itemActionStart(action: ItemActionRequest, adapter: "equip" | "remove" | null): CommandResult {
+  const effect: CommandEffect = { kind: "vm.control", args: ["itemAction.start", action as unknown as PlainData, adapter] };
+  return { value: null, effects: [effect] };
 }
-function equipmentRequest(
-  operation: "equip" | "unequip",
-  actorId: number,
-  slot: string,
-  entryId: number,
-  targets: readonly AssetTarget[],
-): CommandResult {
-  const [target, ...remaining] = targets;
-  if (target === undefined) return { value: null };
-  return {
-    value: null,
-    request: { kind: "asset", ...target },
-    then: { command: "__inventory_equipment_asset", args: [operation, actorId, slot, entryId, JSON.stringify(remaining)] },
-  };
+const AMBIGUOUS_STACK = "inventory.action.entryId: the item query names more than one inventory stack";
+/** #1198: a unique exact handle first, then a unique case-insensitive handle; several of either is ambiguous. */
+function stackByHandle(view: CommandView, query: string): number | "ambiguous" | undefined {
+  const items = view.state?.inventory.items ?? [];
+  const exact = items.filter((entry) => entry.handle === query);
+  if (exact.length > 0) return exact.length === 1 ? exact[0]!.id : "ambiguous";
+  const folded = items.filter((entry) => entry.handle.toLowerCase() === query.toLowerCase());
+  if (folded.length > 0) return folded.length === 1 ? folded[0]!.id : "ambiguous";
+  return undefined;
 }
 function itemRequest(operation: ItemOperation, filename: string): CommandResult {
   const path = itemFilename(filename);
@@ -170,61 +164,150 @@ const ITEM_COUNT: BuiltinSpec = {
 };
 const EQUIP: BuiltinSpec = {
   name: "equip", aliases: [], params: params([{ name: "handle" }, { name: "location" }, { name: "item" }]),
-  doc: docs("Equip one available item on a party member.", "Resolves handle as a party member handle or character filename, clamps the 1-based location to 1–16, resolves the item filename, and applies inventory and actor equipment operations atomically."),
-  call: (view, args) => {
-    const actorId = partyActor(view, args[0]?.value);
-    if (actorId === undefined) return { value: null };
-    const query = text(args, 2);
-    const fromHandle = view.state?.inventory.items.find((entry) => entry.handle.toLowerCase() === query.toLowerCase());
-    const source = fromHandle?.source ?? itemSource(itemFilename(query));
-    const entry = view.state?.inventory.items.find((candidate) => candidate.source === source);
-    if (entry === undefined) return { value: null };
-    return equipmentRequest("equip", actorId, slotAt(integer(args, 1)), entry.id, equipmentAssets(view, actorId, entry.id));
-  },
-};
-const REMOVE: BuiltinSpec = {
-  name: "remove", aliases: [], params: params([{ name: "handle" }, { name: "location" }]),
-  doc: docs("Unequip an item from a party member.", "Resolves handle as a party member handle or character filename and clamps the 1-based location to 1–16 before returning the item to available inventory."),
+  doc: waitingDocs("Equip one available item on a party member, running the old item's remove program and the new item's equip program.", "Resolves handle as a party member handle or character filename, clamps the 1-based location to 1–16, then selects the stack: a unique exact item handle, else a unique case-insensitive handle (a matched handle selects that exact stack even if unavailable), else the stack of the item file's own definition name, else its only stack. Several matches are refused with a catchable `menu.state-invalid` at `inventory.action.entryId`. It runs the composed `replace` action on this thread: the displaced item's remove program, the replacement, then the new item's equip program, and the call returns only after those programs finish. A refused or interrupted action raises a catchable `menu.state-invalid`; an unknown party member or item is a silent no-op."),
   call: (view, args) => {
     const actorId = partyActor(view, args[0]?.value);
     if (actorId === undefined) return { value: null };
     const slot = slotAt(integer(args, 1));
-    const equipped = view.state?.inventory.equipment.some((entry) => entry.actorId === actorId && entry.slot === slot);
-    if (!equipped) return menuAction(view, { type: "unequip", actorId, slot });
-    return equipmentRequest("unequip", actorId, slot, 0, equipmentAssets(view, actorId, undefined, false));
+    const query = text(args, 2);
+    const byHandle = stackByHandle(view, query);
+    if (byHandle === "ambiguous") throw new ScriptError("menu.state-invalid", AMBIGUOUS_STACK);
+    if (byHandle !== undefined) return itemActionStart({ kind: "replace", entryId: byHandle, actorId, slot }, "equip");
+    const source = itemSource(itemFilename(query));
+    const stacks = (view.state?.inventory.items ?? []).filter((entry) => entry.source === source);
+    if (stacks.length === 0) return { value: null };
+    if (stacks.length === 1) return itemActionStart({ kind: "replace", entryId: stacks[0]!.id, actorId, slot }, "equip");
+    return {
+      value: null,
+      request: { kind: "asset", area: "items", path: itemFilename(query) },
+      then: { command: "__inventory_equip_select", args: [actorId, slot, source] },
+    };
   },
 };
-const EQUIPMENT_ASSET_CONTINUATION: BuiltinSpec = {
-  name: "__inventory_equipment_asset", aliases: [],
-  params: params([{ name: "ok" }, { name: "bytes" }, { name: "operation" }, { name: "actorId" }, { name: "slot" }, { name: "entryId" }, { name: "remaining" }]),
-  doc: { ...docs("Resume an equipment asset request.", "Loads item and character definitions before applying an inventory equipment operation."), access: "internal" },
+const REMOVE: BuiltinSpec = {
+  name: "remove", aliases: [], params: params([{ name: "handle" }, { name: "location" }]),
+  doc: waitingDocs("Unequip an item from a party member, running its remove program.", "Resolves handle as a party member handle or character filename and clamps the 1-based location to 1–16, then runs the composed `removeEquipment` action on this thread: an occupied slot's remove program runs before the item returns to available inventory, and an empty slot completes as a no-op. A refused or interrupted action raises a catchable `menu.state-invalid`; an unknown party member is a silent no-op."),
   call: (view, args) => {
-    if (integer(args, 0) === 0) throw new ScriptError("asset.missing", "equipment asset not found");
-    const operation = text(args, 2);
-    if (operation !== "equip" && operation !== "unequip") throw new ScriptError("inventory.operation", "unknown equipment operation");
-    const actorId = integer(args, 3);
-    const slot = text(args, 4);
-    const entryId = integer(args, 5);
-    let rawRemaining: unknown;
-    try {
-      rawRemaining = JSON.parse(text(args, 6));
-    } catch {
-      throw new ScriptError("request.bad-reply", "equipment asset queue must be valid JSON");
+    const actorId = partyActor(view, args[0]?.value);
+    if (actorId === undefined) return { value: null };
+    return itemActionStart({ kind: "removeEquipment", actorId, slot: slotAt(integer(args, 1)) }, "remove");
+  },
+};
+function itemReplyName(args: readonly Arg[]): string {
+  const hex = text(args, 1);
+  if (hex.length % 2 !== 0 || !/^[0-9a-f]*$/i.test(hex)) throw new ScriptError("request.bad-reply", "item asset reply must be hexadecimal bytes");
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+  const parsed = readItem(new BinaryReader(bytes));
+  if (!parsed.ok) throw new ScriptError("format.item", parsed.error.message);
+  return parsed.value.name;
+}
+const EQUIP_SELECT: BuiltinSpec = {
+  name: "__inventory_equip_select", aliases: [],
+  params: params([{ name: "ok" }, { name: "bytes" }, { name: "actorId" }, { name: "slot" }, { name: "source" }]),
+  doc: { ...docs("Select the stack named for an item file.", "Reads the item definition's name from the reply, chooses the stack of that file named for it (exact, then case-insensitive), refuses several candidates and starts the composed replace action."), access: "internal" },
+  call: (view, args) => {
+    if (integer(args, 0) === 0) throw new ScriptError("asset.missing", `equipment item asset not found: ${text(args, 4)}`);
+    const name = itemReplyName(args);
+    const stacks = (view.state?.inventory.items ?? []).filter((entry) => entry.source === text(args, 4));
+    if (stacks.length === 0) return { value: null };
+    const exact = stacks.filter((entry) => entry.handle === name);
+    const named = exact.length > 0 ? exact : stacks.filter((entry) => entry.handle.toLowerCase() === name.toLowerCase());
+    if (named.length !== 1) throw new ScriptError("menu.state-invalid", AMBIGUOUS_STACK);
+    return itemActionStart({ kind: "replace", entryId: named[0]!.id, actorId: integer(args, 2), slot: text(args, 3) }, "equip");
+  },
+};
+function actionDictionary(view: CommandView, name: string, kind: ItemActionRequest["kind"], arg: Arg | undefined): ItemActionRequest {
+  const value = arg?.value;
+  if (typeof value !== "object" || value === null || !("kind" in value) || value.kind !== "object") {
+    throw new ScriptError("builtin.bad-arg", `${name}: the action must be a dictionary`);
+  }
+  const members = view.objectMembers?.(value.handle);
+  if (members === undefined) throw new ScriptError("builtin.bad-arg", `${name}: the action must be a live dictionary`);
+  const wanted = kind === "use" ? ["entryId", "actorId"] : kind === "replace" ? ["entryId", "actorId", "slot"] : ["actorId", "slot"];
+  const folded = new Map<string, Value>();
+  for (const key of Object.keys(members)) folded.set(foldAscii(key), members[key]!);
+  if (folded.size !== Object.keys(members).length || folded.size !== wanted.length || !wanted.every((key) => folded.has(foldAscii(key)))) {
+    throw new ScriptError("builtin.bad-arg", `${name}: the action takes exactly ${wanted.join(", ")}`);
+  }
+  const request = { kind, ...Object.fromEntries(wanted.map((key) => [key, folded.get(foldAscii(key))])) };
+  if (!isItemActionRequest(request)) throw new ScriptError("builtin.bad-arg", `${name}: ${wanted.join(", ")} have the wrong types`);
+  return request;
+}
+function internalDocs(summary: string, behaviour: string, kind: DocWaitKind = "other"): BuiltinDoc {
+  return {
+    ...docs(summary, behaviour),
+    access: "internal",
+    waits: { kind, summary: kind === "never" ? "Does not wait." : "Runs on the calling thread across item programs and host definition requests." },
+  };
+}
+type DocWaitKind = "never" | "other";
+function hostAction(name: string, kind: ItemActionRequest["kind"], summary: string): BuiltinSpec {
+  return {
+    name, aliases: [], params: params([{ name: "self" }, { name: "action" }]),
+    doc: internalDocs(summary, "Blocks the calling thread through the shared item-action lifecycle: definitions are requested as needed, the owner preflights, item programs run with their E-95 contexts, and the owner commits. Returns `{ status, error }` with status `complete`, `refused` or `interrupted`."),
+    call: (view, args) => itemActionStart(actionDictionary(view, name, kind, args[1]), null),
+  };
+}
+const USE_ITEM = hostAction("__inventory_use", "use", "Use an inventory stack on a party member from the menu context.");
+const REPLACE_EQUIPMENT = hostAction("__inventory_replace", "replace", "Replace an occupied or empty equipment slot from the menu context.");
+const REMOVE_EQUIPMENT = hostAction("__inventory_remove_equipment", "removeEquipment", "Remove an equipped item from the menu context.");
+const ITEM_ACTION_ASSET: BuiltinSpec = {
+  name: ITEM_ACTION_ASSET_COMMAND, aliases: [], params: params([{ name: "ok" }, { name: "bytes" }]),
+  doc: internalDocs("Resume an item action after a definition request.", "Delivers the host reply to the pending item action on the calling frame.", "never"),
+  call: (_view, args) => ({ value: null, effects: [{ kind: "vm.control", args: ["itemAction.resume", integer(args, 0)] }] }),
+};
+const ITEM_ACTION_COMPLETE: BuiltinSpec = {
+  name: ITEM_ACTION_COMPLETE_COMMAND, aliases: [], params: [],
+  doc: internalDocs("Deliver a native item action's completion.", "Dispatches the one `item.action.completed` event to the saved native provider continuation.", "never"),
+  call: () => ({ value: null, effects: [{ kind: "vm.control", args: ["itemAction.complete"] }] }),
+};
+/** A fresh RPGCode dictionary whose entries are the given plain records, indexed 0..n-1. */
+function dictionary(vm: Parameters<typeof createObject>[0], rows: readonly { readonly [key: string]: Value }[]): Value {
+  const array = createObject(vm, null);
+  rows.forEach((row, index) => {
+    const record = createObject(vm, null);
+    for (const [key, value] of Object.entries(row)) writeMember(record, key, value);
+    writeMember(array, String(index), objectValue(record));
+  });
+  writeMember(array, "length", rows.length);
+  return objectValue(array);
+}
+
+/** The hydrated `context.inventory` object of an RPGCode menu provider (E-81, #589). */
+export const INVENTORY_HOST_TYPE: HostObjectType = {
+  name: INVENTORY_HOST_TYPE_NAME,
+  methods: {
+    use: "__inventory_use",
+    replace: "__inventory_replace",
+    removeEquipment: "__inventory_remove_equipment",
+    removeequipment: "__inventory_remove_equipment",
+  },
+  readOnlyMembers: ["items", "equipment", "gold"],
+  /**
+   * Read-only views over the owner sections (E-81): `gold` is the balance and `items`/`equipment` are
+   * fresh dictionaries built per read, so a provider sees current committed state and cannot mutate it.
+   */
+  read(context, name) {
+    const state = context.state;
+    if (name === "gold") return state.inventory.gold;
+    if (name === "items") {
+      return dictionary(context.vm, state.inventory.items.map((entry) => ({
+        id: entry.id, source: entry.source, handle: entry.handle, quantity: entry.quantity,
+      })));
     }
-    if (!Array.isArray(rawRemaining)) throw new ScriptError("request.bad-reply", "equipment asset queue must be an array");
-    const remaining: AssetTarget[] = [];
-    for (const value of rawRemaining) {
-      if (typeof value !== "object" || value === null || Array.isArray(value)) throw new ScriptError("request.bad-reply", "equipment asset queue entry must be an object");
-      const target = value as Record<string, unknown>;
-      if ((target.area !== "items" && target.area !== "characters") || typeof target.path !== "string") {
-        throw new ScriptError("request.bad-reply", "equipment asset queue entry is malformed");
-      }
-      remaining.push({ area: target.area, path: target.path });
+    if (name === "equipment") {
+      return dictionary(context.vm, state.inventory.equipment.map((entry) => ({
+        actorId: entry.actorId, slot: entry.slot, itemId: entry.itemId,
+      })));
     }
-    if (remaining.length > 0) return equipmentRequest(operation, actorId, slot, entryId, remaining);
-    return operation === "equip"
-      ? menuAction(view, { type: "equip", actorId, slot, entryId })
-      : menuAction(view, { type: "unequip", actorId, slot });
+    return undefined;
+  },
+  write() {
+    return "read-only";
+  },
+  remove() {
+    return "system-owned";
   },
 };
 const ITEM_ASSET_CONTINUATION: BuiltinSpec = {
@@ -290,6 +373,6 @@ const INN: BuiltinSpec = {
   doc: { ...docs("Fully heal the player party.", "Sets every party member's current HP and SMP to their maxima immediately, including fallen members; it does not change status effects, equipment, inventory, roster or gold."), groups: [INVENTORY_GROUP, "battle-stats-menus-33"] },
   call: () => ({ value: null, effects: [{ kind: "state-write", section: "party", args: [{ type: "inn" }] }] }),
 };
-export const INVENTORY_COMMANDS: readonly BuiltinSpec[] = [GIVE_ITEM, TAKE_ITEM, ITEM_COUNT, GIVE_GOLD, TAKE_GOLD, GET_GOLD, EQUIP, REMOVE, EQUIPMENT_ASSET_CONTINUATION, ITEM_ASSET_CONTINUATION, CALL_SHOP, SHOP_ASSET_CONTINUATION, INN];
-export const INVENTORY_COMMAND_NAMES = new Set<string>([...ITEM_NAMES, "inn", "callshop", "__inventory_item_asset", "__inventory_equipment_asset", "__inventory_shop_asset"]);
+export const INVENTORY_COMMANDS: readonly BuiltinSpec[] = [GIVE_ITEM, TAKE_ITEM, ITEM_COUNT, GIVE_GOLD, TAKE_GOLD, GET_GOLD, EQUIP, REMOVE, EQUIP_SELECT, USE_ITEM, REPLACE_EQUIPMENT, REMOVE_EQUIPMENT, ITEM_ACTION_ASSET, ITEM_ACTION_COMPLETE, ITEM_ASSET_CONTINUATION, CALL_SHOP, SHOP_ASSET_CONTINUATION, INN];
+export const INVENTORY_COMMAND_NAMES = new Set<string>([...ITEM_NAMES, "inn", "callshop", "__inventory_item_asset", "__inventory_equip_select", "__inventory_use", "__inventory_replace", "__inventory_remove_equipment", ITEM_ACTION_ASSET_COMMAND, ITEM_ACTION_COMPLETE_COMMAND, "__inventory_shop_asset"]);
 export const INVENTORY_PLUGIN: PluginDefinition = { id: "inventory", version: "1.0.0", commands: INVENTORY_COMMANDS };

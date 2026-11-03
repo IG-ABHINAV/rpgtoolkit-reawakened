@@ -358,17 +358,19 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by issue #1048: the presented screen (surface 0) and the script-screen layer no longer contribute to the
   // state hash. Only `sample-start-demo` and `sample-start-basic` moved, because only their start programs draw to the
   // screen (`clear()`); the other programs never put a screen entry into the saved state.
+  // Re-pinned by #589: `vm` moved to schema version 7 (the per-frame `itemActions` stack). Nothing else moved:
+  // with the version put back to 6 every previous value (see git history) is reproduced exactly.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "e0577da117f849f5",
-    "sample-system-demo": "1412e38336613efb",
-    "sample-sys-test-demo": "1412e38336613efb",
-    "sample-win-demo": "cf14d086b215e8e1",
-    "sample-oldman-demo": "3644a41f9d281d58",
-    "sample-man-demo": "c15afea486c1a662",
-    "sample-man-wander-demo": "0edb3abab3859871",
-    "sample-start-basic": "396a686051634955",
-    "sample-system-basic": "1412e38336613efb",
-    "sample-wander-basic": "2694ff0a5f3079c7",
+    "sample-start-demo": "3c9570df369b99ee",
+    "sample-system-demo": "7eea74147387c5ce",
+    "sample-sys-test-demo": "7eea74147387c5ce",
+    "sample-win-demo": "ca4bcc0a4d207f84",
+    "sample-oldman-demo": "793d61748a516877",
+    "sample-man-demo": "32680483084d42f5",
+    "sample-man-wander-demo": "b7261458ac67e304",
+    "sample-start-basic": "22ee04bf53f84146",
+    "sample-system-basic": "7eea74147387c5ce",
+    "sample-wander-basic": "48c259bcfb158d0a",
   };
 
   for (const res of results) {
@@ -391,7 +393,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "2694ff0a5f3079c7");
+  equal(hash1, "48c259bcfb158d0a"); // re-pinned by #589 (vm schema 7); was 2694ff0a5f3079c7
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

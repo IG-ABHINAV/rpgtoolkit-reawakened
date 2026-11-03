@@ -379,18 +379,30 @@ export function deriveEquipmentBonuses(items: readonly EquipmentItemDefinition[]
   return result;
 }
 
-/** Derive and apply equipment bonuses from an immutable item catalog. */
-export function applyEquipment(section: ActorsSection, id: ActorId | number, equipped: readonly string[], items: readonly EquipmentItemDefinition[], hooks: ActorHooks = {}): ActorRuleResult | null {
+/** Prepare equipment changes without publishing them (E-82, Epic 8.5). */
+export function prepareEquipment(section: ActorsSection, id: ActorId | number, equipped: readonly string[], items: readonly EquipmentItemDefinition[], hooks: ActorHooks = {}): ActorRuleResult | null {
   const stableId = actorId(id);
   const actor = getActor(section, stableId);
   if (actor === null) return null;
   if (!Array.isArray(equipped) || equipped.some((entry) => typeof entry !== "string")) throw new TypeError("equipment references must be strings");
   if (new Set(equipped).size !== equipped.length) throw new RangeError("equipment references must be unique");
-  const previousBonuses = actor.equipment.bonuses;
+  const hookActor: ActorRecord = {
+    ...actor,
+    stats: { ...actor.stats },
+    statuses: { ...actor.statuses },
+    equipment: { equipped: [...actor.equipment.equipped], bonuses: { ...actor.equipment.bonuses } },
+    progression: { ...actor.progression },
+    customEvents: [...actor.customEvents],
+  };
+  const previousBonuses = { ...actor.equipment.bonuses };
   let nextEquipped = [...equipped];
   let nextBonuses = deriveEquipmentBonuses(items, nextEquipped);
   if (hooks.equipmentChanged !== undefined) {
-    const result = record(hooks.equipmentChanged(actor, { equipped: nextEquipped, bonuses: nextBonuses, previous: previousBonuses }), "equipmentChanged");
+    const result = record(hooks.equipmentChanged(hookActor, {
+      equipped: [...nextEquipped],
+      bonuses: { ...nextBonuses },
+      previous: { ...previousBonuses },
+    }), "equipmentChanged");
     exactKeys(result, ["equipped", "bonuses"], "equipmentChanged");
     if (result.equipped !== undefined) {
       if (!Array.isArray(result.equipped) || result.equipped.some((entry) => typeof entry !== "string")) throw new TypeError("equipmentChanged equipped must be strings");
@@ -423,15 +435,24 @@ export function applyEquipment(section: ActorsSection, id: ActorId | number, equ
   stats.smp = safeAdd(stats.smp, smpDelta, "current SMP");
   stats.maxSmp = safeAdd(stats.maxSmp, smpDelta, "maximum SMP");
   stats = statsWithPatch(stats, {});
-  stats = applyStatsHook(actor, actor.stats, stats, "equipment", hooks);
-  if (wasFallen && stats.hp > 0) stats = applyReviveHook(actor, stats, "script", null, hooks.revive);
-  patchActor(section, stableId, { equipment: { equipped: nextEquipped, bonuses: nextBonuses }, stats });
-  const current = getActor(section, stableId);
+  stats = applyStatsHook(hookActor, { ...actor.stats }, stats, "equipment", hooks);
+  if (wasFallen && stats.hp > 0) stats = applyReviveHook(hookActor, { ...stats }, "script", null, hooks.revive);
+  const candidate: ActorsSection = { ...section, actors: [...section.actors] };
+  patchActor(candidate, stableId, { equipment: { equipped: nextEquipped, bonuses: nextBonuses }, stats });
+  const current = getActor(candidate, stableId);
   if (current === null) return null;
   const transitions: ActorTransition[] = [];
   if (!wasFallen && current.stats.hp <= 0) transitions.push({ type: "fallen", actorId: stableId, cause: "script", source: null });
   if (wasFallen && current.stats.hp > 0) transitions.push({ type: "revived", actorId: stableId, cause: "script", source: null });
   return { actor: current, transitions };
+}
+
+/** Apply equipment through the existing actor owner operation. */
+export function applyEquipment(section: ActorsSection, id: ActorId | number, equipped: readonly string[], items: readonly EquipmentItemDefinition[], hooks: ActorHooks = {}): ActorRuleResult | null {
+  const prepared = prepareEquipment(section, id, equipped, items, hooks);
+  if (prepared === null) return null;
+  const actor = patchActor(section, id, { equipment: prepared.actor.equipment, stats: prepared.actor.stats });
+  return actor === null ? null : { ...prepared, actor };
 }
 
 function progressionInput(actor: ActorRecord): ActorProgression {

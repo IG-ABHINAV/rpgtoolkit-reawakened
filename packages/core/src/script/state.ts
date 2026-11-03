@@ -108,6 +108,8 @@ export type Frame = {
   menuScreen?: string;
   /** Plain-data native parent continuation waiting for this RPGCode child. */
   menuContinuation?: PlainData;
+  /** Composable native/script item-action phases owned by this invocation frame. */
+  itemActions?: PlainData[];
   /** Object freed after a destructor frame returns. */
   releaseHandle?: number;
 };

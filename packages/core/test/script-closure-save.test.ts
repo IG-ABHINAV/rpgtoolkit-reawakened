@@ -271,10 +271,10 @@ test("a state with no callable and no cell is not checked and compiles nothing",
   equal(Object.hasOwn(restored.vm, "defOwners"), false);
 });
 
-test("closures add optional fields only: the vm schema and the instruction version do not move for them", () => {
+test("closures add optional fields only: the instruction version does not move for them and the vm schema carries the item-action shape", () => {
   const plain = createGameState({ seed: 0 });
-  equal(SCHEMA_VERSIONS.vm, 6);
-  equal(plain.schema.vm, 6);
+  equal(SCHEMA_VERSIONS.vm, 7);
+  equal(plain.schema.vm, 7);
   equal(plain.schema.ir, "1");
   deepEqual(Object.keys(plain.vm).sort(), [
     "block",

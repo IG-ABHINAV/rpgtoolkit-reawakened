@@ -20,7 +20,7 @@ import { IR_VERSION } from "../script/program.ts";
 import { pendingAudioRoots } from "../audio/pending.ts";
 import { findObject, readMember } from "../script/objects.ts";
 import { findBlockingThread, findThread, killThread, localRef, refreshBlock, startThread, type Thread } from "../script/state.ts";
-import { collectGarbage, STEP_BUDGET, stepThread, type ScriptServices } from "../script/vm.ts";
+import { collectGarbage, discardMenuFrames, STEP_BUDGET, stepThread, type ScriptServices } from "../script/vm.ts";
 import type { CallableValue } from "../ports/value.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { GameState } from "../save/state.ts";
@@ -100,7 +100,10 @@ export function runEventsPhase(
     if (cursor.thread !== null) {
       const running = findThread(vm, cursor.thread);
       if (running !== undefined && running.status !== "finished") return;
-      if (running !== undefined && killThread(vm, running.id)) services.onThreadRemoved?.(running.id);
+      if (running !== undefined) {
+        discardMenuFrames(services, running);
+        if (killThread(vm, running.id)) services.onThreadRemoved?.(running.id);
+      }
       cursor.thread = null;
       cursor.index += 1;
       continue;
@@ -178,7 +181,10 @@ export function runEngineCancelableEventOutcome(
       line: 0,
       message: waiting ? `engine event listener for "${type}" attempted to wait` : `engine event "${type}" exceeded its step budget`,
     });
-    if (thread !== undefined && killThread(state.vm, thread.id)) services.onThreadRemoved?.(thread.id);
+    if (thread !== undefined) {
+      discardMenuFrames(services, thread);
+      if (killThread(state.vm, thread.id)) services.onThreadRemoved?.(thread.id);
+    }
     forgetNativeDetail(state.events, event);
     state.events.dispatch = null;
     return "failed";

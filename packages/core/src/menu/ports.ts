@@ -17,8 +17,35 @@ import {
   type PartySection,
   type StateIssue,
 } from "./model.ts";
-import { applyInventoryAction, type InventoryAction as InventoryActionType, type InventoryEvent, type InventoryRuntime } from "./inventory.ts";
-export type { InventoryAction } from "./inventory.ts";
+import {
+  applyInventoryAction,
+  commitItemAction,
+  itemActionHooks,
+  missingItemActionAssets,
+  preflightItemAction,
+  type InventoryAction as InventoryActionType,
+  type InventoryEvent,
+  type InventoryRuntime,
+  type ItemActionAsset,
+  type ItemActionHooks,
+  type ItemActionPhase,
+  type ItemActionPreflight,
+  type ItemActionRequest,
+  type ItemActionResult,
+  type ItemActionSelection,
+} from "./inventory.ts";
+export type {
+  InventoryAction,
+  ItemActionAsset,
+  ItemActionHook,
+  InventoryRuntime,
+  ItemActionHooks,
+  ItemActionPhase,
+  ItemActionPreflight,
+  ItemActionRequest,
+  ItemActionResult,
+  ItemActionSelection,
+} from "./inventory.ts";
 export type PartyAction =
   | { readonly type: "roster"; readonly members: readonly number[]; readonly selected: number | null }
   | { readonly type: "steps"; readonly value: number }
@@ -36,7 +63,16 @@ export type SectionOwnerPort<S, A> = {
 };
 export type MenuOwnerPorts = {
   readonly party: SectionOwnerPort<PartySection, PartyAction>;
-  readonly inventory: SectionOwnerPort<InventorySection, InventoryActionType>;
+  readonly inventory: SectionOwnerPort<InventorySection, InventoryActionType> & {
+    /** Pure validation; captures the exact actor, stack and displaced-tuple identities for a resumable caller. */
+    preflightItemAction(request: ItemActionRequest): ItemActionPreflight;
+    /** Commit one boundary of a composed item action (see `commitItemAction`). */
+    commitItemAction(request: ItemActionRequest, selection: ItemActionSelection, phase: ItemActionPhase): ItemActionResult;
+    /** Definitions the action still needs from the host, in canonical order (see `missingItemActionAssets`). */
+    missingItemActionAssets(request: ItemActionRequest): readonly ItemActionAsset[];
+    /** The non-empty item programs the action runs and the plain item data each receives. */
+    itemActionHooks(request: ItemActionRequest, selection: ItemActionSelection): ItemActionHooks;
+  };
   readonly menu: SectionOwnerPort<MenuSection, MenuAction> & {
     updateCurrent(input: { readonly actorId: number | null; readonly selection: number }): MenuStateResult;
   };
@@ -226,6 +262,18 @@ export function createMenuOwnerPorts(
         const outcome = applyInventoryAction(state, action, inventoryRuntime);
         for (const event of outcome.events) onInventoryEvent?.(event);
         return outcome.result;
+      },
+      preflightItemAction(request) {
+        return preflightItemAction({ inventory: state.inventory, actors: state.actors, party: state.party }, request, inventoryRuntime);
+      },
+      commitItemAction(request, selection, phase) {
+        return commitItemAction(state, request, selection, phase, inventoryRuntime, onInventoryEvent);
+      },
+      missingItemActionAssets(request) {
+        return missingItemActionAssets(state, request, inventoryRuntime);
+      },
+      itemActionHooks(_request, selection) {
+        return itemActionHooks(state, selection, inventoryRuntime);
       },
     },
     menu: {
