@@ -245,6 +245,10 @@ and both:
   ([offline](#offline));
 - provide `platform-services`, an asset source for a folder or a package, and the save-blob host behind AD-17's keys.
 
+**The player's window is its game.** Closing the player's last window exits the player application on every platform,
+macOS included: the shell never stays alive with no window, and the process that launched the game ends with it
+([E-06](main-loop-and-startup.md#e-06), where closing the engine's window exits the game).
+
 **The player's launch resolution** is fixed, in this order, and is the only mechanism:
 
 1. an explicit `--game <path>` argument, or a deep link;

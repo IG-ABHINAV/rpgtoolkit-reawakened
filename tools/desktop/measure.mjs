@@ -53,7 +53,6 @@ export async function measure(options = {}) {
       "--package", pkg,
       "--page", "packages/runner-desktop/app/player-measure.html",
       "--report", reportPath,
-      "--quit-after",
     ],
     {
       cwd: root,
