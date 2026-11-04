@@ -2,6 +2,7 @@ import { deepEqual, equal, ok } from "node:assert/strict";
 import test from "node:test";
 import {
   applyUiEffect,
+  assetKey,
   colourSurface,
   composeUi,
   createGameState,
@@ -84,6 +85,53 @@ test("engine-backed message windows use the default translucent colour surface",
   equal(state.ui.message.translucency, 50);
   equal(state.ui.backgroundSurface, expected);
   equal(composeUi(state.ui, 800, 600)[0]?.kind, "blit");
+});
+
+test("a winGraphic message window draws its image in the fixed window instead of the colour", () => {
+  const state = createGameState({ seed: 0 });
+  state.surfaces = createSurfacesSection();
+  for (const [name, value] of [["wingraphic", "mwin.jpg"], ["mwin", "Your story goes here..."]] as const) {
+    const effect = firstEffect(command(name, state, [arg(value)]));
+    applyUiEffect(state, name, effect.args ?? []);
+  }
+  equal(state.ui.message.graphic, "mwin.jpg");
+  const graphic = assetKey("bitmap/mwin.jpg");
+  const commands = composeUi(state.ui, 640, 480, undefined, false, undefined, graphic);
+  const blit = commands[0];
+  equal(blit?.kind, "blit");
+  if (blit?.kind !== "blit") return;
+  deepEqual(blit.source, { asset: graphic, tile: null });
+  deepEqual(blit.src, { x: 0, y: 0, w: 600, h: 100 });
+  deepEqual(blit.dst, { x: 20, y: 0, w: 600, h: 100 });
+  equal(blit.alpha, 128);
+  equal(blit.blend, "translucent");
+  equal(blit.key, null);
+  // The text still follows the image, and the colour surface is not drawn under it.
+  equal(commands[1]?.kind, "text");
+  equal(commands.some((entry) => entry.kind === "blit" && "surface" in entry.source), false);
+});
+
+test("a narrow window clips the image with it", () => {
+  const state = createGameState({ seed: 0 });
+  const effect = firstEffect(command("wingraphic", state, [arg("mwin.jpg")]));
+  applyUiEffect(state, "winGraphic", effect.args ?? []);
+  const effectMwin = firstEffect(command("mwin", state, [arg("Hello")]));
+  applyUiEffect(state, "mwin", effectMwin.args ?? []);
+  const blit = composeUi(state.ui, 400, 300, undefined, false, undefined, assetKey("bitmap/mwin.jpg"))[0];
+  equal(blit?.kind, "blit");
+  if (blit?.kind !== "blit") return;
+  deepEqual(blit.src, { x: 100, y: 0, w: 400, h: 100 });
+  deepEqual(blit.dst, { x: 0, y: 0, w: 400, h: 100 });
+});
+
+test("without a resolved key the message window keeps its colour background", () => {
+  const state = createGameState({ seed: 0 });
+  const effect = firstEffect(command("wingraphic", state, [arg("mwin.jpg")]));
+  applyUiEffect(state, "winGraphic", effect.args ?? []);
+  const effectMwin = firstEffect(command("mwin", state, [arg("Hello")]));
+  applyUiEffect(state, "mwin", effectMwin.args ?? []);
+  const commands = composeUi(state.ui, 640, 480);
+  equal(commands[0]?.kind, "rect");
 });
 
 test("text and pixelText record draws and text metrics", () => {
