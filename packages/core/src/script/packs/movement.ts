@@ -373,12 +373,12 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
   const actor = [...state.sprites.players, ...state.sprites.items].find((value) => value.id === id || String(value.handle) === id);
   if (actor === undefined && name !== "activeplayer") return false;
   if (name === "activeplayer") { const target = String(args[0] ?? ""); state.sprites.selectedPlayer = state.sprites.players.find((value) => value.id === target || String(value.index) === target)?.id ?? state.sprites.selectedPlayer; return true; }
-  if (name === "pushitem") { const dirs = String(args[1] ?? "").split(",").filter((value) => value !== ""); for (const raw of dirs) enqueueDirectionMove(state.sprites, id, direction(raw), 0, 8, false); return true; }
+  if (name === "pushitem") { const dirs = String(args[1] ?? "").split(",").filter((value) => value !== ""); for (const raw of dirs) enqueueDirectionMove(state.sprites, id, direction(raw), 0, false); return true; }
   if (name === "playerstep" || name === "itemstep") { const board = state.world.board; if (board === null || board === undefined) return false; const path = findPath(board, state.sprites, actor!, { x: numberValue(args[1]), y: numberValue(args[2]) }, 1); return enqueuePointPathMove(state.sprites, actor!.id, path.points, true, 1); }
   if (name === "playerpath" || name === "itempath") { const flags = numberValue(args[1]); const points = ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0 ? (state.world.board?.vectors?.find((value) => String(value.handle) === String(args[2]))?.points ?? []) : pointsFromValues(args.slice(2))); if ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0) return setWaypoint(state.sprites, actor!.id, points, numberValue(args[3]), (flags & WAYPOINT_LINK) !== 0); return enqueuePointPathMove(state.sprites, actor!.id, points, true, (flags & PATHFIND) !== 0 ? 1 : undefined); }
   if (name === "playerdirection" || name === "itemdirection") { const facing = direction(String(args[1] ?? args[0] ?? "S")); replaceActor(state, actor!.id, { facing }); return true; }
   if (name === "playerspeed" || name === "itemspeed") { replaceActor(state, actor!.id, { speed: numberValue(args[1] ?? args[0]) }); return true; }
-  if (name === "wander") { enqueueDirectionMove(state.sprites, actor!.id, direction(String(args[1] ?? "S")), 0, 8, false); return true; }
+  if (name === "wander") { enqueueDirectionMove(state.sprites, actor!.id, direction(String(args[1] ?? "S")), 0, false); return true; }
   if (name === "playerstance" || name === "itemstance") { return playStance(state.sprites, actor!.id, String(args[1] ?? ""), state.time.tick) !== null; }
   return false;
 }

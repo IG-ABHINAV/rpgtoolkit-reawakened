@@ -9,8 +9,8 @@
         "tile-game-speed-slower",
         "tile-game-speed-clamps-to-one-tick",
         "tile-speed-zero",
-        "pixel-push-eight",
-        "pixel-one-pixel-step",
+        "pixel-step-four",
+        "pixel-modes-1-and-2-step-alike",
         "queue-clear-and-append",
         "point-path-straight-line"
       ],

@@ -136,7 +136,8 @@ export class World {
     this.ev.push({ e: type, ...data });
   }
   moveSize() {
-    return (this.board.pixelMovement ?? 0) === 0 ? 32 : this.board.pixelStep ?? 8;
+    // E-23 (ruled 2026-11-04): 32 px in tile movement, 4 px in either pixel mode.
+    return (this.board.pixelMovement ?? 0) === 0 ? 32 : 4;
   }
   draw(n) {
     const value = this.rng[this.rngIndex];
@@ -583,8 +584,10 @@ export class World {
         finish(true);
         return;
       }
+      // R-54 item 3: the slide turns the step, so the slid point becomes its target and the step ends
+      // on arriving there (one slide per step).
       this.applyMove(a, slid.x, slid.y, slid.facing);
-      this.afterAdvance(a, c, slid.x, slid.y, false, tpa, finish);
+      this.afterAdvance(a, c, slid.x, slid.y, true, tpa, finish);
       return;
     }
 

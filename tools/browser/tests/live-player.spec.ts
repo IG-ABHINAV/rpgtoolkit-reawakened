@@ -33,7 +33,7 @@ type LiveFixture = { readonly name: string; readonly packageBytes: Uint8Array; r
  * during step 7 and only the initial-character step can
  * (docs/spec/engine/main-loop-and-startup.md#reawakened-boot-sequence steps 6 and 8).
  */
-function packageWithoutStartupProgram(name: string): LiveFixture {
+function packageWithoutStartupProgram(name: string, pixelMovement?: number): LiveFixture {
   const loaded = loadPackage({ kind: "tpk", name: "demo.tpk", bytes: new Uint8Array(readFileSync("fixtures/packages/demo.tpk")) });
   if (!loaded.ok) throw new Error(loaded.error.message);
   const manifest = readDistributionManifest(loaded.value);
@@ -44,7 +44,7 @@ function packageWithoutStartupProgram(name: string): LiveFixture {
   if (gameMain === undefined) throw new Error(`the demo package has no ${main}`);
   const parsed = readMainFile(new BinaryReader(gameMain.bytes, main));
   if (!parsed.ok) throw new Error(parsed.error.message);
-  const cleared = writeMainFile({ ...parsed.value, startupPrg: "" });
+  const cleared = writeMainFile({ ...parsed.value, startupPrg: "", pixelMovement: pixelMovement ?? parsed.value.pixelMovement });
   if (!cleared.ok) throw new Error(cleared.error.message);
   const tree = files.map((file) => (file.path === main ? { path: file.path, bytes: cleared.value } : file));
   const written = writeDistributionPackage({ files: tree, manifest: { schema: manifest.value.schema, main, index: tree.map((file) => file.path) } });
@@ -198,6 +198,33 @@ test("the demo cursor-map hand is visible and follows the selected menu row", as
   await expect.poll(async () => (await handPixels()).second).toBeGreaterThan(10);
   expect((await handPixels()).first).toBe(0);
 });
+
+for (const mode of [0, 1, 2] as const) {
+  test(`live player uses main-file movement mode ${mode}`, async ({ page }) => {
+    const fixture = packageWithoutStartupProgram(`movement-mode-${mode}.tpk`, mode);
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+    await page.waitForFunction(() => window.__live?.player != null && (window.__live?.tick ?? 0) > 30, undefined, { timeout: 45_000 });
+    const initial = await page.evaluate(() => window.__live as LiveReport);
+    if (initial.player === null) throw new Error("live player did not appear");
+    await page.locator("#screen").focus();
+    await page.keyboard.down("ArrowRight");
+    await page.waitForFunction((x) => window.__live?.player != null && window.__live.player.x !== x, initial.player.x);
+    await page.keyboard.up("ArrowRight");
+    const releaseTick = await page.evaluate(() => window.__live!.tick);
+    await page.waitForFunction((tick) => (window.__live?.tick ?? 0) >= tick + 40, releaseTick);
+    const final = await page.evaluate(() => window.__live as LiveReport);
+    expect(final.player?.y).toBe(initial.player.y);
+    const moved = (final.player?.x ?? initial.player.x) - initial.player.x;
+    if (mode === 0) expect(moved).toBe(32);
+    else {
+      // The browser can process another held-key step before the key-up event arrives.
+      expect(moved).toBeGreaterThanOrEqual(4);
+      expect(moved).toBeLessThan(32);
+      expect(moved % 4).toBe(0);
+    }
+  });
+}
 
 test("live demo attaches a board canvas and movement changes the player and presented frame", async ({ page }) => {
   await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
