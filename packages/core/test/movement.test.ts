@@ -71,6 +71,36 @@ test("R-50 moves a tile in eight 4-pixel advances and completes at tick 21", () 
   equal(events.some((record) => record.type === "movement-complete" && record.tick === 21), true);
 });
 
+test("diagonal pixel directions finish both axes in one advance in both modes", () => {
+  const cases = [["NE", 52, 59], ["SE", 52, 67], ["SW", 44, 67], ["NW", 44, 59]] as const;
+  for (const mode of [1, 2]) {
+    for (const [facing, x, y] of cases) {
+      const currentBoard = board();
+      const sprites = playerState(currentBoard);
+      enqueueDirectionMove(sprites, "hero", facing, mode);
+      const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+      equal(sprites.players[0]?.x, x, `${mode} ${facing} x`);
+      equal(sprites.players[0]?.y, y, `${mode} ${facing} y`);
+      equal(sprites.players[0]?.movement.active, null);
+      equal(events.filter((record) => record.type === "step-complete").length, 1);
+      equal(events.filter((record) => record.type === "movement-complete").length, 1);
+    }
+  }
+});
+
+test("diagonal pixel movement samples collision at its full four-pixel destination", () => {
+  const wall = { handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 66, y: 40 }, { x: 70, y: 40 }, { x: 70, y: 90 }, { x: 66, y: 90 }] };
+  for (const mode of [1, 2]) {
+    const currentBoard = board([wall]);
+    const sprites = playerState(currentBoard);
+    enqueueDirectionMove(sprites, "hero", "SE", mode);
+    const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+    equal(events.some((record) => record.type === "blocked" || record.type === "step-complete"), true);
+    equal(sprites.players[0]?.movement.active, null);
+    equal(sprites.players[0]?.x === 52 && sprites.players[0]?.y === 67, false);
+  }
+});
+
 test("solid vectors block a tile step without moving the actor", () => {
   const currentBoard = board([{ handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 96, y: 32 }, { x: 128, y: 32 }, { x: 128, y: 224 }, { x: 96, y: 224 }] }]);
   const sprites = playerState(currentBoard);

@@ -240,11 +240,15 @@ function directionVector(facing: Facing): [number, number] {
   const vectors: [number, number][] = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
   return vectors[index] ?? [0, 0];
 }
-function advancePoint(actor: SpriteActor, active: SpriteActiveMove): { x: number; y: number; reached: boolean } {
+function advancePoint(actor: SpriteActor, active: SpriteActiveMove, pixelMovement: number): { x: number; y: number; reached: boolean } {
   const [x, y] = positionFixed(actor);
   const target = pointFixed(active.target);
   const dx = target[0] - x;
   const dy = target[1] - y;
+  // E-133/R-62: a pixel direction step covers four pixels on each axis in one advance.
+  if (pixelMovement >= 1 && active.source === "direction" && Math.abs(dx) <= ADVANCE && Math.abs(dy) <= ADVANCE) {
+    return { x: target[0], y: target[1], reached: true };
+  }
   const distance = Math.floor(Math.sqrt(dx * dx + dy * dy));
   if (distance <= ADVANCE) return { x: target[0], y: target[1], reached: true };
   return { x: x + Math.trunc(dx * ADVANCE / distance), y: y + Math.trunc(dy * ADVANCE / distance), reached: false };
@@ -408,7 +412,7 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
     replaceActor(section, { ...actor, movement: { ...movement, active: { ...active, cadence: active.cadence - 1 } } });
     return;
   }
-  const next = advancePoint(actor, active);
+  const next = advancePoint(actor, active, pixelMovement);
   const direction = active.facing ?? FACING[facingIndex(next.x - fixed(actor.x), next.y - fixed(actor.y))] ?? actor.facing;
   if (actor.kind === "player") {
     const exit = offBoard(actor, board, next.x, next.y);
