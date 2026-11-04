@@ -116,7 +116,9 @@ void main() {
     ivec2 texel = ivec2(uSrcOrigin.x + at.x * uSrcSize.x / uDstSize.x, uSrcOrigin.y + at.y * uSrcSize.y / uDstSize.y);
     vec4 texelValue = texelFetch(uTex, texel, 0);
     if (texelValue.a == 0.0) discard;
-    if (uKeyOn == 1 && texelValue.r * 255.0 == uKey.r && texelValue.g * 255.0 == uKey.g && texelValue.b * 255.0 == uKey.b) discard;
+    // An 8-bit texel divided by 255 rarely multiplies back to the same integer in float (220/255*255 is
+    // 220.000002…), so compare within half a step: that recovers the byte the reference rasteriser compares.
+    if (uKeyOn == 1 && all(lessThan(abs(texelValue.rgb * 255.0 - uKey), vec3(0.5)))) discard;
     // R-15: with a non-zero tint, pure white becomes 245 and pure black 10 before the tint is added (tiles.md#shading).
     vec3 src = texelValue.rgb * 255.0;
     if (uTint.r != 0.0 || uTint.g != 0.0 || uTint.b != 0.0) {

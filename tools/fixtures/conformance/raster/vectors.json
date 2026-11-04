@@ -45,6 +45,52 @@
       "rgba": "00ffffff"
     },
     {
+      "id": "colour-key-mid-tone",
+      "width": 2,
+      "height": 1,
+      "texture": {
+        "asset": "test/vector",
+        "w": 2,
+        "h": 1,
+        "rgba": "dc1e1eff1ec83cff"
+      },
+      "commands": [
+        {
+          "kind": "blit",
+          "source": {
+            "asset": "test/vector",
+            "tile": null
+          },
+          "src": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 1
+          },
+          "dst": {
+            "x": 0,
+            "y": 0,
+            "w": 2,
+            "h": 1
+          },
+          "key": {
+            "r": 220,
+            "g": 30,
+            "b": 30
+          },
+          "tint": {
+            "r": 0,
+            "g": 0,
+            "b": 0
+          },
+          "alpha": 255,
+          "blend": "normal",
+          "iso2d": false
+        }
+      ],
+      "rgba": "000000001ec83cff"
+    },
+    {
       "id": "translucent-127",
       "width": 1,
       "height": 1,

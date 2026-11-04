@@ -21,8 +21,8 @@ test("render-webgl2 replays every committed raster vector within the D-7 bound",
   await page.goto("/packages/runner-web/app/vectors.html");
   await page.waitForFunction(() => window.__vectors !== undefined, undefined, { timeout: 60_000 });
   const results = (await page.evaluate(() => window.__vectors)) as readonly VectorReport[];
-  // 14 geometry and pipeline vectors, one legacy bitmap-font run, one TrueType run.
-  expect(results.length).toBe(16);
+  // 15 geometry and pipeline vectors (including a mid-tone colour key), one legacy bitmap-font run, one TrueType run.
+  expect(results.length).toBe(17);
 
   const blendArithmetic = (id: string): boolean => id.includes("translucent") || id.includes("additive");
   for (const result of results) {
