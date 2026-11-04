@@ -19,6 +19,7 @@ import {
   createSpriteRuntime,
   createVmState,
   createEmptyBoard,
+  createEmptyItem,
   createEmptyCharacter,
   enqueueDirectionMove,
   IR_VERSION,
@@ -86,6 +87,7 @@ type GameSpec = {
   /** The TKR package names of the main file's package-list extension, in order. */
   readonly packages?: readonly string[];
   readonly audioSettings?: MainFileAudioSettings | null;
+  readonly pixelMovement?: number;
   readonly soundFonts?: readonly string[];
   /** Battle background files by filename; they are added under `Bkrounds/`. */
   readonly battleBackgrounds?: Readonly<Record<string, { readonly music: string; readonly menuMoveSound: string; readonly menuChooseSound: string; readonly readySound: string; readonly cantDoSound: string }>>;
@@ -164,6 +166,7 @@ function authorGame(spec: GameSpec): AuthoredGame {
     projectPath: spec.project ?? "",
     startupPrg: spec.startup ?? "",
     initBoard: spec.initBoard ?? "start.brd",
+    pixelMovement: spec.pixelMovement ?? 0,
     initChar: spec.initChar ?? "",
     plugins: (spec.plugins ?? []).map((pluginFile) => ({ enabled: 0, pluginFile })),
     audioSettings: spec.audioSettings ?? null,
@@ -322,6 +325,63 @@ const SCRIPTED: GameSpec = {
     "bg.prg": "threadsleep(getthreadid(), 0)\n",
   },
 };
+for (const [pixelMovement, expectedDistance] of [[0, 64], [1, 16], [2, 16]] as const) {
+  test(`RPGCode push and pushitem use the loaded main-file mode with queued directions (${pixelMovement}) (#1283)`, () => {
+    const game = authorGame({
+      initChar: "hero.tem",
+      pixelMovement,
+      boards: { "start.brd": { enter: "enter.prg" } },
+      programs: { "enter.prg": 'scriptRan = 1\nwait()\npush("E,E")\npushitem(0, "S,S")\nend()\n' },
+    });
+    const runtime = createSpriteRuntime();
+    let state: GameState | null = null;
+    const engine = createEngine({
+      seed: 11,
+      assetIndex: game.index,
+      assetRoot: game.root,
+      mainFile: game.main,
+      gameIdentity: "push-mode-test",
+      startup: { presence: { hasPlayer: () => runtime.hasPlayer() }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+      width: 320,
+      height: 240,
+      maxTicks: 1200,
+      spriteRuntime: runtime,
+      phaseRegistrations: [
+        inputPhaseRegistration({ pixelMovement }),
+        movementPhaseRegistration({ pixelMovement }),
+        { phase: "audio", run: (nextState) => { state = nextState; } },
+      ],
+    });
+    const boot = run(engine, game.files, 1);
+    deepEqual(boot.diagnostics, []);
+    let parked = false;
+    for (let guard = 0; guard < 300 && !parked; guard += 1) {
+      const boot = run(engine, game.files, 1);
+      deepEqual(boot.diagnostics, []);
+      if (state !== null) parked = state.vm.threads.some((thread) => thread.wait?.kind === "input.key");
+    }
+    if (state === null) throw new Error("the engine did not advance");
+    equal(state.engine.boot?.stage, "running", "the actual board finished loading before the script starts");
+    equal(state.vm.globals.scriptran, 1, "the board enter program ran");
+    ok(parked, "RPGCode is parked at wait before the movement commands");
+    const item = actorFromSource({
+      id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+    }, state.world.board ?? null, 0, 0);
+    state.sprites.items = [item];
+    runtime.section.items = [item];
+    const pressed = run(engine, game.files, 1, [{
+      tick: state.time.tick,
+      event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true },
+    }]);
+    deepEqual(pressed.diagnostics, []);
+    const player = state.sprites.players[0];
+    ok(player !== undefined && (player.queue.moves.length > 0 || player.movement.active !== null), "push queued its first scripted direction");
+    const settled = run(engine, game.files, 600);
+    deepEqual(settled.diagnostics, []);
+    equal(state.sprites.players[0]?.x, 64 + expectedDistance, "the player follows both scripted east steps");
+    equal(state.sprites.items[0]?.y, 160 + expectedDistance, "the item follows both scripted south steps");
+  });
+}
 
 test("a scripted game boots from start.prg to its first board with the ruled effects and state", () => {
   const game = authorGame(SCRIPTED);

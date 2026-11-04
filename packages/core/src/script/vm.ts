@@ -732,6 +732,7 @@ export function createScriptServices(
   beforeBattleStart?: () => void,
   refreshScreen?: () => void,
   menuSounds?: () => { readonly move: string; readonly choose: string; readonly cancel: string },
+  pixelMovement = 0,
 ): ScriptServices {
   const loader = typeof loaderOrGameId === "string" ? undefined : loaderOrGameId;
   const gameId = typeof loaderOrGameId === "string" ? loaderOrGameId : explicitGameId ?? null;
@@ -817,6 +818,7 @@ export function createScriptServices(
     rng,
     clock,
     state: commandState,
+    pixelMovement,
     actors,
     battle,
     ...(battleStartView === undefined ? {} : { battleStart: battleStartView }),

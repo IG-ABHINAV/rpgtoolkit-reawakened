@@ -4,7 +4,7 @@ import type { Wait } from "../../ports/wait.ts";
 import type { InputSection } from "../../save/sections/input.ts";
 import type { GameState } from "../../save/state.ts";
 import type { SpriteActor, SpritePoint, Facing } from "../../sprites/model.ts";
-import { enqueueDirectionMove, movementCadence } from "../../sprites/movement.ts";
+import { enqueueDirectionMove, enqueueScriptDirectionMove, movementCadence } from "../../sprites/movement.ts";
 import { enqueueMove, enqueuePathMove, enqueuePointPathMove, setWaypoint } from "../../sprites/runtime.ts";
 import type { Character } from "../../formats/actor/index.ts";
 import { actorFromSource } from "../../sprites/model.ts";
@@ -109,7 +109,7 @@ function stanceResult(view: CommandView, id: string, stance: string, args: reado
 }
 const PUSH: BuiltinSpec = {
   name: "push", aliases: [], params: movementParams(),
-  doc: docs("Move the selected player in one or more directions.", "Queues each comma-separated direction as a fixed 4-pixel movement step. A blocking program or the pause flag waits until all queued steps finish; other threads continue.", { kind: "until-event", summary: "Waits for the queued movement to finish." }),
+  doc: docs("Move the selected player in one or more directions.", "Queues each comma-separated direction as a 32-pixel step in tile mode or an 8-pixel step in pixel modes. A blocking program or the pause flag waits until all queued steps finish; other threads continue.", { kind: "until-event", summary: "Waits for the queued movement to finish." }),
   call: (view, args) => {
     const id = playerId(view, string(args, 1, ""));
     const flags = number(args, 2);
@@ -117,14 +117,15 @@ const PUSH: BuiltinSpec = {
     const value = actor(view, id);
     const points: SpritePoint[] = [];
     let x = value?.x ?? 0; let y = value?.y ?? 0;
-    const vectors: Record<Facing, [number, number]> = { N: [0, -32], NE: [32, -32], E: [32, 0], SE: [32, 32], S: [0, 32], SW: [-32, 32], W: [-32, 0], NW: [-32, -32] };
+    const distance = (view.pixelMovement ?? 0) === 0 ? 32 : 8;
+    const vectors: Record<Facing, [number, number]> = { N: [0, -distance], NE: [distance, -distance], E: [distance, 0], SE: [distance, distance], S: [0, distance], SW: [-distance, distance], W: [-distance, 0], NW: [-distance, -distance] };
     for (const dir of dirs) { const delta = vectors[dir]; x += delta[0]; y += delta[1]; points.push({ x, y }); }
     return movementResult(view, "push", id, points, flags, args);
   },
 };
 const PUSH_ITEM: BuiltinSpec = {
   name: "pushitem", aliases: [], params: movementParams(),
-  doc: docs("Move an item in one or more directions.", "Queues fixed 32-pixel item steps and waits when the flags request pause or the caller is blocking."),
+  doc: docs("Move an item in one or more directions.", "Queues each comma-separated direction as a 32-pixel step in tile mode or an 8-pixel step in pixel modes. The caller waits when the flags request pause or the caller is blocking."),
   call: (view, args) => {
     const id = itemId(view, args[0]?.value as number | string ?? "");
     const flags = number(args, 2);
@@ -133,7 +134,8 @@ const PUSH_ITEM: BuiltinSpec = {
     const points: SpritePoint[] = [];
     let x = value?.x ?? 0;
     let y = value?.y ?? 0;
-    const vectors: Record<Facing, [number, number]> = { N: [0, -32], NE: [32, -32], E: [32, 0], SE: [32, 32], S: [0, 32], SW: [-32, 32], W: [-32, 0], NW: [-32, -32] };
+    const distance = (view.pixelMovement ?? 0) === 0 ? 32 : 8;
+    const vectors: Record<Facing, [number, number]> = { N: [0, -distance], NE: [distance, -distance], E: [distance, 0], SE: [distance, distance], S: [0, distance], SW: [-distance, distance], W: [-distance, 0], NW: [-distance, -distance] };
     for (const dir of dirs) { const delta = vectors[dir]; x += delta[0]; y += delta[1]; points.push({ x, y }); }
     return movementResult(view, "pushitem", id, points, flags, args);
   },
@@ -321,7 +323,7 @@ export function applyInputEffect(state: GameState, name: string, args: readonly 
 }
 function numberValue(value: Value | undefined): number { return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : 0; }
 
-export function applySpriteEffect(state: GameState, name: string, args: readonly Value[]): boolean {
+export function applySpriteEffect(state: GameState, name: string, args: readonly Value[], pixelMovement = 0): boolean {
   const idArg = args[0];
   const selected = state.sprites.selectedPlayer ?? state.sprites.players[0]?.id ?? "";
   const playerCommand = name === "playerstep" || name === "playerpath" || name === "playerdirection" || name === "playerspeed" || name === "playerstance";
@@ -373,7 +375,12 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
   const actor = [...state.sprites.players, ...state.sprites.items].find((value) => value.id === id || String(value.handle) === id);
   if (actor === undefined && name !== "activeplayer") return false;
   if (name === "activeplayer") { const target = String(args[0] ?? ""); state.sprites.selectedPlayer = state.sprites.players.find((value) => value.id === target || String(value.index) === target)?.id ?? state.sprites.selectedPlayer; return true; }
-  if (name === "pushitem") { const dirs = String(args[1] ?? "").split(",").filter((value) => value !== ""); for (const raw of dirs) enqueueDirectionMove(state.sprites, id, direction(raw), 0, false); return true; }
+  if (name === "push" || name === "pushitem") {
+    const dirs = String(args[name === "push" ? 0 : 1] ?? "").split(",").filter((value) => value !== "");
+    const distance = pixelMovement === 0 ? 32 : 8;
+    for (const raw of dirs) enqueueScriptDirectionMove(state.sprites, actor!.id, direction(raw), distance, false);
+    return true;
+  }
   if (name === "playerstep" || name === "itemstep") { const board = state.world.board; if (board === null || board === undefined) return false; const path = findPath(board, state.sprites, actor!, { x: numberValue(args[1]), y: numberValue(args[2]) }, 1); return enqueuePointPathMove(state.sprites, actor!.id, path.points, true, 1); }
   if (name === "playerpath" || name === "itempath") { const flags = numberValue(args[1]); const points = ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0 ? (state.world.board?.vectors?.find((value) => String(value.handle) === String(args[2]))?.points ?? []) : pointsFromValues(args.slice(2))); if ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0) return setWaypoint(state.sprites, actor!.id, points, numberValue(args[3]), (flags & WAYPOINT_LINK) !== 0); return enqueuePointPathMove(state.sprites, actor!.id, points, true, (flags & PATHFIND) !== 0 ? 1 : undefined); }
   if (name === "playerdirection" || name === "itemdirection") { const facing = direction(String(args[1] ?? args[0] ?? "S")); replaceActor(state, actor!.id, { facing }); return true; }

@@ -596,7 +596,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
-    applySpriteEffect(state, effect.name, values);
+    applySpriteEffect(state, effect.name, values, mainFile?.pixelMovement ?? 0);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
@@ -1083,6 +1083,7 @@ export function createEngine(init: EngineInit): Engine {
         choose: mainFile?.cursorSelectSound ?? "",
         cancel: mainFile?.cursorCancelSound ?? "",
       }),
+      mainFile?.pixelMovement ?? 0,
     );
     init.spriteRuntime?.bindItemThreadCleanup?.((thread) => discardMenuFrames(nextServices, thread));
     media.activateDeclared();
