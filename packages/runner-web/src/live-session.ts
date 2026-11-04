@@ -394,15 +394,21 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
         player.reach(reachedTick);
         player.advance(cues);
       });
+      // Quit supersedes the rest of this report: no new asset reads or writes may outlive the session.
+      const quit = report.requests.find((request) => request.kind === "quit");
+      if (quit !== undefined) {
+        await hostReply(quit, report.tickAfter);
+        if (quitNotified) {
+          quitNotified = false;
+          options.onQuit?.();
+        }
+        return;
+      }
       // Prefetch hints go out before blocking asset requests so a hint for the same key starts its origin read first
       // and the later blocking request joins it. Asset requests still go out together (the engine is blocked on all
       // of them); replies are awaited in report order so input records stay in the order the engine expects.
       const replies = await dispatchRequests(report.requests, report.tickAfter, hostReply);
-      if (quitNotified) {
-        quitNotified = false;
-        options.onQuit?.();
-        return;
-      }
+      if (closed) return;
       if (report.loading || replies.length > 0) { inputs = replies; continue; }
       if (ticks > 0 && report.ticksRun > 0) continue;
       return;
