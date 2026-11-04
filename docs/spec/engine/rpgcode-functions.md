@@ -253,7 +253,7 @@ run("nextChapter.prg")                                         // legacy Toolkit
 
 | Command | Signature | Purpose | Notes |
 |---|---|---|---|
-| `send` | `void send(string file, int x, int y, [int z = 1])` | Send the player to a new board. | Tile coordinates; the caller resumes on the next tick on the new board ([E-19](movement-and-collision.md#reawakened-send-board)). |
+| `send` | `void send(string file, int x, int y, [int z = 1])` | Send the player to a new board. | Board pixels on a destination board that sets `coordType`'s "Use pixel coordinates" flag, one-based tile coordinates otherwise; the caller resumes on the next tick on the new board ([E-19](movement-and-collision.md#reawakened-send-board)). |
 | `fade` | `void fade(int type)` | Perform a fade using the current colour. There are several different types of fades. | Types 0 to 5 are stepped effects, 0 when the argument is omitted; every effect runs 30 fixed ticks and blocks; any other type does nothing. |
 | `viewbrd` | `void viewbrd(string filename [, int x, int y [, canvas cnv]])` | Draw a board to the screen or to a canvas, starting at co-ordinates topX, topY. |  |
 | `move` | `void move(int x, int y, [int z = 1])` | Move this board program to a new location on the board. The effect lasts until the board has been left. |  |

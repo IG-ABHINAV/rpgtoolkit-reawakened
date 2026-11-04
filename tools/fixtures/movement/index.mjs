@@ -34,7 +34,7 @@ export const PROPOSED = {
   "P-8": "Trigger programs are modelled as ops (set, gone, abort, silentMove); silent movement locks trigger evaluation until the player's queue drains and evaluates nothing at the end.",
   "P-9": "An item hidden by its loading condition starts no thread; showing it later starts the thread and hiding or removing it stops the thread.",
   "P-10": "Random encounter: type 0 draws one integer in [0, chances) per tile moved and fights on 0; type 1 counts tiles; a fight draws a count 1 + [0, 4) then one index into the skill-level pool per enemy.",
-  "P-11": "Edge arrival keeps the player's remaining queue on refusal and clears it on success; send() tile coordinates are one-based, bottom-centre of the tile; the layer is one-based.",
+  "P-11": "Edge arrival keeps the player's remaining queue on refusal and clears it on success; send() names a position in the destination board's own coordinate mode - one-based tiles at the tile's bottom-centre on a plain board, board pixels on a board that sets the pixel-coordinate flag; the layer is one-based.",
   "P-12": "With diagonals disabled, two held orthogonal directions move along the most recently pressed one.",
   "P-13": "Button slot hit-test is half-open [x, x + w) x [y, y + h); an enabled slot press is one key-queue entry for its action; a disabled slot swallows the click.",
   "P-14": "Animation: frame delays are round-half-up ticks (minimum 1); a state change resets the frame; idle starts after idleMs of no movement; a held stance releases when movement resumes.",

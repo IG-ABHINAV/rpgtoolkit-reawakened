@@ -60,7 +60,7 @@ import { emitText, layoutText, resolveFontAsset } from "../render/text.ts";
 import { applyFxDrawList, advanceFx, applyFxEffect } from "../render/fx.ts";
 import { advanceAnimations, animationBlits, loadAnimation, releaseAnimationSurfaces } from "../render/animation.ts";
 import { hydrateBoard } from "../world/hydrate.ts";
-import { coordLayout, tileToPixel } from "../world/coords.ts";
+import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
@@ -2751,7 +2751,9 @@ export function createEngine(init: EngineInit): Engine {
     const loaded = loadBoard(target.value);
     if (loaded === "pending" || loaded === null) return false;
     delete state.engine.transition;
-    arrive(loaded, { x: transition.x, y: transition.y, layer: transition.layer, unit: "tile" }, true);
+    // send names a position in the destination board's own coordinate mode
+    // (docs/spec/engine/movement-and-collision.md#reawakened-send-board, #1246).
+    arrive(loaded, { x: transition.x, y: transition.y, layer: transition.layer, unit: usesPixelCoordinates(loaded.coordType) ? "pixel" : "tile" }, true);
     return true;
   }
   function stepScene(): boolean {

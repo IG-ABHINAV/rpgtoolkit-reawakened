@@ -37,7 +37,7 @@ export type BootState = {
 /** A `send` waiting for the engine to swap boards between ticks (E-19). */
 export type BoardTransition = {
   board: string;
-  /** One-based tile coordinates and layer. */
+  /** The named position in the destination board's own coordinate mode (board pixels on a flag-4 board, one-based tiles otherwise) and a one-based layer. */
   x: number;
   y: number;
   layer: number;

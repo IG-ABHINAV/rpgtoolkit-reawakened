@@ -750,7 +750,8 @@ export class World {
     this.emit("send-swap", { board: op.board });
     const caller = op.caller ?? null;
     if (caller !== null && caller.kind === "board") this.emit("caller-killed", { thread: caller.id });
-    // send() takes one-based tile coordinates and a one-based layer (below 1 means layer 1).
+    // send() names a position in the destination board's coordinate mode: these scenes' boards are
+    // plain (no pixel-coordinate flag), so x/y are one-based tiles and the layer is one-based (below 1 means layer 1).
     this.switchBoard(op.board, (op.x - 1) * 32 + 16, (op.y - 1) * 32 + 31, Math.max(1, op.layer) - 1, caller);
     if (caller !== null && caller.kind !== "board") this.emit("caller-resume", { thread: caller.id });
   }
