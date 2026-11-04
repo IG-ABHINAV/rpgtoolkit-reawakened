@@ -79,8 +79,8 @@ function walkAnimationBytes(width = 32, height = 32, images: readonly [string, s
   }));
 }
 
-/** A one-cell tile bitmap picture whose cell is the tileset's first tile (docs/spec/formats/tiles.md#tile-bitmap-tbm). */
-function tileBitmapBytes(): Uint8Array {
+/** A tile bitmap picture; `tile` "" makes a valid, fully transparent picture (docs/spec/formats/tiles.md#tile-bitmap-tbm). */
+function tileBitmapBytes(tile = "hero.tst1"): Uint8Array {
   return unwrap(writeTileBitmap({
     magic: TILE_BITMAP_MAGIC,
     major: 3,
@@ -88,7 +88,7 @@ function tileBitmapBytes(): Uint8Array {
     width: 1,
     height: 1,
     cells: [
-      { tile: "hero.tst1", r: 0, g: 0, b: 0 },
+      { tile, r: 0, g: 0, b: 0 },
       { tile: "", r: 0, g: 0, b: 0 },
       { tile: "", r: 0, g: 0, b: 0 },
       { tile: "", r: 0, g: 0, b: 0 },
@@ -97,18 +97,18 @@ function tileBitmapBytes(): Uint8Array {
   }));
 }
 
-/** A 32x32 single-tile `.gph` picture (docs/spec/formats/tiles.md#single-tile-gph), solid 20,40,220 blue. */
-function singleTileBytes(): Uint8Array {
-  const colour = 20 + 256 * 40 + 65536 * 220;
+/** A solid single-tile `.gph` picture (docs/spec/formats/tiles.md#single-tile-gph); 32x32 is detail 1, 16x16 detail 2. */
+function singleTileBytes(size = 32, colour: readonly [number, number, number] = [20, 40, 220]): Uint8Array {
+  const value = colour[0] + 256 * colour[1] + 65536 * colour[2];
   return new TextEncoder().encode(writeSingleTile({
     magic: SINGLE_TILE_MAGIC,
     major: 2,
     minor: 0,
-    detail: 1,
+    detail: size === 32 ? 1 : 2,
     compression: 0,
-    width: 32,
-    height: 32,
-    pixels: Array(32 * 32).fill(colour),
+    width: size,
+    height: size,
+    pixels: Array(size * size).fill(value),
   }));
 }
 
@@ -340,4 +340,59 @@ test("walk frames advance once per animation delay and the draw follows the fram
   equal(player?.visual.frame, 1);
   const list = later.engine.drawList(0, { shading: true, images: true, sprites: true });
   deepEqual(spriteBlits(list.commands).map((command) => command.source), [{ asset: "tiles/hero.tst", tile: 2 }]);
+});
+
+test("a tile-bitmap cell keeps its tile's own size: a 16x16 .gph fills a quarter of the cell (#1265)", () => {
+  const host = run(3, {
+    walkFile: "hero_small.anm",
+    animation: walkAnimationBytes(32, 32, ["hero_small.tbm", "hero_small.tbm"]),
+    extra: {
+      "Bitmap/hero_small.tbm": tileBitmapBytes("small.gph"),
+      "Tiles/small.gph": singleTileBytes(16, [200, 20, 200]),
+    },
+  });
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
+  // A 16x16 single tile is drawn at its own size from the cell's corner; the 32x32 default would read past it.
+  deepEqual(blitsOf(list.commands, "tiles/small.gph").map((command) => [command.source, command.src, command.dst]), [
+    [{ asset: "tiles/small.gph", tile: 1 }, { x: 0, y: 0, w: 16, h: 16 }, { x: 48, y: 32, w: 16, h: 16 }],
+  ]);
+  const screen = presented(host);
+  deepEqual(pixelAt(screen, 52, 36), [200, 20, 200, 255], "the 16x16 tile is in the cell's top-left quarter");
+  // The rest of the 32x32 cell stays transparent: the board behind shows through, not the tile.
+  equal(pixelAt(screen, 68, 52).join(",") === "200,20,200,255", false, "the cell's other quarters are empty");
+});
+
+test("a tile-bitmap frame keeps its transparent colour key (#1266)", () => {
+  const red = { r: 220, g: 30, b: 30 };
+  const keyed = run(3, {
+    walkFile: "hero_keyed.anm",
+    animation: walkAnimationBytes(32, 32, ["hero_frame.tbm", "hero_frame.tbm"], red),
+    extra: { "Bitmap/hero_frame.tbm": tileBitmapBytes() },
+  });
+  deepEqual(keyed.diagnostics.map((diagnostic) => diagnostic.code), []);
+  const keyedBlit = spriteBlits(keyed.engine.drawList(0, { shading: true, images: true, sprites: true }).commands)[0];
+  deepEqual(keyedBlit?.key, red, "the frame's transparent colour is the blit key");
+  equal(pixelAt(presented(keyed), 64, 48).join(",") === "220,30,30,255", false, "the keyed-out red leaves the board behind");
+
+  const shown = run(3, {
+    walkFile: "hero_keyed_white.anm",
+    animation: walkAnimationBytes(32, 32, ["hero_frame.tbm", "hero_frame.tbm"]),
+    extra: { "Bitmap/hero_frame.tbm": tileBitmapBytes() },
+  });
+  deepEqual(pixelAt(presented(shown), 64, 48), [220, 30, 30, 255], "a white key leaves the red tile visible");
+});
+
+test("an all-empty tile-bitmap frame is transparent, not the fallback marker (#1267)", () => {
+  const host = run(3, {
+    walkFile: "hero_empty.anm",
+    animation: walkAnimationBytes(32, 32, ["hero_empty.tbm", "hero_empty.tbm"]),
+    extra: { "Bitmap/hero_empty.tbm": tileBitmapBytes("") },
+  });
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
+  // The bitmap decodes to no cells: a valid transparent picture draws nothing and is not the marker.
+  equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
+  equal(list.commands.some((command) => command.kind === "blit" && "asset" in command.source && (command.source.asset === "bitmap/hero_empty.tbm" || command.source.asset === "tiles/hero.tst")), false);
+  equal(pixelAt(presented(host), 64, 48).join(",") === "64,96,224,255", false, "no marker is presented");
 });

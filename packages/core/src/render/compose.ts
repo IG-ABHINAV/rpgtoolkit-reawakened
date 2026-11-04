@@ -396,7 +396,7 @@ function emitSprite(
   if (width === undefined && texture !== null) width = texture.texture.w;
   if (height === undefined && texture !== null) height = texture.texture.h;
 
-  if (cells !== undefined && cells.length > 0) {
+  if (cells !== undefined) {
     if (width === undefined) {
       let maxX = 0;
       for (const cell of cells) if (cell.x > maxX) maxX = cell.x;
@@ -423,7 +423,7 @@ function emitSprite(
   const dstRect: Rect = { x: dstX, y: dstY, w: spriteW, h: spriteH };
 
   if (visible(dstRect, view.viewport)) {
-    if (cells !== undefined && cells.length > 0) {
+    if (cells !== undefined) {
       for (const cell of cells) {
         if (cell.tile === null) continue;
         const tile = selectedTile(cell.tile, view.tick);
@@ -442,6 +442,9 @@ function emitSprite(
         const cellBoardX = under === null ? Math.floor(boardLeft / TILE_SIZE) + cell.x : under.x - 1;
         const cellBoardY = under === null ? Math.floor(boardTop / TILE_SIZE) + cell.y : under.y - 1;
         const cellTintOverride = addTint(cell.tint ?? NO_TINT, sprite.frame?.tint ?? sprite.tint ?? NO_TINT);
+        // A picture frame's transparent colour keys its own pixels out before the cell shade is added (E-54,
+        // docs/spec/formats/tiles.md#tile-bitmap-tbm), exactly as the texture branch does for an ordinary picture.
+        const cellKey = sprite.frame?.transparent ?? sprite.transparent ?? TILE_KEY;
         commands.push(tileCommand(
           board,
           tile,
@@ -454,6 +457,7 @@ function emitSprite(
           view.include.shading,
           view.globalAmbient,
           cellTintOverride,
+          cellKey,
         ));
       }
     } else if (texture !== null) {
@@ -568,6 +572,7 @@ function tileCommand(
   includeShading: boolean,
   globalAmbient: Tint | undefined,
   extraTint?: Tint,
+  key: Rgb = TILE_KEY,
 ): DrawCommand {
   const selected = selectedTile(tile, tick);
   const width = selected.width ?? TILE_SIZE;
@@ -577,7 +582,7 @@ function tileCommand(
     source: { asset: selected.asset, tile: selected.tile },
     src: { x: 0, y: 0, w: width, h: height },
     dst: { x: dx, y: dy, w: width, h: height },
-    key: TILE_KEY,
+    key,
     tint: tileTint(board, layer, x, y, includeShading, globalAmbient, addTint(selected.tint ?? NO_TINT, extraTint ?? NO_TINT)),
     alpha: 255,
     blend: "normal",

@@ -3057,10 +3057,14 @@ export function createEngine(init: EngineInit): Engine {
           return null;
         }
         const shade = cell.r !== 0 || cell.g !== 0 || cell.b !== 0 ? { r: cell.r, g: cell.g, b: cell.b } : null;
+        // The cell draws its tile at the tile's own size (a 16×16 `.gph` fills a quarter of a 32×32 cell and a
+        // 64×32 `.iso` tile keeps its width), so the compositor must not fall back to the 32×32 default.
+        const size = spriteTileCellSize(reference.asset);
+        if (size === null) return null;
         cells.push({
           x,
           y,
-          tile: { asset: reference.asset, tile: reference.kind === "singleTile" ? 1 : reference.tile },
+          tile: { asset: reference.asset, tile: reference.kind === "singleTile" ? 1 : reference.tile, width: size.w, height: size.h },
           ...(shade === null ? {} : { tint: shade }),
         });
       }
@@ -3168,10 +3172,11 @@ export function createEngine(init: EngineInit): Engine {
     // marker, so a frame never names a texture the runner cannot resolve yet.
     const lower = entry.asset.toLowerCase();
     if (lower.endsWith(".tbm")) {
-      // A tile bitmap is drawn as its cells: the live renderer decodes tilesets, not `.tbm` (#1262).
+      // A tile bitmap is drawn as its cells: the live renderer decodes tilesets, not `.tbm` (#1262). A bitmap with no
+      // drawn cells is a valid, fully transparent picture, not missing art — an empty cell list draws nothing.
       const cells = spriteTileBitmapCells(entry.asset);
-      if (cells === null || cells.length === 0) return null;
-      return { file, cells, width: data.width, height: data.height };
+      if (cells === null) return null;
+      return { file, cells, width: data.width, height: data.height, transparent: entry.transparent };
     }
     if (entry.tile === null && !lower.endsWith(".gph")) {
       // An ordinary picture, sized to the animation frame.

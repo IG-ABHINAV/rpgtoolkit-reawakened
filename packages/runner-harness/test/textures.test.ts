@@ -15,18 +15,18 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
   return result.value;
 }
 
-/** A 32x32 single tile, solid COLORREF 20 + 256*40 + 65536*220. */
-function singleTileBytes(): Uint8Array {
-  const colour = 20 + 256 * 40 + 65536 * 220;
+/** A solid single tile; 32x32 is detail 1 and 16x16 detail 2, as the file format defines. */
+function singleTileBytes(size = 32, colour: readonly [number, number, number] = [20, 40, 220]): Uint8Array {
+  const value = colour[0] + 256 * colour[1] + 65536 * colour[2];
   return encoder.encode(writeSingleTile({
     magic: SINGLE_TILE_MAGIC,
     major: 2,
     minor: 0,
-    detail: 1,
+    detail: size === 32 ? 1 : 2,
     compression: 0,
-    width: 32,
-    height: 32,
-    pixels: Array(32 * 32).fill(colour),
+    width: size,
+    height: size,
+    pixels: Array(size * size).fill(value),
   }));
 }
 
@@ -69,6 +69,15 @@ test("the live texture decoder expands a single tile .gph an actor frame names (
   equal(decoded.w, 32);
   equal(decoded.h, 32);
   deepEqual(pixelAt(decoded, 16, 16), [20, 40, 220, 255]);
+});
+
+test("the live texture decoder keeps a 16x16 single tile at its own size, so a bitmap cell fits it (#1265)", () => {
+  // A tile-bitmap cell draws a 16x16 `.gph` at 16x16; the texture it samples must be 16x16, not padded to 32x32.
+  const decoded = decodeAssetTexture("tiles/small.gph" as AssetKey, singleTileBytes(16, [200, 20, 200]));
+  if (decoded === null) throw new Error("the 16x16 single tile did not decode");
+  equal(decoded.w, 16);
+  equal(decoded.h, 16);
+  deepEqual(pixelAt(decoded, 8, 8), [200, 20, 200, 255]);
 });
 
 test("the live texture decoder refuses .tbm, which is why a tile-bitmap frame publishes cells (#1262)", () => {
