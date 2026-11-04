@@ -382,7 +382,12 @@ function emitSprite(
 
   const file = sprite.frame?.file ?? sprite.file;
   const explicitAsset = sprite.frame?.asset ?? sprite.asset;
-  const texture = (file !== undefined || explicitAsset !== undefined)
+  const frameTile = sprite.frame?.tile ?? sprite.tile;
+  // A frame that names a tile (an animation frame such as `char.tst1`) is that tile, not the whole asset: an
+  // `.anm` frame's picture is a cell of a tileset or tile bitmap, and the texture path would blit the entire
+  // strip (docs/spec/formats/animation.md, E-54).
+  const tileFrame = frameTile !== undefined && frameTile !== null && explicitAsset !== undefined;
+  const texture = !tileFrame && (file !== undefined || explicitAsset !== undefined)
     ? textureFor(view.assets, file ?? "", explicitAsset)
     : null;
 

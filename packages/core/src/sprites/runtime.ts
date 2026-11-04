@@ -3,7 +3,7 @@ import type { ProgramRef } from "../script/program.ts";
 import { endItemThreads, findThread, startThread, type Thread, type VmState } from "../script/state.ts";
 import type { CameraPoint, CameraTarget } from "../ports/camera.ts";
 import type { PlayerPresencePort } from "../ports/startup.ts";
-import type { SpriteDraw } from "../render/compose.ts";
+import type { SpriteDraw, SpriteFrame } from "../render/compose.ts";
 import type { Character } from "../formats/actor/model.ts";
 import type { WorldBoard } from "../world/model.ts";
 import { coordLayout, tileToPixel, type CoordLayout } from "../world/coords.ts";
@@ -278,7 +278,16 @@ export function setWaypoint(section: SpritesSection, id: string, points: readonl
   return true;
 }
 
-function drawFor(actor: SpriteActor, drawId: number): SpriteDraw {
+/**
+ * The decoded frame of a sprite's selected animation (E-21/E-54): the asset and tile the compositor draws,
+ * or null while the animation's frames are still being fetched. A frame source is supplied by the engine,
+ * which owns asset loading and caching; `spriteDraws` stays pure state-to-draw conversion.
+ */
+export type SpriteFrameSource = (file: string, frame: number) => SpriteFrame | null;
+
+function drawFor(actor: SpriteActor, drawId: number, frameSource?: SpriteFrameSource): SpriteDraw {
+  const file = actor.visual.file;
+  const frame = file === null || file === undefined ? null : (frameSource?.(file, actor.visual.frame) ?? null);
   const draw: SpriteDraw = {
     id: actor.id,
     key: actor.kind,
@@ -287,17 +296,17 @@ function drawFor(actor: SpriteActor, drawId: number): SpriteDraw {
     y: actor.y,
     drawId,
     phase: actor.visual.frame,
-    ...(actor.visual.file === null || actor.visual.file === undefined ? {} : { frame: { file: actor.visual.file } }),
+    ...(file === null || file === undefined ? {} : { frame: frame ?? { file } }),
     collisionBase: actor.collisionBase.points,
   };
   return actor.prev === null ? draw : { ...draw, prev: actor.prev };
 }
 
 /** Build SpriteDraw data in stable player-before-item category order. */
-export function spriteDraws(section: SpritesSection): SpriteDraw[] {
+export function spriteDraws(section: SpritesSection, frameSource?: SpriteFrameSource): SpriteDraw[] {
   const playerCount = section.players.length;
-  const players = section.players.map((actor) => drawFor(actor, actor.index));
-  const items = section.items.filter((item) => item.visible).map((actor) => drawFor(actor, playerCount + actor.index));
+  const players = section.players.map((actor) => drawFor(actor, actor.index, frameSource));
+  const items = section.items.filter((item) => item.visible).map((actor) => drawFor(actor, playerCount + actor.index, frameSource));
   return [...players, ...items];
 }
 
