@@ -114,6 +114,7 @@ stockMenu = {
         }
         if (focused != 0) {
             stockMenu.box(16, y - 4, stockMenu.w - 17, y + 19, stockMenu.barR, stockMenu.barG, stockMenu.barB)
+            stockMenu.context.menu.drawHand(8, y, stockMenu.screen)
             r = stockMenu.markR
             g = stockMenu.markG
             b = stockMenu.markB

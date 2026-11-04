@@ -3,7 +3,7 @@ import { restoreGameSave, snapshotGameSave, restoreRecoveryCandidate, snapshotRe
 import { deriveGameId } from "../save/game-id.ts";
 import { restoreGameState, snapshot } from "../save/snapshot.ts";
 import { createPluginLayers, type PluginLayers } from "../script/layers.ts";
-import { MENU_GRAPHIC_EFFECT } from "../script/packs/menu.ts";
+import { MENU_GRAPHIC_EFFECT, MENU_HAND_EFFECT } from "../script/packs/menu.ts";
 import { actorEmitterKey, actorId } from "../actors/model.ts";
 import type { AudioSaveProjection } from "../audio/save.ts";
 import { projectGameLedger, type GameLedgerV1, type LedgerProgramRef, type LedgerTile } from "../save/ledger.ts";
@@ -122,6 +122,8 @@ import { runTimePhase } from "../time/time.ts";
 import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
+
+const MENU_HAND_ASSET = assetKey("media/cursors/tkr-menu-hand.png");
 
 /** AD-26's immutable phase order. */
 export const ENGINE_PHASES = [
@@ -344,6 +346,8 @@ export function createEngine(init: EngineInit): Engine {
   const missingBattleBackgrounds = new Set<AssetKey>();
   /** Menu-graphic references already reported missing (E-80 item 12): one `asset.missing` each, and never fatal. */
   const missingMenuGraphics = new Set<string>();
+  /** The bundled hand marker is optional decoration too: report a missing bundle at most once. */
+  let missingMenuHandReported = false;
   /** Sound facts from battle backgrounds fetched only for prefetch; kept out of the saved asset cache so prefetch hints stay hash-neutral. */
   const prefetchedBattleBackgrounds = new Map<AssetKey, PrefetchFacts["battle"]>();
   /** In-flight prefetch-only asset requests and their ids; these deliberately do not live in the saved engine section. */
@@ -1126,6 +1130,7 @@ export function createEngine(init: EngineInit): Engine {
     setimagetranslucent: true,
     setimageadditive: true,
     [MENU_GRAPHIC_EFFECT]: true,
+    [MENU_HAND_EFFECT]: true,
   };
   function imageTexture(key: AssetKey): DecodedTexture | null {
     const cached = decodedImages.get(key);
@@ -1134,7 +1139,7 @@ export function createEngine(init: EngineInit): Engine {
     // (docs/spec/formats/tiles.md#tile-bitmap-tbm: "can be used wherever an image file is accepted"), but its pixels
     // are tiles from other files, so it is composed from the tile decoders rather than the picture decoders.
     if (key.toLowerCase().endsWith(".tbm")) return tileBitmapTexture(key);
-    const bytes = cache.get(key);
+    const bytes = cache.get(key) ?? init.bundled?.get(key);
     if (bytes === undefined) return null;
     const decoded = decodeTexture(bytes, key);
     if (!decoded.ok) {
@@ -1406,6 +1411,18 @@ export function createEngine(init: EngineInit): Engine {
         pendingBoardPreviews.push({ key: key.value, effect });
         request(key.value, "board-preview");
       }
+      return;
+    }
+    if (effect.name === MENU_HAND_EFFECT) {
+      const texture = imageTexture(MENU_HAND_ASSET);
+      if (texture === null) {
+        if (!missingMenuHandReported && !failed) {
+          missingMenuHandReported = true;
+          diagnostics.push({ code: "asset.missing", file: MENU_HAND_ASSET, line: 0, message: "menu hand marker: bundled image is unavailable" });
+        }
+        return;
+      }
+      applySurfaceImage(effect, texture);
       return;
     }
     const optional = effect.name === MENU_GRAPHIC_EFFECT;
