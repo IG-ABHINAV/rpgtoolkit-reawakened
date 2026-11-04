@@ -3,7 +3,7 @@
   "protocol": "runner-protocol-v1",
   "note": "Records are the JSON projection of the runner boundary: Uint8Array leaves are base64 strings, every key of a kind is present, and an absent value is null (AD-14). Validate against packages/runner-harness/schema/runner-protocol-v1.schema.json; audio messages are the separate audio-protocol kit.",
   "counts": {
-    "draw": 12,
+    "draw": 13,
     "input": 15,
     "request": 13
   },
@@ -88,6 +88,55 @@
             "alpha": 128,
             "blend": "translucent",
             "iso2d": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "draw-blit-key-tint",
+      "family": "draw",
+      "valid": true,
+      "record": {
+        "tick": 12,
+        "width": 640,
+        "height": 480,
+        "commands": [
+          {
+            "kind": "blit",
+            "source": {
+              "asset": "Bitmap/hero.tbm",
+              "tile": 5
+            },
+            "src": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "dst": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "key": {
+              "r": 230,
+              "g": 30,
+              "b": 30
+            },
+            "keyTint": {
+              "r": 10,
+              "g": 0,
+              "b": 0
+            },
+            "tint": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "alpha": 255,
+            "blend": "normal",
+            "iso2d": false
           }
         ]
       }

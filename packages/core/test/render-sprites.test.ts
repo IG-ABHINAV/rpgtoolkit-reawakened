@@ -432,6 +432,65 @@ test("2x2 .tbm frame sprite emits cells with ambient and cell tint", () => {
   equal(spriteBlits.length >= 4, true);
 });
 
+test("a .tbm frame's colour key is tested after the cell's authored shade, before the world tint", () => {
+  const tile = { asset: assetKey("sprites/keyed.tst"), tile: 1 };
+  const sprite = (shade: { readonly r: number; readonly g: number; readonly b: number } | null): SpriteDraw => ({
+    id: "keyed",
+    key: "item",
+    layer: 1,
+    x: 48,
+    y: 64,
+    drawId: 1,
+    frame: {
+      cells: [{ x: 0, y: 0, tile, ...(shade === null ? {} : { tint: shade }) }],
+      transparent: { r: 230, g: 30, b: 30 },
+      width: 32,
+      height: 32,
+    },
+  });
+  const cellsOf = (shade: { readonly r: number; readonly g: number; readonly b: number } | null, shading: boolean) => {
+    const list = composeBoard({
+      board: baseBoard,
+      tick: 0,
+      camera: { x: 0, y: 0 },
+      viewport: { width: 128, height: 128 },
+      alpha: 0,
+      include: { shading, images: false, sprites: true },
+      sprites: [sprite(shade)],
+      globalAmbient: { r: 2, g: 3, b: 4 },
+    });
+    const cells = list.commands.filter((command) => command.kind === "blit" && "asset" in command.source && command.source.asset === tile.asset);
+    equal(cells.length, 1);
+    return cells[0]!;
+  };
+
+  const shaded = cellsOf({ r: 10, g: 0, b: 0 }, true);
+  const plain = cellsOf(null, true);
+  // The authored shade is its own stage, not part of the world tint the cell blit carries.
+  deepEqual(shaded.kind === "blit" ? shaded.keyTint : null, { r: 10, g: 0, b: 0 });
+  deepEqual(plain.kind === "blit" ? plain.keyTint : undefined, undefined);
+  deepEqual(shaded.kind === "blit" ? shaded.tint : null, plain.kind === "blit" ? plain.tint : null);
+
+  // The pixel proof: a (220, 30, 30) tile shaded by (10, 0, 0) is (230, 30, 30) when the frame's transparent
+  // colour is tested, so that key drops it; a key on the unshaded colour keeps it and it draws shaded.
+  const cell = cellsOf({ r: 10, g: 0, b: 0 }, false);
+  if (cell.kind !== "blit") throw new Error("expected a blit");
+  const rgba = new Uint8Array(32 * 32 * 4);
+  for (let at = 0; at < rgba.length; at += 4) rgba.set([220, 30, 30, 255], at);
+  const scene = (key: { readonly r: number; readonly g: number; readonly b: number }) => ({
+    tick: 0,
+    width: 32,
+    height: 32,
+    commands: [{ ...cell, src: { x: 0, y: 0, w: 32, h: 32 }, dst: { x: 0, y: 0, w: 32, h: 32 }, key }],
+  });
+  const dropped = rasterize(scene({ r: 230, g: 30, b: 30 }), new Map([[tile.asset, { w: 32, h: 32, rgba }]]));
+  equal(dropped.error, null);
+  equal(dropped.rgba.every((byte) => byte === 0), true);
+  const kept = rasterize(scene({ r: 220, g: 30, b: 30 }), new Map([[tile.asset, { w: 32, h: 32, rgba }]]));
+  equal(kept.error, null);
+  deepEqual(kept.rgba.subarray(0, 4), new Uint8Array([230, 30, 30, 255]));
+});
+
 test("presentation alpha smoothly interpolates sprite position from prev", () => {
   const sprite: SpriteDraw = {
     id: "moving",

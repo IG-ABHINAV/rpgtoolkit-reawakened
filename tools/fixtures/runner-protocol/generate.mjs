@@ -37,6 +37,9 @@ const vectors = [
     record: list({ kind: "blit", source: { asset: "tiles/village.tst", tile: 3 }, src: rect, dst: rect, key: rgb, tint: { r: -8, g: 0, b: 8 }, alpha: 255, blend: "normal", iso2d: false }) },
   { id: "draw-blit-surface", family: "draw", valid: true,
     record: list({ kind: "blit", source: { surface: 1, rev: 7 }, src: rect, dst: rect, key: null, tint: { r: 0, g: 0, b: 0 }, alpha: 128, blend: "translucent", iso2d: true }) },
+  // The authored stage of a composed picture's cell: the key is tested after this tint (runners.md#blit-pipeline).
+  { id: "draw-blit-key-tint", family: "draw", valid: true,
+    record: list({ kind: "blit", source: { asset: "Bitmap/hero.tbm", tile: 5 }, src: rect, dst: rect, key: { r: 230, g: 30, b: 30 }, keyTint: { r: 10, g: 0, b: 0 }, tint: { r: 0, g: 0, b: 0 }, alpha: 255, blend: "normal", iso2d: false }) },
   { id: "draw-fill", family: "draw", valid: true, record: list({ kind: "fill", rgb }) },
   { id: "draw-line", family: "draw", valid: true, record: list({ kind: "line", x1: 0, y1: 0, x2: 10, y2: 4, rgb }) },
   { id: "draw-rect", family: "draw", valid: true, record: list({ kind: "rect", rect, rgb, filled: true }) },

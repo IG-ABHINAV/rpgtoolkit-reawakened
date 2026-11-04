@@ -441,9 +441,10 @@ function emitSprite(
           : null;
         const cellBoardX = under === null ? Math.floor(boardLeft / TILE_SIZE) + cell.x : under.x - 1;
         const cellBoardY = under === null ? Math.floor(boardTop / TILE_SIZE) + cell.y : under.y - 1;
-        const cellTintOverride = addTint(cell.tint ?? NO_TINT, sprite.frame?.tint ?? sprite.tint ?? NO_TINT);
-        // A picture frame's transparent colour keys its own pixels out before the cell shade is added (E-54,
-        // docs/spec/formats/tiles.md#tile-bitmap-tbm), exactly as the texture branch does for an ordinary picture.
+        const cellFrameTint = sprite.frame?.tint ?? sprite.tint ?? NO_TINT;
+        // A picture frame's transparent colour keys out the cell-shaded pixels: the cell's own r, g, b is part of
+        // the picture (tiles.md#tile-bitmap-tbm keeps the stages separate), so it is the blit's authored stage and
+        // the key is tested after it, never against the unshaded tile. The world tint stays in `tint`.
         const cellKey = sprite.frame?.transparent ?? sprite.transparent ?? TILE_KEY;
         commands.push(tileCommand(
           board,
@@ -456,8 +457,9 @@ function emitSprite(
           cdy,
           view.include.shading,
           view.globalAmbient,
-          cellTintOverride,
+          cellFrameTint,
           cellKey,
+          cell.tint,
         ));
       }
     } else if (texture !== null) {
@@ -573,6 +575,7 @@ function tileCommand(
   globalAmbient: Tint | undefined,
   extraTint?: Tint,
   key: Rgb = TILE_KEY,
+  keyTint?: Tint,
 ): DrawCommand {
   const selected = selectedTile(tile, tick);
   const width = selected.width ?? TILE_SIZE;
@@ -583,6 +586,7 @@ function tileCommand(
     src: { x: 0, y: 0, w: width, h: height },
     dst: { x: dx, y: dy, w: width, h: height },
     key,
+    ...(keyTint === undefined ? {} : { keyTint }),
     tint: tileTint(board, layer, x, y, includeShading, globalAmbient, addTint(selected.tint ?? NO_TINT, extraTint ?? NO_TINT)),
     alpha: 255,
     blend: "normal",

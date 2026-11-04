@@ -165,11 +165,23 @@ function drawBlit(
       const sg = texture.rgba[si + 1] ?? 0;
       const sb = texture.rgba[si + 2] ?? 0;
       const sa = texture.rgba[si + 3] ?? 0;
-      if (sa === 0 || (command.key !== null && sr === command.key.r && sg === command.key.g && sb === command.key.b)) continue;
+      // The authored stage: a composed picture's cell shade is part of its pixels, so the key is tested after it and
+      // the world tint after that (docs/spec/engine/runners.md#blit-pipeline).
+      const authored = command.keyTint;
+      let pr = sr;
+      let pg = sg;
+      let pb = sb;
+      if (authored !== undefined) {
+        const tinted = authored.r !== 0 || authored.g !== 0 || authored.b !== 0;
+        pr = tintChannel(sr, authored.r, tinted);
+        pg = tintChannel(sg, authored.g, tinted);
+        pb = tintChannel(sb, authored.b, tinted);
+      }
+      if (sa === 0 || (command.key !== null && pr === command.key.r && pg === command.key.g && pb === command.key.b)) continue;
       const dx = command.dst.x + x;
       const dy = command.dst.y + y;
       if (dx < 0 || dy < 0 || dx >= target.width || dy >= target.height) continue;
-      blend(target, (dy * target.width + dx) * 4, [sr, sg, sb, sa], command);
+      blend(target, (dy * target.width + dx) * 4, [pr, pg, pb, sa], command);
     }
   }
   return null;

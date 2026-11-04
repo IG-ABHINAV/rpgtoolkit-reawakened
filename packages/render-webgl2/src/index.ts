@@ -106,6 +106,8 @@ uniform vec3 uTint;
 uniform float uAlpha;
 uniform int uKeyOn;
 uniform vec3 uKey;
+uniform int uKeyTintOn;
+uniform vec3 uKeyTint;
 uniform ivec2 uSrcOrigin;
 uniform ivec2 uSrcSize;
 uniform ivec2 uDstSize;
@@ -116,11 +118,20 @@ void main() {
     ivec2 texel = ivec2(uSrcOrigin.x + at.x * uSrcSize.x / uDstSize.x, uSrcOrigin.y + at.y * uSrcSize.y / uDstSize.y);
     vec4 texelValue = texelFetch(uTex, texel, 0);
     if (texelValue.a == 0.0) discard;
+    // The authored stage: a composed picture's cell shade is part of its pixels, so the key is tested after it
+    // (docs/spec/engine/runners.md#blit-pipeline). The R-15 remap belongs to this stage's own non-zero tint.
+    vec3 src = texelValue.rgb * 255.0;
+    if (uKeyTintOn == 1) {
+      src = vec3(
+        src.r == 255.0 ? 245.0 : (src.r == 0.0 ? 10.0 : src.r),
+        src.g == 255.0 ? 245.0 : (src.g == 0.0 ? 10.0 : src.g),
+        src.b == 255.0 ? 245.0 : (src.b == 0.0 ? 10.0 : src.b));
+      src = clamp(src + uKeyTint, 0.0, 255.0);
+    }
     // An 8-bit texel divided by 255 rarely multiplies back to the same integer in float (220/255*255 is
     // 220.000002…), so compare within half a step: that recovers the byte the reference rasteriser compares.
-    if (uKeyOn == 1 && all(lessThan(abs(texelValue.rgb * 255.0 - uKey), vec3(0.5)))) discard;
+    if (uKeyOn == 1 && all(lessThan(abs(src - uKey), vec3(0.5)))) discard;
     // R-15: with a non-zero tint, pure white becomes 245 and pure black 10 before the tint is added (tiles.md#shading).
-    vec3 src = texelValue.rgb * 255.0;
     if (uTint.r != 0.0 || uTint.g != 0.0 || uTint.b != 0.0) {
       src = vec3(
         src.r == 255.0 ? 245.0 : (src.r == 0.0 ? 10.0 : src.r),
@@ -269,6 +280,8 @@ export function createWebgl2Renderer(gl: WebGL2RenderingContext, presentation: P
   const uAlpha = uniform("uAlpha");
   const uKeyOn = uniform("uKeyOn");
   const uKey = uniform("uKey");
+  const uKeyTintOn = uniform("uKeyTintOn");
+  const uKeyTint = uniform("uKeyTint");
   const uTex = uniform("uTex");
 
   const quad = gl.createBuffer();
@@ -405,6 +418,13 @@ export function createWebgl2Renderer(gl: WebGL2RenderingContext, presentation: P
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture.texture);
     gl.uniform3f(uTint, command.tint.r, command.tint.g, command.tint.b);
+    const keyTint = command.keyTint;
+    if (keyTint === undefined || (keyTint.r === 0 && keyTint.g === 0 && keyTint.b === 0)) {
+      gl.uniform1i(uKeyTintOn, 0);
+    } else {
+      gl.uniform1i(uKeyTintOn, 1);
+      gl.uniform3f(uKeyTint, keyTint.r, keyTint.g, keyTint.b);
+    }
     if (command.key === null) gl.uniform1i(uKeyOn, 0);
     else {
       gl.uniform1i(uKeyOn, 1);

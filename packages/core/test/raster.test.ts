@@ -49,6 +49,25 @@ test("AD-3 tint, blend and scaling vectors are deterministic", () => {
   ]));
 });
 
+test("a blit's authored keyTint is tested before the colour key, and the world tint after it", () => {
+  const key = assetKey("test/vector");
+  const source = { w: 1, h: 1, rgba: new Uint8Array([220, 30, 30, 255]) };
+  const one = (commandKey: { readonly r: number; readonly g: number; readonly b: number }, tint = { r: 0, g: 0, b: 0 }) => ({
+    tick: 0, width: 1, height: 1, commands: [
+      { kind: "blit" as const, source: { asset: key, tile: null }, src: { x: 0, y: 0, w: 1, h: 1 }, dst: { x: 0, y: 0, w: 1, h: 1 },
+        key: commandKey, keyTint: { r: 10, g: 0, b: 0 }, tint, alpha: 255, blend: "normal" as const, iso2d: false },
+    ],
+  });
+  // The authored shade makes the pixel (230, 30, 30), so a key on that value drops it.
+  deepEqual(rasterize(one({ r: 230, g: 30, b: 30 }), new Map([[key, source]])).rgba, new Uint8Array([0, 0, 0, 0]));
+  // A key on the unshaded tile keeps it, drawn with the shade baked in.
+  deepEqual(rasterize(one({ r: 220, g: 30, b: 30 }), new Map([[key, source]])).rgba, new Uint8Array([230, 30, 30, 255]));
+  // The world tint is a later stage: it cannot rescue a pixel its key already excluded…
+  deepEqual(rasterize(one({ r: 230, g: 30, b: 30 }, { r: 0, g: 0, b: 5 }), new Map([[key, source]])).rgba, new Uint8Array([0, 0, 0, 0]));
+  // …and it is added to the shaded pixel when the pixel survives.
+  deepEqual(rasterize(one({ r: 220, g: 30, b: 30 }, { r: 0, g: 0, b: 5 }), new Map([[key, source]])).rgba, new Uint8Array([230, 30, 35, 255]));
+});
+
 test("integer primitives use inclusive lines and half-open rectangles", () => {
   const result = rasterize({
     tick: 0, width: 5, height: 5, commands: [
