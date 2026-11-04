@@ -69,6 +69,27 @@ request; the core decodes them (AD-28) and the runner pulls pixels it needs from
 because `rev` increments on every mutation and an unknown or stale `rev` returns `null`; it must be able to refill at
 any time, and a test that flushes every cache every frame must produce identical pixels.
 
+<a id="blit-pipeline"></a>
+**Pixel pipeline of a `blit` — a runner MUST apply these stages in this order.** A blit carries an authored tint
+(`keyTint`, optional), the colour key (`key`), the world tint (`tint`), `alpha` and `blend`:
+
+1. **Authored stage.** When `keyTint` is present, apply it to the sampled texel under the R-15 rule
+   ([tiles.md#shading](../formats/tiles.md#shading)): remap pure white to `245` and pure black to `10` when this
+   tint is non-zero, add it, and clamp once. This is the authored shading a tile bitmap bakes into its cells
+   ([tiles.md#tile-bitmap-tbm](../formats/tiles.md#tile-bitmap-tbm)); a cell is a cell whether the picture was
+   composed first or drawn as cells. The result is the source pixel for the stages below. When `keyTint` is absent the
+   sampled texel itself is the source pixel, which is the case for every board, tileset and image blit.
+2. **Skip and key.** A pixel whose alpha is zero is not drawn. `key` is tested against the stage-1 pixel, so the
+   authored shade is already in the picture when its transparent colour is tested, exactly as it is when the same
+   picture is composed in core.
+3. **World stage.** Apply `tint` — the pre-summed board shading and ambient — to the stage-1 pixel under the R-15
+   rule, as its own stage: the remap and the single clamp belong to this sum, and the previous stage's result is its
+   input.
+4. **Blend.** `normal`, `additive` or `translucent` with `alpha` (AD-3).
+
+The order is part of the agreement bound below: **colour-key exclusion is compared exactly**, so a runner that keys
+before the authored shade, or that merges the two tints into one sum, fails the colour-key vectors.
+
 <a id="surface-read-and-state-hash"></a>
 ## Surface reads, presentation and game state
 
