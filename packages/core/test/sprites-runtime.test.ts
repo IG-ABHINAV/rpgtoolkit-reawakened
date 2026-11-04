@@ -1,5 +1,6 @@
 import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { test } from "node:test";
+import { discardMenuFrames, type ScriptServices } from "../src/script/vm.ts";
 import {
   addActor,
   createActorService,
@@ -147,6 +148,47 @@ test("hydrates compact actors, owns item threads, and keeps draw ids stable", ()
   equal(vm.threads.length, 2);
   setItemVisible(state, "clerk", false, vm, null);
   equal(vm.threads.length, 1);
+});
+
+test("hiding an item discards its menu frames before ending its item thread", () => {
+  const vm = createVmState();
+  const runtime = createSpriteRuntime({
+    vm,
+    programRef: () => ({ kind: "inline", text: "mainmenu()\n", ir: "1" }),
+  });
+  runtime.hydrate({
+    board: board(),
+    players: [{ id: "hero", kind: "player", source: "hero.tem", x: 48, y: 63, layer: 1, controlled: true }],
+    vm,
+    programRef: () => ({ kind: "inline", text: "mainmenu()\n", ir: "1" }),
+  });
+  const thread = vm.threads[0];
+  if (thread === undefined || thread.frames[0] === undefined) throw new Error("item multitask thread was not started");
+  thread.frames[0].menuContinuation = { menuBaseDepth: 0 };
+
+  let screens = ["main", "items"];
+  const services = {
+    menuOwners: {
+      menu: {
+        read: () => ({ screens }),
+        apply: (action: { readonly screens: string[] }) => { screens = action.screens; },
+      },
+    },
+  } as unknown as ScriptServices;
+  runtime.bindItemThreadCleanup?.((itemThread) => discardMenuFrames(services, itemThread));
+
+  equal(runtime.hideItem("clerk"), true);
+  deepEqual(screens, []);
+  equal(vm.threads.some((active) => active.id === thread.id), false);
+
+  equal(runtime.showItem("clerk"), true);
+  const restarted = vm.threads[0];
+  if (restarted === undefined || restarted.frames[0] === undefined) throw new Error("item multitask thread did not restart");
+  restarted.frames[0].menuContinuation = { menuBaseDepth: 0 };
+  screens = ["main", "items"];
+  equal(runtime.removeItem("clerk"), true);
+  deepEqual(screens, []);
+  equal(vm.threads.some((active) => active.id === restarted.id), false);
 });
 
 test("sprites survive snapshot restore with an equal canonical hash", () => {

@@ -17,6 +17,7 @@ import {
   assetKey,
   createAssetIndex,
   createSpriteRuntime,
+  createVmState,
   createEmptyBoard,
   createEmptyCharacter,
   enqueueDirectionMove,
@@ -63,6 +64,7 @@ import type { AudioCue } from "../src/ports/audio.ts";
 import { BUILTIN_TRACKS } from "../src/audio/model.ts";
 import { createAudioRuntime } from "../src/audio/runtime.ts";
 import { queueNativeEvent } from "../src/events/emitter.ts";
+import { BUNDLED as stockMenuAssets, catalogue as stockMenuCatalogue } from "./stock-menu-rig.ts";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(testDir, "..", "..", "..");
@@ -282,7 +284,7 @@ function run(engine: Engine, files: Files, ticks: number, inputs: readonly Input
   throw new Error("the host loop did not settle");
 }
 
-function bootEngine(game: AuthoredGame, doubles: Doubles, packageCatalogue?: readonly PackageCatalogueEntry[], plugins?: readonly ResolvedPlugin[], recoveryCandidate?: Uint8Array, spriteRuntime?: SpriteRuntime): Engine {
+function bootEngine(game: AuthoredGame, doubles: Doubles, packageCatalogue?: readonly PackageCatalogueEntry[], plugins?: readonly ResolvedPlugin[], recoveryCandidate?: Uint8Array, spriteRuntime?: SpriteRuntime, bundled?: EngineInit["bundled"]): Engine {
   return createEngine({
     seed: 11,
     assetIndex: game.index,
@@ -297,6 +299,7 @@ function bootEngine(game: AuthoredGame, doubles: Doubles, packageCatalogue?: rea
     ...(plugins === undefined ? {} : { plugins: [...resolveManifestPlugins(ENGINE_DEFAULT_MANIFEST).plugins, ...plugins] }),
     ...(recoveryCandidate === undefined ? {} : { recoveryCandidate }),
     ...(spriteRuntime === undefined ? {} : { spriteRuntime }),
+    ...(bundled === undefined ? {} : { bundled }),
     ...doubles.options,
   });
 }
@@ -340,6 +343,36 @@ test("a scripted game boots from start.prg to its first board with the ruled eff
   deepEqual(doubles.audio.map((effect) => [effect.name, effect.kind, ...effect.args]), [["music.play", "draw-audio-cue", "media/theme.mid", true, null, "board"]]);
   deepEqual({ x: state.camera.x, y: state.camera.y }, { x: 0, y: 0 });
   equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
+});
+
+test("engine services discard an item thread's open menu before hiding it", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    packages: ["stock_menu"],
+    boards: { "start.brd": {} },
+    programs: { "start.prg": "mainmenu()\n" },
+  });
+  const vm = createVmState();
+  const runtime = createSpriteRuntime({ vm });
+  runtime.section.items = [{ id: "clerk", source: "clerk", handle: null, visible: true } as never];
+  const thread = startThread(vm, {
+    ref: { kind: "inline", text: "mainmenu()\n", ir: IR_VERSION },
+    kind: "item",
+    owner: "world",
+    source: "clerk",
+    target: "clerk",
+  });
+  thread.frames[0]!.menuContinuation = { menuBaseDepth: 0 };
+
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles, stockMenuCatalogue(), undefined, undefined, runtime, stockMenuAssets);
+  deepEqual(run(engine, game.files, 20).diagnostics, []);
+  ok(doubles.state().menu.screens.length > 0, "startup opened a menu screen");
+
+  equal(runtime.hideItem("clerk"), true);
+  equal(doubles.state().menu.screens.length, 0);
+  equal(vm.threads.some((active) => active.id === thread.id), false);
 });
 
 test("boot first free-roam frame polls held and queued activation without arrival deactivation (#1176)", () => {
