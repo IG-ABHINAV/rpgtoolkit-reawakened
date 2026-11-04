@@ -243,6 +243,8 @@ type RequestEntry = { readonly reqId: number; readonly key: AssetKey; readonly k
 type PendingBlobRequest = {
   readonly reqId: number;
   readonly vmReqId: number;
+  /** Script effect order; delayed game-save snapshots must remain on their requested side of QuitGame. */
+  readonly issueSeq: number;
   readonly kind: "loadBlob" | "saveBlob" | "listBlobs";
   readonly blob: BlobKey;
   readonly gameSave: boolean;
@@ -250,6 +252,7 @@ type PendingBlobRequest = {
   readonly hex: string | null;
   published: boolean;
 };
+type PendingQuitRequest = { readonly reqId: number; readonly issueSeq: number };
 type RecoveryCandidate = { readonly bytes: Uint8Array; readonly tick: number };
 type RecoveryLaunch = {
   readonly candidate: RestoredRecoveryCandidate;
@@ -348,6 +351,9 @@ export function createEngine(init: EngineInit): Engine {
   const pendingBoardPreviews: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
   const queuedInputs: InputRecord[] = [];
   const requestsOut: RunnerRequest[] = [];
+  const postQuitWriteFailures: number[] = [];
+  let pendingQuit: PendingQuitRequest | null = null;
+  let quitPublished = false;
   /** The last prefetch plan sent, so a board entry only sends a hint set that differs from it. */
   let lastPrefetch = "";
   /** Backgrounds unavailable for prefetch, including decode failures; do not request them again. */
@@ -925,6 +931,36 @@ export function createEngine(init: EngineInit): Engine {
   function flushSurfaces(): void {
     flushSurfaceBatch(state.surfaces);
   }
+  /** Recover request order from the recorded VM effect; independent threads share this monotonic sequence. */
+  function scriptRequestEffectSeq(reqId: number): number {
+    for (let index = state.vm.effects.length - 1; index >= 0; index -= 1) {
+      const effect = state.vm.effects[index]!;
+      if (effect.kind === "request" && effect.request?.reqId === reqId) return effect.seq;
+    }
+    return state.vm.effectSeq;
+  }
+  /** Settle blocked script writes so nothing issued after quit can reach the host. */
+  function settlePostQuitWriteFailures(): boolean {
+    if (postQuitWriteFailures.length === 0) return false;
+    for (const reqId of postQuitWriteFailures.splice(0)) {
+      try {
+        replyToRequest(state.vm, reqId, { ok: false, value: "write requested after quit" });
+      } catch (error) {
+        if (error instanceof ScriptError) diagnostics.push(toDiagnostic(error));
+      }
+    }
+    return true;
+  }
+  /** Do not publish quit ahead of an earlier game-save snapshot that is still waiting on engine work. */
+  function publishQuitRequest(): void {
+    if (pendingQuit === null || quitPublished) return;
+    const earlierSaveUnpublished = [...pendingBlobs.values()].some(
+      (entry) => entry.gameSave && entry.issueSeq < pendingQuit!.issueSeq && !entry.published,
+    );
+    if (earlierSaveUnpublished) return;
+    requestsOut.push({ kind: "quit", reqId: pendingQuit.reqId });
+    quitPublished = true;
+  }
   function makeServices(
     plugins: readonly ResolvedPlugin[],
     programLoader?: ProgramLoader,
@@ -948,6 +984,7 @@ export function createEngine(init: EngineInit): Engine {
             typeof request.blob === "object" && request.blob !== null && !Array.isArray(request.blob)) {
           const rawBlob = request.blob as Record<string, unknown>;
           if ((rawBlob.area === "saves" || rawBlob.area === "files") && typeof rawBlob.path === "string" && rawBlob.path !== "") {
+            const issueSeq = scriptRequestEffectSeq(request.reqId);
             // AD-17: no identity means no save area. Refuse at the seam as well as
             // in the builtins, so a future command cannot publish a shared path.
             if (currentGameId === null) {
@@ -964,6 +1001,11 @@ export function createEngine(init: EngineInit): Engine {
               }
               return;
             }
+            // Quit is latched across lifecycle resets; every later write is refused before the host closes.
+            if (request.kind === "saveBlob" && pendingQuit !== null) {
+              postQuitWriteFailures.push(request.reqId);
+              return;
+            }
             const reqId = SCRIPT_REQUEST_BASE + request.reqId;
             const gameSave = request.kind === "saveBlob" && request.gameSave === true;
             const gameLoad = request.kind === "loadBlob" && request.gameLoad === true;
@@ -971,7 +1013,7 @@ export function createEngine(init: EngineInit): Engine {
             const bytes = request.kind === "saveBlob" && !gameSave ? decodeHex(hex) : null;
             const published = request.kind === "loadBlob" || (!gameSave && bytes !== null);
             const blob: BlobKey = { area: rawBlob.area, path: rawBlob.path };
-            pendingBlobs.set(reqId, { reqId, vmReqId: request.reqId, kind: request.kind, blob, gameSave, gameLoad, hex, published });
+            pendingBlobs.set(reqId, { reqId, vmReqId: request.reqId, issueSeq, kind: request.kind, blob, gameSave, gameLoad, hex, published });
             if (request.kind === "loadBlob") requestsOut.push({ kind: "loadBlob", reqId, blob });
             else if (bytes !== null) requestsOut.push({ kind: "saveBlob", reqId, blob, bytes });
             return;
@@ -1000,7 +1042,7 @@ export function createEngine(init: EngineInit): Engine {
           }
           const reqId = SCRIPT_REQUEST_BASE + request.reqId;
           pendingBlobs.set(reqId, {
-            reqId, vmReqId: request.reqId, kind: "listBlobs", blob: { area: request.area, path: "" },
+            reqId, vmReqId: request.reqId, issueSeq: scriptRequestEffectSeq(request.reqId), kind: "listBlobs", blob: { area: request.area, path: "" },
             gameSave: false, gameLoad: false, hex: null, published: true,
           });
           requestsOut.push({ kind: "listBlobs", reqId, area: request.area });
@@ -1836,9 +1878,9 @@ export function createEngine(init: EngineInit): Engine {
       resetLifecycle(second);
       return;
     }
-    if ((effect.name === "quitgame" || effect.name === "dos" || effect.name === "windows") && !quitRequested) {
+    if ((effect.name === "quitgame" || effect.name === "dos" || effect.name === "windows") && pendingQuit === null) {
       quitRequested = true;
-      requestsOut.push({ kind: "quit", reqId: nextRequestId++ });
+      pendingQuit = { reqId: nextRequestId++, issueSeq: effect.seq };
     }
   }
   function resetLifecycle(nextMain?: string): void {
@@ -1873,7 +1915,7 @@ export function createEngine(init: EngineInit): Engine {
     decodedImages.clear();
     decodedTiles.clear();
     failed = false;
-    quitRequested = false;
+    postQuitWriteFailures.length = 0;
     state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
     if (init.spriteRuntime !== undefined) resetSpritesSection(init.spriteRuntime.section);
@@ -2823,7 +2865,8 @@ export function createEngine(init: EngineInit): Engine {
       if (boot === undefined) progressed = transition !== undefined ? stepTransition(transition) : stepScene();
       else if (transition !== undefined && boot.stage !== "main" && boot.stage !== "assets") progressed = stepTransition(transition);
       else progressed = stepBoot(boot);
-      if (!progressed) return;
+      const settledPostQuitWrite = settlePostQuitWriteFailures();
+      if (!progressed && !settledPostQuitWrite) return;
     }
   }
   /** Ticks run once nothing is outstanding: a scene needs its board, boot needs the start-up program or the main loop. */
@@ -3569,7 +3612,9 @@ export function createEngine(init: EngineInit): Engine {
         drive();
       }
       syncEngineState();
+      settlePostQuitWriteFailures();
       finalizeBlobRequests();
+      publishQuitRequest();
       refreshFrame(false);
       const reportDiagnostics = [...diagnostics.splice(0), ...drainDiagnostics(services)];
       return {

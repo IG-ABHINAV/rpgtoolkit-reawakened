@@ -394,10 +394,13 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
         player.reach(reachedTick);
         player.advance(cues);
       });
-      // Quit supersedes the rest of this report: no new asset reads or writes may outlive the session.
-      const quit = report.requests.find((request) => request.kind === "quit");
-      if (quit !== undefined) {
-        await hostReply(quit, report.tickAfter);
+      // Complete pre-quit writes without letting unrelated pending requests (notably assets) delay closure
+      // (docs/spec/engine/runners.md#quit-request-order). Requests after quit are intentionally not dispatched.
+      const quitIndex = report.requests.findIndex((request) => request.kind === "quit");
+      if (quitIndex >= 0) {
+        const writesBeforeQuit = report.requests.slice(0, quitIndex).filter((request) => request.kind === "saveBlob");
+        await dispatchRequests(writesBeforeQuit, report.tickAfter, hostReply);
+        await hostReply(report.requests[quitIndex]!, report.tickAfter);
         if (quitNotified) {
           quitNotified = false;
           options.onQuit?.();
