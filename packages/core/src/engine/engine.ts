@@ -61,7 +61,7 @@ import { applyFxDrawList, advanceFx, applyFxEffect } from "../render/fx.ts";
 import { advanceAnimations, animationBlits, decodeAnimationFrames, loadAnimation, releaseAnimationSurfaces, type DecodedAnimation } from "../render/animation.ts";
 import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
-import { boardEmitterKey, type WorldBoard, type WorldTile } from "../world/model.ts";
+import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
@@ -2991,6 +2991,84 @@ export function createEngine(init: EngineInit): Engine {
   }
 
   /**
+   * The cells of a tile-bitmap animation frame, resolved to the tile assets a draw list can name. The live renderer
+   * decodes tilesets and single tiles but not `.tbm` (`runner-harness/src/textures.ts`), so the composed bitmap picture
+   * is published as its cells instead of the private texture. Each cell keeps the bitmap's own shade. Null while the
+   * bitmap or one of its tiles is still outstanding (the requests are posted here).
+   */
+  function spriteTileBitmapCells(key: AssetKey): readonly WorldImageCell[] | null {
+    const bytes = cache.get(key);
+    if (bytes === undefined) {
+      // The bytes alone are wanted here (the cells carry the art), so ask for them as a tile: no image decode runs.
+      request(key, "tile");
+      return null;
+    }
+    const parsed = readTileBitmap(new BinaryReader(bytes, key));
+    if (!parsed.ok) {
+      diagnostics.push({ code: "asset.invalid", file: key, line: parsed.error.offset, message: parsed.error.message });
+      failed = true;
+      return null;
+    }
+    const cells: WorldImageCell[] = [];
+    const columns = Math.max(0, parsed.value.width);
+    const rows = Math.max(0, parsed.value.height);
+    for (let x = 0; x < columns; x += 1) {
+      for (let y = 0; y < rows; y += 1) {
+        const cell = tileBitmapCell(parsed.value, x, y);
+        if (cell === undefined || cell.tile === "") continue;
+        const resolved = resolveTileReference(index, root, cell.tile);
+        if (!resolved.ok) {
+          diagnostics.push({ code: "asset.invalid", file: key, line: resolved.error.offset, message: resolved.error.message });
+          failed = true;
+          return null;
+        }
+        let reference = resolved.value;
+        if (reference.kind === "animatedTile") {
+          const animationBytes = cache.get(reference.asset);
+          if (animationBytes === undefined) {
+            request(reference.asset, requestKindFor(reference.asset));
+            return null;
+          }
+          const animation = readTileAnimation(new BinaryReader(animationBytes, reference.asset));
+          if (!animation.ok) {
+            diagnostics.push({ code: "asset.invalid", file: reference.asset, line: animation.error.offset, message: animation.error.message });
+            failed = true;
+            return null;
+          }
+          // A bitmap is one picture, so an animated cell takes frame 0, as the composed texture does.
+          const first = animation.value.frames[0] ?? "";
+          if (first === "") continue;
+          const frame = resolveTileReference(index, root, first);
+          if (!frame.ok) {
+            diagnostics.push({ code: "asset.invalid", file: key, line: frame.error.offset, message: frame.error.message });
+            failed = true;
+            return null;
+          }
+          reference = frame.value;
+        }
+        if (reference.kind === "empty") continue;
+        if (reference.kind !== "tileset" && reference.kind !== "isometric" && reference.kind !== "singleTile") {
+          diagnostics.push({ code: "asset.invalid", file: key, line: 0, message: `tile bitmap cell "${cell.tile}" is not a tile reference` });
+          failed = true;
+          return null;
+        }
+        if (!cache.has(reference.asset)) {
+          request(reference.asset, requestKindFor(reference.asset));
+          return null;
+        }
+        const shade = cell.r !== 0 || cell.g !== 0 || cell.b !== 0 ? { r: cell.r, g: cell.g, b: cell.b } : null;
+        cells.push({
+          x,
+          y,
+          tile: { asset: reference.asset, tile: reference.kind === "singleTile" ? 1 : reference.tile },
+          ...(shade === null ? {} : { tint: shade }),
+        });
+      }
+    }
+    return cells;
+  }
+
+  /**
    * Ask for every picture an animation's frames draw that the engine has not decoded yet. Runs on both the first
    * decode and on every later use of cached metadata, so a reply that was dropped when a save load or reset cleared
    * the pending queue is asked for again instead of leaving the actor on its marker for the rest of the run (#1259).
@@ -3000,14 +3078,18 @@ export function createEngine(init: EngineInit): Engine {
     if (decoded.gifPixels !== undefined) return;
     for (const frame of decoded.frames) {
       if (frame.asset === null || frame.surface !== undefined) continue;
-      if (frame.tile === null) {
-        // A picture or tile bitmap: the image owner decodes it, and a tile bitmap asks for its own cells from there.
-        if (imageTexture(frame.asset) === null && !cache.has(frame.asset)) request(frame.asset, "image");
+      if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) {
+        // A tileset cell or a single tile: the tile decoder expands it and the draw names the tile.
+        if (!cache.has(frame.asset)) request(frame.asset, "tile");
+        else tileTexture(frame.asset);
         continue;
       }
-      // A tileset or single-tile picture: decode it once so the CPU rasteriser and the draw's asset agree.
-      if (!cache.has(frame.asset)) request(frame.asset, "tile");
-      else tileTexture(frame.asset);
+      if (frame.asset.toLowerCase().endsWith(".tbm")) {
+        spriteTileBitmapCells(frame.asset);
+        continue;
+      }
+      // An ordinary picture: the image owner decodes it.
+      if (imageTexture(frame.asset) === null && !cache.has(frame.asset)) request(frame.asset, "image");
     }
   }
 
@@ -3084,7 +3166,15 @@ export function createEngine(init: EngineInit): Engine {
     if (entry === undefined || entry.asset === null || entry.surface !== undefined) return null;
     // The frame's picture is a separate asset; until the host has delivered and decoded it the sprite keeps its
     // marker, so a frame never names a texture the runner cannot resolve yet.
-    if (entry.tile === null) {
+    const lower = entry.asset.toLowerCase();
+    if (lower.endsWith(".tbm")) {
+      // A tile bitmap is drawn as its cells: the live renderer decodes tilesets, not `.tbm` (#1262).
+      const cells = spriteTileBitmapCells(entry.asset);
+      if (cells === null || cells.length === 0) return null;
+      return { file, cells, width: data.width, height: data.height };
+    }
+    if (entry.tile === null && !lower.endsWith(".gph")) {
+      // An ordinary picture, sized to the animation frame.
       if (imageTexture(entry.asset) === null) return null;
       return {
         file,
@@ -3096,6 +3186,9 @@ export function createEngine(init: EngineInit): Engine {
         transparent: entry.transparent,
       };
     }
+    // A tileset cell (entry.tile) or a whole single tile `.gph`: the tile decoder expands it, and the art keeps its
+    // own cell size instead of the animation header's.
+    if (entry.tile === null && tileTexture(entry.asset) === null) return null;
     const cell = spriteTileCellSize(entry.asset);
     if (cell === null) return null;
     // The animation's width/height is the frame canvas (and so the anchor); the tile is drawn at its own cell size

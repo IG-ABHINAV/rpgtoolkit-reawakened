@@ -462,11 +462,16 @@ function emitSprite(
       const alpha = sprite.translucency ?? sprite.alpha ?? 255;
       const blend = sprite.blend ?? "normal";
       const src = sprite.frame?.src ?? sprite.src ?? { x: 0, y: 0, w: texture.texture.w, h: texture.texture.h };
+      // A frame may place its picture at its own size inside a larger canvas (a single-tile `.gph` frame), exactly
+      // as the tile branch places a cell; without `dst` the picture fills the canvas.
+      const pictureDst = sprite.frame?.dst === undefined
+        ? dstRect
+        : { x: dstX + sprite.frame.dst.x, y: dstY + sprite.frame.dst.y, w: sprite.frame.dst.w, h: sprite.frame.dst.h };
       commands.push({
         kind: "blit",
         source: { asset: texture.key, tile: null },
         src,
-        dst: dstRect,
+        dst: pictureDst,
         key,
         tint,
         alpha,

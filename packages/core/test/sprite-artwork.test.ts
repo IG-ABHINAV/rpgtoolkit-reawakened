@@ -7,8 +7,10 @@
 // composed frame, so the artwork cannot silently fall back to the marker again.
 import { test } from "node:test";
 import { deepEqual, equal, ok } from "node:assert/strict";
+import { TextEncoder } from "node:util";
 import {
   ANIMATION_MAGIC,
+  SINGLE_TILE_MAGIC,
   TILE_BITMAP_MAGIC,
   assetKey,
   createAssetIndex,
@@ -22,6 +24,7 @@ import {
   writeBoard,
   writeCharacter,
   writeMainFile,
+  writeSingleTile,
   writeTileBitmap,
   writeTileset,
   createEmptyMainFile,
@@ -91,6 +94,21 @@ function tileBitmapBytes(): Uint8Array {
       { tile: "", r: 0, g: 0, b: 0 },
     ],
     residue: new Uint8Array(),
+  }));
+}
+
+/** A 32x32 single-tile `.gph` picture (docs/spec/formats/tiles.md#single-tile-gph), solid 20,40,220 blue. */
+function singleTileBytes(): Uint8Array {
+  const colour = 20 + 256 * 40 + 65536 * 220;
+  return new TextEncoder().encode(writeSingleTile({
+    magic: SINGLE_TILE_MAGIC,
+    major: 2,
+    minor: 0,
+    detail: 1,
+    compression: 0,
+    width: 32,
+    height: 32,
+    pixels: Array(32 * 32).fill(colour),
   }));
 }
 
@@ -273,23 +291,44 @@ test("a wide animation frame naming a 32x32 cell draws one cell, not the header'
   }
 });
 
-test("an animation frame that is a tile bitmap draws its composed picture (#1257)", () => {
+test("an animation frame that is a tile bitmap draws as its tile cells for the live renderer (#1262)", () => {
   const host = run(3, {
     walkFile: "hero_tbm.anm",
     animation: walkAnimationBytes(32, 32, ["hero_frame.tbm", "hero_frame.tbm"], { r: 255, g: 0, b: 255 }),
     extra: { "Bitmap/hero_frame.tbm": tileBitmapBytes() },
   });
   deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
-  // The tile bitmap is requested as a picture, composed from its tiles, and blitted as a whole texture.
+  // The bitmap's bytes are read for its cells, and the cell's tile is the asset a runner decodes.
   equal(host.requests.includes("bitmap/hero_frame.tbm" as AssetKey), true, JSON.stringify(host.requests));
   equal(host.requests.includes("tiles/hero.tst" as AssetKey), true, JSON.stringify(host.requests));
   const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
-  deepEqual(blitsOf(list.commands, "bitmap/hero_frame.tbm").map((command) => [command.source, command.dst]), [
-    [{ asset: "bitmap/hero_frame.tbm", tile: null }, { x: 48, y: 32, w: 32, h: 32 }],
+  deepEqual(spriteBlits(list.commands).map((command) => [command.source, command.dst]), [
+    [{ asset: "tiles/hero.tst", tile: 1 }, { x: 48, y: 32, w: 32, h: 32 }],
+  ]);
+  // The live texture provider cannot decode a `.tbm`, so no command may name one (runner-harness/src/textures.ts).
+  equal(list.commands.some((command) => command.kind === "blit" && "asset" in command.source && command.source.asset === "bitmap/hero_frame.tbm"), false);
+  equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
+  const screen = presented(host);
+  deepEqual(pixelAt(screen, 64, 48), [220, 30, 30, 255], "the cell's tile colour is presented");
+});
+
+test("an animation frame that is a single tile .gph draws through the tile decoder (#1261)", () => {
+  const host = run(3, {
+    walkFile: "hero_gph.anm",
+    animation: walkAnimationBytes(32, 32, ["hero.gph", "hero.gph"]),
+    extra: { "Tiles/hero.gph": singleTileBytes() },
+  });
+  // The image decoder refuses a .gph; routing it there used to stop the game during preparation.
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  equal(host.state().world.board?.key, "boards/start.brd");
+  equal(host.requests.includes("tiles/hero.gph" as AssetKey), true, JSON.stringify(host.requests));
+  const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
+  deepEqual(blitsOf(list.commands, "tiles/hero.gph").map((command) => [command.source, command.dst]), [
+    [{ asset: "tiles/hero.gph", tile: null }, { x: 48, y: 32, w: 32, h: 32 }],
   ]);
   equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
   const screen = presented(host);
-  deepEqual(pixelAt(screen, 64, 48), [220, 30, 30, 255], "the composed tile bitmap's tile colour is presented");
+  deepEqual(pixelAt(screen, 64, 48), [20, 40, 220, 255], "the single tile's colour is presented");
 });
 
 test("walk frames advance once per animation delay and the draw follows the frame (#1252)", () => {
