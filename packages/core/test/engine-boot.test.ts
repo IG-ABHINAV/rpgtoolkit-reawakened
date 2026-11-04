@@ -1289,6 +1289,52 @@ test("send validates its arguments with a catchable script error", () => {
   equal(result.diagnostics.some((diagnostic) => diagnostic.message.includes("send")), true, JSON.stringify(result.diagnostics));
 });
 
+/** The demo's door copies (#1246): a flag-4 destination names board pixels, a plain destination names one-based tiles. */
+const COORDINATE_MODE_SEND_GAME: GameSpec = {
+  startup: "start.prg",
+  initChar: "hero.tem",
+  boards: {
+    "start.brd": { enter: "enter.prg", tiles: [20, 11], coordType: 4 },
+    "out.brd": { tiles: [20, 15], coordType: 4 },
+    "plain.brd": { tiles: [20, 15] },
+  },
+  programs: {
+    "start.prg": "end()\n",
+    "enter.prg": "end()\n",
+  },
+};
+
+test("send names a position in the destination board's coordinate mode (#1246)", () => {
+  for (const spec of [
+    // The shipped demo's own door: 112,192 on the 20x15 out.brd, just below its return region (x 83-140, y 148-170).
+    { board: "out.brd", coordType: 4, x: 112, y: 192, unit: "pixel", placed: { x: 112, y: 192 } },
+    // A board without the pixel flag keeps one-based tiles: tile (4,6) has its bottom-centre at pixel (112,191).
+    { board: "plain.brd", coordType: 0, x: 4, y: 6, unit: "tile", placed: { x: 112, y: 191 } },
+  ] as const) {
+    const game = authorGame({
+      ...COORDINATE_MODE_SEND_GAME,
+      programs: { ...COORDINATE_MODE_SEND_GAME.programs, "enter.prg": `send("${spec.board}", ${spec.x}, ${spec.y}, 1)\nend()` },
+    });
+    const doubles = makeDoubles();
+    const result = run(bootEngine(game, doubles), game.files, 6);
+    deepEqual(result.diagnostics, [], `${spec.board}: diagnostics`);
+    equal(doubles.state().world.board?.key, `boards/${spec.board}`, `${spec.board}: the board swapped`);
+    const placement = spec.unit === "tile" ? [spec.x, spec.y, 1, "tile", spec.coordType, 20] : [spec.x, spec.y, 1, "pixel"];
+    deepEqual(doubles.sprites.filter((effect) => effect.name === "placeplayer").map((effect) => [effect.name, ...effect.args]).slice(-1), [
+      ["placeplayer", ...placement],
+    ], `${spec.board}: the placeplayer effect`);
+    deepEqual(doubles.triggers.map((effect) => [effect.name, ...effect.args]).slice(-1), [
+      ["deactivateat", spec.x, spec.y, 1, spec.unit],
+    ], `${spec.board}: the deactivateat effect`);
+    // The camera is centred on the placed pixel where the 640x480 board allows it; a tile reading of the demo's
+    // 112,192 would place the player at 3568,6143 and clamp the camera to the board's far corner (320,240).
+    deepEqual({ x: doubles.state().camera.x, y: doubles.state().camera.y }, {
+      x: Math.max(0, Math.min(640 - 320, spec.placed.x - 160)),
+      y: Math.max(0, Math.min(480 - 240, spec.placed.y - 120)),
+    }, `${spec.board}: the camera`);
+  }
+});
+
 /** Destination boards for the send-arrival layout rule: a stacked and a rotated 32x32 board, each with a region exactly under the arrival tile. */
 const ISO_SEND_GAME: GameSpec = {
   startup: "start.prg",

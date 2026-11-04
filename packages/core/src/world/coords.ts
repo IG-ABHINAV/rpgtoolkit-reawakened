@@ -32,6 +32,17 @@ export function isIsometric(layout: CoordLayout): boolean {
   return layout !== "2d";
 }
 
+/**
+ * The editor's "Use pixel coordinates" flag (bit 4 of `coordType`): positions
+ * that follow a board's own coordinate mode are board pixels on such a board and
+ * one-based tile coordinates otherwise
+ * (docs/spec/formats/board.md#coordinates). `send` targets are the script
+ * position ruled to follow it (docs/spec/engine/movement-and-collision.md#reawakened-send-board, #1246).
+ */
+export function usesPixelCoordinates(coordType: number): boolean {
+  return (coordType & 4) !== 0;
+}
+
 /** Board pixel width and height for a layout (board.md#board-pixel-dimensions). */
 export function boardPixelSize(layout: CoordLayout, sizeX: number, sizeY: number): { readonly width: number; readonly height: number } {
   switch (layout) {

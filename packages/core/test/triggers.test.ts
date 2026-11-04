@@ -202,8 +202,8 @@ test("send-arrival tile placement and deactivation agree on stacked and rotated 
     };
     const state = stateWith(worldArrival);
     state.triggers.boardKey = worldArrival.key;
-    // The engine posts the raw send tile coordinates; trigger's applyTriggerEffect must convert them with the
-    // same destination-layout conversion the sprites owner uses when it places the player.
+    // A tile-unit send target (these boards carry no pixel-coordinate flag); trigger's applyTriggerEffect must convert
+    // it with the same destination-layout conversion the sprites owner uses when it places the player.
     applyTriggerEffect(state, { name: "deactivateat", args: [request.x, request.y, 1, "tile"] } as EffectRecord);
     placeSelectedPlayer(state.sprites, request.x, request.y, 1, "tile", layout, world.sizeX);
     const placed = state.sprites.players[0]!;
