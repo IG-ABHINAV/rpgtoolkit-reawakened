@@ -254,7 +254,9 @@ async function bootInteractive(
         clock,
         ...(blobs === null ? {} : { blobs }),
         decode: decode.create,
-        onLoadChange: () => overlay?.update(),
+        onLoadChange: () => {
+          if (!stopped && sessionGeneration === generation) overlay?.update();
+        },
         onQuit: () => {
           if (stopped || sessionGeneration !== generation) return;
           if (session === null) {
