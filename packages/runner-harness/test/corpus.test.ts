@@ -367,15 +367,18 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Restoring the old mixed/ui responder reproduces both previous hashes and all eight closing baselines exactly.
   // Re-pinned by #1231: the party section gained the saved `stepRemainder` and moved to schema 3, so every
   // state hash moved once and nothing else did (draw hashes, ticks and diagnostics are unchanged).
+  // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
+  // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
+  // else did; every other hash, tick and diagnostic is unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "4fa5f696c0eed1d3",
+    "sample-start-demo": "2f32ff5c2f2c23d1",
     "sample-system-demo": "9bab3f5f1c5707c5",
     "sample-sys-test-demo": "9bab3f5f1c5707c5",
     "sample-win-demo": "74716f4480794887",
     "sample-oldman-demo": "9166f736d1965256",
     "sample-man-demo": "51dc8fa86fb9fbe8",
     "sample-man-wander-demo": "afb0e9d840b47ce5",
-    "sample-start-basic": "ed8dd75eac6674af",
+    "sample-start-basic": "ab905634b2b7d459",
     "sample-system-basic": "9bab3f5f1c5707c5",
     "sample-wander-basic": "3317060cd68120f5",
   };

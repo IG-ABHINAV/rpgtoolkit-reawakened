@@ -1,10 +1,11 @@
 // E-56 text-cell coordinate layout probe (docs/spec/engine/rpgcode-functions.md#e-56,
-// #reawakened-text-cell-size; issue #1046): each `text` coordinate is truncated toward zero
-// and then maps to the logical-pixel origin ((x - 1) × size, (y - 1) × size); `pixeltext`
-// keeps pixel coordinates. The probe asserts fractional positive, sub-1, negative and
-// multi-row runs, then replays the demo game's title/menu program and records each run's
-// baseline y, first-glyph x and advance per line so a layout-rule violation, if any,
-// is distinguishable from the program's own coordinates.
+// #reawakened-text-cell-size; issue #1046, corrected for #1244): a `text` cell coordinate
+// keeps its fraction, is scaled to the logical-pixel origin ((x - 1) × size, (y - 1) × size)
+// and only that pixel origin is truncated toward zero; `pixeltext` keeps pixel coordinates.
+// The probe asserts fractional positive, sub-1, negative and multi-row runs, then replays the
+// demo game's title/menu program and records each run's baseline y, first-glyph x and advance
+// per line so a layout-rule violation, if any, is distinguishable from the program's own
+// coordinates.
 import { deepEqual, equal } from "node:assert/strict";
 import test from "node:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -31,36 +32,36 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
 
 const S = 18;
 
-test("text truncates fractional positive cell coordinates toward zero before mapping (E-56)", () => {
+test("text keeps a fractional cell coordinate and truncates the scaled pixel origin (E-56)", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "fontsize", [S]);
   applyUiEffect(state, "text", [3.5, 4.5, "A"]);
-  deepEqual((state.ui.draws ?? [])[0], { x: (3 - 1) * S, y: (4 - 1) * S, cell: true, text: "A", font: state.ui.font, rgb: state.ui.color, underline: false }, "trunc(3.5)=3 and trunc(4.5)=4, so the origin is cell (3,4) even when the effect arrives untruncated");
+  deepEqual((state.ui.draws ?? [])[0], { x: Math.trunc((3.5 - 1) * S), y: Math.trunc((4.5 - 1) * S), cell: true, text: "A", font: state.ui.font, rgb: state.ui.color, underline: false }, "trunc(2.5×18)=45 and trunc(3.5×18)=63: the fraction is kept until the pixel origin is computed");
 });
 
-test("text truncates sub-1 cell coordinates, so origins land above or left of the surface (E-56)", () => {
+test("text keeps a sub-1 cell coordinate, so the scaled origin lands above or left of the surface (E-56)", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "fontsize", [S]);
   applyUiEffect(state, "text", [0.5, 0.5, "A"]);
-  equal((state.ui.draws ?? [])[0]?.x, (0 - 1) * S, "trunc(0.5)=0, so the origin is (−size, −size), not half a cell in");
+  equal((state.ui.draws ?? [])[0]?.x, Math.trunc((0.5 - 1) * S), "trunc(−0.5×18)=−9, half a cell left of the surface, not a whole cell");
 });
 
-test("text truncates negative cell coordinates toward zero (E-56)", () => {
+test("text truncates a negative scaled pixel origin toward zero (E-56)", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "fontsize", [S]);
   applyUiEffect(state, "text", [-1.3, -2.7, "A"]);
-  deepEqual([(state.ui.draws ?? [])[0]?.x, (state.ui.draws ?? [])[0]?.y], [(-1 - 1) * S, (-2 - 1) * S], "trunc(−1.3)=−1 and trunc(−2.7)=−2 toward zero, mapping to (−2×s, −3×s)");
+  deepEqual([(state.ui.draws ?? [])[0]?.x, (state.ui.draws ?? [])[0]?.y], [Math.trunc((-1.3 - 1) * S), Math.trunc((-2.7 - 1) * S)], "trunc(−2.3×18)=−41 and trunc(−3.7×18)=−66 toward zero");
 });
 
-test("fractional cell text lays out multi-row, explicit-newline runs on the integer origin grid", () => {
+test("fractional cell text lays out multi-row, explicit-newline runs from the scaled origin", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "fontsize", [S]);
   applyUiEffect(state, "text", [2.5, 1, "AB\nCD\nEF"]);
   const lines = composeUi(state.ui, 800, 600).filter((entry): entry is TextCommand => entry.kind === "text");
   equal(lines.length, 3);
-  deepEqual(lines.map((line) => line.y), [0, S, 2 * S], "one cell row per newline, s pixels apart, from the truncated integer origin");
+  deepEqual(lines.map((line) => line.y), [0, S, 2 * S], "one cell row per newline, s pixels apart, from the scaled pixel origin");
   equal(new Set(lines.map((line) => line.x)).size, 1, "every line starts at the same first-glyph x");
-  deepEqual(lines.every((line) => line.x === S), true, "the fractional 2.5 truncates to cell 2, so x is (2−1)×18");
+  deepEqual(lines.every((line) => line.x === Math.trunc((2.5 - 1) * S)), true, "the fractional 2.5 keeps its half cell, so x is trunc(1.5×18)=27");
   deepEqual(lines[0]!.advances.every((advance) => advance.advance === S), true, "equal per-glyph advance (tracking) with the bitmap cell");
 });
 
@@ -156,22 +157,23 @@ test("the demo title menu's text runs land on their E-56 cell origins with unifo
     const runs: readonly DemoRun[] = (ui.draws ?? []).map((entry) => ({ text: entry.text as string, x: entry.x as number, y: entry.y as number, cell: entry.cell as boolean, size: (entry.font as { size: number }).size }));
     deepEqual(runs.map((run) => run.text), ["Test Game", "New Game", "Load Game", "Quit"]);
     // Pinned corpus rev (tools/fixtures/sources.json): the title/menu program's own cell
-    // rows (3,3; 17,10; 17,12; 17,13) are what it writes; the probe pins that they land on
-    // their E-56 origins so a layout-rule regression cannot silently reuse these values.
-    deepEqual(runs.map((run) => [run.x, run.y, run.cell]), [[36, 36, true], [288, 162, true], [288, 198, true], [288, 216, true]]);
-    deepEqual(runs.every((run) => run.x % run.size === 0 && run.y % run.size === 0), true, "every run sits on an integral cell origin: x=size×(cell−1), y=size×(row−1) — E-56 holds for integer cells");
+    // rows (3,3; 17,10.5; 17,12; 17,13.5) are what it writes; the probe pins that they land
+    // on their E-56 origins so a layout-rule regression cannot silently reuse these values.
+    // The fractional 10.5/13.5 rows keep their half cell: trunc(9.5×18)=171 and trunc(12.5×18)=225.
+    deepEqual(runs.map((run) => [run.x, run.y, run.cell]), [[36, 36, true], [288, 171, true], [288, 198, true], [288, 225, true]]);
+    deepEqual(runs.every((run) => Number.isInteger(run.x) && Number.isInteger(run.y)), true, "every run starts at a whole-pixel origin: the fraction is kept as a cell, then the scaled pixel is truncated — E-56 holds for fractional cells");
     // Baseline y (top + bitmap ascent = size) and first-glyph x per run:
     deepEqual(runs.map((run) => ({ baselineY: run.y + run.size, firstGlyphX: run.x })), [
       { baselineY: 54, firstGlyphX: 36 },
-      { baselineY: 180, firstGlyphX: 288 },
+      { baselineY: 189, firstGlyphX: 288 },
       { baselineY: 216, firstGlyphX: 288 },
-      { baselineY: 234, firstGlyphX: 288 },
+      { baselineY: 243, firstGlyphX: 288 },
     ]);
   }
   advanceProbe: {
     const commands = composeUi(ui, 640, 480).filter((entry): entry is TextCommand => entry.kind === "text");
     equal(commands.length, 4);
-    deepEqual(commands.map((entry) => entry.y), [36, 162, 198, 216], "composeUi replays the runs without re-advancing rows");
+    deepEqual(commands.map((entry) => entry.y), [36, 171, 198, 225], "composeUi replays the runs without re-advancing rows");
     deepEqual(commands.map((entry) => entry.advances.map((advance) => advance.advance)), [
       Array.from({ length: "Test Game".length }, () => S + 1),
       Array.from({ length: "New Game".length }, () => S + 1),
@@ -182,8 +184,9 @@ test("the demo title menu's text runs land on their E-56 cell origins with unifo
   alignProbe: {
     // Alignment observation (issue #1046's second independent contributor): the program's own
     // cursor-map points and text rows — recorded in pixels by `cursormapadd` — are kept verbatim;
-    // the hand tip draws at point − (40, 10).
+    // the hand tip draws at point − (40, 10). With the fractional rows kept, the first point
+    // (180) is exactly the centre of the row starting at 171 (171 + 9).
     const points = (ui.cursorMaps ?? []).flatMap((map) => map.points.map((point) => [point.x, point.y]));
-    deepEqual(points, [[295, 180], [295, 210], [295, 230]], "the authored cursor points; their uneven rows (Δ30, Δ20) mirror the authored Δ2/Δ1 cell rows — program data, not a core layout rule");
+    deepEqual(points, [[295, 180], [295, 210], [295, 230]], "the authored cursor points; the 180 point centres the 171 row — program data, not a core layout rule");
   }
 });

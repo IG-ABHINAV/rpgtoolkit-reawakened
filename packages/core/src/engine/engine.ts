@@ -354,6 +354,8 @@ export function createEngine(init: EngineInit): Engine {
   const missingBattleBackgrounds = new Set<AssetKey>();
   /** Menu-graphic references already reported missing (E-80 item 12): one `asset.missing` each, and never fatal. */
   const missingMenuGraphics = new Set<string>();
+  /** `winGraphic` references already resolved against the asset index (E-55); null records an unresolved one. */
+  const messageGraphics = new Map<string, AssetKey | null>();
   /** The bundled hand marker is optional decoration too: report a missing bundle at most once. */
   let missingMenuHandReported = false;
   /** Sound facts from battle backgrounds fetched only for prefetch; kept out of the saved asset cache so prefetch hints stay hash-neutral. */
@@ -505,6 +507,8 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     applyUiEffect(state, effect.name, effect.args, (name) => resolveFontAsset(name, index.keys));
+    // `winGraphic` names an image; resolve and fetch it now so the window can draw it (E-55).
+    if (lower === "wingraphic") primeMessageGraphic();
   });
   bus.register("fx", (effect) => applyFxEffect(state, effect));
   bus.register("surfaces", (effect) => applySurfaceEffect(effect));
@@ -1336,6 +1340,33 @@ export function createEngine(init: EngineInit): Engine {
     const resolved = resolveAsset(index, root, "bitmaps", file);
     return resolved.ok ? resolved.value : null;
   }
+  /**
+   * The canonical key of a `winGraphic` reference (E-55), resolved once through the asset index. A reference the index
+   * cannot answer is reported once and is not fatal: the message window keeps its colour background.
+   */
+  function messageGraphicAsset(reference: string): AssetKey | null {
+    if (messageGraphics.has(reference)) return messageGraphics.get(reference) ?? null;
+    const key = imageAsset(reference);
+    messageGraphics.set(reference, key);
+    if (key === null) {
+      diagnostics.push({ code: "asset.missing", file: reference, line: 0, message: `message window image: image "${reference}" is not in the asset index` });
+    }
+    return key;
+  }
+  /** Ask for the message-window image's bytes; the draw list shows the picture once its texture is decoded. */
+  function primeMessageGraphic(): void {
+    const reference = state.ui.message?.graphic ?? "";
+    if (reference === "") return;
+    const key = messageGraphicAsset(reference);
+    if (key !== null) request(key, "image");
+  }
+  /** The message-window image's key while its texture is decoded, so the draw list never names a texture a renderer lacks. */
+  function messageGraphicKey(): AssetKey | null {
+    const reference = state.ui.message?.graphic ?? "";
+    if (reference === "") return null;
+    const key = messageGraphics.get(reference) ?? null;
+    return key !== null && decodedImages.has(key) ? key : null;
+  }
   function imageDiagnostic(file: unknown, message: string): void {
     const located = typeof file === "string" && file !== "" ? file : "<image>";
     diagnostics.push({ code: "asset.missing", file: located, line: 0, message });
@@ -1347,8 +1378,8 @@ export function createEngine(init: EngineInit): Engine {
     const canvas = args[3] as SurfaceId;
     const value = typeof args[2] === "string" ? args[2] : "";
     const font = state.ui.font;
-    const x = typeof args[0] === "number" ? (cells ? (args[0] - 1) * font.size : args[0]) : 0;
-    const y = typeof args[1] === "number" ? (cells ? (args[1] - 1) * font.size : args[1]) : 0;
+    const x = typeof args[0] === "number" ? (cells ? Math.trunc((args[0] - 1) * font.size) : args[0]) : 0;
+    const y = typeof args[1] === "number" ? (cells ? Math.trunc((args[1] - 1) * font.size) : args[1]) : 0;
     const layout = layoutText(value, font);
     const width = Math.ceil(layout.width);
     const height = Math.ceil(layout.height);
@@ -3374,7 +3405,7 @@ export function createEngine(init: EngineInit): Engine {
     const uiForCompose = activeSurface
       ? state.ui
       : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
-    const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection)] };
+    const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection, messageGraphicKey())] };
     return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)] };
   }
   /** A blit of one whole persistent surface, sized from its stored bitmap (E-57's script-screen layer). */
@@ -3496,6 +3527,9 @@ export function createEngine(init: EngineInit): Engine {
   const engine: Engine = {
     advance(ticks: number, inputs: readonly InputRecord[], maxTicks?: number, resume: ResumeMode = "continue") {
       requestsOut.length = 0;
+      // A restored save can carry a `winGraphic` reference this engine never saw called: fetch its bytes before the
+      // report is built, so the message window draws it once the reply lands (E-55).
+      primeMessageGraphic();
       const consumed: InputRecord[] = [];
       const failedAtStart = failed;
       for (const input of inputs) queuedInputs.push(input);

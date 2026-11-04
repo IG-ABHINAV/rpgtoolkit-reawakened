@@ -1,5 +1,6 @@
 import { assetKey } from "../formats/resolver/resolver.ts";
 import type { DrawCommand, FontRef, Rgb } from "../ports/draw.ts";
+import type { AssetKey } from "../ports/keys.ts";
 import { renderNowEnabled } from "../raster/surfaces.ts";
 import type { InputSection } from "../save/sections/input.ts";
 import type { SurfacesSection } from "../save/sections/surfaces.ts";
@@ -67,13 +68,28 @@ function background(
   }
 }
 
-function drawMessage(commands: DrawCommand[], ui: UiSection, width: number): void {
+function drawMessage(commands: DrawCommand[], ui: UiSection, width: number, graphic: AssetKey | null): void {
   if (ui.message === undefined || !ui.message.visible) return;
   const x = Math.floor((width - WINDOW_WIDTH) / 2);
   const clippedX = Math.max(0, x);
   const clippedWidth = Math.min(width, x + WINDOW_WIDTH) - clippedX;
   if (clippedWidth <= 0) return;
-  background(commands, ui, clippedX, 0, clippedWidth, WINDOW_HEIGHT, ui.message.background, ui.message.translucency);
+  if (graphic === null) background(commands, ui, clippedX, 0, clippedWidth, WINDOW_HEIGHT, ui.message.background, ui.message.translucency);
+  else {
+    // The image replaces the colour and sits 1:1 in the window from its top-left pixel
+    // (docs/spec/engine/rpgcode-functions.md#reawakened-message-window-image).
+    commands.push({
+      kind: "blit",
+      source: { asset: graphic, tile: null },
+      src: { x: clippedX - x, y: 0, w: clippedWidth, h: WINDOW_HEIGHT },
+      dst: { x: clippedX, y: 0, w: clippedWidth, h: WINDOW_HEIGHT },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: alpha(ui.message.translucency),
+      blend: "translucent",
+      iso2d: false,
+    });
+  }
   commands.push(...textCommands(ui.message.text, clippedX, 0, ui.message.color, fontOf(ui), WINDOW_WIDTH, ui.underline));
 }
 
@@ -176,15 +192,18 @@ export function renderNowBlit(surfaces: SurfacesSection): DrawCommand | null {
   };
 }
 
-/** Append the deterministic UI overlay after board composition (E-55/E-60). */
-export function composeUi(ui: UiSection, width: number, height: number, input?: InputSection, includeCursor = true, cursorSelection?: number): DrawCommand[] {
+/**
+ * Append the deterministic UI overlay after board composition (E-55/E-60). `messageGraphic` is the host-resolved asset
+ * key of the message window's background image, or null while `winGraphic` is unset or its texture is not decoded yet.
+ */
+export function composeUi(ui: UiSection, width: number, height: number, input?: InputSection, includeCursor = true, cursorSelection?: number, messageGraphic: AssetKey | null = null): DrawCommand[] {
   const commands: DrawCommand[] = [];
   if (Array.isArray(ui.draws)) {
     for (const draw of ui.draws) {
       commands.push(...textCommands(draw.text, draw.x, draw.y, draw.rgb, draw.font, undefined, draw.underline, draw.cell));
     }
   }
-  drawMessage(commands, ui, width);
+  drawMessage(commands, ui, width, messageGraphic);
   drawModal(commands, ui, width, height);
   drawButtons(commands, input);
   if (includeCursor) drawCursor(commands, ui, input, cursorSelection);
