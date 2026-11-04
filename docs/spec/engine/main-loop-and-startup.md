@@ -274,7 +274,7 @@ The TK engineer labelled the 3.1 behaviour certain from source, not run-confirme
 | `rng` | Preserve seed/state; reset does not create a new engine seed. |
 | `time` | Preserve elapsed tick/play-time counters. |
 
-`gone()` writes only `triggers`: it marks the current board program's trigger instance suppressed until the active board is left. Leaving the board clears that suppression during normal trigger reload. It does not delete the source program, change sprites or end unrelated threads. `quitGame()` posts one `quit` request; `dos()` and `windows()` are legacy aliases, and host window/session behaviour is outside core.
+`gone()` writes only `triggers`: it marks the current board program's trigger instance suppressed until the active board is left. Leaving the board clears that suppression during normal trigger reload. It does not delete the source program, change sprites or end unrelated threads. `quitGame()` posts one `quit` request; `dos()` and `windows()` are legacy aliases, and host window/session behaviour is outside core. A live runner session handles the request by stopping its loop, releasing input listeners and disposing session-owned resources before notifying its host through the optional zero-argument `onQuit` callback. The callback is delivered at most once and only after session creation has resolved. The host owns the lifecycle action: the desktop host closes the player application; browser and mobile hosts start a fresh session after disposing the old session.
 
 ## Reawakened architecture
 
