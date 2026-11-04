@@ -10,18 +10,35 @@ import { createSurface, killSurface } from "../raster/surfaces.ts";
 import type { AnimationFrameState, AnimationState, FxSection } from "../save/sections/fx.ts";
 import type { GameState } from "../save/state.ts";
 
-type ImageResolver = (image: string) => { readonly asset: AssetKey; readonly tile: number | null } | null;
+/** Resolve a frame's image reference to the asset and tile a draw command names (E-54). */
+export type ImageResolver = (image: string) => { readonly asset: AssetKey; readonly tile: number | null } | null;
+
+/** Decoded frame metadata for one `.anm` or GIF: what every consumer (script or sprite) draws from. */
+export type DecodedAnimation = {
+  readonly width: number;
+  readonly height: number;
+  readonly delayTicks: number;
+  readonly frames: AnimationFrameState[];
+  /** An animated GIF's per-frame RGBA, in frame order; absent for a binary `.anm`. */
+  readonly gifPixels?: readonly Uint8Array[];
+};
 
 function frameColor(color: { readonly r: number; readonly g: number; readonly b: number }): Rgb {
   return { r: color.r, g: color.g, b: color.b };
 }
 
-function animationFrames(
+/**
+ * Decode an animation file into its frame metadata (docs/spec/formats/animation.md): a per-frame image
+ * reference resolved to an asset and tile index, the transparent colour, the frame sound and the frame size,
+ * with empty frame slots dropped (a gap shortens the sequence). Shared by script animations and by actor
+ * walk/idle playback, so one file's frames are decoded the same way for every consumer (E-54).
+ */
+export function decodeAnimationFrames(
   bytes: Uint8Array,
   path: string,
   sourceAsset: AssetKey,
   resolver: ImageResolver,
-): { width: number; height: number; delayTicks: number; frames: AnimationFrameState[]; gifPixels?: readonly Uint8Array[] } | null {
+): DecodedAnimation | null {
   if (path.toLowerCase().endsWith(".gif")) {
     const gif = decodeGif(bytes, path);
     if (!gif.ok || gif.value.frames.length === 0) return null;
@@ -48,9 +65,9 @@ function animationFrames(
   for (const frame of parsed.value.frames) {
     const resolved = classifyImageReference(frame.image);
     if (resolved.kind === "empty") continue;
-    const target = resolved.kind === "tile"
-      ? resolver(resolved.tileset)
-      : resolver(resolved.kind === "picture" ? resolved.path : resolved.path);
+    // The resolver receives the frame's whole image reference (`char.tst1`, `x.gph`, a picture path), because a tile
+    // reference is `tileset + index` and the tileset name alone classifies as a picture (README.md#tile-references).
+    const target = resolver(frame.image);
     if (target === null) continue;
     frames.push({
       image: frame.image,
@@ -74,7 +91,7 @@ function animationFrames(
 /** Decode a fetched `.anm` or GIF into saveable frame metadata. */
 export function loadAnimation(state: GameState, animation: AnimationState, bytes: Uint8Array, resolver: ImageResolver): boolean {
   const sourceAsset = animation.asset ?? (animation.file as AssetKey);
-  const loaded = animationFrames(bytes, animation.file, sourceAsset, resolver);
+  const loaded = decodeAnimationFrames(bytes, animation.file, sourceAsset, resolver);
   if (loaded === null) return false;
   animation.asset = sourceAsset;
   animation.width = animation.width > 0 ? animation.width : loaded.width;

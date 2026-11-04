@@ -54,14 +54,14 @@ import type { AudioInfo } from "../formats/audio/model.ts";
 import type { AssetDecoder } from "../formats/registry/decoder.ts";
 import { BUILTIN_TRACKS, MAX_VOICES } from "../audio/model.ts";
 import type { Logger } from "../ports/logger.ts";
-import { composeBoard, type BoardBlit, type SpriteDraw } from "../render/compose.ts";
+import { composeBoard, type BoardBlit, type SpriteDraw, type SpriteFrame } from "../render/compose.ts";
 import { composeUi, composeUiCursor, renderNowBlit } from "../render/ui.ts";
 import { emitText, layoutText, resolveFontAsset } from "../render/text.ts";
 import { applyFxDrawList, advanceFx, applyFxEffect } from "../render/fx.ts";
-import { advanceAnimations, animationBlits, loadAnimation, releaseAnimationSurfaces } from "../render/animation.ts";
+import { advanceAnimations, animationBlits, decodeAnimationFrames, loadAnimation, releaseAnimationSurfaces, type DecodedAnimation } from "../render/animation.ts";
 import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
-import { boardEmitterKey, type WorldBoard, type WorldTile } from "../world/model.ts";
+import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
@@ -70,6 +70,7 @@ import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
 import type { CameraPoint, CameraTarget } from "../ports/camera.ts";
 import type { SpriteActor, Facing } from "../sprites/model.ts";
 import { resetSpritesSection, placeSelectedPlayer, selectActor as selectPartyActor, removeActorSprite, spriteDraws, createInitialPlayer, type SpriteRuntime } from "../sprites/runtime.ts";
+import { runAnimationPhase as runActorAnimationPhase } from "../sprites/animation.ts";
 import { boardCollisionAt } from "../sprites/movement.ts";
 import { resetTriggersSection } from "../triggers/model.ts";
 import { applyTriggerEffect } from "../triggers/runtime.ts";
@@ -332,6 +333,13 @@ export function createEngine(init: EngineInit): Engine {
   const inventoryCharacterDefinitions = new Map<AssetKey, Character>();
   const decodedImages = new Map<AssetKey, DecodedTexture>();
   const decodedTiles = new Map<AssetKey, DecodedTexture>();
+  /**
+   * Actor walk/idle/battle animation metadata, decoded from the animation file's bytes (E-21, E-54). Asset-derived,
+   * so it is a per-run cache and never saved state; `null` records a file that cannot be decoded so it is not retried.
+   */
+  const spriteAnimations = new Map<AssetKey, DecodedAnimation | null>();
+  /** Animation files whose frames name a missing asset, so each is reported once rather than every tick. */
+  const missingSpriteAnimationAssets = new Set<AssetKey>();
   const decodedBundled = new Map<AssetKey, RasterAsset | null>();
   const canvasTextAssets = new Map<AssetKey, RasterAsset>();
   const pending = new Map<number, RequestEntry>();
@@ -2806,6 +2814,7 @@ export function createEngine(init: EngineInit): Engine {
   function drive(): void {
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
+      prepareSpriteVisuals();
       if (failed || pending.size > 0 || pendingBlobs.size > 0 || state.engine.openTick !== undefined) return;
       if (pendingBoardPreviews.length > 0 && !prepareBoardPreviews()) return;
       const boot = state.engine.boot;
@@ -2927,9 +2936,195 @@ export function createEngine(init: EngineInit): Engine {
       }
     }
   }
+  /**
+   * Every animation file an actor's visual state can select, in stable actor order: walk, idle and battle slots plus
+   * custom stances and the current selection (docs/spec/formats/character.md#defaults-and-fall-backs, E-21).
+   */
+  function spriteAnimationFiles(): string[] {
+    const files: string[] = [];
+    const seen = new Set<string>();
+    const add = (file: string): void => {
+      if (file === "") return;
+      const key = assetKey(file);
+      if (seen.has(key)) return;
+      seen.add(key);
+      files.push(file);
+    };
+    for (const actor of [...state.sprites.players, ...state.sprites.items]) {
+      for (const slot of actor.visual.movement) add(slot);
+      for (const slot of actor.visual.idle) add(slot);
+      for (const slot of actor.visual.battle) add(slot);
+      for (const stance of actor.visual.custom) add(stance.animation);
+      if (actor.visual.file !== null) add(actor.visual.file);
+    }
+    return files;
+  }
+
+  /**
+   * The drawn size of one tileset cell an actor animation frame names (E-54). A frame's art is the tile itself, so its
+   * source rectangle is the tileset's own cell size, never the animation header's size: a 64×32 animation may name a
+   * 32×32 cell, and reading 64 pixels of a 32-pixel strip would sample the next cell or leave the texture.
+   */
+  const spriteCellSizes = new Map<AssetKey, { readonly w: number; readonly h: number }>();
+
+  function spriteTileCellSize(key: AssetKey): { readonly w: number; readonly h: number } | null {
+    const cached = spriteCellSizes.get(key);
+    if (cached !== undefined) return cached;
+    const bytes = cache.get(key);
+    if (bytes === undefined) return null;
+    const lower = key.toLowerCase();
+    let size: { readonly w: number; readonly h: number } | null = null;
+    if (lower.endsWith(".gph")) {
+      const parsed = readSingleTile(bytes, key);
+      if (parsed.ok) size = { w: parsed.value.width, h: parsed.value.height };
+    } else if (lower.endsWith(".tst") || lower.endsWith(".iso")) {
+      const parsed = readTileset(bytes, key);
+      if (parsed.ok) {
+        const native = tileDimensions(parsed.value.detail);
+        const scale = parsed.value.detail.size === 16 ? 2 : 1;
+        size = { w: native.width * scale, h: native.height * scale };
+      }
+    }
+    if (size === null) return null;
+    spriteCellSizes.set(key, size);
+    return size;
+  }
+
+  /**
+   * Ask for every picture an animation's frames draw that the engine has not decoded yet. Runs on both the first
+   * decode and on every later use of cached metadata, so a reply that was dropped when a save load or reset cleared
+   * the pending queue is asked for again instead of leaving the actor on its marker for the rest of the run (#1259).
+   */
+  function requestSpriteFrameAssets(decoded: DecodedAnimation): void {
+    // An animated GIF's pages live in surfaces, which a sprite frame cannot name yet (#1254).
+    if (decoded.gifPixels !== undefined) return;
+    for (const frame of decoded.frames) {
+      if (frame.asset === null || frame.surface !== undefined) continue;
+      if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) {
+        // A tileset cell or a single tile: the tile decoder expands it and the draw names the tile.
+        if (!cache.has(frame.asset)) request(frame.asset, "tile");
+        else tileTexture(frame.asset);
+        continue;
+      }
+      // An ordinary picture — a `.tbm` included, which the picture decoder composes and whose cells it requests.
+      if (imageTexture(frame.asset) === null && !cache.has(frame.asset)) request(frame.asset, "image");
+    }
+  }
+
+  /**
+   * Decode one actor animation file from the asset cache (E-54): its frame list, delay and size, shared by every
+   * sprite that names the file. Returns null while the bytes are outstanding (the request is posted here), and caches
+   * an undecodable file as null so it is reported once. Frame pictures are ordinary assets; each is requested too.
+   */
+  function decodeSpriteAnimation(key: AssetKey): DecodedAnimation | null {
+    const cached = spriteAnimations.get(key);
+    if (cached !== undefined) {
+      if (cached !== null) requestSpriteFrameAssets(cached);
+      return cached;
+    }
+    const bytes = cache.get(key);
+    if (bytes === undefined) {
+      request(key, "animation");
+      return null;
+    }
+    const decoded = decodeAnimationFrames(bytes, key, key, resolveAnimationImage);
+    if (decoded === null) {
+      spriteAnimations.set(key, null);
+      diagnostics.push({ code: "asset.invalid", file: key, line: 0, message: `cannot decode animation "${key}"` });
+      return null;
+    }
+    requestSpriteFrameAssets(decoded);
+    spriteAnimations.set(key, decoded);
+    return decoded;
+  }
+
+  /**
+   * Ask for every actor animation file before a tick can use it. Runs beside the boot/board driver, so a board never
+   * ticks its sprites with an unknown frame clock: the requests it posts stop ticking until the host answers (E-21).
+   */
+  function prepareSpriteVisuals(): void {
+    if (failed || pending.size > 0 || pendingBlobs.size > 0) return;
+    for (const file of spriteAnimationFiles()) {
+      const key = resolveAnimationFile(file);
+      if (key === null) {
+        const folded = assetKey(file);
+        if (!missingSpriteAnimationAssets.has(folded)) {
+          missingSpriteAnimationAssets.add(folded);
+          diagnostics.push({ code: "asset.missing", file, line: 0, message: `sprite animation "${file}" is not in the asset index` });
+        }
+        continue;
+      }
+      decodeSpriteAnimation(key);
+    }
+  }
+
+  /** The actor animation clock's metadata: the count of non-empty frames and the frame delay (E-21, E-54). */
+  function resolveSpriteAnimationSpec(file: string): { readonly file: string; readonly frames: number; readonly delayTicks: number } | null {
+    const key = resolveAnimationFile(file);
+    if (key === null) return null;
+    const data = spriteAnimations.get(key) ?? decodeSpriteAnimation(key);
+    if (data === null || data.frames.length === 0) return null;
+    return { file, frames: data.frames.length, delayTicks: data.delayTicks };
+  }
+
+  /**
+   * The draw payload of one actor animation frame: the tileset cell (or picture) the compositor blits at the sprite's
+   * position. A frame whose picture is still outstanding, or an animated GIF frame (whose pixels live in a surface the
+   * sprite path does not draw yet), yields null so the sprite keeps its marker until its artwork is available.
+   */
+  function spriteFrameFor(file: string, frame: number): SpriteFrame | null {
+    const key = resolveAnimationFile(file);
+    if (key === null) return null;
+    const data = spriteAnimations.get(key) ?? decodeSpriteAnimation(key);
+    if (data === null || data.frames.length === 0 || data.gifPixels !== undefined) return null;
+    // A draw can happen without a preparation pass (a stance started mid-tick), so re-acquire here as well.
+    requestSpriteFrameAssets(data);
+    const index = ((Math.trunc(frame) % data.frames.length) + data.frames.length) % data.frames.length;
+    const entry = data.frames[index];
+    if (entry === undefined || entry.asset === null || entry.surface !== undefined) return null;
+    // The frame's picture is a separate asset; until the host has delivered and decoded it the sprite keeps its
+    // marker, so a frame never names a texture the runner cannot resolve yet.
+    const lower = entry.asset.toLowerCase();
+    if (entry.tile === null && !lower.endsWith(".gph")) {
+      // An ordinary picture (a `.tbm` is one too: `imageTexture` composes it). The header's width/height is the frame
+      // canvas and the anchor; the source rectangle is the picture's own pixels, so a 64×32 canvas naming a 32×32 image
+      // draws the whole image instead of reading past the texture (animation.md#layout, #1270).
+      const picture = imageTexture(entry.asset);
+      if (picture === null) return null;
+      return {
+        file,
+        asset: entry.asset,
+        tile: null,
+        src: { x: 0, y: 0, w: picture.w, h: picture.h },
+        width: data.width,
+        height: data.height,
+        transparent: entry.transparent,
+      };
+    }
+    // A tileset cell (entry.tile) or a whole single tile `.gph`: the tile decoder expands it, and the art keeps its
+    // own cell size instead of the animation header's.
+    if (entry.tile === null && tileTexture(entry.asset) === null) return null;
+    const cell = spriteTileCellSize(entry.asset);
+    if (cell === null) return null;
+    // The animation's width/height is the frame canvas (and so the anchor); the tile is drawn at its own cell size
+    // from the canvas origin, never stretched to the canvas (a 64×32 frame naming a 32×32 cell).
+    return {
+      file,
+      asset: entry.asset,
+      tile: entry.tile,
+      src: { x: 0, y: 0, w: cell.w, h: cell.h },
+      dst: { x: 0, y: 0, w: cell.w, h: cell.h },
+      width: data.width,
+      height: data.height,
+    };
+  }
+
   function runAnimationPhase(): void {
     advanceFx(state);
     prepareAnimations();
+    // Actor walk, idle and stance playback belongs to this same animation phase (E-21): one owner per tick, not a
+    // second phase, and the host's own animation-phase registrations still run after it.
+    runActorAnimationPhase(state.sprites, state.time.tick, { resolve: resolveSpriteAnimationSpec });
     const sounds = advanceAnimations(state);
     for (const sound of sounds) {
       const resolved = resolveAsset(index, root, "media", sound.sound);
@@ -3153,7 +3348,7 @@ export function createEngine(init: EngineInit): Engine {
   }
 
   function currentDrawList(alpha = 0, include = init.include ?? { shading: false, images: false, sprites: false }): DrawList {
-    const spriteInput = [...spriteDraws(state.sprites), ...(presentation.sprites ?? [])];
+    const spriteInput = [...spriteDraws(state.sprites, spriteFrameFor), ...(presentation.sprites ?? [])];
     const board: WorldBoard | null = state.world.board ?? null;
     const camera = positionAt(state.camera, Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 0);
     const debugCommands = (): DrawList["commands"] => {
@@ -3414,6 +3609,13 @@ export function createEngine(init: EngineInit): Engine {
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
       return readSurfacePixels(state.surfaces, id, rev, surfaceCache);
+    },
+    picturePixels(key: AssetKey): SurfacePixels | null {
+      // A copy, because the decoder's cache must not be mutable from the runner (AD-1). A picture the core has not
+      // decoded — including a composed tile bitmap whose cells are still arriving — is null, and the runner defers
+      // that command for the frame (docs/spec/engine/runners.md#picture-pixels).
+      const texture = decodedImages.get(key);
+      return texture === undefined ? null : { w: texture.w, h: texture.h, rgba: new Uint8Array(texture.rgba) };
     },
     setBreakpoints(next: readonly Breakpoint[]) { breakpoints = next; },
   };

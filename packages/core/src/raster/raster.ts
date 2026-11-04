@@ -165,6 +165,8 @@ function drawBlit(
       const sg = texture.rgba[si + 1] ?? 0;
       const sb = texture.rgba[si + 2] ?? 0;
       const sa = texture.rgba[si + 3] ?? 0;
+      // The key is tested on the sampled pixels — a composed picture's pixels already include their cell shade — and
+      // the world tint is applied after it (docs/spec/engine/runners.md#blit-pipeline).
       if (sa === 0 || (command.key !== null && sr === command.key.r && sg === command.key.g && sb === command.key.b)) continue;
       const dx = command.dst.x + x;
       const dy = command.dst.y + y;

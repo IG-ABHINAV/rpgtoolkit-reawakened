@@ -6,7 +6,7 @@
  * logic and no world. `advance` runs one whole `advanceScriptTick` per
  * requested tick (clamped by `maxTicks` exactly as the test double is) and
  * reports the state hash; `drawList` is `{ tick, 320×240, commands: [] }`,
- * `surfacePixels` and `recoveryCandidate()` are `null`: this script-only host
+ * `surfacePixels`, `picturePixels` and `recoveryCandidate()` are `null`: this script-only host
  * has no world state to capture as a canonical game save. The report's
  * `consumed`/`requests`/`audioCues` are empty; `loading` is false and `paused`
  * is null. `diagnostics` carries the located runtime failures the VM collected
@@ -290,6 +290,9 @@ function createHost(
     },
 
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
+      return null;
+    },
+    picturePixels(): SurfacePixels | null {
       return null;
     },
 

@@ -597,6 +597,9 @@ export const conformingEngine: Engine = {
   surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
     return pinSurfacePixels;
   },
+  picturePixels(_key: AssetKey): SurfacePixels | null {
+    return pinSurfacePixels;
+  },
   recoveryCandidate() {
     return null;
   },

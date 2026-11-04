@@ -391,47 +391,6 @@ test("under-vector redraw honours attribute flags 1, 2, and 4", () => {
   equal(bgSpanRects.length > 0, true);
 });
 
-test("2x2 .tbm frame sprite emits cells with ambient and cell tint", () => {
-  const tileA = { asset: assetKey("tiles/layer1.tst"), tile: 1 };
-  const tileB = { asset: assetKey("tiles/layer1.tst"), tile: 2 };
-
-  const spriteTbm: SpriteDraw = {
-    id: "tbmSprite",
-    key: "item",
-    layer: 1,
-    x: 48,
-    y: 64,
-    drawId: 1,
-    frame: {
-      cells: [
-        { x: 0, y: 0, tile: tileA, tint: { r: 10, g: 0, b: 0 } },
-        { x: 1, y: 0, tile: tileB, tint: { r: 0, g: 10, b: 0 } },
-        { x: 0, y: 1, tile: tileA, tint: { r: 0, g: 0, b: 10 } },
-        { x: 1, y: 1, tile: tileB, tint: { r: 5, g: 5, b: 5 } },
-      ],
-      tint: { r: 1, g: 1, b: 1 },
-    },
-  };
-
-  const list = composeBoard({
-    board: baseBoard,
-    tick: 0,
-    camera: { x: 0, y: 0 },
-    viewport: { width: 128, height: 128 },
-    alpha: 0,
-    include: { shading: true, images: false, sprites: true },
-    sprites: [spriteTbm],
-    globalAmbient: { r: 2, g: 3, b: 4 },
-  });
-
-  // Sprite cells should be blitted at:
-  // width: 64, height: 64 -> anchorX = 32, anchorY = 64
-  // boardLeft = 48 - 32 = 16, boardTop = 64 - 64 = 0
-  const spriteBlits = list.commands.filter((c) => c.kind === "blit" && c.dst.w === 32 && c.dst.h === 32 && (c.dst.x === 16 || c.dst.x === 48));
-  // At least 4 cell blits for the sprite
-  equal(spriteBlits.length >= 4, true);
-});
-
 test("presentation alpha smoothly interpolates sprite position from prev", () => {
   const sprite: SpriteDraw = {
     id: "moving",

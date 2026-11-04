@@ -180,6 +180,7 @@ test("goldenJob detects batching disagreement without throwing", () => {
       surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
         return null;
       },
+      picturePixels(): SurfacePixels | null { return null; },
       setBreakpoints(_breakpoints: readonly Breakpoint[]): void {},
       recoveryCandidate() { return null; },
       resumeRecovery() { return false; },

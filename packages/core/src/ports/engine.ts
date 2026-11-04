@@ -3,15 +3,16 @@
  *
  * `createEngine(init)` returns an `Engine` (deferred to the engine epic).
  * `advance` runs whole fixed ticks and reports what happened; `drawList` is a
- * pure function of current state; `surfacePixels` is the pixel accessor
- * (AD-27); `setBreakpoints` takes data and a hit stops mid-tick.
+ * pure function of current state; `surfacePixels` and `picturePixels` are the
+ * pixel accessors (AD-27, AD-28); `setBreakpoints` takes data and a hit stops
+ * mid-tick.
  */
 
 import type { AudioCue } from "./audio.ts";
 import type { Bytes } from "./bytes.ts";
 import type { DrawList } from "./draw.ts";
 import type { InputRecord } from "./input.ts";
-import type { SurfaceId } from "./keys.ts";
+import type { AssetKey, SurfaceId } from "./keys.ts";
 import type { RunnerRequest } from "./requests.ts";
 
 /**
@@ -99,6 +100,13 @@ export interface Engine {
    * is unknown or `rev` is no longer available (AD-27).
    */
   surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null;
+  /**
+   * The pixels the core decoded for picture `key` — a composed tile bitmap, or
+   * any picture a runner cannot decode itself — or `null` when it has not been
+   * decoded (docs/spec/engine/runners.md#picture-pixels, AD-28). A copy, so a
+   * runner cannot disturb the cache it came from.
+   */
+  picturePixels(key: AssetKey): SurfacePixels | null;
   /**
    * Return one explicit checkpoint or queued pre-battle candidate, or `null`
    * when no candidate is pending or the current state is ineligible.
