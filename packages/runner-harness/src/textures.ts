@@ -7,8 +7,8 @@
  *
  * A kind this function does not decode returns `null` and the caller reports it as a deferred command rather than drawing
  * a wrong pixel. Today that is `.tan` (animated tiles, whose frame comes from the tick) and `.tbm` (a tile bitmap composed
- * from other tiles); both are entry 9.4's, which replays the animated and tile-bitmap scenes. A sprite animation frame
- * that is a tile bitmap is published as its cells instead, so a draw list never names a `.tbm` asset to a runner.
+ * from other tiles); a draw naming either takes its pixels from the core (`engine.picturePixels`,
+ * docs/spec/engine/runners.md#picture-pixels), because composition is the core's rule and a host must not reproduce it.
  */
 
 import { decodeTexture, expandSingleTileToRgba, expandTileToRgba, readSingleTile, readTileset, tileDimensions, type AssetKey, type DecodedTexture } from "@tk-reawakened/core";

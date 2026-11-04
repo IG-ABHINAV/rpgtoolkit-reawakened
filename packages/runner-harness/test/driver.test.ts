@@ -40,6 +40,7 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
       return null;
     },
+    picturePixels(): SurfacePixels | null { return null; },
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },
     recoveryStatus() { return "none"; },
@@ -129,6 +130,7 @@ test("runLog throws naming call and cause for engine violations", () => {
     surfacePixels(): SurfacePixels | null {
       return null;
     },
+    picturePixels(): SurfacePixels | null { return null; },
     setBreakpoints(): void {},
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },
@@ -274,6 +276,7 @@ test("runLog accepts non-empty requests and diagnostics and hands them to the ob
     surfacePixels(): SurfacePixels | null {
       return null;
     },
+    picturePixels(): SurfacePixels | null { return null; },
     setBreakpoints(): void {},
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },

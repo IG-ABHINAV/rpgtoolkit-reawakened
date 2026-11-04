@@ -42,7 +42,6 @@ export type SpriteFrame = {
   readonly anchorX?: number;
   readonly anchorY?: number;
   readonly transparent?: Rgb | null;
-  readonly cells?: readonly WorldImageCell[];
   readonly tint?: Tint;
 };
 
@@ -68,7 +67,6 @@ export type SpriteDraw = {
   readonly width?: number;
   readonly height?: number;
   readonly transparent?: Rgb | null;
-  readonly cells?: readonly WorldImageCell[];
   readonly tint?: Tint;
   readonly alpha?: number;
 };
@@ -378,7 +376,6 @@ function emitSprite(
   const worldX = pos.x;
   const worldY = pos.y;
 
-  const cells = sprite.frame?.cells ?? sprite.cells;
   let width = sprite.frame?.width ?? sprite.width;
   let height = sprite.frame?.height ?? sprite.height;
 
@@ -396,19 +393,6 @@ function emitSprite(
   if (width === undefined && texture !== null) width = texture.texture.w;
   if (height === undefined && texture !== null) height = texture.texture.h;
 
-  if (cells !== undefined) {
-    if (width === undefined) {
-      let maxX = 0;
-      for (const cell of cells) if (cell.x > maxX) maxX = cell.x;
-      width = (maxX + 1) * TILE_SIZE;
-    }
-    if (height === undefined) {
-      let maxY = 0;
-      for (const cell of cells) if (cell.y > maxY) maxY = cell.y;
-      height = (maxY + 1) * TILE_SIZE;
-    }
-  }
-
   const spriteW = width ?? 16;
   const spriteH = height ?? 16;
 
@@ -423,46 +407,7 @@ function emitSprite(
   const dstRect: Rect = { x: dstX, y: dstY, w: spriteW, h: spriteH };
 
   if (visible(dstRect, view.viewport)) {
-    if (cells !== undefined) {
-      for (const cell of cells) {
-        if (cell.tile === null) continue;
-        const tile = selectedTile(cell.tile, view.tick);
-        const cellW = tile.width ?? TILE_SIZE;
-        const cellH = tile.height ?? TILE_SIZE;
-        const cdx = dstX + cell.x * TILE_SIZE;
-        const cdy = dstY + cell.y * TILE_SIZE;
-        const cellDst: Rect = { x: cdx, y: cdy, w: cellW, h: cellH };
-        if (!visible(cellDst, view.viewport)) continue;
-        // Shading is stored per tile of the board grid. On isometric boards the
-        // tile under the cell's centre (inverse of board.md#coordinates) supplies it.
-        const layout = coordLayout(board.coordType);
-        const under = isIsometric(layout)
-          ? pixelToTile(layout, board.sizeX, boardLeft + cell.x * TILE_SIZE + TILE_SIZE / 2, boardTop + cell.y * TILE_SIZE + TILE_SIZE / 2)
-          : null;
-        const cellBoardX = under === null ? Math.floor(boardLeft / TILE_SIZE) + cell.x : under.x - 1;
-        const cellBoardY = under === null ? Math.floor(boardTop / TILE_SIZE) + cell.y : under.y - 1;
-        const cellFrameTint = sprite.frame?.tint ?? sprite.tint ?? NO_TINT;
-        // A picture frame's transparent colour keys out the cell-shaded pixels: the cell's own r, g, b is part of
-        // the picture (tiles.md#tile-bitmap-tbm keeps the stages separate), so it is the blit's authored stage and
-        // the key is tested after it, never against the unshaded tile. The world tint stays in `tint`.
-        const cellKey = sprite.frame?.transparent ?? sprite.transparent ?? TILE_KEY;
-        commands.push(tileCommand(
-          board,
-          tile,
-          view.tick,
-          sprite.layer,
-          cellBoardX,
-          cellBoardY,
-          cdx,
-          cdy,
-          view.include.shading,
-          view.globalAmbient,
-          cellFrameTint,
-          cellKey,
-          cell.tint,
-        ));
-      }
-    } else if (texture !== null) {
+    if (texture !== null) {
       const key = sprite.frame?.transparent ?? sprite.transparent ?? { r: 255, g: 255, b: 255 };
       const tint = view.include.shading ? ambientTint(board, view.globalAmbient) : NO_TINT;
       const alpha = sprite.translucency ?? sprite.alpha ?? 255;
@@ -575,7 +520,6 @@ function tileCommand(
   globalAmbient: Tint | undefined,
   extraTint?: Tint,
   key: Rgb = TILE_KEY,
-  keyTint?: Tint,
 ): DrawCommand {
   const selected = selectedTile(tile, tick);
   const width = selected.width ?? TILE_SIZE;
@@ -586,7 +530,6 @@ function tileCommand(
     src: { x: 0, y: 0, w: width, h: height },
     dst: { x: dx, y: dy, w: width, h: height },
     key,
-    ...(keyTint === undefined ? {} : { keyTint }),
     tint: tileTint(board, layer, x, y, includeShading, globalAmbient, addTint(selected.tint ?? NO_TINT, extraTint ?? NO_TINT)),
     alpha: 255,
     blend: "normal",

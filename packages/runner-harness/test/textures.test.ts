@@ -1,7 +1,7 @@
-// The live texture seam a sprite frame depends on (issue #1262): the browser and desktop player replay a draw list
-// through `liveTextureProvider`, which decodes each named asset with `decodeAssetTexture`; a kind it refuses is a
-// deferred command (`webgl2.missing-texture`) and the actor disappears. These cases pin the kinds an actor's animation
-// frame publishes: a tileset cell, a single tile `.gph`, and the reason a tile-bitmap frame is published as cells.
+// The live texture seam a sprite frame depends on (#1262, #1269): the browser and desktop player replay a draw list
+// through `liveTextureProvider`, which decodes each named asset with `decodeAssetTexture` and falls back to the core's
+// `picturePixels` for a picture the host cannot compose. These cases pin the kinds an actor's animation frame
+// publishes: a tileset cell, a single tile `.gph`, and a tile bitmap, whose pixels the core composes.
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import { TextEncoder } from "node:util";
@@ -80,7 +80,8 @@ test("the live texture decoder keeps a 16x16 single tile at its own size, so a b
   deepEqual(pixelAt(decoded, 8, 8), [200, 20, 200, 255]);
 });
 
-test("the live texture decoder refuses .tbm, which is why a tile-bitmap frame publishes cells (#1262)", () => {
-  // No draw list may name a `.tbm`: the engine publishes the bitmap's cell tiles instead (sprite-artwork.test.ts).
+test("the live texture decoder refuses .tbm, so the core supplies the composed picture (#1269)", () => {
+  // A tile bitmap is composed from other tiles, which is core's rule: the host asks `engine.picturePixels` instead of
+  // decoding the bytes (runner-web/src/index.ts `liveTextureProvider`).
   equal(decodeAssetTexture("bitmap/hero_frame.tbm" as AssetKey, new Uint8Array()), null);
 });

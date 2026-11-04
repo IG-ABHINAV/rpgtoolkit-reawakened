@@ -97,6 +97,40 @@ function tileBitmapBytes(tile = "hero.tst1"): Uint8Array {
   }));
 }
 
+/**
+ * A tile bitmap with `columns × rows` drawn cells, each naming one tile reference in file order (x outer, y inner).
+ * The stored bounds are the inclusive ones the format writes, so a `2 × 1` picture stores 3 × 2 cells.
+ */
+function tileBitmapCells(columns: number, rows: number, references: readonly string[]): Uint8Array {
+  const cells = [];
+  for (let x = 0; x < columns + 1; x += 1) {
+    for (let y = 0; y < rows + 1; y += 1) {
+      cells.push({ tile: x < columns && y < rows ? references[x * rows + y] ?? "" : "", r: 0, g: 0, b: 0 });
+    }
+  }
+  return unwrap(writeTileBitmap({
+    magic: TILE_BITMAP_MAGIC,
+    major: 3,
+    minor: 0,
+    width: columns,
+    height: rows,
+    cells,
+    residue: new Uint8Array(),
+  }));
+}
+
+/** A detail-150 isometric tileset whose one 64×32 tile is solid green inside its diamond (docs/spec/formats/tiles.md). */
+function isoGreenTilesetBytes(): Uint8Array {
+  const pixels = new Uint8Array(32 * 32 * 3);
+  for (let at = 0; at < pixels.length; at += 3) pixels.set([30, 200, 60], at);
+  return unwrap(writeTileset({
+    version: 30,
+    detail: { code: 150, size: 32, bytesPerPixel: 3, isometric: true },
+    tiles: [{ pixels }],
+    residue: new Uint8Array(),
+  }));
+}
+
 /** A solid single-tile `.gph` picture (docs/spec/formats/tiles.md#single-tile-gph); 32x32 is detail 1, 16x16 detail 2. */
 function singleTileBytes(size = 32, colour: readonly [number, number, number] = [20, 40, 220]): Uint8Array {
   const value = colour[0] + 256 * colour[1] + 65536 * colour[2];
@@ -291,25 +325,29 @@ test("a wide animation frame naming a 32x32 cell draws one cell, not the header'
   }
 });
 
-test("an animation frame that is a tile bitmap draws as its tile cells for the live renderer (#1262)", () => {
+test("an animation frame that is a tile bitmap draws as one composed picture (#1262)", () => {
   const host = run(3, {
     walkFile: "hero_tbm.anm",
     animation: walkAnimationBytes(32, 32, ["hero_frame.tbm", "hero_frame.tbm"], { r: 255, g: 0, b: 255 }),
     extra: { "Bitmap/hero_frame.tbm": tileBitmapBytes() },
   });
   deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
-  // The bitmap's bytes are read for its cells, and the cell's tile is the asset a runner decodes.
+  // The bitmap's bytes and its cell's tile are read, and the draw names the bitmap itself.
   equal(host.requests.includes("bitmap/hero_frame.tbm" as AssetKey), true, JSON.stringify(host.requests));
   equal(host.requests.includes("tiles/hero.tst" as AssetKey), true, JSON.stringify(host.requests));
   const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
-  deepEqual(spriteBlits(list.commands).map((command) => [command.source, command.dst]), [
-    [{ asset: "tiles/hero.tst", tile: 1 }, { x: 48, y: 32, w: 32, h: 32 }],
+  deepEqual(blitsOf(list.commands, "bitmap/hero_frame.tbm").map((command) => [command.source, command.src, command.dst]), [
+    [{ asset: "bitmap/hero_frame.tbm", tile: null }, { x: 0, y: 0, w: 32, h: 32 }, { x: 48, y: 32, w: 32, h: 32 }],
   ]);
-  // The live texture provider cannot decode a `.tbm`, so no command may name one (runner-harness/src/textures.ts).
-  equal(list.commands.some((command) => command.kind === "blit" && "asset" in command.source && command.source.asset === "bitmap/hero_frame.tbm"), false);
+  // No cell blit remains: composition owns the overlap and the picture's bounds, which a cell lowering loses.
+  equal(list.commands.some((command) => command.kind === "blit" && "asset" in command.source && command.source.asset === "tiles/hero.tst"), false);
   equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
-  const screen = presented(host);
-  deepEqual(pixelAt(screen, 64, 48), [220, 30, 30, 255], "the cell's tile colour is presented");
+  // A runner cannot compose a `.tbm`, so the core supplies the pixels the draw names.
+  const picture = host.engine.picturePixels("bitmap/hero_frame.tbm" as AssetKey);
+  ok(picture !== null, "the composed picture is readable");
+  deepEqual([picture.w, picture.h], [32, 32]);
+  deepEqual(pixelAt(picture, 16, 16), [220, 30, 30, 255]);
+  deepEqual(pixelAt(presented(host), 64, 48), [220, 30, 30, 255], "the composed picture is presented");
 });
 
 test("an animation frame that is a single tile .gph draws through the tile decoder (#1261)", () => {
@@ -342,7 +380,7 @@ test("walk frames advance once per animation delay and the draw follows the fram
   deepEqual(spriteBlits(list.commands).map((command) => command.source), [{ asset: "tiles/hero.tst", tile: 2 }]);
 });
 
-test("a tile-bitmap cell keeps its tile's own size: a 16x16 .gph fills a quarter of the cell (#1265)", () => {
+test("a tile bitmap's 16x16 .gph cell keeps its own size inside the composed picture (#1265)", () => {
   const host = run(3, {
     walkFile: "hero_small.anm",
     animation: walkAnimationBytes(32, 32, ["hero_small.tbm", "hero_small.tbm"]),
@@ -353,14 +391,63 @@ test("a tile-bitmap cell keeps its tile's own size: a 16x16 .gph fills a quarter
   });
   deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
   const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
-  // A 16x16 single tile is drawn at its own size from the cell's corner; the 32x32 default would read past it.
-  deepEqual(blitsOf(list.commands, "tiles/small.gph").map((command) => [command.source, command.src, command.dst]), [
-    [{ asset: "tiles/small.gph", tile: 1 }, { x: 0, y: 0, w: 16, h: 16 }, { x: 48, y: 32, w: 16, h: 16 }],
+  // One picture blit: the 16x16 single tile fills the cell's top-left quarter and the rest of the cell is transparent.
+  deepEqual(blitsOf(list.commands, "bitmap/hero_small.tbm").map((command) => [command.source, command.src, command.dst]), [
+    [{ asset: "bitmap/hero_small.tbm", tile: null }, { x: 0, y: 0, w: 32, h: 32 }, { x: 48, y: 32, w: 32, h: 32 }],
   ]);
-  const screen = presented(host);
-  deepEqual(pixelAt(screen, 52, 36), [200, 20, 200, 255], "the 16x16 tile is in the cell's top-left quarter");
-  // The rest of the 32x32 cell stays transparent: the board behind shows through, not the tile.
-  equal(pixelAt(screen, 68, 52).join(",") === "200,20,200,255", false, "the cell's other quarters are empty");
+  const picture = host.engine.picturePixels("bitmap/hero_small.tbm" as AssetKey);
+  ok(picture !== null);
+  deepEqual(pixelAt(picture, 4, 4), [200, 20, 200, 255], "the 16x16 tile is in the cell's top-left quarter");
+  deepEqual(pixelAt(picture, 20, 20), [0, 0, 0, 0], "the cell's other quarters are empty");
+  deepEqual(pixelAt(presented(host), 52, 36), [200, 20, 200, 255], "the tile is presented");
+  equal(pixelAt(presented(host), 68, 52).join(",") === "200,20,200,255", false, "the cell's other quarters stay empty");
+});
+
+test("overlapping bitmap cells key as one picture: the later keyed cell erases the earlier one", () => {
+  // A 2x1 picture: a 64x32 isometric tile at (0,0) spans into (1,0), and an opaque red 32x32 tile at (1,0) paints
+  // over its right half. The frame's transparent colour is red, so the picture's right half is transparent — the
+  // later keyed cell must erase the green beneath it, which independent cell blits cannot do.
+  const host = run(3, {
+    walkFile: "hero_overlap.anm",
+    animation: walkAnimationBytes(64, 32, ["hero_overlap.tbm", "hero_overlap.tbm"], { r: 220, g: 30, b: 30 }),
+    extra: {
+      "Bitmap/hero_overlap.tbm": tileBitmapCells(2, 1, ["wide.iso1", "hero.tst1"]),
+      "Tiles/wide.iso": isoGreenTilesetBytes(),
+    },
+  });
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  const picture = host.engine.picturePixels("bitmap/hero_overlap.tbm" as AssetKey);
+  ok(picture !== null);
+  deepEqual([picture.w, picture.h], [64, 32], "the picture is two 32-pixel cells wide");
+  deepEqual(pixelAt(picture, 8, 16), [30, 200, 60, 255], "the isometric tile's left half is the picture");
+  deepEqual(pixelAt(picture, 48, 16), [220, 30, 30, 255], "the later red cell painted over the green");
+  const blit = blitsOf(host.engine.drawList(0, { shading: true, images: true, sprites: true }).commands, "bitmap/hero_overlap.tbm")[0];
+  deepEqual(blit?.key, { r: 220, g: 30, b: 30 }, "the frame's transparent colour is the picture blit's key");
+  // Header 64x32 anchors at (32, 32); the player at (64, 64) puts the picture at (32, 32), so x 80 is its right half.
+  const right = pixelAt(presented(host), 80, 48).join(",");
+  equal(right === "30,200,60,255", false, "the keyed later cell erased the green beneath it");
+  equal(right === "220,30,30,255", false, "and the key removed the red");
+});
+
+test("a bitmap picture clips a 64x32 isometric cell to its own bounds", () => {
+  // A 1x1 picture is 32x32, so a 64x32 isometric tile's right half lies outside it, exactly as the compositor clips.
+  const host = run(3, {
+    walkFile: "hero_clip.anm",
+    animation: walkAnimationBytes(32, 32, ["hero_clip.tbm", "hero_clip.tbm"], { r: 255, g: 0, b: 255 }),
+    extra: {
+      "Bitmap/hero_clip.tbm": tileBitmapCells(1, 1, ["wide.iso1"]),
+      "Tiles/wide.iso": isoGreenTilesetBytes(),
+    },
+  });
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  const picture = host.engine.picturePixels("bitmap/hero_clip.tbm" as AssetKey);
+  ok(picture !== null);
+  deepEqual([picture.w, picture.h], [32, 32], "the picture is one 32x32 cell, not the tile's 64 pixels");
+  deepEqual(pixelAt(picture, 8, 16), [30, 200, 60, 255], "the diamond inside the bounds is the picture");
+  const blit = blitsOf(host.engine.drawList(0, { shading: true, images: true, sprites: true }).commands, "bitmap/hero_clip.tbm")[0];
+  deepEqual(blit?.src, { x: 0, y: 0, w: 32, h: 32 }, "the blit samples only the picture's bounds");
+  // Header 32x32 anchors at (16, 32); the picture spans x 48..79, so x 88 is beyond it.
+  equal(pixelAt(presented(host), 88, 48).join(",") === "30,200,60,255", false, "the tile's right half is clipped");
 });
 
 test("a tile-bitmap frame keeps its transparent colour key (#1266)", () => {
@@ -371,8 +458,8 @@ test("a tile-bitmap frame keeps its transparent colour key (#1266)", () => {
     extra: { "Bitmap/hero_frame.tbm": tileBitmapBytes() },
   });
   deepEqual(keyed.diagnostics.map((diagnostic) => diagnostic.code), []);
-  const keyedBlit = spriteBlits(keyed.engine.drawList(0, { shading: true, images: true, sprites: true }).commands)[0];
-  deepEqual(keyedBlit?.key, red, "the frame's transparent colour is the blit key");
+  const keyedBlit = blitsOf(keyed.engine.drawList(0, { shading: true, images: true, sprites: true }).commands, "bitmap/hero_frame.tbm")[0];
+  deepEqual(keyedBlit?.key, red, "the frame's transparent colour is the picture blit's key");
   equal(pixelAt(presented(keyed), 64, 48).join(",") === "220,30,30,255", false, "the keyed-out red leaves the board behind");
 
   const shown = run(3, {
@@ -391,8 +478,13 @@ test("an all-empty tile-bitmap frame is transparent, not the fallback marker (#1
   });
   deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
   const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
-  // The bitmap decodes to no cells: a valid transparent picture draws nothing and is not the marker.
+  // The empty bitmap is still a picture of its grid size, every pixel transparent: the draw names it, nothing of it
+  // shows, and the fallback marker stays away.
+  equal(blitsOf(list.commands, "bitmap/hero_empty.tbm").length, 1);
   equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
-  equal(list.commands.some((command) => command.kind === "blit" && "asset" in command.source && (command.source.asset === "bitmap/hero_empty.tbm" || command.source.asset === "tiles/hero.tst")), false);
+  const picture = host.engine.picturePixels("bitmap/hero_empty.tbm" as AssetKey);
+  ok(picture !== null);
+  deepEqual([picture.w, picture.h], [32, 32]);
+  equal(Array.from(picture.rgba).every((byte) => byte === 0), true, "every pixel of the picture is transparent");
   equal(pixelAt(presented(host), 64, 48).join(",") === "64,96,224,255", false, "no marker is presented");
 });

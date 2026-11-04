@@ -86,11 +86,10 @@ export type GlyphAdvance = {
 
 /**
  * Copy `src` of `source` to `dst`, nearest-neighbour sampled. `key` is the
- * colour key skipped after `keyTint` and before `tint` (`null` for none);
- * `keyTint` is the authored shade baked into a composed picture's cell, applied
- * before the key test (absent for a board, tileset or image blit); `alpha` is
- * 0–255; `tint` is the pre-summed world shade and ambient offset, applied after
- * the key test; `iso2d` is the 2D-on-iso projection flag (AD-3,
+ * colour key skipped on the sampled pixels before they are tinted (`null` for
+ * none) — for a composed picture those pixels already include their authored
+ * cell shade; `alpha` is 0–255; `tint` is the pre-summed world shading and
+ * ambient offset; `iso2d` is the 2D-on-iso projection flag (AD-3,
  * docs/spec/engine/runners.md#blit-pipeline).
  */
 export type BlitCommand = {
@@ -99,7 +98,6 @@ export type BlitCommand = {
   readonly src: Rect;
   readonly dst: Rect;
   readonly key: Rgb | null;
-  readonly keyTint?: Tint;
   readonly tint: Tint;
   readonly alpha: number;
   readonly blend: Blend;

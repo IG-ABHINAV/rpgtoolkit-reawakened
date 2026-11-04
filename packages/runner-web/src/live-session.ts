@@ -264,7 +264,12 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   });
   const renderer = createWebgl2Renderer(options.gl, { mode: "letterbox", scale: 1 });
 
-  const textures = liveTextureProvider((key) => assets.peek(key) ?? bundled.get(key) ?? null, decode === null ? undefined : (key) => decode.image(key));
+  const textures = liveTextureProvider(
+    (key) => assets.peek(key) ?? bundled.get(key) ?? null,
+    decode === null ? undefined : (key) => decode.image(key),
+    // A composed tile bitmap is the core's picture, not something the host can decode from bytes (#1269).
+    (key) => engine.picturePixels(key),
+  );
   const fonts = fontProvider(options.bundled);
   let currentTick = 0;
   let currentStateHash = "";

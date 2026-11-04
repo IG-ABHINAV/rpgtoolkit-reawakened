@@ -137,6 +137,24 @@ test("liveTextureProvider does not lock in null before bytes arrive, and prefers
   equal(provide(assetKey("Tiles/ready.bmp")), ready);
 });
 
+test("liveTextureProvider takes a composed tile bitmap from the core's picture pixels (#1269)", () => {
+  // The host cannot compose a `.tbm`; its bytes decode to null, so the provider must ask the core. A picture the core
+  // has not composed yet is not cached as missing, because the first frame that names it may precede composition.
+  const arrived = new Map<string, Uint8Array>();
+  const pictures = new Map<string, { w: number; h: number; rgba: Uint8Array }>();
+  const picture = assetKey("Bitmap/hero_frame.tbm");
+  arrived.set(picture, new Uint8Array([1, 2, 3]));
+  const provide = liveTextureProvider(
+    (asset) => arrived.get(asset) ?? null,
+    undefined,
+    (asset) => pictures.get(asset) ?? null,
+  );
+  equal(provide(picture), null, "the host cannot decode the bitmap and the core has not composed it yet");
+  const composed = { w: 1, h: 1, rgba: new Uint8Array([220, 30, 30, 255]) };
+  pictures.set(picture, composed);
+  equal(provide(picture), composed, "the core's composed pixels are used");
+});
+
 test("interactive bindings route the browser Space event into the key queue", () => {
   const input = createInputSection({ bindings: INTERACTIVE_INPUT_BINDINGS });
   applyInputEvent(input, { kind: "key", name: " ", code: "Space", char: " ", down: true });

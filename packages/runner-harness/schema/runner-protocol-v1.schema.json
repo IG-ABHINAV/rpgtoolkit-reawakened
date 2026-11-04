@@ -227,9 +227,6 @@
             }
           ]
         },
-        "keyTint": {
-          "$ref": "#/$defs/tint"
-        },
         "tint": {
           "$ref": "#/$defs/tint"
         },
