@@ -41,8 +41,8 @@ const DRAW_HAND_COMMAND = "__menu_draw_hand";
 const SHOP_CLOSE_COMMAND = "__menu_shop_close";
 /** The recorded name of `context.menu.drawGraphic`: the image effect the engine treats as optional decoration. */
 export const MENU_GRAPHIC_EFFECT = "host:menu:drawgraphic";
-/** The recorded name of `context.menu.drawHand`: a draw of the bundled focused-row hand marker. */
-export const MENU_HAND_EFFECT = "host:menu:drawhand";
+/** The internal command's effect name: a draw of the bundled focused-row hand marker. */
+export const MENU_HAND_EFFECT = "__menu_draw_hand";
 
 function parameter(name: string, optional = false): ParamSpec {
   return { name, optional, byRef: false, variadic: false };
@@ -326,19 +326,19 @@ const DRAW_GRAPHIC: BuiltinSpec = {
 };
 
 const DRAW_HAND: BuiltinSpec = {
-  name: DRAW_HAND_COMMAND, aliases: [], params: [parameter("self"), parameter("x"), parameter("y"), parameter("canvas")],
+  name: DRAW_HAND_COMMAND, aliases: [], params: [parameter("x"), parameter("y"), parameter("canvas")],
   doc: internalDocs(
     "Draw the bundled hand marker beside the focused menu row.",
     "Records the project-owned 16×16 `media/cursors/tkr-menu-hand.png` at integer x and y on the given canvas. The marker is optional decoration: if the bundled image is unavailable, it is skipped and the menu continues.",
     NO_WAIT,
   ),
   call: (_view, args) => {
-    for (let index = 1; index <= 3; index += 1) {
+    for (let index = 0; index <= 2; index += 1) {
       if (!Number.isFinite(numeric(args, index))) throw new ScriptError("builtin.bad-arg", `${DRAW_HAND_COMMAND}: x, y and canvas must be numbers`);
     }
     return {
       value: null,
-      effects: [{ kind: "state-write", section: "surfaces", args: ["media/cursors/tkr-menu-hand.png", numeric(args, 1), numeric(args, 2), 16, 16, numeric(args, 3)] }],
+      effects: [{ kind: "state-write", section: "surfaces", args: ["media/cursors/tkr-menu-hand.png", numeric(args, 0), numeric(args, 1), 16, 16, numeric(args, 2)] }],
     };
   },
 };
@@ -346,7 +346,7 @@ const DRAW_HAND: BuiltinSpec = {
 /** The hydrated `context.menu` object of an RPGCode menu provider (E-80, #585). */
 export const MENU_HOST_TYPE: HostObjectType = {
   name: MENU_HOST_TYPE_NAME,
-  methods: { updatecurrent: UPDATE_CURRENT_COMMAND, drawgraphic: DRAW_GRAPHIC_COMMAND, drawhand: DRAW_HAND_COMMAND },
+  methods: { updatecurrent: UPDATE_CURRENT_COMMAND, drawgraphic: DRAW_GRAPHIC_COMMAND },
   readOnlyMembers: ["screens", "graphic", "saveallowed", "movesound", "choosesound", "cancelsound"],
   read(context, name) {
     const state = context.state;
