@@ -1,5 +1,6 @@
-import { deepEqual, equal } from "node:assert/strict";
+import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
+import { IR_VERSION, startThread } from "../src/index.ts";
 import { boot } from "./stock-menu-rig.ts";
 
 test("a game save issued before quit is persisted and a save issued after quit is not", () => {
@@ -39,6 +40,27 @@ test("a game save issued before quit is persisted and a save issued after quit i
     ["before", "after"],
     "both save calls execute on opposite sides of quit",
   );
+});
+test("global host waits serialize file writes, game Save, and quit in a real engine session", () => {
+  const session = boot({ startup: "end()\n", persist: true });
+  const state = session.state();
+  const thread = (text: string): void => {
+    startThread(state.vm, { ref: { kind: "inline", text, ir: IR_VERSION }, kind: "board", owner: "script" });
+  };
+  thread('handle = openfileoutput("deferred.txt", "files")\nend()\n');
+  thread('Save("before")\nend()\n');
+  thread("QuitGame()\nend()\n");
+
+  const reports: ReturnType<typeof session.advance>[] = [];
+  for (let tick = 0; tick < 8 && !reports.some((report) => report.requests.some((request) => request.kind === "quit")); tick += 1) {
+    reports.push(session.advance(1));
+  }
+  deepEqual(reports.map((report) => report.requests.map((request) => request.kind)), [["saveBlob"], ["saveBlob"], ["quit"]]);
+  const fileWrite = reports[0]?.requests[0];
+  const gameSave = reports[1]?.requests[0];
+  ok(fileWrite?.kind === "saveBlob" && fileWrite.blob.path.endsWith("/files/deferred.txt"));
+  ok(gameSave?.kind === "saveBlob" && gameSave.blob.path.endsWith("/saved/before.sav"));
+  equal(session.saves.some((path) => path.endsWith("/saved/before.sav")), true, "the real host test rig receives the game save");
 });
 
 test("quit remains published when reset follows it in the same script turn", () => {
