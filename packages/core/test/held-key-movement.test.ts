@@ -120,9 +120,12 @@ test("a tap during an active route step is lost, but a held direction replaces i
   for (let t = 3; t < 24; t += 1) tick(state, t);
   equal(state.sprites.players[0]!.y, 63, "the completed tap is not buffered");
   tick(state, 24, [key("ArrowDown", true)]);
+  const boundary = state.sprites.players[0]!.movement.active!.target.x;
+  ok(state.sprites.players[0]!.queue.moves.length > 0, "a later path step remains to preempt");
   for (let t = 25; t < 100 && state.sprites.players[0]!.movement.active?.facing !== "S"; t += 1) tick(state, t);
   const player = state.sprites.players[0]!;
   equal(player.movement.active?.facing, "S");
+  equal(player.x, boundary, "the held key turns at the first boundary rather than after the route ends");
   equal(player.queue.moves.length, 0);
 });
 
