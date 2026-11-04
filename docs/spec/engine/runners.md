@@ -69,26 +69,30 @@ request; the core decodes them (AD-28) and the runner pulls pixels it needs from
 because `rev` increments on every mutation and an unknown or stale `rev` returns `null`; it must be able to refill at
 any time, and a test that flushes every cache every frame must produce identical pixels.
 
-<a id="blit-pipeline"></a>
-**Pixel pipeline of a `blit` — a runner MUST apply these stages in this order.** A blit carries an authored tint
-(`keyTint`, optional), the colour key (`key`), the world tint (`tint`), `alpha` and `blend`:
+<a id="picture-pixels"></a>
+**A composed picture is a texture the core supplies.** A tile bitmap is one picture whose pixels are built from other
+tiles ([tiles.md#tile-bitmap-tbm](../formats/tiles.md#tile-bitmap-tbm)), so a runner MUST NOT compose it, lower it to
+cell blits or decode it from its bytes. When a draw names such an asset — a board image, a battle background, a sprite
+animation frame — the runner gets its straight-RGBA pixels from `engine.picturePixels(key)` and uploads them like any
+other texture; `null` means the core has not decoded that picture, which a runner reports as a deferred command for
+that frame, never as a guess. Lowering a picture to independent cell blits is not equivalent: a later cell that the
+picture's transparent colour keys out must still erase what an earlier cell painted under it, and every tile must be
+clipped to the picture's own `width · 32 × height · 32` bounds.
 
-1. **Authored stage.** When `keyTint` is present, apply it to the sampled texel under the R-15 rule
-   ([tiles.md#shading](../formats/tiles.md#shading)): remap pure white to `245` and pure black to `10` when this
-   tint is non-zero, add it, and clamp once. This is the authored shading a tile bitmap bakes into its cells
-   ([tiles.md#tile-bitmap-tbm](../formats/tiles.md#tile-bitmap-tbm)); a cell is a cell whether the picture was
-   composed first or drawn as cells. The result is the source pixel for the stages below. When `keyTint` is absent the
-   sampled texel itself is the source pixel, which is the case for every board, tileset and image blit.
-2. **Skip and key.** A pixel whose alpha is zero is not drawn. `key` is tested against the stage-1 pixel, so the
-   authored shade is already in the picture when its transparent colour is tested, exactly as it is when the same
-   picture is composed in core.
-3. **World stage.** Apply `tint` — the pre-summed board shading and ambient — to the stage-1 pixel under the R-15
-   rule, as its own stage: the remap and the single clamp belong to this sum, and the previous stage's result is its
-   input.
-4. **Blend.** `normal`, `additive` or `translucent` with `alpha` (AD-3).
+<a id="blit-pipeline"></a>
+**Pixel pipeline of a `blit` — a runner MUST apply these stages in this order.** A blit carries the colour key (`key`),
+the world tint (`tint`), `alpha` and `blend`:
+
+1. **Skip and key.** A pixel whose alpha is zero is not drawn. `key` is tested against the sampled texel exactly; for
+   a composed picture the texel already carries every authored effect, including a tile bitmap cell's own shade, so
+   the transparent colour is tested on the picture's finished pixels ([tiles.md#tile-bitmap-tbm](../formats/tiles.md#tile-bitmap-tbm)).
+2. **World stage.** Apply `tint` — the pre-summed board shading and ambient — to the sampled texel under the R-15 rule
+   ([tiles.md#shading](../formats/tiles.md#shading)): remap pure white to `245` and pure black to `10` when this tint
+   is non-zero, add it, and clamp once.
+3. **Blend.** `normal`, `additive` or `translucent` with `alpha` (AD-3).
 
 The order is part of the agreement bound below: **colour-key exclusion is compared exactly**, so a runner that keys
-before the authored shade, or that merges the two tints into one sum, fails the colour-key vectors.
+after the world tint fails the colour-key vectors.
 
 <a id="surface-read-and-state-hash"></a>
 ## Surface reads, presentation and game state
