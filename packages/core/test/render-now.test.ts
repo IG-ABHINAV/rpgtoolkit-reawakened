@@ -176,16 +176,21 @@ test("text and pixelText with a canvas draw into that canvas, not the screen tex
   equal(game.state().ui.draws.length, 0, "the screen text layer got nothing");
 });
 
-test("canvas cell text with fractional coordinates truncates toward zero before mapping (E-56)", () => {
+test("canvas cell text keeps a fractional cell coordinate and truncates the scaled origin (E-56)", () => {
   const game = boot('rendernow(1)\nc = cnvrendernow\ncolorrgb(255,255,255)\ntext(1.5,5.9,"A",c)\nend()\n');
   const handle = game.state().surfaces.renderNow ?? 0;
   ok(handle > 0);
-  let highRow = 0;
-  let sixthRow = 0;
-  for (let x = 0; x < 20; x += 1) if (canvasPixel(game, handle, x, 5)[3] === 255) highRow += 1;
-  for (let y = 32; y < 40; y += 1) for (let x = 0; x < 8; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) sixthRow += 1;
-  equal(highRow, 0, "trunc(1.5)=1 lands x at cell 0, not half a cell in");
-  ok(sixthRow > 3, `trunc(5.9)=5 puts the glyphs in the fifth cell row (y 32..39), not at (5.9−1)×8 = 39.2 (${sixthRow} pixels)`);
+  let leftHalf = 0;
+  let glyph = 0;
+  for (let y = 39; y < 47; y += 1) {
+    for (let x = 0; x < 4; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) leftHalf += 1;
+    for (let x = 4; x < 12; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) glyph += 1;
+  }
+  equal(leftHalf, 0, "the fractional 1.5 keeps its half cell: x is trunc(0.5 × 8) = 4, not cell 0");
+  ok(glyph > 3, `the glyphs start at x=4, y=trunc(4.9 × 8)=39 (${glyph} pixels)`);
+  let truncatedRow = 0;
+  for (let y = 32; y < 39; y += 1) for (let x = 4; x < 12; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) truncatedRow += 1;
+  equal(truncatedRow, 0, "truncating the cell first would put the glyphs at y=32; the scaled pixel origin is 39");
 });
 
 test("canvas text interleaved with graphics and rendernow has eager and batched pixel parity", () => {

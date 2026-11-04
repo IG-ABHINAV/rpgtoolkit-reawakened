@@ -1370,8 +1370,8 @@ export function createEngine(init: EngineInit): Engine {
     const canvas = args[3] as SurfaceId;
     const value = typeof args[2] === "string" ? args[2] : "";
     const font = state.ui.font;
-    const x = typeof args[0] === "number" ? (cells ? (args[0] - 1) * font.size : args[0]) : 0;
-    const y = typeof args[1] === "number" ? (cells ? (args[1] - 1) * font.size : args[1]) : 0;
+    const x = typeof args[0] === "number" ? (cells ? Math.trunc((args[0] - 1) * font.size) : args[0]) : 0;
+    const y = typeof args[1] === "number" ? (cells ? Math.trunc((args[1] - 1) * font.size) : args[1]) : 0;
     const layout = layoutText(value, font);
     const width = Math.ceil(layout.width);
     const height = Math.ceil(layout.height);
