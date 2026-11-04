@@ -27,7 +27,6 @@ const FACING_BY_VECTOR: Record<string, Facing> = {
 export type InputPhaseOptions = {
   readonly rank?: number;
   readonly pixelMovement?: number;
-  readonly pixelStep?: number;
   /** Replaces the engine-owned menu-key entry; tests use it to observe the key without opening a screen. */
   readonly openMenu?: (state: GameState) => boolean;
   /** Script-facing action corresponding to the configured keyboard menu key. */
@@ -94,13 +93,13 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   if (id === null) return;
   if (!directionBlocked && actions.some((action) => FACING_BY_ACTION[action] !== undefined) && canAcceptDirection(state, id)) {
     const facing = heldFacing(state);
-    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
+    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0);
   }
   // Held-direction continuous movement: while a direction key stays held and the player becomes
   // idle again, queue the next step at the normal cadence (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement).
   if (!directionBlocked && state.input.focused && canAcceptDirection(state, id)) {
     const facing = heldFacing(state);
-    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
+    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0);
   }
   if (board === null || directionBlocked) return;
   // Clicks made during a block never reach here as paths; a button still held when the block ends is polled below.

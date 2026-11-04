@@ -107,9 +107,11 @@ test("collision-solid-stairs-under: blocked, sliding, layers and under facts", (
   const solid = theCase("collision-solid-stairs-under", "tile-solid-blocks");
   deepEqual(events(solid, "blocked").map((e) => e.t), [24, 27]); // the second E step blocks as well; the third never starts
   const slide = theCase("collision-solid-stairs-under", "pixel-glancing-slide");
-  ok(actorAt(slide, 4, "hero")[2] > actorAt(slide, 3, "hero")[2], "one slide turns the step south");
+  // R-54 item 3: the glancing SE step turns south, adopts the slid point and ends there, so x never moves.
+  deepEqual(actorAt(slide, 0, "hero"), ["hero", 112, 67, 0, "waiting", "S"]);
+  deepEqual(events(slide, "movement-complete").map((e) => e.t), [0]);
   const head = theCase("collision-solid-stairs-under", "pixel-head-on-blocks");
-  equal(events(head, "blocked")[0].t, 3);
+  equal(events(head, "blocked")[0].t, 0);
   equal(actorAt(head, 3, "hero")[2], 63); // head-on never changes y
   const stairs = theCase("collision-solid-stairs-under", "stairs-change-layer-and-layers-are-scoped");
   deepEqual(events(stairs, "layer-change").map((e) => [e.from, e.to, e.by]), [[0, 1, "stairs-up"]]);

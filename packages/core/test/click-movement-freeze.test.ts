@@ -60,7 +60,7 @@ function makeState(extra: { programs?: WorldProgram[]; items?: WorldItem[] } = {
   return state;
 }
 
-const inputPhase = inputPhaseRegistration({ pixelMovement: 0, pixelStep: 8 }).run;
+const inputPhase = inputPhaseRegistration({ pixelMovement: 0 }).run;
 
 type Tracker = { readonly run: (state: GameState) => void; readonly events: string[] };
 function movement(): Tracker {

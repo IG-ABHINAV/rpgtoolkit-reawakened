@@ -207,7 +207,7 @@
     },
     {
       "name": "pixel-steps-within-a-tile-roll-once",
-      "note": "Pixel movement: only a change of tile counts as a tile moved; four 8 px steps cross one tile boundary.",
+      "note": "Pixel movement: only a change of tile counts as a tile moved; eight 4 px steps cross one tile boundary.",
       "setup": {
         "board": "field",
         "boards": {
@@ -223,8 +223,7 @@
             "items": [],
             "links": {},
             "threads": [],
-            "battle": {"allowed":true,"type":0,"chances":2,"skill":1,"background":"cave.bkg"},
-            "pixelStep": 8
+            "battle": {"allowed":true,"type":0,"chances":2,"skill":1,"background":"cave.bkg"}
           }
         },
         "players": [{"id":"hero","x":48,"y":63,"layer":0,"speed":0,"facing":"S","controlled":true}],
@@ -234,22 +233,22 @@
         "rng": [1]
       },
       "script": [
-        {"t":0,"op":"push","actor":"hero","dirs":"E,E,E,E"}
+        {"t":0,"op":"push","actor":"hero","dirs":"E,E,E,E,E,E,E,E"}
       ],
-      "ticks": 30,
+      "ticks": 40,
       "boot": [
         {"e":"board-install","board":"field"},
         {"e":"hydrate","id":"hero","drawId":0,"index":0,"slot":0,"visible":true},
         {"e":"threads-started","ids":[]}
       ],
       "expect": [
-        {"t":0,"a":[["hero",52,63,0,"moving","E"]]},
+        {"t":0,"a":[["hero",52,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":1,"a":[["hero",56,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
-        {"t":2,"a":[["hero",60,63,0,"moving","E"]]},
+        {"t":2,"a":[["hero",60,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":3,"a":[["hero",64,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"tile-moved","cell":[2,1]},{"e":"rng-draw","n":2,"value":1}]},
-        {"t":4,"a":[["hero",68,63,0,"moving","E"]]},
+        {"t":4,"a":[["hero",68,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":5,"a":[["hero",72,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
-        {"t":6,"a":[["hero",76,63,0,"moving","E"]]},
+        {"t":6,"a":[["hero",76,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":7,"a":[["hero",80,63,0,"waiting","E"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
         {"t":8,"a":[["hero",80,63,0,"waiting","E"]]},
         {"t":9,"a":[["hero",80,63,0,"waiting","E"]]},
@@ -272,7 +271,17 @@
         {"t":26,"a":[["hero",80,63,0,"waiting","E"]]},
         {"t":27,"a":[["hero",80,63,0,"waiting","E"]]},
         {"t":28,"a":[["hero",80,63,0,"waiting","E"]]},
-        {"t":29,"a":[["hero",80,63,0,"waiting","E"]]}
+        {"t":29,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":30,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":31,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":32,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":33,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":34,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":35,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":36,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":37,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":38,"a":[["hero",80,63,0,"waiting","E"]]},
+        {"t":39,"a":[["hero",80,63,0,"waiting","E"]]}
       ]
     },
     {

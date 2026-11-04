@@ -433,19 +433,10 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
         const sx = fixed(actor.x) + vector[0] * amount;
         const sy = fixed(actor.y) + vector[1] * amount;
         if (free(section, actor, board, sx, sy)) {
-          let moved = applyPosition(actor, sx, sy, FACING[candidate] ?? actor.facing, board, tick, sink);
-          const vx = fixed(active.target.x) - fixed(active.start.x);
-          const vy = fixed(active.target.y) - fixed(active.start.y);
-          const passed = (fixed(active.target.x) - sx) * vx + (fixed(active.target.y) - sy) * vy <= 0;
-          const remainingDx = fixed(active.target.x) - sx;
-          const remainingDy = fixed(active.target.y) - sy;
-          const done = passed || Math.sqrt(remainingDx * remainingDx + remainingDy * remainingDy) <= ADVANCE;
-          if (done) {
-            moved = finishActor(moved, active, false, tpa, tick, sink);
-          } else {
-            moved = { ...moved, movement: { ...cloneMovement(moved.movement), active: { ...active, cadence: tpa - 1 } }, state: "moving" };
-          }
-          replaceActor(section, moved);
+          // R-54 item 3: the slide *turns the step*, so the slid point becomes the step's target and the
+          // step ends on arriving there (one slide per step, as the rotated target is now reached).
+          const moved = applyPosition(actor, sx, sy, FACING[candidate] ?? actor.facing, board, tick, sink);
+          replaceActor(section, finishActor(moved, active, false, tpa, tick, sink));
           return;
         }
       }
@@ -505,12 +496,16 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
   replaceActor(section, moved);
 }
 
+/** One direction step's length in board pixels (E-23, ruled 2026-11-04): 32 px in tile movement, 4 px in either pixel mode. */
+const STEP_TILE = 32;
+const STEP_PIXEL = 4;
+
 /** Convert a direction command to one deterministic target and enqueue it. */
-export function enqueueDirectionMove(section: SpritesSection, id: string, facing: Facing, pixelMovement = 0, pixelStep = 8, clear = false): boolean {
+export function enqueueDirectionMove(section: SpritesSection, id: string, facing: Facing, pixelMovement = 0, clear = false): boolean {
   const actor = allActors(section).find((value) => value.id === id);
   if (actor === undefined) return false;
   const vector = directionVector(facing);
-  const distance = pixelMovement === 0 ? 32 : pixelMovement === 2 ? 1 : pixelStep;
+  const distance = pixelMovement === 0 ? STEP_TILE : STEP_PIXEL;
   return updateActor(section, id, (value) => {
     const previous = value.queue.moves[value.queue.moves.length - 1];
     const origin = !clear && previous !== undefined ? previous.target : { x: value.x, y: value.y };
@@ -578,9 +573,9 @@ export const spriteMovementRegistration = movementPhaseRegistration;
 export { ticksPerAdvance };
 
 /** Build a direction move without mutating a section, useful for input owners. */
-export function directionMove(actor: SpriteActor, facing: Facing, pixelMovement = 0, pixelStep = 8): SpriteMove {
+export function directionMove(actor: SpriteActor, facing: Facing, pixelMovement = 0): SpriteMove {
   const vector = directionVector(facing);
-  const distance = pixelMovement === 0 ? 32 : pixelMovement === 2 ? 1 : pixelStep;
+  const distance = pixelMovement === 0 ? STEP_TILE : STEP_PIXEL;
   return { source: "direction", target: { x: actor.x + vector[0] * distance, y: actor.y + vector[1] * distance }, facing };
 }
 

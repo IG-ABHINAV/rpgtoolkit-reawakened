@@ -66,7 +66,7 @@ function makeState(allowDiagonals = false): GameState {
   return state;
 }
 
-const runInputPhase = inputPhaseRegistration({ pixelMovement: 0, pixelStep: 8 }).run;
+const runInputPhase = inputPhaseRegistration({ pixelMovement: 0 }).run;
 const runMovement = movementPhaseRegistration().run;
 
 function tick(state: GameState, t: number, events: InputEv[] = []): void {

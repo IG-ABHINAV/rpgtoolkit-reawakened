@@ -531,6 +531,8 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
+          # Keep userdata bounded on hosted runners; the demo APK still runs the full proof.
+          disk-size: 2048M
           emulator-options: -no-window -no-audio -no-boot-anim -camera-back none
           disable-animations: true
           script: pnpm mobile:proof

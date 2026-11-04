@@ -115,7 +115,7 @@ type MovementFixtureCase = {
   readonly name: string;
   readonly setup: {
     readonly board: string;
-    readonly boards: Record<string, { readonly w: number; readonly h: number; readonly gameSpeed: number; readonly pixelMovement: number; readonly pixelStep?: number; readonly vectors: readonly { readonly id: string; readonly type: string; readonly layer: number; readonly closed: boolean; readonly points: readonly [number, number][]; readonly attributes?: number; readonly toLayer?: number }[]; readonly items?: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string }[] }>;
+    readonly boards: Record<string, { readonly w: number; readonly h: number; readonly gameSpeed: number; readonly pixelMovement: number; readonly vectors: readonly { readonly id: string; readonly type: string; readonly layer: number; readonly closed: boolean; readonly points: readonly [number, number][]; readonly attributes?: number; readonly toLayer?: number }[]; readonly items?: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string }[] }>;
     readonly players: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string; readonly controlled?: boolean }[];
   };
   readonly script: readonly { readonly t: number; readonly op: string; readonly actor?: string; readonly dirs?: string; readonly dir?: string; readonly clear?: boolean }[];
@@ -163,9 +163,9 @@ test("owned authored movement scenes reproduce every in-scope case through core"
         const inputEvents: MovementEvent[] = [];
         for (const command of byTick.get(tick) ?? []) {
           if (command.actor !== undefined && command.dirs !== undefined) {
-            for (const direction of command.dirs.split(",")) enqueueDirectionMove(sprites, command.actor, direction as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement, source.pixelStep ?? 8, command.clear === true);
+            for (const direction of command.dirs.split(",")) enqueueDirectionMove(sprites, command.actor, direction as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement, command.clear === true);
           } else if (command.actor === undefined && command.dir !== undefined) {
-            enqueueDirectionMove(sprites, "hero", command.dir as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement, source.pixelStep ?? 8);
+            enqueueDirectionMove(sprites, "hero", command.dir as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement);
             inputEvents.push({ type: "key-press", tick, direction: command.dir as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW" });
           }
         }
