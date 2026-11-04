@@ -257,7 +257,7 @@ The TK engineer labelled the 3.1 behaviour certain from source, not run-confirme
 
 | Section | Reset action |
 |---|---|
-| `engine` | Enter reset/startup control state, clear pending lifecycle and quit state, then install plugins and run startup. |
+| `engine` | Enter reset/startup control state and clear pending lifecycle state, then install plugins and run startup. A host quit already requested by this session remains pending. |
 | `world` | Drop active board/runtime objects and reload the main-file project/board during startup. |
 | `sprites` | Clear players/items and recreate the first player from `initChar`; startup additions then apply. |
 | `party`, `inventory` | Clear to new-game defaults; startup/menu may add members, stats and items. |
