@@ -24,6 +24,8 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "n
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { quitWhenLastWindowCloses } from "./lifecycle.ts";
+
 /** The privileged scheme. Registered at module load, which is before `app.ready` by construction. */
 export const APP_SCHEME = "app";
 
@@ -178,13 +180,9 @@ registerIpc();
 app.whenReady().then(() => {
   serveAppProtocol();
   createWindow();
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
 });
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin" || process.argv.includes("--quit-after")) app.quit();
-});
+// One game, one window: closing it ends the player, so no `activate` handler recreates a window on macOS.
+quitWhenLastWindowCloses(app);
 
 export { blobRoot, packageArgument, serveRoot, pathToFileURL };

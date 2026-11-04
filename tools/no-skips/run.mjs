@@ -32,6 +32,7 @@ export const GROUPS = Object.freeze([
   "render-webgl2",
   "runner-harness",
   "runner-headless",
+  "runner-desktop",
   "runner-mobile",
   "runner-web",
   "script-tools",
