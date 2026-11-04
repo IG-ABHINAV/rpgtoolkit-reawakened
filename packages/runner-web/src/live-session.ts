@@ -80,6 +80,7 @@ type LiveSessionBase = {
   readonly decode?: (outputRateHz: number) => DecodeAhead | null;
   /** Called whenever `loadState()` changes, so a page can show a spinner without polling the session. */
   readonly onLoadChange?: () => void;
+  readonly onQuit?: () => void;
 };
 export type LiveSessionOptions = LiveSessionBase & (
   /** An interactive session over a validated package source: assets arrive on demand through the tiered source. */
@@ -275,6 +276,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   let currentStateHash = "";
   const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
   let closed = false;
+  let quitNotified = false;
   let cueChain: Promise<void> = Promise.resolve();
   let processing: Promise<void> = Promise.resolve();
 
@@ -302,17 +304,32 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     onEnded: (cueId) => audioEvents.push({ tick: currentTick, event: { kind: "audio.ended", cueId } }),
   });
   if (audioContext.state !== "running") player.lock();
-  audioContext.addEventListener("statechange", () => {
+  const onAudioStateChange = (): void => {
     if (audioContext.state === "running") player.unlock(currentTick);
-  });
+  };
+  audioContext.addEventListener("statechange", onAudioStateChange);
   const unlockAudio = (): void => {
     void audioContext.resume().then(() => { if (audioContext.state === "running") player.unlock(currentTick); });
   };
   window.addEventListener("pointerdown", unlockAudio);
   window.addEventListener("keydown", unlockAudio);
 
+  function close(): void {
+    if (closed) return;
+    closed = true;
+    assets.close();
+    decode?.close();
+    window.removeEventListener("pointerdown", unlockAudio);
+    window.removeEventListener("keydown", unlockAudio);
+    audioContext.removeEventListener("statechange", onAudioStateChange);
+    graph.disconnect();
+    void audioContext.close();
+    renderer.dispose();
+  }
+
 
   const hostReply = async (request: RunnerRequest, tick: number): Promise<InputRecord | null> => {
+    if (closed) return null;
     switch (request.kind) {
       case "asset": return { tick, event: { kind: "asset", reqId: request.reqId, bytes: await assets.request(request.key) } };
       case "playVideo": return { tick, event: { kind: "video.ended", reqId: request.reqId } };
@@ -337,7 +354,11 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       }
       case "extension.call": return { tick, event: { kind: "extension.result", reqId: request.reqId, result: null } };
       case "prefetch": assets.hint(request.hints); return null;
-      case "quit": case "openUrl": return null;
+      case "quit":
+        close();
+        quitNotified = true;
+        return null;
+      case "openUrl": return null;
     }
   };
 
@@ -377,6 +398,11 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       // and the later blocking request joins it. Asset requests still go out together (the engine is blocked on all
       // of them); replies are awaited in report order so input records stay in the order the engine expects.
       const replies = await dispatchRequests(report.requests, report.tickAfter, hostReply);
+      if (quitNotified) {
+        quitNotified = false;
+        options.onQuit?.();
+        return;
+      }
       if (report.loading || replies.length > 0) { inputs = replies; continue; }
       if (ticks > 0 && report.ticksRun > 0) continue;
       return;
@@ -395,16 +421,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     diagnostics: () => [...sessionDiagnostics],
     engine,
     gameId,
-    close() {
-      closed = true;
-      assets.close();
-      decode?.close();
-      window.removeEventListener("pointerdown", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
-      graph.disconnect();
-      void audioContext.close();
-      renderer.dispose();
-    },
+    close,
     tick: () => currentTick,
     stateHash: () => currentStateHash,
     viewSize: () => ({ width: viewport.width, height: viewport.height }),
