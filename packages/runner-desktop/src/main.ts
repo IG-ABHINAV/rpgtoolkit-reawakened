@@ -24,7 +24,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "n
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { quitWhenLastWindowCloses } from "./lifecycle.ts";
+import { quitPlayer, quitWhenLastWindowCloses } from "./lifecycle.ts";
 
 /** The privileged scheme. Registered at module load, which is before `app.ready` by construction. */
 export const APP_SCHEME = "app";
@@ -88,6 +88,10 @@ function registerIpc(): void {
     } catch {
       return null;
     }
+  });
+  ipcMain.handle("desktop:quit", (): boolean => {
+    quitPlayer(app);
+    return true;
   });
 
   ipcMain.handle("desktop:blob.read", (_event, area: "saves" | "files", gameId: string, path: string): Uint8Array | null => {

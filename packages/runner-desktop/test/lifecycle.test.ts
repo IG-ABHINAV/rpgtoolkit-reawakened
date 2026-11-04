@@ -1,6 +1,6 @@
 import { equal } from "node:assert/strict";
 import { test } from "node:test";
-import { quitWhenLastWindowCloses, type PlayerApp } from "../src/lifecycle.ts";
+import { quitPlayer, quitWhenLastWindowCloses, type PlayerApp } from "../src/lifecycle.ts";
 
 /** A fake Electron `app`: it records the listeners and counts quits. */
 function fakeApp() {
@@ -62,4 +62,10 @@ test("the last window closing quits the player on every platform", () => {
       equal(host.quits, 1, platform);
     });
   }
+});
+
+test("a renderer quit request asks Electron to close the player", () => {
+  const host = fakeApp();
+  quitPlayer(host.app);
+  equal(host.quits, 1, "the app quit path is invoked");
 });

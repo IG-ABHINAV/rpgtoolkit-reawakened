@@ -164,7 +164,8 @@ async function loadPackage(params: URLSearchParams, report: HTMLPreElement, pack
  * the page's service-worker scope in Chromium and fails when the network is gone; fetching the bundle through the
  * controlled page hits the service worker's precache and runs identically online and offline.
  */
-async function prepareDecode(): Promise<(outputRateHz: number) => DecodeAhead | null> {
+// A worker factory retained across restarts, with one page-lifetime object URL.
+async function prepareDecode(): Promise<{ readonly create: (outputRateHz: number) => DecodeAhead | null; readonly dispose: () => void }> {
   let blobUrl: string | null = null;
   try {
     const response = await fetch(DECODE_WORKER_URL);
@@ -172,17 +173,21 @@ async function prepareDecode(): Promise<(outputRateHz: number) => DecodeAhead | 
   } catch {
     blobUrl = null;
   }
-  return (outputRateHz: number): DecodeAhead | null => {
-    try {
-      const decode = createDecodeAhead({ outputRateHz, ...(blobUrl === null ? {} : { workerUrl: blobUrl }) });
-      window.__decodeAhead = decode;
-      if (blobUrl !== null) window.addEventListener("pagehide", () => URL.revokeObjectURL(blobUrl!), { once: true });
-      return decode;
-    } catch (error) {
+  return {
+    create(outputRateHz) {
+      try {
+        const decode = createDecodeAhead({ outputRateHz, ...(blobUrl === null ? {} : { workerUrl: blobUrl }) });
+        window.__decodeAhead = decode;
+        return decode;
+      } catch (error) {
+        window.__decodeAhead = { unavailable: String(error) };
+        return null;
+      }
+    },
+    dispose() {
       if (blobUrl !== null) URL.revokeObjectURL(blobUrl);
-      window.__decodeAhead = { unavailable: String(error) };
-      return null;
-    }
+      blobUrl = null;
+    },
   };
 }
 
@@ -193,7 +198,8 @@ async function bootParityPackage(context: WebGL2RenderingContext, report: HTMLPr
   const { controller, source, bundled } = await loadPackage(params, report, pack);
   const clock = window.__playerClock ?? ((): number => performance.now());
   const decode = await prepareDecode();
-  const session = await createLiveSession({ planText, gameName: game, source, bundled, gl: context, clock, decode });
+  window.addEventListener("pagehide", decode.dispose, { once: true });
+  const session = await createLiveSession({ planText, gameName: game, source, bundled, gl: context, clock, decode: decode.create });
   window.__session = session;
   await runParity(session, report, game, pack, () => ({ load: controller.state(), assets: session.loadState(), audio: session.audioState() }));
 }
@@ -211,31 +217,105 @@ async function bootInteractive(
   if (blobs !== null) window.__blobHost = blobs;
   const clock = window.__playerClock ?? ((): number => performance.now());
   const spinner = document.querySelector<HTMLElement>("#spinner");
-  let overlay: StallOverlay | null = null;
   const decode = await prepareDecode();
-  const session = await createLiveSession({
-    interactive: true,
-    source,
-    bundled,
-    gl: context,
-    clock,
-    ...(blobs === null ? {} : { blobs }),
-    decode,
-    onLoadChange: () => overlay?.update(),
-  });
-  window.__session = session;
-  if (spinner !== null) overlay = createStallOverlay({ element: spinner, state: session.loadState, clock });
-  const view = session.viewSize();
-  const fit = (): void => {
-    fitCanvas(screen, view.width, view.height, {
-      width: window.innerWidth,
-      height: Math.max(80, window.innerHeight - report.offsetHeight - 24),
-    });
+  let stopped = false;
+  let generation = 0;
+  let activeSession: LiveSession | null = null;
+  let disposeLoop: (() => void) | null = null;
+  let fit: (() => void) | null = null;
+
+  const pagehide = (): void => {
+    if (stopped) return;
+    stopped = true;
+    generation += 1;
+    const cleanup = disposeLoop;
+    disposeLoop = null;
+    const session = activeSession;
+    activeSession = null;
+    if (cleanup !== null) cleanup();
+    else session?.close();
+    if (fit !== null) window.removeEventListener("resize", fit);
+    decode.dispose();
   };
-  fit();
-  window.addEventListener("resize", fit);
-  window.addEventListener("pagehide", () => window.removeEventListener("resize", fit), { once: true });
-  startLiveLoop(session, screen, report, overlay, controller.state);
+  window.addEventListener("pagehide", pagehide, { once: true });
+
+  const launch = async (): Promise<void> => {
+    if (stopped) return;
+    const sessionGeneration = ++generation;
+    let session: LiveSession | null = null;
+    let quitBeforeReady = false;
+    let overlay: StallOverlay | null = null;
+    try {
+      const created = await createLiveSession({
+        interactive: true,
+        source,
+        bundled,
+        gl: context,
+        clock,
+        ...(blobs === null ? {} : { blobs }),
+        decode: decode.create,
+        onLoadChange: () => {
+          if (!stopped && sessionGeneration === generation) overlay?.update();
+        },
+        onQuit: () => {
+          if (stopped || sessionGeneration !== generation) return;
+          if (session === null) {
+            quitBeforeReady = true;
+            return;
+          }
+          restart(sessionGeneration, session);
+        },
+      });
+      session = created;
+      if (stopped || sessionGeneration !== generation) {
+        created.close();
+        return;
+      }
+      activeSession = created;
+      window.__session = created;
+      if (quitBeforeReady) {
+        restart(sessionGeneration, created);
+        return;
+      }
+      if (spinner !== null) overlay = createStallOverlay({ element: spinner, state: created.loadState, clock });
+      const view = created.viewSize();
+      if (fit === null) {
+        fit = (): void => {
+          fitCanvas(screen, view.width, view.height, {
+            width: window.innerWidth,
+            height: Math.max(80, window.innerHeight - report.offsetHeight - 24),
+          });
+        };
+        window.addEventListener("resize", fit);
+      }
+      fit();
+      disposeLoop = startLiveLoop(created, screen, report, overlay, controller.state);
+    } catch (error) {
+      if (stopped || sessionGeneration !== generation) return;
+      activeSession?.close();
+      activeSession = null;
+      delete window.__session;
+      window.__live = { tick: 0, stateHash: "", drawHash: "", board: null, player: null, error: String(error) };
+      report.textContent = `player: ${String(error)}`;
+    }
+  };
+
+  const restart = (sessionGeneration: number, session: LiveSession): void => {
+    if (stopped || sessionGeneration !== generation || activeSession !== session) return;
+    generation += 1;
+    const cleanup = disposeLoop;
+    disposeLoop = null;
+    activeSession = null;
+    delete window.__session;
+    delete window.__live;
+    delete window.__report;
+    report.textContent = "restarting game…";
+    if (cleanup !== null) cleanup();
+    else session.close();
+    void launch();
+  };
+
+  void launch();
 }
 
 async function runParity(session: LiveSession, report: HTMLPreElement, game: string, pack: string | null, extra: () => object = () => ({})): Promise<void> {
@@ -274,12 +354,13 @@ function startLiveLoop(
   report: HTMLPreElement,
   overlay: StallOverlay | null,
   loadState: () => LoadState,
-): void {
+): () => void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
   let disposed = false;
   let advancing = false;
+  let frameId: number | null = null;
   let pending: InputRecord[] = [];
   const viewSize = session.viewSize();
   const pointer = (event: PointerEvent): void => {
@@ -298,6 +379,7 @@ function startLiveLoop(
   const onBlur = (): void => focus("lost");
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
+  const onContextMenu = (event: MouseEvent): void => event.preventDefault();
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
@@ -306,13 +388,14 @@ function startLiveLoop(
   canvas.addEventListener("pointerdown", pointer);
   canvas.addEventListener("pointermove", pointer);
   canvas.addEventListener("pointerup", pointer);
-  canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+  canvas.addEventListener("contextmenu", onContextMenu);
   // The spinner is driven by its own timer as well as by each frame, so it appears even if the browser throttles
   // animation frames, and never from the pending `advance`, which cannot resolve while the engine waits on an asset.
   const spinnerTimer = overlay === null ? null : window.setInterval(() => overlay.update(), 100);
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
+    if (frameId !== null) window.cancelAnimationFrame(frameId);
     if (spinnerTimer !== null) window.clearInterval(spinnerTimer);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
@@ -322,15 +405,16 @@ function startLiveLoop(
     canvas.removeEventListener("pointerdown", pointer);
     canvas.removeEventListener("pointermove", pointer);
     canvas.removeEventListener("pointerup", pointer);
+    canvas.removeEventListener("contextmenu", onContextMenu);
     session.close();
   };
-  window.addEventListener("pagehide", dispose, { once: true });
   const summary = (spinner: boolean): NonNullable<LiveReport["stalls"]> => {
     const state = session.loadState();
     const hinted = state.stalls.filter((stall) => stall.hinted).length;
     return { count: state.stalls.length, hinted, unhinted: state.stalls.length - hinted, blocking: state.blocking?.key ?? null, spinner };
   };
   const frame = (now: number): void => {
+    frameId = null;
     if (disposed) return;
     const elapsed = Math.max(0, now - previous);
     previous = now;
@@ -372,6 +456,7 @@ function startLiveLoop(
         ].join("\n");
       }).catch((error: unknown) => {
         advancing = false;
+        if (disposed) return;
         window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };
         report.textContent = `player: ${String(error)}`;
         dispose();
@@ -379,7 +464,8 @@ function startLiveLoop(
     } else if (window.__live !== undefined) {
       window.__live = { ...window.__live, stalls: summary(spinner) };
     }
-    requestAnimationFrame(frame);
+    if (!disposed) frameId = window.requestAnimationFrame(frame);
   };
-  requestAnimationFrame(frame);
+  frameId = window.requestAnimationFrame(frame);
+  return dispose;
 }

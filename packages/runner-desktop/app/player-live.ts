@@ -8,6 +8,7 @@ type Host = {
   readBlob(area: "saves" | "files", gameId: string, path: string): Promise<Uint8Array | null>;
   writeBlob(area: "saves" | "files", gameId: string, path: string, bytes: Uint8Array): Promise<boolean>;
   listBlobs(area: "saves" | "files", gameId: string): Promise<string[]>;
+  quit(): Promise<boolean>;
 };
 declare global { interface Window { desktop?: Host; __live?: { tick: number; stateHash: string; drawHash: string; board: string | null; player: { x: number; y: number } | null; error?: string } } }
 
@@ -47,6 +48,7 @@ async function start(): Promise<void> {
       write: (area, gameId, path, bytes) => host.writeBlob(area, gameId, path, bytes),
       list: (area, gameId) => host.listBlobs(area, gameId),
     },
+    onQuit: () => { void host.quit(); },
   });
   const stopFitting = observeViewport(canvas, viewport, session.viewSize());
   run(session, canvas, status, stopFitting);

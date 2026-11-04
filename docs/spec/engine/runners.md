@@ -30,6 +30,8 @@ A runner is everything outside `core` that makes a game visible and audible. It 
 The core never waits on a runner except through a blocking request, never reads anything back except an AD-14 input, and
 never learns a runner's name. Everything a runner sends the core is an input `{ tick, event }`; everything the core
 sends a runner is plain data — structured-cloneable, fixed keys, absent values `null` (AD-1, AD-14).
+<a id="quit-request-order"></a>
+**Quit and blob-write ordering (OWNER; ruled 2026-11-02).** Quit does not cancel a blob write issued before it. The core and runner MUST preserve each write's position relative to quit even when a game save is not serialized until later: the core MUST settle post-quit writes as failed without publishing them, and MUST publish a pre-quit game save only after the in-flight requests that affect its snapshot have settled. The runner MUST complete every `saveBlob` request before quit in `TickReport.requests` before disposing session resources or notifying `onQuit`, and MUST NOT dispatch writes after quit. The core MUST order writes on the appropriate side of quit by when the script requested them, not when deferred request bytes become available; it does not order two writes on the same side of quit.
 
 <a id="runner-may-decide"></a>
 ## What a runner may decide, and what it may not

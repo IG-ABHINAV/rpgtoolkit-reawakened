@@ -28,3 +28,8 @@ export interface PlayerApp {
 export function quitWhenLastWindowCloses(app: PlayerApp): void {
   app.on("window-all-closed", () => app.quit());
 }
+
+/** Quit the desktop player from a renderer-requested game quit using Electron's ordered teardown. */
+export function quitPlayer(app: PlayerApp): void {
+  app.quit();
+}
