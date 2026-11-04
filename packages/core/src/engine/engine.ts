@@ -1026,6 +1026,7 @@ export function createEngine(init: EngineInit): Engine {
         cancel: mainFile?.cursorCancelSound ?? "",
       }),
     );
+    init.spriteRuntime?.bindItemThreadCleanup?.((thread) => discardMenuFrames(nextServices, thread));
     media.activateDeclared();
     if (runStartups) {
       nextServices.setPackageStartup(true);

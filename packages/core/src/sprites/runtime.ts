@@ -1,6 +1,6 @@
 import type { ActorId } from "../actors/model.ts";
 import type { ProgramRef } from "../script/program.ts";
-import { endItemThreads, findThread, startThread, type VmState } from "../script/state.ts";
+import { endItemThreads, findThread, startThread, type Thread, type VmState } from "../script/state.ts";
 import type { CameraPoint, CameraTarget } from "../ports/camera.ts";
 import type { PlayerPresencePort } from "../ports/startup.ts";
 import type { SpriteDraw } from "../render/compose.ts";
@@ -31,6 +31,8 @@ export type SpriteRuntimeOptions = {
   readonly programRef?: SpriteThreadResolver | null;
 };
 
+export type ItemThreadCleanup = (thread: Thread) => void;
+
 export type SpriteEffect = {
   readonly name: "createplayer" | "placeplayer" | "removeitem" | "showitem" | "hideitem";
   readonly args: readonly (string | number)[];
@@ -52,9 +54,15 @@ function startsItemThread(actor: SpriteActor, vm: VmState | undefined, resolver:
   return thread.id;
 }
 
-function stopItemThread(actor: SpriteActor, vm: VmState | undefined): void {
+function stopItemThread(actor: SpriteActor, vm: VmState | undefined, cleanup?: ItemThreadCleanup): void {
   if (vm === undefined) return;
-  endItemThreads(vm, itemKey(actor));
+  const source = itemKey(actor);
+  if (cleanup !== undefined) {
+    for (const thread of [...vm.threads]) {
+      if (thread.kind === "item" && thread.source === source) cleanup(thread);
+    }
+  }
+  endItemThreads(vm, source);
 }
 
 function withItemThread(actor: SpriteActor, thread: number | null): SpriteActor {
@@ -134,11 +142,11 @@ export function placeSelectedPlayer(
 }
 
 /** Change item visibility and own its multitask thread lifecycle. */
-export function setItemVisible(section: SpritesSection, id: string | number, visible: boolean, vm?: VmState, resolver?: SpriteThreadResolver | null): boolean {
+export function setItemVisible(section: SpritesSection, id: string | number, visible: boolean, vm?: VmState, resolver?: SpriteThreadResolver | null, cleanup?: ItemThreadCleanup): boolean {
   const index = itemById(section, id);
   const item = section.items[index];
   if (item === undefined || item.visible === visible) return item !== undefined;
-  if (!visible) stopItemThread(item, vm);
+  if (!visible) stopItemThread(item, vm, cleanup);
   const replacement = updateItem(section, index, (value) => ({ ...value, visible, state: visible ? "waiting" : "hidden", multitaskThread: null }));
   if (visible && replacement !== null) {
     const thread = startsItemThread(replacement, vm, resolver);
@@ -148,8 +156,8 @@ export function setItemVisible(section: SpritesSection, id: string | number, vis
 }
 
 /** Remove an item from the board while retaining its compact handle for save/draw determinism. */
-export function removeItem(section: SpritesSection, id: string | number, vm?: VmState): boolean {
-  return setItemVisible(section, id, false, vm, null);
+export function removeItem(section: SpritesSection, id: string | number, vm?: VmState, cleanup?: ItemThreadCleanup): boolean {
+  return setItemVisible(section, id, false, vm, null, cleanup);
 }
 
 /** Select a player by stable id; no roster data is copied into the sprites section. */
@@ -304,6 +312,8 @@ export type SpriteRuntime = CameraTarget & PlayerPresencePort & {
   showItem(id: string | number): boolean;
   hideItem(id: string | number): boolean;
   removeItem(id: string | number): boolean;
+  /** Bind engine-owned cleanup for menu frames before an item thread is stopped. */
+  bindItemThreadCleanup?(cleanup: ItemThreadCleanup): void;
   selectPlayer(id: string): boolean;
   selectActor(actorId: ActorId | null): boolean;
   changePlayerGraphics(actorId: ActorId, file: string, character: Character): boolean;
@@ -317,10 +327,12 @@ export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteR
   const section = options.section ?? createSpritesSection();
   const vm = options.vm;
   const resolver = options.programRef;
+  let itemThreadCleanup: ItemThreadCleanup | undefined;
   let board: WorldBoard | null = null;
   const runtime: SpriteRuntime = {
     section,
     vm,
+    bindItemThreadCleanup(cleanup) { itemThreadCleanup = cleanup; },
     hydrate(input) {
       board = input.board;
       return hydrateSprites(input, section);
@@ -355,8 +367,8 @@ export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteR
       sizeX = board?.sizeX ?? 0,
     ) { return placeSelectedPlayer(section, x, y, layer, unit, layout, sizeX); },
     showItem(id) { return setItemVisible(section, id, true, vm, resolver); },
-    hideItem(id) { return setItemVisible(section, id, false, vm, resolver); },
-    removeItem(id) { return removeItem(section, id, vm); },
+    hideItem(id) { return setItemVisible(section, id, false, vm, resolver, itemThreadCleanup); },
+    removeItem(id) { return removeItem(section, id, vm, itemThreadCleanup); },
     selectPlayer(id) { return selectPlayer(section, id); },
     selectActor(actorId) { return selectActor(section, actorId); },
     changePlayerGraphics(actorId, file, character) { return board === null ? false : changePlayerGraphics(section, board, actorId, file, character); },
