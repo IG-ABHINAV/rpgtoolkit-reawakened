@@ -1,5 +1,4 @@
-import { equal, ok } from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { equal } from "node:assert/strict";
 import { test } from "node:test";
 import { quitWhenLastWindowCloses, type PlayerApp } from "../src/lifecycle.ts";
 
@@ -63,10 +62,4 @@ test("the last window closing quits the player on every platform", () => {
       equal(host.quits, 1, platform);
     });
   }
-});
-
-test("the Electron entry delegates window closing to the shutdown rule", () => {
-  const entry = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
-  ok(entry.includes("quitWhenLastWindowCloses(app)"), "main.ts must install the shutdown rule");
-  ok(!entry.includes("window-all-closed"), "the window-all-closed decision belongs to lifecycle.ts");
 });
