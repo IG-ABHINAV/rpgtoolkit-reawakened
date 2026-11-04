@@ -93,7 +93,7 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   // E-133: a held direction replaces a queued route only between steps; an active step is never interrupted.
   if (!directionBlocked && state.input.focused && canPreemptDirection(state, id)) {
     const facing = heldFacing(state);
-    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, true);
+    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, true, true);
   }
   if (board === null || directionBlocked) return;
   // Clicks made during a block never reach here as paths; a button still held when the block ends is polled below.

@@ -301,6 +301,19 @@ test("holding a direction key moves the player continuously, not one tile", () =
   ok(endX - startX >= 64, `expected continuous movement over at least 64 px, moved ${endX - startX} px`);
 });
 
+test("a held direction preserves movement cadence across step boundaries", () => {
+  const state = makeState();
+  tick(state, 0, [key("ArrowRight", true)]);
+  for (let t = 1; t <= 21; t += 1) tick(state, t);
+  equal(state.sprites.players[0]!.x, 80, "the first step completes");
+  tick(state, 22);
+  equal(state.sprites.players[0]!.x, 80, "the next step observes the existing advance interval");
+  tick(state, 23);
+  equal(state.sprites.players[0]!.x, 80);
+  tick(state, 24);
+  equal(state.sprites.players[0]!.x, 84, "the next advance occurs at the normal cadence");
+});
+
 test("a single tapped direction key moves exactly one tile", () => {
   const state = makeState();
   const startX = state.sprites.players[0]!.x;
