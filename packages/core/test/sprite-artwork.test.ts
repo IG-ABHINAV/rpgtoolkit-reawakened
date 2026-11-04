@@ -9,6 +9,8 @@ import { test } from "node:test";
 import { deepEqual, equal, ok } from "node:assert/strict";
 import {
   ANIMATION_MAGIC,
+  TILE_BITMAP_MAGIC,
+  assetKey,
   createAssetIndex,
   createEmptyBoard,
   createEmptyCharacter,
@@ -20,6 +22,7 @@ import {
   writeBoard,
   writeCharacter,
   writeMainFile,
+  writeTileBitmap,
   writeTileset,
   createEmptyMainFile,
   type AssetIndex,
@@ -59,30 +62,45 @@ function tilesetBytes(): Uint8Array {
   }));
 }
 
-/** A two-frame, 32x32 walk animation whose frames name tileset cells. */
-function walkAnimationBytes(): Uint8Array {
+/** A two-frame walk animation whose frames name tileset cells; the header may be wider than the cell it names. */
+function walkAnimationBytes(width = 32, height = 32, images: readonly [string, string] = ["hero.tst1", "hero.tst2"], transparent = { r: 255, g: 255, b: 255 }): Uint8Array {
   return unwrap(writeAnimation({
     magic: ANIMATION_MAGIC,
     major: 2,
     minor: 3,
-    width: 32,
-    height: 32,
-    frames: [
-      { image: "hero.tst1", transparent: { r: 255, g: 255, b: 255 }, sound: "" },
-      { image: "hero.tst2", transparent: { r: 255, g: 255, b: 255 }, sound: "" },
-    ],
+    width,
+    height,
+    frames: images.map((image) => ({ image, transparent, sound: "" })),
     delay: 0.15,
     residue: new Uint8Array(),
   }));
 }
 
+/** A one-cell tile bitmap picture whose cell is the tileset's first tile (docs/spec/formats/tiles.md#tile-bitmap-tbm). */
+function tileBitmapBytes(): Uint8Array {
+  return unwrap(writeTileBitmap({
+    magic: TILE_BITMAP_MAGIC,
+    major: 3,
+    minor: 0,
+    width: 1,
+    height: 1,
+    cells: [
+      { tile: "hero.tst1", r: 0, g: 0, b: 0 },
+      { tile: "", r: 0, g: 0, b: 0 },
+      { tile: "", r: 0, g: 0, b: 0 },
+      { tile: "", r: 0, g: 0, b: 0 },
+    ],
+    residue: new Uint8Array(),
+  }));
+}
+
 /** A character whose only directional animation is the south walk, with no idle slots (walk is the idle fallback). */
-function characterBytes(): Uint8Array {
+function characterBytes(walkFile = "hero_s.anm"): Uint8Array {
   return unwrap(writeCharacter({
     ...createEmptyCharacter(),
     minor: 7,
     name: "Hero",
-    movementAnimations: ["hero_s.anm", "", "", "", "", "", "", ""],
+    movementAnimations: [walkFile, "", "", "", "", "", "", ""],
     battleStances: Array(6).fill(""),
     idleAnimations: Array(8).fill(""),
     idleTime: 0,
@@ -105,15 +123,27 @@ function boardBytes(): Uint8Array {
   }));
 }
 
-function authorGame(): { readonly files: Files; readonly index: AssetIndex; readonly main: string } {
+type GameOptions = {
+  readonly walkFile?: string;
+  readonly animation?: Uint8Array;
+  /** Extra authored files by package path; each joins the asset index too. */
+  readonly extra?: Readonly<Record<string, Uint8Array>>;
+};
+
+function authorGame(options: GameOptions = {}): { readonly files: Files; readonly index: AssetIndex; readonly main: string } {
+  const walkFile = options.walkFile ?? "hero_s.anm";
   const files: Files = new Map();
-  const paths: string[] = ["main.gam", "Boards/start.brd", "Chrs/hero.tem", "Misc/hero_s.anm", "Tiles/hero.tst"];
+  const paths: string[] = ["main.gam", "Boards/start.brd", "Chrs/hero.tem", `Misc/${walkFile}`, "Tiles/hero.tst"];
   const main = { ...createEmptyMainFile(), major: 2, minor: 9, projectPath: "", startupPrg: "", initBoard: "start.brd", initChar: "hero.tem" };
   files.set("main.gam" as AssetKey, unwrap(writeMainFile(main)));
   files.set("boards/start.brd" as AssetKey, boardBytes());
-  files.set("chrs/hero.tem" as AssetKey, characterBytes());
-  files.set("misc/hero_s.anm" as AssetKey, walkAnimationBytes());
+  files.set("chrs/hero.tem" as AssetKey, characterBytes(walkFile));
+  files.set(`misc/${walkFile}` as AssetKey, options.animation ?? walkAnimationBytes());
   files.set("tiles/hero.tst" as AssetKey, tilesetBytes());
+  for (const [path, bytes] of Object.entries(options.extra ?? {})) {
+    files.set(assetKey(path), bytes);
+    paths.push(path);
+  }
   return { files, index: createAssetIndex(paths), main: "main.gam" };
 }
 
@@ -125,8 +155,8 @@ type Run = {
 };
 
 /** Boot the authored game with a real sprites owner, answering asset requests like a host, and run `ticks`. */
-function run(ticks: number): Run {
-  const game = authorGame();
+function run(ticks: number, options: GameOptions = {}): Run {
+  const game = authorGame(options);
   const spriteRuntime = createSpriteRuntime();
   const requests: AssetKey[] = [];
   const diagnostics: Run["diagnostics"][number][] = [];
@@ -168,9 +198,26 @@ function run(ticks: number): Run {
   return { engine, state: () => latest as GameState, requests, diagnostics };
 }
 
-function spriteBlits(commands: readonly DrawCommand[]): Extract<DrawCommand, { kind: "blit" }>[] {
+function blitsOf(commands: readonly DrawCommand[], asset: string): Extract<DrawCommand, { kind: "blit" }>[] {
   return commands.filter((command): command is Extract<DrawCommand, { kind: "blit" }> =>
-    command.kind === "blit" && "asset" in command.source && command.source.asset === "tiles/hero.tst");
+    command.kind === "blit" && "asset" in command.source && command.source.asset === asset);
+}
+
+function spriteBlits(commands: readonly DrawCommand[]): Extract<DrawCommand, { kind: "blit" }>[] {
+  return blitsOf(commands, "tiles/hero.tst");
+}
+
+/** Read pixel `(x, y)` of the presented screen. */
+function presented(host: Run): { readonly w: number; readonly h: number; readonly rgba: Uint8Array } {
+  let screen: SurfacePixels | null = null;
+  for (let rev = 0; rev < 64 && screen === null; rev += 1) screen = host.engine.surfacePixels(0 as SurfaceId, rev);
+  if (screen === null) throw new Error("the presented screen is readable");
+  return screen;
+}
+
+function pixelAt(screen: { readonly w: number; readonly rgba: Uint8Array }, x: number, y: number): readonly number[] {
+  const index = (y * screen.w + x) * 4;
+  return [screen.rgba[index] ?? -1, screen.rgba[index + 1] ?? -1, screen.rgba[index + 2] ?? -1, screen.rgba[index + 3] ?? -1];
 }
 
 test("the decoder resolves an animation frame's tileset reference to its asset and 1-based tile", () => {
@@ -203,14 +250,46 @@ test("the engine draws the player's walk-animation tile, not the marker rectangl
   ]);
   // No marker rectangle anywhere in the frame, and the tile's own colour reaches the presented pixels.
   equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
-  let screen: SurfacePixels | null = null;
-  for (let rev = 0; rev < 64 && screen === null; rev += 1) screen = host.engine.surfacePixels(0 as SurfaceId, rev);
-  ok(screen !== null, "the presented screen is readable");
-  const pixelAt = (x: number, y: number): readonly number[] => {
-    const index = (y * screen.w + x) * 4;
-    return [screen.rgba[index] ?? -1, screen.rgba[index + 1] ?? -1, screen.rgba[index + 2] ?? -1, screen.rgba[index + 3] ?? -1];
-  };
-  deepEqual(pixelAt(64, 48), [220, 30, 30, 255], "the first walk frame's tile colour is presented");
+  const screen = presented(host);
+  deepEqual(pixelAt(screen, 64, 48), [220, 30, 30, 255], "the first walk frame's tile colour is presented");
+});
+
+test("a wide animation frame naming a 32x32 cell draws one cell, not the header's width (#1258)", () => {
+  // A 64x32 frame canvas whose art is a 32x32 tileset cell: the source may not read 64 pixels of a 32-pixel strip.
+  const host = run(3, { walkFile: "hero_wide.anm", animation: walkAnimationBytes(64, 32) });
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
+  const blits = spriteBlits(list.commands);
+  deepEqual(blits.map((command) => [command.src, command.dst]), [
+    [{ x: 0, y: 0, w: 32, h: 32 }, { x: 32, y: 32, w: 32, h: 32 }],
+  ]);
+  const screen = presented(host);
+  // The cell fills x 32..63 from the canvas origin; row 40 is inside the 32x32 cell.
+  deepEqual(pixelAt(screen, 32, 40), [220, 30, 30, 255], "the first cell column is the tile");
+  deepEqual(pixelAt(screen, 63, 40), [220, 30, 30, 255], "the cell's last column is still the tile");
+  // No pixel of the frame is the second tile's colour: the source never walked into the adjacent cell.
+  for (const x of [32, 47, 63]) {
+    for (const y of [32, 47, 63]) equal(pixelAt(screen, x, y).join(",") === "30,200,60,255", false, `(${x}, ${y}) is the adjacent cell`);
+  }
+});
+
+test("an animation frame that is a tile bitmap draws its composed picture (#1257)", () => {
+  const host = run(3, {
+    walkFile: "hero_tbm.anm",
+    animation: walkAnimationBytes(32, 32, ["hero_frame.tbm", "hero_frame.tbm"], { r: 255, g: 0, b: 255 }),
+    extra: { "Bitmap/hero_frame.tbm": tileBitmapBytes() },
+  });
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  // The tile bitmap is requested as a picture, composed from its tiles, and blitted as a whole texture.
+  equal(host.requests.includes("bitmap/hero_frame.tbm" as AssetKey), true, JSON.stringify(host.requests));
+  equal(host.requests.includes("tiles/hero.tst" as AssetKey), true, JSON.stringify(host.requests));
+  const list = host.engine.drawList(0, { shading: true, images: true, sprites: true });
+  deepEqual(blitsOf(list.commands, "bitmap/hero_frame.tbm").map((command) => [command.source, command.dst]), [
+    [{ asset: "bitmap/hero_frame.tbm", tile: null }, { x: 48, y: 32, w: 32, h: 32 }],
+  ]);
+  equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
+  const screen = presented(host);
+  deepEqual(pixelAt(screen, 64, 48), [220, 30, 30, 255], "the composed tile bitmap's tile colour is presented");
 });
 
 test("walk frames advance once per animation delay and the draw follows the frame (#1252)", () => {

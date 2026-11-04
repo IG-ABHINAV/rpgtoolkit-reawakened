@@ -35,6 +35,8 @@ export type SpriteFrame = {
   readonly file?: string;
   readonly tile?: number | null;
   readonly src?: Rect;
+  /** Where a tile frame's cell sits inside the frame canvas; absent when a picture fills the canvas (E-54). */
+  readonly dst?: Rect;
   readonly width?: number;
   readonly height?: number;
   readonly anchorX?: number;
@@ -480,11 +482,16 @@ function emitSprite(
         const alpha = sprite.translucency ?? sprite.alpha ?? 255;
         const blend = sprite.blend ?? "normal";
         const src = sprite.frame?.src ?? sprite.src ?? { x: 0, y: 0, w: spriteW, h: spriteH };
+        // A tile frame draws its cell at the cell's own size, placed at the frame canvas origin; the canvas
+        // (width/height) only sets the anchor, so a 64x32 frame naming a 32x32 cell paints one cell, not two.
+        const cellDst = sprite.frame?.dst === undefined
+          ? dstRect
+          : { x: dstX + sprite.frame.dst.x, y: dstY + sprite.frame.dst.y, w: sprite.frame.dst.w, h: sprite.frame.dst.h };
         commands.push({
           kind: "blit",
           source: { asset: tileAsset, tile: tileIndex },
           src,
-          dst: dstRect,
+          dst: cellDst,
           key,
           tint,
           alpha,

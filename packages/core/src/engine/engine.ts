@@ -2930,13 +2930,67 @@ export function createEngine(init: EngineInit): Engine {
   }
 
   /**
+   * The drawn size of one tileset cell an actor animation frame names (E-54). A frame's art is the tile itself, so its
+   * source rectangle is the tileset's own cell size, never the animation header's size: a 64×32 animation may name a
+   * 32×32 cell, and reading 64 pixels of a 32-pixel strip would sample the next cell or leave the texture.
+   */
+  const spriteCellSizes = new Map<AssetKey, { readonly w: number; readonly h: number }>();
+
+  function spriteTileCellSize(key: AssetKey): { readonly w: number; readonly h: number } | null {
+    const cached = spriteCellSizes.get(key);
+    if (cached !== undefined) return cached;
+    const bytes = cache.get(key);
+    if (bytes === undefined) return null;
+    const lower = key.toLowerCase();
+    let size: { readonly w: number; readonly h: number } | null = null;
+    if (lower.endsWith(".gph")) {
+      const parsed = readSingleTile(bytes, key);
+      if (parsed.ok) size = { w: parsed.value.width, h: parsed.value.height };
+    } else if (lower.endsWith(".tst") || lower.endsWith(".iso")) {
+      const parsed = readTileset(bytes, key);
+      if (parsed.ok) {
+        const native = tileDimensions(parsed.value.detail);
+        const scale = parsed.value.detail.size === 16 ? 2 : 1;
+        size = { w: native.width * scale, h: native.height * scale };
+      }
+    }
+    if (size === null) return null;
+    spriteCellSizes.set(key, size);
+    return size;
+  }
+
+  /**
+   * Ask for every picture an animation's frames draw that the engine has not decoded yet. Runs on both the first
+   * decode and on every later use of cached metadata, so a reply that was dropped when a save load or reset cleared
+   * the pending queue is asked for again instead of leaving the actor on its marker for the rest of the run (#1259).
+   */
+  function requestSpriteFrameAssets(decoded: DecodedAnimation): void {
+    // An animated GIF's pages live in surfaces, which a sprite frame cannot name yet (#1254).
+    if (decoded.gifPixels !== undefined) return;
+    for (const frame of decoded.frames) {
+      if (frame.asset === null || frame.surface !== undefined) continue;
+      if (frame.tile === null) {
+        // A picture or tile bitmap: the image owner decodes it, and a tile bitmap asks for its own cells from there.
+        if (imageTexture(frame.asset) === null && !cache.has(frame.asset)) request(frame.asset, "image");
+        continue;
+      }
+      // A tileset or single-tile picture: decode it once so the CPU rasteriser and the draw's asset agree.
+      if (!cache.has(frame.asset)) request(frame.asset, "tile");
+      else tileTexture(frame.asset);
+    }
+  }
+
+  /**
    * Decode one actor animation file from the asset cache (E-54): its frame list, delay and size, shared by every
    * sprite that names the file. Returns null while the bytes are outstanding (the request is posted here), and caches
    * an undecodable file as null so it is reported once. Frame pictures are ordinary assets; each is requested too.
    */
   function decodeSpriteAnimation(key: AssetKey): DecodedAnimation | null {
     const cached = spriteAnimations.get(key);
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      if (cached !== null) requestSpriteFrameAssets(cached);
+      return cached;
+    }
     const bytes = cache.get(key);
     if (bytes === undefined) {
       request(key, "animation");
@@ -2948,10 +3002,7 @@ export function createEngine(init: EngineInit): Engine {
       diagnostics.push({ code: "asset.invalid", file: key, line: 0, message: `cannot decode animation "${key}"` });
       return null;
     }
-    for (const frame of decoded.frames) {
-      if (frame.asset === null || frame.surface !== undefined || cache.has(frame.asset)) continue;
-      request(frame.asset, requestKindFor(frame.asset));
-    }
+    requestSpriteFrameAssets(decoded);
     spriteAnimations.set(key, decoded);
     return decoded;
   }
@@ -2995,17 +3046,38 @@ export function createEngine(init: EngineInit): Engine {
     if (key === null) return null;
     const data = spriteAnimations.get(key) ?? decodeSpriteAnimation(key);
     if (data === null || data.frames.length === 0 || data.gifPixels !== undefined) return null;
+    // A draw can happen without a preparation pass (a stance started mid-tick), so re-acquire here as well.
+    requestSpriteFrameAssets(data);
     const index = ((Math.trunc(frame) % data.frames.length) + data.frames.length) % data.frames.length;
     const entry = data.frames[index];
     if (entry === undefined || entry.asset === null || entry.surface !== undefined) return null;
-    // The frame's picture is a separate asset; until the host has delivered it the sprite keeps its marker, so a
-    // frame never names a texture the runner cannot resolve yet.
-    if (!cache.has(entry.asset)) return null;
-    const src = { x: 0, y: 0, w: entry.srcWidth, h: entry.srcHeight };
-    const size = { width: data.width, height: data.height };
-    return entry.tile === null
-      ? { file, asset: entry.asset, tile: null, src, ...size, transparent: entry.transparent }
-      : { file, asset: entry.asset, tile: entry.tile, src, ...size };
+    // The frame's picture is a separate asset; until the host has delivered and decoded it the sprite keeps its
+    // marker, so a frame never names a texture the runner cannot resolve yet.
+    if (entry.tile === null) {
+      if (imageTexture(entry.asset) === null) return null;
+      return {
+        file,
+        asset: entry.asset,
+        tile: null,
+        src: { x: 0, y: 0, w: entry.srcWidth, h: entry.srcHeight },
+        width: data.width,
+        height: data.height,
+        transparent: entry.transparent,
+      };
+    }
+    const cell = spriteTileCellSize(entry.asset);
+    if (cell === null) return null;
+    // The animation's width/height is the frame canvas (and so the anchor); the tile is drawn at its own cell size
+    // from the canvas origin, never stretched to the canvas (a 64×32 frame naming a 32×32 cell).
+    return {
+      file,
+      asset: entry.asset,
+      tile: entry.tile,
+      src: { x: 0, y: 0, w: cell.w, h: cell.h },
+      dst: { x: 0, y: 0, w: cell.w, h: cell.h },
+      width: data.width,
+      height: data.height,
+    };
   }
 
   function runAnimationPhase(): void {
