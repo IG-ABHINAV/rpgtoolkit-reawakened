@@ -264,7 +264,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   });
   const renderer = createWebgl2Renderer(options.gl, { mode: "letterbox", scale: 1 });
 
-  const textures = liveTextureProvider((key) => assets.peek(key), decode === null ? undefined : (key) => decode.image(key));
+  const textures = liveTextureProvider((key) => assets.peek(key) ?? bundled.get(key) ?? null, decode === null ? undefined : (key) => decode.image(key));
   const fonts = fontProvider(options.bundled);
   let currentTick = 0;
   let currentStateHash = "";
