@@ -3085,11 +3085,10 @@ export function createEngine(init: EngineInit): Engine {
     // The frame's picture is a separate asset; until the host has delivered and decoded it the sprite keeps its
     // marker, so a frame never names a texture the runner cannot resolve yet.
     const lower = entry.asset.toLowerCase();
-    if (lower.endsWith(".tbm")) {
-      // A tile bitmap is one composed picture: its cells' overlap, their authored shade and the picture's own bounds
-      // are its pixels, so the frame is a single picture blit (tiles.md#tile-bitmap-tbm). A runner cannot compose it
-      // and lowering it to cell blits cannot preserve the overlap's erase or the picture's clipping, so the draw
-      // names the `.tbm` and the runner takes its pixels from `engine.picturePixels` (runners.md#picture-pixels).
+    if (entry.tile === null && !lower.endsWith(".gph")) {
+      // An ordinary picture (a `.tbm` is one too: `imageTexture` composes it). The header's width/height is the frame
+      // canvas and the anchor; the source rectangle is the picture's own pixels, so a 64×32 canvas naming a 32×32 image
+      // draws the whole image instead of reading past the texture (animation.md#layout, #1270).
       const picture = imageTexture(entry.asset);
       if (picture === null) return null;
       return {
@@ -3097,19 +3096,6 @@ export function createEngine(init: EngineInit): Engine {
         asset: entry.asset,
         tile: null,
         src: { x: 0, y: 0, w: picture.w, h: picture.h },
-        width: data.width,
-        height: data.height,
-        transparent: entry.transparent,
-      };
-    }
-    if (entry.tile === null && !lower.endsWith(".gph")) {
-      // An ordinary picture, sized to the animation frame.
-      if (imageTexture(entry.asset) === null) return null;
-      return {
-        file,
-        asset: entry.asset,
-        tile: null,
-        src: { x: 0, y: 0, w: entry.srcWidth, h: entry.srcHeight },
         width: data.width,
         height: data.height,
         transparent: entry.transparent,

@@ -38,6 +38,14 @@ import {
   type SurfaceId,
   type SurfacePixels,
 } from "../src/index.ts";
+import { encodePng } from "./battle-ui-rig.ts";
+
+/** A solid RGBA buffer for an authored PNG picture. */
+function solidPixels(width: number, height: number, colour: readonly [number, number, number]): Uint8Array {
+  const rgba = new Uint8Array(width * height * 4);
+  for (let at = 0; at < rgba.length; at += 4) rgba.set([colour[0], colour[1], colour[2], 255], at);
+  return rgba;
+}
 
 type Files = Map<AssetKey, Uint8Array>;
 
@@ -367,6 +375,25 @@ test("an animation frame that is a single tile .gph draws through the tile decod
   equal(list.commands.some((command) => command.kind === "rect" && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
   const screen = presented(host);
   deepEqual(pixelAt(screen, 64, 48), [20, 40, 220, 255], "the single tile's colour is presented");
+});
+
+test("a picture frame samples the image's own size, not the animation header's", () => {
+  // A 64x32 frame canvas naming a 32x32 PNG. The header sizes the canvas (and so the anchor), never the source
+  // rectangle: sampling 64x32 from a 32x32 texture runs past the decoded texture, which fails the blit and aborts the
+  // frame's remaining commands.
+  const host = run(3, {
+    walkFile: "hero_png.anm",
+    animation: walkAnimationBytes(64, 32, ["hero_frame.png", "hero_frame.png"]),
+    extra: { "Bitmap/hero_frame.png": encodePng(32, 32, solidPixels(32, 32, [20, 40, 220])) },
+  });
+  deepEqual(host.diagnostics.map((diagnostic) => diagnostic.code), []);
+  const command = blitsOf(host.engine.drawList(0, { shading: true, images: true, sprites: true }).commands, "bitmap/hero_frame.png")[0];
+  deepEqual(command?.src, { x: 0, y: 0, w: 32, h: 32 }, "the source is the picture's own pixels");
+  // The header keeps the destination: anchor (32, 32) at the player's (64, 64) puts the 64x32 canvas at (32, 32).
+  deepEqual(command?.dst, { x: 32, y: 32, w: 64, h: 32 });
+  const screen = presented(host);
+  deepEqual(pixelAt(screen, 40, 40), [20, 40, 220, 255], "the picture is drawn through the reference rasteriser");
+  deepEqual(pixelAt(screen, 88, 40), [20, 40, 220, 255], "the whole canvas is still the picture");
 });
 
 test("walk frames advance once per animation delay and the draw follows the frame (#1252)", () => {
