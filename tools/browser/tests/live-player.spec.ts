@@ -174,6 +174,31 @@ function triggerPhaseFixture(
   };
 }
 
+test("the demo cursor-map hand is visible and follows the selected menu row", async ({ page }) => {
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => (window.__live?.tick ?? 0) > 30, undefined, { timeout: 45_000 });
+  const handPixels = () => page.evaluate(() => {
+    const canvas = document.querySelector("canvas")!;
+    const gl = canvas.getContext("webgl2")!;
+    const count = (y: number): number => {
+      const pixels = new Uint8Array(32 * 20 * 4);
+      gl.readPixels(255, canvas.height - y - 20, 32, 20, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      let bright = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i]! > 150 && pixels[i + 1]! > 150 && pixels[i + 2]! > 150) bright += 1;
+      }
+      return bright;
+    };
+    return { first: count(170), second: count(210) };
+  });
+  await expect.poll(async () => (await handPixels()).first).toBeGreaterThan(10);
+  expect((await handPixels()).second).toBe(0);
+  await page.locator("#screen").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(async () => (await handPixels()).second).toBeGreaterThan(10);
+  expect((await handPixels()).first).toBe(0);
+});
+
 test("live demo attaches a board canvas and movement changes the player and presented frame", async ({ page }) => {
   await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
   await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
