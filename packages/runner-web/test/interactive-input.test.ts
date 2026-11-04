@@ -8,6 +8,7 @@ import { INTERACTIVE_INPUT_BINDINGS, interactiveMenuBinding } from "../src/input
 
 const here = dirname(fileURLToPath(import.meta.url));
 const font = new Uint8Array(readFileSync(join(here, "..", "..", "..", "media", "fonts", "tkr-8x8.fnt")));
+const menuHand = new Uint8Array(readFileSync(join(here, "..", "..", "..", "media", "cursors", "tkr-menu-hand.png")));
 const encoder = new TextEncoder();
 const SIZE = 64;
 
@@ -60,7 +61,10 @@ function boot(program: string, stockMenu = false): Game {
     height: stockMenu ? 240 : SIZE,
     maxTicks: 1000,
     input: { bindings: interactiveMenuBinding(0).bindings },
-    bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
+    bundled: new Map([
+      [assetKey("media/fonts/tkr-8x8.fnt"), font],
+      [assetKey("media/cursors/tkr-menu-hand.png"), menuHand],
+    ]),
     ...(stockMenu ? { packageCatalogue: [{
       name: "stock_menu", version: "1.0.0", namespace: "stock_menu", requests: [],
       definition: { id: "stock_menu", version: "1.0.0", commands: [] },
