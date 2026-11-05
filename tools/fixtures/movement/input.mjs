@@ -1,9 +1,11 @@
 // Reference input model for the movement oracle (ticket 5.2): recorded keyboard,
 // pointer and normalized gamepad events become held actions, key-queue entries,
-// an eight-way movement intent, click-to-move requests and on-screen button slot
-// presses. Written from docs/spec/engine/display-input-audio.md#e-110..e-113 and
-// #reawakened-gamepad-contract; it imports nothing from packages/core. Choices the
-// spec leaves open are tagged `PROPOSED P-n` in the plan.
+// an eight-way movement intent, click-to-move requests and on-screen button
+// slots. Pointer slots activate on release over the pressed slot; pointer.cancel
+// clears the pending slot and primary bit without a release edge or click.
+// Written from docs/spec/engine/display-input-audio.md#e-110..e-113,
+// #reawakened-gamepad-contract and accessibility.md#a11y-6; it imports nothing
+// from packages/core. Choices the spec leaves open are tagged `PROPOSED P-n`.
 
 const DIR_ACTIONS = ["up", "down", "left", "right"];
 const BIT_ACTIONS = ["up", "down", "left", "right", "confirm", "cancel", "menu"]; // bits 0..6
@@ -27,6 +29,8 @@ export function runInput(setup, events, ticks) {
   const order = []; // direction actions in press order (PROPOSED P-12: later press wins on a blocked diagonal)
   let seq = setup.firstSeq ?? 1;
   const slots = new Map(setup.slots.map((s) => [s.id, { ...s }]));
+  let pointerButtons = 0;
+  let pressedButtonSlot = null;
   const rows = [];
   let prev = new Set();
   const heldNow = () => {
@@ -61,12 +65,30 @@ export function runInput(setup, events, ticks) {
           notes.push(`disconnect:${ev.device}`);
         } else if (pad === undefined) pads.set(ev.device, { connected: true, mask: padMask(ev) });
         else { pad.connected = true; pad.mask = padMask(ev); }
-      } else if (ev.kind === "pointer" && ev.phase === "down") {
+      } else if (ev.kind === "pointer.cancel") {
+        pointerButtons &= ~1;
+        pressedButtonSlot = null;
+        continue;
+      } else if (ev.kind === "pointer") {
+        const wasPrimaryDown = (pointerButtons & 1) !== 0;
+        const buttons = Number(ev.buttons ?? (ev.phase === "up" ? 0 : 1));
+        const isPrimaryDown = (buttons & 1) !== 0;
         const slot = [...slots.values()].find((s) => ev.x >= s.x && ev.x < s.x + s.w && ev.y >= s.y && ev.y < s.y + s.h);
-        if (slot !== undefined) {
-          if (!slot.enabled) notes.push(`slot-disabled:${slot.id}`);
-          else { queue.push({ seq, key: slot.action, via: `slot:${slot.id}` }); seq += 1; row.slot = slot.id; }
-        } else {
+        pointerButtons = buttons;
+        if (!wasPrimaryDown && isPrimaryDown) {
+          if (slot !== undefined && !slot.enabled) notes.push(`slot-disabled:${slot.id}`);
+          pressedButtonSlot = slot?.enabled === true ? slot.id : null;
+        } else if (wasPrimaryDown && pressedButtonSlot !== null) {
+          if (slot?.id !== pressedButtonSlot || !slot.enabled) {
+            pressedButtonSlot = null;
+          } else if (!isPrimaryDown) {
+            queue.push({ seq, key: slot.action, via: `slot:${slot.id}` });
+            seq += 1;
+            row.slot = slot.id;
+            pressedButtonSlot = null;
+          }
+        }
+        if (isPrimaryDown && slot === undefined) {
           const cam = setup.camera ?? [0, 0];
           row.click = { logical: [ev.x, ev.y], board: [ev.x + cam[0], ev.y + cam[1]], via: "pathfind" };
         }
