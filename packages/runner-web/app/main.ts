@@ -355,6 +355,7 @@ function startLiveLoop(
   let advancing = false;
   let frameId: number | null = null;
   let pending: PendingInput[] = [];
+  const viewSize = session.viewSize();
   const displayGeometry = createObservedHostGeometry(session.displayGeometry());
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
     displayGeometry.observe(event);
