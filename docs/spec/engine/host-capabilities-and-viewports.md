@@ -30,7 +30,7 @@ type HostFeatures = {
 };
 ```
 
-Core normalizes this to `state.features` with all six own-properties present: absent booleans become `false`, absent `pointer` becomes `"none"`, and absent `orientation` becomes `null`. Unknown input properties are discarded; persisted state contains no `undefined`. Unknown names queried by `hasFeature` return `0`.
+Core normalizes boot values to `state.features` with all six own-properties present: absent booleans become `false`, absent `pointer` becomes `"none"`, and absent `orientation` becomes `null`. Unknown boot properties are discarded; persisted state contains no `undefined`. Unknown names queried by `hasFeature` return `0`. Logged events instead require all six known properties and reject unknown keys.
 
 `HostDisplayGeometry` is:
 
