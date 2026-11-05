@@ -373,15 +373,20 @@ test("gamepad polling accepts only the standard mapping and emits devices in asc
     pending.length = 0;
     pads.push({ ...pad(0, "standard"), axes: [1, 0] } as unknown as Gamepad);
     observer.poll();
+    pending.push(
+      { tick: null, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true }, pointerGeometry: null },
+      { tick: null, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" }, pointerGeometry: null },
+      { tick: null, event: { kind: "focus", state: "lost" }, pointerGeometry: null },
+    );
     pads.length = 0;
     observer.poll();
     const snapshot = observer.snapshotForRestore(pending);
-    deepEqual(snapshot.slice(0, 2), [
-      { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 },
-      { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 },
-    ], "unconsumed press/release transitions precede the full restore snapshot");
-    deepEqual(pending.map(({ event }) => event.kind), ["host.features", "host.features"], "only gamepad edges are moved into the blob reply");
-    deepEqual(snapshot[snapshot.length - 1], { kind: "host.gamepads", devices: [] }, "the snapshot follows the ordered physical edges");
+    const sourceEdges = snapshot.filter(({ kind }) => kind === "gamepad" || kind === "key" || kind === "action" || kind === "focus");
+    deepEqual(sourceEdges.map(({ kind }) => kind), ["gamepad", "key", "action", "focus", "gamepad"], "all pending source edges precede the full restore snapshot in original order");
+    deepEqual(sourceEdges[0], { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 });
+    deepEqual(sourceEdges[4], { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+    deepEqual(pending, [], "all pending input records moved into the blob reply");
+    deepEqual(snapshot[snapshot.length - 1], { kind: "host.gamepads", devices: [] }, "the snapshot follows all causal edges");
   } finally {
     observer?.dispose();
     restore();

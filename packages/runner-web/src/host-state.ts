@@ -323,13 +323,7 @@ export function observeHostState(
   onResize();
   poll();
   const snapshotForRestore = (pending: PendingInput[] = []): readonly InputRecord["event"][] => {
-    const gamepadEvents: InputRecord["event"][] = [];
-    const retained: PendingInput[] = [];
-    for (const input of pending) {
-      if (input.event.kind === "gamepad") gamepadEvents.push(input.event);
-      else retained.push(input);
-    }
-    pending.splice(0, pending.length, ...retained);
+    const pendingEvents = pending.splice(0).map((input) => input.event);
     const geometry = measureHostDisplay(host, view, safeArea.read()) ?? previousGeometry;
     const features = readHostFeatures(keyboardObserved);
     latestFeatures = features;
@@ -357,7 +351,7 @@ export function observeHostState(
       previousGamepads[device] = { x, y, buttons };
     }
     return [
-      ...gamepadEvents,
+      ...pendingEvents,
       { kind: "host.features", features },
       ...(geometry === null ? [] : [{ kind: "host.display" as const, geometry }]),
       { kind: "host.gamepads", devices },

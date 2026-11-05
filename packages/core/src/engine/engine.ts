@@ -2646,7 +2646,12 @@ export function createEngine(init: EngineInit): Engine {
       } else {
         registerAudio();
       }
-      if (!startupServicesReady) services = makeServices(activePlugins, loader, true);
+      if (!startupServicesReady) {
+        services = makeServices(activePlugins, loader, true);
+        recomputeInputActions(state.input, (action, down, firstSeq) => {
+          routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+        });
+      }
       if (failed) return false;
       if (initialCharacterKey !== null && cache.has(initialCharacterKey)) {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
@@ -3913,9 +3918,10 @@ export function createEngine(init: EngineInit): Engine {
     queuedInputs.push(...deferred);
     return ready;
   }
-  function processPreTickEvents(consumed: InputRecord[]): void {
+  function processPreTickEvents(consumed: InputRecord[]): boolean {
     const records = takeQueuedInputs(state.time.tick);
     const deferred: InputRecord[] = [];
+    let restoredOpenTick = false;
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index]!;
       if (record.event.kind === "asset") {
@@ -3936,26 +3942,15 @@ export function createEngine(init: EngineInit): Engine {
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
-          for (let at = 0; at < deferred.length;) {
-            const earlier = deferred[at]!;
-            if (earlier.event.kind !== "gamepad") {
-              at += 1;
-              continue;
-            }
-            const rebased = { ...earlier, tick: state.time.tick };
-            applyInputEvent(state.input, earlier.event);
-            consumed.push(rebased);
-            deferred.splice(at, 1);
+          for (let at = 0; at < deferred.length; at += 1) {
+            deferred[at] = { ...deferred[at]!, tick: state.time.tick };
           }
           for (const queued of records.slice(index + 1)) {
             if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved" || queued.event.kind === "blob.listed") continue;
             const rebased = { ...queued, tick: state.time.tick };
-            if (applyHostStateEvent(queued.event)) consumed.push(rebased);
-            else if (queued.event.kind === "gamepad") {
-              applyInputEvent(state.input, queued.event);
-              consumed.push(rebased);
-            } else deferred.push(rebased);
+            deferred.push(rebased);
           }
+          restoredOpenTick = state.engine.openTick !== undefined;
           break;
         }
       } else if (record.event.kind === "video.ended") {
@@ -3987,6 +3982,7 @@ export function createEngine(init: EngineInit): Engine {
       }
     }
     queuedInputs.unshift(...deferred);
+    return restoredOpenTick;
   }
   function consumeStoppedInputs(consumed: InputRecord[]): void {
     if (!failed) return;
@@ -4293,7 +4289,8 @@ export function createEngine(init: EngineInit): Engine {
       const consumed: InputRecord[] = [];
       const failedAtStart = failed;
       for (const input of inputs) queuedInputs.push(input);
-      processPreTickEvents(consumed);
+      const restoredOpenTick = processPreTickEvents(consumed);
+      if (restoredOpenTick) runPhase("input", consumed);
       drive();
       if (failedAtStart) consumeStoppedInputs(consumed);
       const requestedTicks = Number.isFinite(ticks) ? Math.max(0, Math.trunc(ticks)) : 0;

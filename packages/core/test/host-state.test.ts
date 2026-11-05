@@ -1,6 +1,8 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
+import { TextEncoder } from "node:util";
 import { test } from "node:test";
-import { createAssetIndex, createEmptyBoard, createEngine, IR_VERSION, PACKAGE_ROOT, startThread, writeBoard, type GameState } from "../src/index.ts";
+import { assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, IR_VERSION, PACKAGE_ROOT, startThread, writeBoard, writeMainFile } from "../src/index.ts";
+import type { GameState, InputRecord } from "../src/index.ts";
 import type { HostFeatures } from "../src/ports/host.ts";
 import { validateInputEvent } from "../src/validate/input-event.ts";
 import { hashGameState } from "../src/save/hash.ts";
@@ -181,5 +183,71 @@ test("engine applies and records complete host updates on their consuming tick",
   ]);
   equal(live.state.input.actions.right, false, "the complete snapshot disconnect is applied after the same-tick press");
   ok(inputEdges.includes("right"), "the press edge is preserved before the snapshot's disconnect");
+});
+test("delayed replacement MainFile re-registers external actions before recomputing held gamepad state", () => {
+  const encodeMain = (startupPrg: string) => {
+    const result = writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, initBoard: "start.brd", startupPrg });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.value;
+  };
+  const encodedBoard = writeBoard(createEmptyBoard());
+  if (!encodedBoard.ok) throw new Error(encodedBoard.error.message);
+  const files = new Map([
+    [assetKey("main.gam"), encodeMain("start.prg")],
+    [assetKey("replacement.gam"), encodeMain("")],
+    [assetKey("boards/start.brd"), encodedBoard.value],
+    [assetKey("prg/start.prg"), new TextEncoder().encode('mainFile("replacement.gam")\nend()\n')],
+  ]);
+  const latest: { state: GameState | null } = { state: null };
+  const engine = createEngine({
+    seed: 29,
+    assetIndex: createAssetIndex([...files.keys()]),
+    assetRoot: PACKAGE_ROOT,
+    mainFile: "main.gam",
+    gameIdentity: "delayed-mainfile-gamepad-registration",
+    width: 32,
+    height: 32,
+    maxTicks: 20,
+    startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    phaseRegistrations: [{ phase: "events", run: (state) => { latest.state = state; } }],
+  });
+  equal(engine.registerGameAction({
+    name: "game.fireball",
+    label: "Fireball",
+    icon: null,
+    group: null,
+    controls: ["pad:0"],
+    locked: false,
+    hidden: false,
+  }), true);
+  const initial = engine.advance(0, []);
+  const mainRequest = initial.requests.find((request) => request.kind === "asset");
+  if (mainRequest?.kind !== "asset") throw new Error("expected the delayed initial MainFile request");
+  let replies: InputRecord[] = [{
+    tick: initial.tickAfter,
+    event: { kind: "asset", reqId: mainRequest.reqId, bytes: files.get(mainRequest.key) ?? null },
+  }];
+  let queuedPad = false;
+  const replacementKey = assetKey("replacement.gam");
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const report = engine.advance(1, replies);
+    replies = [];
+    const current = latest.state;
+    if (current?.engine.boot?.main === replacementKey && current.engine.boot?.stage === "running") {
+      equal(queuedPad, true, "the physical controller sample preceded the delayed mainfile replacement");
+      equal(current.input.gamepads["0"]?.mask, 1, "the held physical controller survived the replacement boot");
+      equal(current.input.actions["game.fireball"], true, "the re-registered external action observes the held control without a new hardware edge");
+      return;
+    }
+    for (const request of report.requests) {
+      if (request.kind !== "asset") continue;
+      replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: files.get(request.key) ?? null } });
+      if (request.key === assetKey("prg/start.prg") && !queuedPad) {
+        replies.push({ tick: report.tickAfter, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 1 }] } });
+        queuedPad = true;
+      }
+    }
+  }
+  throw new Error(`replacement MainFile did not reach running state: ${JSON.stringify(latest.state?.engine.boot)}`);
 });
 
