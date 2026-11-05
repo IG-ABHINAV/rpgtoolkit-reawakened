@@ -357,15 +357,16 @@ function startLiveLoop(
   let frameId: number | null = null;
   let pending: PendingInput[] = [];
     const fallbackControlKeys = new Set<string>();
+      let fallbackActionSequence = 0;
   const stage = canvas.parentElement;
   if (stage === null) throw new Error("player: the screen has no stage for fallback touch controls");
   const viewSize = session.viewSize(),
       observedGeometry = createObservedHostGeometry(session.displayGeometry()),
-      touchControls = createFallbackTouchControls(
-        stage,
-        () => observedGeometry.current(),
-        (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } }),
-      );
+      touchControls = createFallbackTouchControls(stage, () => observedGeometry.current(), (action, down) => {
+        pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } });
+        fallbackActionSequence += 1;
+        return fallbackActionSequence;
+      });
   
   const stopObservingHost = observeHostState(
       hostViewport,
@@ -452,12 +453,13 @@ function startLiveLoop(
       const wholeTicks = Math.floor(accumulator / stepMs);
       accumulator -= wholeTicks * stepMs;
       const inputs = stampPendingInputs(pending, session.tick());
+            const submittedActionSequence = fallbackActionSequence;
       pending = [];
       advancing = true;
       session.advance(wholeTicks, inputs).then(() => {
         advancing = false;
         if (disposed) return;
-        touchControls.acknowledgeTick(session.tick());
+        touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
               const drawn = session.draw(accumulator / stepMs);
         const player = session.playerPosition();
         const state = loadState();

@@ -65,6 +65,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   let accumulator = 0;
   let pending: PendingInput[] = [];
     const fallbackControlKeys = new Set<string>();
+      let fallbackActionSequence = 0;
   let disposed = false;
   const onKeyDown = (event: KeyboardEvent): void => {
       if (isFallbackTouchControlTarget(event.target) && !event.repeat) {
@@ -88,11 +89,11 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize(),
       observedGeometry = createObservedHostGeometry(session.displayGeometry());
-  const touchControls = createFallbackTouchControls(
-    hostViewport.viewport,
-    () => observedGeometry.current(),
-    (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } })
-  );
+  const touchControls = createFallbackTouchControls(hostViewport.viewport, () => observedGeometry.current(), (action, down) => {
+    pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } });
+    fallbackActionSequence += 1;
+    return fallbackActionSequence;
+  });
   const stopObservingHost = observeHostState(
       hostViewport,
       viewSize,
@@ -136,10 +137,11 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     accumulator -= ticks * stepMs;
     touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     const inputs = stampPendingInputs(pending, session.tick());
+          const submittedActionSequence = fallbackActionSequence;
     pending = [];
     void session.advance(ticks, inputs).then(() => {
       if (disposed) return;
-      touchControls.acknowledgeTick(session.tick());
+      touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
             const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const result = { tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board: session.boardKey(), player };
