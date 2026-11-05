@@ -18,6 +18,8 @@ import {
   createEmptyCharacter,
   createEngine,
   createSpriteRuntime,
+  IR_VERSION,
+  startThread,
   decodeAnimationFrames,
   PACKAGE_ROOT,
   writeAnimation,
@@ -258,6 +260,123 @@ function run(ticks: number, options: GameOptions = {}): Run {
   return { engine, state: () => latest as GameState, requests, diagnostics };
 }
 
+type LifecycleRun = {
+  readonly engine: Engine;
+  readonly state: () => GameState;
+  readonly saved: Uint8Array | null;
+  readonly diagnostics: readonly { readonly code: string; readonly message: string }[];
+  readonly loadObserved: boolean;
+  readonly resetObserved: boolean;
+};
+
+/** Run a real engine script and service asset/game-save requests like a runner. */
+function runLifecycle(ticks: number, program: string, savedGame: Uint8Array | null = null): LifecycleRun {
+  const game = authorGame({ walkFile: "hero.gif", animation: twoPageSolidGif() });
+  const spriteRuntime = createSpriteRuntime();
+  const diagnostics: { readonly code: string; readonly message: string }[] = [];
+  let latest: GameState | null = null;
+  let resetObserved = false;
+  let started = false;
+  let loadObserved = false;
+  let saved: Uint8Array | null = null;
+  const engine = createEngine({
+    seed: 17,
+    assetIndex: game.index,
+    assetRoot: PACKAGE_ROOT,
+    mainFile: game.main,
+    gameIdentity: "sprite-artwork-lifecycle-test",
+    startup: {
+      presence: { hasPlayer: () => spriteRuntime.hasPlayer() },
+      savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+    },
+    width: 320,
+    height: 240,
+    maxTicks: 600,
+    spriteRuntime,
+    include: { shading: true, images: true, sprites: true },
+    phaseRegistrations: [{
+      phase: "audio",
+      run: (state: GameState) => {
+        if (started && state.engine.boot?.stage === "assets") resetObserved = true;
+        latest = state;
+        if (started || state.engine.boot?.stage !== "running") return;
+        started = true;
+        startThread(state.vm, { ref: { kind: "inline", text: program, ir: IR_VERSION }, kind: "board", owner: "script" });
+      },
+    }],
+  });
+  let remaining = ticks;
+  let replies: InputRecord[] = [];
+  for (let guard = 0; guard < 1000 && remaining > 0; guard += 1) {
+    const report = engine.advance(remaining, replies);
+    replies = [];
+    remaining -= report.ticksRun;
+    diagnostics.push(...report.diagnostics);
+    if (report.loading) {
+      replies = report.requests.flatMap<InputRecord>((request: RunnerRequest): InputRecord[] => {
+        if (request.kind === "asset") {
+          return [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: game.files.get(request.key) ?? null } }];
+        }
+        if (request.kind === "saveBlob") {
+          saved = new Uint8Array(request.bytes);
+          return [{ tick: report.tickAfter, event: { kind: "blob.saved" as const, reqId: request.reqId, ok: true } }];
+        }
+        if (request.kind === "loadBlob") {
+          loadObserved = true;
+          return [{ tick: report.tickAfter, event: { kind: "blob.loaded" as const, reqId: request.reqId, bytes: savedGame } }];
+        }
+        return [];
+      });
+    }
+    if (report.ticksRun === 0 && !report.loading) break;
+  }
+  return { engine, state: () => latest as GameState, saved, resetObserved, loadObserved, diagnostics };
+}
+
+function gifPageKey(command: DrawCommand): AssetKey | null {
+  if (command.kind !== "blit") return null;
+  const source = command.source;
+  if (!("asset" in source)) return null;
+  return source.asset.startsWith("\u0000rpgtoolkit-gif-page/") ? source.asset : null;
+}
+
+function gifPageSources(engine: Engine): readonly AssetKey[] {
+  return engine.drawList(0, { shading: true, images: true, sprites: true }).commands
+    .flatMap((command) => {
+      const key = gifPageKey(command);
+      return key === null ? [] : [key];
+    });
+}
+
+test("GIF frame assets survive an engine save/load and reset without surface growth (#1254)", () => {
+  const saver = runLifecycle(24, 'Save("slot")\nend()\n');
+  ok(saver.saved !== null, "the engine publishes an actual game-save blob");
+  const beforeSave = gifPageSources(saver.engine);
+  ok(beforeSave.length > 0, "the running player draws an asset-backed GIF page");
+  const loader = runLifecycle(24, 'Load("slot")\nend()\n', saver.saved);
+  ok(loader.loadObserved, "the engine issued an actual Load blob request");
+  deepEqual(loader.diagnostics.map(({ code }) => code), []);
+  const afterLoad = gifPageSources(loader.engine);
+  ok(afterLoad.length > 0, "the loaded player draws an asset-backed GIF page");
+  const restoredPage = afterLoad[0];
+  ok(restoredPage !== undefined);
+  const loadedPage = loader.engine.picturePixels(restoredPage);
+  ok(loadedPage !== null, "the loaded GIF page resolves through the picture-pixel API");
+  const slotsAfterLoad = Object.keys(loader.state().surfaces.slots).length;
+  deepEqual(gifPageSources(loader.engine), afterLoad, "drawing after load reuses the same GIF page assets");
+  equal(Object.keys(loader.state().surfaces.slots).length, slotsAfterLoad, "drawing the loaded GIF does not grow state surfaces");
+
+  const reset = runLifecycle(24, "reset()\n");
+  ok(reset.resetObserved, "reset() ran through the real engine lifecycle");
+  const slotsBeforeRedraw = Object.keys(reset.state().surfaces.slots).length;
+  const resetPages = gifPageSources(reset.engine);
+  ok(resetPages.length > 0, "the reset game draws asset-backed GIF pages");
+  ok(resetPages.every((page) => reset.engine.picturePixels(page) !== null), "each reset GIF page resolves through picture pixels");
+  reset.engine.drawList(0, { shading: true, images: true, sprites: true });
+  deepEqual(gifPageSources(reset.engine), resetPages, "drawing after reset reuses the same GIF page assets");
+  equal(Object.keys(reset.state().surfaces.slots).length, slotsBeforeRedraw, "drawing after reset does not grow state surfaces");
+});
+
 function blitsOf(commands: readonly DrawCommand[], asset: string): Extract<DrawCommand, { kind: "blit" }>[] {
   return commands.filter((command): command is Extract<DrawCommand, { kind: "blit" }> =>
     command.kind === "blit" && "asset" in command.source && command.source.asset === asset);
@@ -394,6 +513,79 @@ test("a picture frame samples the image's own size, not the animation header's",
   const screen = presented(host);
   deepEqual(pixelAt(screen, 40, 40), [20, 40, 220, 255], "the picture is drawn through the reference rasteriser");
   deepEqual(pixelAt(screen, 88, 40), [20, 40, 220, 255], "the whole canvas is still the picture");
+});
+
+/** A compact authored GIF89a with two opaque 1×1 pages in distinct global-palette colours. */
+function twoPageSolidGif(): Uint8Array {
+  return new Uint8Array([
+    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x81, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0a, 0x14, 0x1e, 0xc8, 0x00, 0x00, 0xff, 0xff, 0xff,
+    0x21, 0xff, 0x0b, 0x4e, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2e, 0x30,
+    0x03, 0x01, 0x00, 0x00, 0x00,
+    0x21, 0xf9, 0x04, 0x00, 0x0f, 0x00, 0x00, 0x00,
+    0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+    0x02, 0x02, 0x4c, 0x01, 0x00,
+    0x21, 0xf9, 0x04, 0x00, 0x0f, 0x00, 0x00, 0x00,
+    0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+    0x02, 0x02, 0x54, 0x01, 0x00,
+    0x3b,
+  ]);
+}
+
+test("animated GIF sprite pages name and present the current decoded picture (#1254)", () => {
+  const animation = twoPageSolidGif();
+  // Each 0.15-second GIF page lasts nine 60 Hz ticks: tick 3 shows page 0; tick 9 reaches page 1.
+  const first = run(3, { walkFile: "hero.gif", animation });
+  const firstList = first.engine.drawList(0, { shading: true, images: true, sprites: true });
+  const firstSprite = firstList.commands.find((command) =>
+    command.kind === "blit" && command.dst.x === 64 && command.dst.y === 63 && gifPageKey(command) !== null);
+  ok(firstSprite !== undefined);
+  if (firstSprite === undefined) throw new Error("the current GIF page is a picture-asset blit");
+  const firstAsset = gifPageKey(firstSprite);
+  if (firstAsset === null) throw new Error("the current GIF frame names a decoded-picture asset");
+  deepEqual(Array.from(first.engine.picturePixels(firstAsset)?.rgba.slice(0, 4) ?? []), [10, 20, 30, 255]);
+  deepEqual(pixelAt(presented(first), 64, 63), [10, 20, 30, 255]);
+  equal(firstList.commands.some((command) =>
+    command.kind === "rect" && command.rect.x === 64 && command.rect.y === 63
+      && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
+
+  const later = run(9, { walkFile: "hero.gif", animation });
+  equal(later.state().sprites.players[0]?.visual.frame, 1);
+  const laterList = later.engine.drawList(0, { shading: true, images: true, sprites: true });
+  const laterSprite = laterList.commands.find((command) =>
+    command.kind === "blit" && command.dst.x === 64 && command.dst.y === 63 && gifPageKey(command) !== null);
+  ok(laterSprite !== undefined);
+  if (laterSprite === undefined) throw new Error("the advanced GIF page is a picture-asset blit");
+  const laterAsset = gifPageKey(laterSprite);
+  if (laterAsset === null) throw new Error("the advanced GIF frame names a decoded-picture asset");
+  const secondPage = later.engine.picturePixels(laterAsset);
+  ok(secondPage !== null);
+  deepEqual(Array.from(secondPage?.rgba.slice(0, 4) ?? []), [200, 0, 0, 255]);
+  deepEqual(pixelAt(presented(later), 64, 63), [200, 0, 0, 255]);
+  equal(laterList.commands.some((command) =>
+    command.kind === "rect" && command.rect.x === 64 && command.rect.y === 63
+      && command.rgb.r === 64 && command.rgb.g === 96 && command.rgb.b === 224), false);
+  const player = later.state().sprites.players[0];
+  ok(player !== undefined);
+  if (player === undefined) throw new Error("the authored character is present");
+  later.state().sprites.items.push({
+    ...player,
+    id: "item:shared-gif",
+    kind: "item",
+    index: 0,
+    handle: 0,
+    sourceSlot: 0,
+    source: "shared-gif",
+    x: 96,
+    controlled: false,
+  });
+  const sharedSources = gifPageSources(later.engine);
+  equal(sharedSources.length, 2, "both character and item draw the current GIF page");
+  equal(sharedSources[0], sharedSources[1], "both sprites reference the same immutable GIF page asset");
+  const surfaceSlots = Object.keys(later.state().surfaces.slots).length;
+  const redrawnSources = gifPageSources(later.engine);
+  deepEqual(redrawnSources, sharedSources, "both sprites reuse the current GIF page asset");
+  equal(Object.keys(later.state().surfaces.slots).length, surfaceSlots, "drawing GIF pages does not grow state surfaces");
 });
 
 test("walk frames advance once per animation delay and the draw follows the frame (#1252)", () => {

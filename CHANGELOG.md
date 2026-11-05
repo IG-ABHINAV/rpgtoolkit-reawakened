@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Animated GIF walk and idle sprites now display their current page instead of a marker. The engine shares decoded pages between sprites and uses content-derived texture keys across resets; those keys use the core's FNV-1a 64-bit convention, which has a theoretical collision risk (#1254; `docs/spec/formats/animation.md#animated-gif`, `docs/spec/engine/plugins-and-battle.md#e-54`).
 - Held direction input now replaces the selected player's remaining script or click route at the next step boundary, including a waypoint, while the current step finishes and blocking scripts keep ownership of input. Mid-step taps are not buffered; whether 3.1 click-walking differs remains an owner decision (#1286, #1180; `docs/spec/engine/movement-and-collision.md#e-133`).
 - Diagonal pixel-mode direction steps now move four pixels on each axis in one movement advance, and collision is checked at that full destination in both pixel modes (#1282; `docs/spec/engine/movement-and-collision.md#r-62`).
 - Sliding at a wall corner now chooses the same collision edge regardless of polygon winding or starting vertex; the spec defines a deterministic tie-break rather than claiming original-engine parity (#1284; `docs/spec/engine/movement-and-collision.md#r-54`).
