@@ -236,7 +236,7 @@ test("screen vector primitives crossing Plane 1 enter margin commands and render
   const drawList = engine.drawList();
   deepEqual(drawList.marginCommands, state.ui.authorMarginCommands);
   const surfaces = new Map() as RasterSurfaces;
-  surfaces.get = (surface, revision = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+  surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
   const rendered = rasterizePresentation(drawList, geometry, new Map(), surfaces);
   equal(rendered.error, null);
   const alphaAt = (x: number, y: number): number => rendered.rgba[(y * rendered.width + x) * 4 + 3]!;
@@ -276,7 +276,7 @@ test("screen-target canvas blits retain source pixels for Plane 3 rendering and 
   deepEqual(drawList.marginCommands[1].key, { r: 255, g: 255, b: 255 });
   deepEqual(drawList.marginCommands[2].src, { x: 1, y: 0, w: 1, h: 1 });
   const surfaces = new Map() as RasterSurfaces;
-  surfaces.get = (surface, revision = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+  surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
   const raster = rasterizePresentation(drawList, geometry, new Map(), surfaces);
   equal(raster.error, null);
   const alphaAt = (x: number, y: number): number => raster.rgba[(y * raster.width + x) * 4 + 3]!;
@@ -302,7 +302,7 @@ test("screen-target canvas blits retain source pixels for Plane 3 rendering and 
   ].join("\n"));
   clipped.advance(1, []);
   const clippedSurfaces = new Map() as RasterSurfaces;
-  clippedSurfaces.get = (surface, revision = 0) => clipped.surfacePixels(surface, revision) ?? undefined;
+  clippedSurfaces.get = (surface: SurfaceId, revision: number = 0) => clipped.surfacePixels(surface, revision) ?? undefined;
   const clippedRaster = rasterizePresentation(clipped.drawList(), clippedGeometry, new Map(), clippedSurfaces);
   equal(clippedRaster.error, null);
   equal(clippedRaster.rgba[(0 * clippedGeometry.content.width + 1) * 4 + 3], 0, "safe-area clipping suppresses the margin blit");
@@ -1394,7 +1394,7 @@ test("screen-target image blits render crossing/exterior pixels and obey safe-ar
       if (imageProvided && result.requests.length === 0 && !result.loading) break;
     }
     const surfaces = new Map() as RasterSurfaces;
-    surfaces.get = (surface, revision = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+    surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
     const assets = new Map([[assetKey("bitmap/pixel.bmp"), texture]]);
     const raster = rasterizePresentation(engine.drawList(), { ...geometry, safeArea: { ...geometry.safeArea, left: safeLeft } }, assets, surfaces);
     equal(raster.error, null);

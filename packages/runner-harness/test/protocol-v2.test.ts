@@ -1,4 +1,4 @@
-import { deepEqual, equal, notEqual } from "node:assert/strict";
+import { deepEqual, equal } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,7 +22,7 @@ test("runner protocol v2 draw hashes include both ordered command planes", () =>
     } else {
       equal(hashDrawList(row.a), row.hashA, `${row.id}: base hash`);
       equal(hashDrawList(row.b), row.hashB, `${row.id}: margin hash`);
-      notEqual(row.hashA, row.hashB, `${row.id}: margin-only difference changes the hash`);
+      equal(row.hashA === row.hashB, false, `${row.id}: margin-only difference changes the hash`);
     }
   }
 });

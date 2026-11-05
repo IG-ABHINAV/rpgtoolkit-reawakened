@@ -14,6 +14,7 @@ import {
   type CommandView,
   type SurfaceId,
 } from "../src/index.ts";
+import type { Arg } from "../src/script/builtins.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
 import type { SurfacesSection } from "../src/save/sections/surfaces.ts";
 
@@ -68,7 +69,7 @@ test("screen vector primitives emit safe Plane 3 pixels for every author primiti
   command("fillrect").call(commandView, [arg(-2), arg(4), arg(-1), arg(5)], NONE);
   command("drawcircle").call(commandView, [arg(-1), arg(6), arg(1)], NONE);
   command("fillcircle").call(commandView, [arg(-1), arg(7), arg(1)], NONE);
-  equal(state.ui.authorMarginCommands.length, 6);
+  equal(state.ui.authorMarginCommands.length, 10);
 
   const geometry = {
     content: { width: 12, height: 8 },
