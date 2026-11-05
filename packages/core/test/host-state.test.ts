@@ -111,9 +111,10 @@ test("engine applies and records complete host updates on their consuming tick",
   const changed = engine.advance(1, [
     { tick: 0, event: { kind: "host.features", features } },
     { tick: 0, event: { kind: "host.display", geometry } },
+    { tick: 0, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } },
   ]);
   equal(changed.ticksRun, 1);
-  deepEqual(changed.consumed.map((input) => input.event.kind), ["host.features", "host.display"]);
+  deepEqual(changed.consumed.map((input) => input.event.kind), ["host.features", "host.display", "host.gamepads"]);
   deepEqual(observed.current?.features, features);
   deepEqual(observed.current?.geometry, geometry);
   const ordered = engine.advance(1, [
@@ -144,5 +145,12 @@ test("engine applies and records complete host updates on their consuming tick",
   equal(live.state.vm.globals["resetSentinel"], undefined, "the reset actually ran");
   deepEqual(live.state.features, features, "reset keeps the current host features");
   deepEqual(live.state.display.geometry, geometry, "reset keeps the current display geometry");
+  equal(live.state.input.gamepads["0"]?.connected, true, "reset preserves the latest logged physical controller connection");
+  equal(live.state.input.actions.right, true, "reset restores the held controller action");
+  engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } }]);
+  equal(live.state.input.gamepads["0"]?.connected, false, "an omitted physical device releases the restored saved sample");
+  equal(live.state.input.actions.right, false, "a disconnected saved direction cannot remain held");
+  engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } }]);
+  equal(live.state.input.actions.right, true, "a currently held physical direction is applied from the live snapshot");
 });
 

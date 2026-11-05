@@ -73,6 +73,7 @@ export type LiveSession = {
   /** The located diagnostics the engine has reported so far, capped like the effect audit. */
   readonly diagnostics: () => readonly { code: string; file: string; line: number; message: string }[];
   readonly advance: (ticks: number, inputs?: readonly InputRecord[]) => Promise<void>;
+  readonly setHostRestoreSnapshotProvider: (provider: (() => readonly InputRecord["event"][]) | null) => void;
 };
 type LiveSessionBase = {
   readonly bundled: ClosingFiles;
@@ -372,6 +373,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     }
   };
 
+  let hostRestoreSnapshotProvider: (() => readonly InputRecord["event"][]) | null = null;
   const pump = async (initialTicks: number, initialInputs: readonly InputRecord[]): Promise<void> => {
     let ticks = initialTicks;
     let inputs = [...initialInputs];
@@ -422,7 +424,14 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       // of them); replies are awaited in report order so input records stay in the order the engine expects.
       const replies = await dispatchRequests(report.requests, report.tickAfter, hostReply);
       if (closed) return;
-      if (report.loading || replies.length > 0) { inputs = replies; continue; }
+      inputs = [];
+      for (const reply of replies) {
+        inputs.push(reply);
+        if (reply.event.kind === "blob.loaded" && hostRestoreSnapshotProvider !== null) {
+          for (const event of hostRestoreSnapshotProvider()) inputs.push({ tick: reply.tick, event });
+        }
+      }
+      if (report.loading || replies.length > 0) continue;
       if (ticks > 0 && report.ticksRun > 0) continue;
       return;
     }
@@ -444,6 +453,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     close,
     tick: () => currentTick,
     stateHash: () => currentStateHash,
+    setHostRestoreSnapshotProvider(provider) { hostRestoreSnapshotProvider = provider; },
     viewSize: () => ({ width: viewport.width, height: viewport.height }),
     hostState: hostFeatures === null ? null : { features: hostFeatures, geometry: initialGeometry },
     displayGeometry: () => engine.hostDisplayGeometry(),

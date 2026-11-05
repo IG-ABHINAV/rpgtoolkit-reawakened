@@ -10,6 +10,7 @@ export {
   registeredActionNames,
   rebuildKeyboardActionClaimIndex,
   registerGameAction,
+  recomputeInputActions,
   takeInputActions,
   heldPointerGoal,
   setPointerMovementSuppressed,

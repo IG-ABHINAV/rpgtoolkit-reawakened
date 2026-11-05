@@ -334,3 +334,32 @@ test("host changes before a load reply do not survive as future inputs", () => {
   }
   throw new Error("expected the real load request");
 });
+
+test("focused Load applies live capabilities before the restored continuation branches in the same advance", () => {
+  const captured = run(boot('Save("slot")\nif (hasFeature("touch")) {\n  touchBranch = 1\n} else {\n  touchBranch = 0\n}\nend()\n'), null);
+  ok(captured.saved !== null, "the real Engine produced a save containing the branch continuation");
+  const game = boot('Load("slot")\nend()\n');
+  let requests: InputRecord[] = [];
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const report = game.engine.advance(1, requests);
+    requests = [];
+    const load = report.requests.find((request) => request.kind === "loadBlob");
+    if (load === undefined || load.kind !== "loadBlob") {
+      for (const request of report.requests) {
+        if (request.kind === "asset") requests.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      }
+      continue;
+    }
+    const features = { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: "portrait" } as const;
+    const restored = game.engine.advance(1, [
+      { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: load.reqId, bytes: captured.saved } },
+      { tick: report.tickAfter, event: { kind: "host.features", features } },
+      { tick: report.tickAfter, event: { kind: "host.gamepads", devices: [] } },
+    ]);
+    equal(restored.consumed.some(({ event }) => event.kind === "host.features"), true);
+    equal(game.state()?.features.touch, true);
+    equal(game.state()?.vm.globals["touchbranch"], 1, "the restored script observed live touch before selecting its branch");
+    return;
+  }
+  throw new Error("expected the real load request");
+});

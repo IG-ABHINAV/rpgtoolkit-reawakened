@@ -17,6 +17,7 @@ test("validateInputEvent accepts one valid event of each kind", () => {
     ["semantic action", { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" }],
     ["gamepad", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 }],
     ["gamepad W3C button 16", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 16 }],
+    ["host gamepad snapshot", { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 1 << 16 }] }],
     ["focus", { kind: "focus", state: "gained" }],
     ["asset with bytes", { kind: "asset", reqId: 1, bytes: new Uint8Array([1, 2]) }],
     ["asset with null bytes", { kind: "asset", reqId: 1, bytes: null }],
@@ -111,6 +112,7 @@ test("validateInputEvent names the path of the first failure", () => {
       "result",
     ],
     ["gamepad button outside W3C range", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 17 }, "buttons"],
+    ["unsorted host gamepad snapshot", { kind: "host.gamepads", devices: [{ device: 1, axes: { x: 0, y: 0 }, buttons: 0 }, { device: 0, axes: { x: 0, y: 0 }, buttons: 0 }] }, "devices[1].device"],
     [
       "extra key on a key event",
       { kind: "key", name: "A", code: "KeyA", char: null, down: true, extra: 1 },

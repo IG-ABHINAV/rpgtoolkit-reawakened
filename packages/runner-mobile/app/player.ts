@@ -238,6 +238,11 @@ function run(
     observedGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
+  session.setHostRestoreSnapshotProvider(() => {
+    const snapshot = hostObserver.snapshotForRestore();
+    for (const event of snapshot) observedGeometry.observe(event);
+    return snapshot;
+  });
   const stage = hostViewport.viewport;
   const touchControls = createFallbackTouchControls(stage, observedGeometry.current, (action, down) => {
     pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });

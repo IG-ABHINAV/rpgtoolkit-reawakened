@@ -94,6 +94,11 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     observedGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
+  session.setHostRestoreSnapshotProvider(() => {
+    const snapshot = hostObserver.snapshotForRestore();
+    for (const event of snapshot) observedGeometry.observe(event);
+    return snapshot;
+  });
   const pointerHost = stage;
   const stopPointerInput = attachPointerInput(
     pointerHost,

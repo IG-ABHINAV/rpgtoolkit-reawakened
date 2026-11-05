@@ -68,7 +68,7 @@ import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import type { UiActionClaim } from "../save/sections/ui.ts";
-import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, recomputeInputActions, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -2030,12 +2030,15 @@ export function createEngine(init: EngineInit): Engine {
       initialCharacterKey = null;
       initialCharacterResolved = true;
     }
+    const hostFeatures = state.features;
+    const hostGeometry = state.display.geometry;
+    const hostGamepads = state.input.gamepads;
     const fresh = createGameState({
       seed: 0,
       width: init.width,
       height: init.height,
-      ...(init.features === undefined ? {} : { features: init.features }),
-      ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+      features: hostFeatures,
+      displayGeometry: hostGeometry,
     });
     state.world = { ...fresh.world, movement: movementDefaults(mainFile) };
     state.sprites = fresh.sprites;
@@ -2072,6 +2075,10 @@ export function createEngine(init: EngineInit): Engine {
     postQuitWriteFailures.length = 0;
     state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
+    state.input.gamepads = { ...hostGamepads };
+    recomputeInputActions(state.input, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+    });
     init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
       const found = index.byKey.get(assetKey(nextMain));
@@ -3534,6 +3541,20 @@ export function createEngine(init: EngineInit): Engine {
       state.features = normalizeHostFeatures(event.features);
       return true;
     }
+    if (event.kind === "host.gamepads") {
+      const connected = new Set(event.devices.map((device) => device.device));
+      state.input.pendingGamepads = [];
+      for (const [device, pad] of Object.entries(state.input.gamepads)) {
+        const index = Number(device);
+        if (pad.connected && !connected.has(index)) {
+          state.input.pendingGamepads.push({ device: index, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+        }
+      }
+      for (const device of event.devices) {
+        state.input.pendingGamepads.push({ ...device, connected: true });
+      }
+      return true;
+    }
     if (event.kind === "host.display") {
       const previous = state.display.geometry;
       const geometry = normalizeDisplayGeometry(event.geometry);
@@ -3910,7 +3931,9 @@ export function createEngine(init: EngineInit): Engine {
         if (result === "loaded") {
           for (const queued of records.slice(index + 1)) {
             if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved" || queued.event.kind === "blob.listed") continue;
-            deferred.push({ ...queued, tick: state.time.tick });
+            const rebased = { ...queued, tick: state.time.tick };
+            if (applyHostStateEvent(queued.event)) consumed.push(rebased);
+            else deferred.push(rebased);
           }
           break;
         }

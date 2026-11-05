@@ -369,6 +369,11 @@ function startLiveLoop(
     displayGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
+  session.setHostRestoreSnapshotProvider(() => {
+    const snapshot = hostObserver.snapshotForRestore();
+    for (const event of snapshot) displayGeometry.observe(event);
+    return snapshot;
+  });
   const stopPointerInput = attachPointerInput(
     hostViewport.viewport,
     viewSize,

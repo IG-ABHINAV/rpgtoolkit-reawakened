@@ -56,6 +56,36 @@ function createSchema() {
       source: { type: "string", minLength: 1 },
     },
   };
+  schema.$defs.hostGamepadsInput = {
+    type: "object",
+    additionalProperties: false,
+    required: ["kind", "devices"],
+    properties: {
+      kind: { const: "host.gamepads" },
+      devices: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["device", "axes", "buttons"],
+          properties: {
+            device: { type: "integer", minimum: 0, maximum: 3 },
+            axes: {
+              type: "object",
+              additionalProperties: false,
+              required: ["x", "y"],
+              properties: {
+                x: { type: "integer", minimum: -1000, maximum: 1000 },
+                y: { type: "integer", minimum: -1000, maximum: 1000 },
+              },
+            },
+            buttons: { type: "integer", minimum: 0, maximum: 131071 },
+          },
+        },
+      },
+    },
+  };
+  schema.$defs.inputEvent.oneOf.push({ $ref: "#/$defs/hostGamepadsInput" });
   schema.$defs.inputEvent.oneOf.push({ $ref: "#/$defs/actionInput" });
   return schema;
 }
@@ -73,6 +103,9 @@ function createVectors() {
     { id: "refuse-draw-v1-extra-key", family: "draw", valid: false, why: "v2 rejects unknown keys", record: { tick: 12, width: 640, height: 480, commands: [], marginCommands: [], legacy: true } },
     { id: "input-fallback-action-down", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } } },
     { id: "refuse-action-missing-source", family: "input", valid: false, why: "semantic action records require a source", record: { tick: 8, event: { kind: "action", action: "confirm", down: true } } },
+    { id: "input-host-gamepads-empty", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [] } } },
+    { id: "input-host-gamepads-connected", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } } },
+    { id: "refuse-host-gamepads-button-range", family: "input", valid: false, why: "physical button mask is a 17-bit value", record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 131072 }] } } },
   );
   return {
     schema: 2,

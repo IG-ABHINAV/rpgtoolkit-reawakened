@@ -190,6 +190,7 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   const observedFeatures: HostStateObserver = {
     poll() {},
     currentFeatures: () => ({ ...liveFeatures }),
+    snapshotForRestore: () => [],
     dispose() {},
   };
   const host = { getBoundingClientRect: () => ({ left: 0, top: 0 } as DOMRect) } as HTMLElement;
@@ -353,6 +354,14 @@ test("gamepad polling accepts only the standard mapping and emits devices in asc
       { device: 0, buttons: 1 << 16 },
       { device: 2, buttons: 0 },
     ]);
+    deepEqual(observer.snapshotForRestore(), [
+      { kind: "host.features", features: { touch: true, pointer: "coarse", keyboard: false, gamepad: true, haptics: false, orientation: "portrait" } },
+      { kind: "host.display", geometry: { content: { width: 640, height: 480 }, game: { x: 0, y: 0, width: 640, height: 480 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } } },
+      { kind: "host.gamepads", devices: [
+        { device: 0, axes: { x: 0, y: 0 }, buttons: 1 << 16 },
+        { device: 2, axes: { x: 0, y: 0 }, buttons: 0 },
+      ] },
+    ]);
   } finally {
     observer?.dispose();
     restore();
@@ -366,6 +375,7 @@ test("live host capabilities are reconciled after save restore as logged feature
   const observer: HostStateObserver = {
     poll() {},
     currentFeatures: () => ({ ...current }),
+    snapshotForRestore: () => [],
     dispose() {},
   };
   const restored: NormalizedHostFeatures = {
