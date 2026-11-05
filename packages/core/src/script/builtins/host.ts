@@ -3,7 +3,7 @@ import type { Arg, BuiltinDoc, BuiltinSpec } from "../builtins.ts";
 import { ScriptError } from "../errors.ts";
 import { foldAscii } from "../values.ts";
 
-const GROUPS = ["core-runtime"];
+const GROUPS = ["core-runtime", "host-capabilities-viewport-geometry-reawakened"];
 const SEE = [
   "docs/spec/engine/host-capabilities-and-viewports.md#host-features",
   "docs/spec/engine/host-capabilities-and-viewports.md#display-planes",
@@ -27,7 +27,7 @@ function stringArg(args: readonly Arg[], index: number, name: string): string {
   return value;
 }
 
-
+type Side = "left" | "right" | "top" | "bottom";
 function sideArg(args: readonly Arg[], name: string): Side {
   const side = foldAscii(stringArg(args, 0, name));
   if (side === "left" || side === "right" || side === "top" || side === "bottom") return side;
@@ -54,10 +54,10 @@ function geometryValue(view: Parameters<BuiltinSpec["call"]>[0], args: readonly 
 export const HOST_SPECS: readonly BuiltinSpec[] = [
   {
     name: "hasfeature",
-    aliases: ["hasFeature"],
+    aliases: [],
     params: [{ name: "name", optional: false, byRef: false, variadic: false }],
     doc: docs(
-      "Check whether a named host capability is active.",
+      "Check whether a host capability is active.",
       "Read the current normalized host capability record and return 1 or 0. Names are case-insensitive: touch, keyboard, gamepad, and haptics use their boolean values; pointer is active unless its type is none; orientation is active unless it is null. Unknown names return 0.",
       [{ code: "builtin.bad-arg", when: "The capability name is not a string." }],
     ),
@@ -76,44 +76,44 @@ export const HOST_SPECS: readonly BuiltinSpec[] = [
   },
   {
     name: "pointertype",
-    aliases: ["pointerType"],
+    aliases: [],
     params: [],
     doc: docs("Read the current pointer precision.", "Return the normalized host pointer type: fine, coarse, or none."),
     call: (view) => ({ value: view.state?.features.pointer ?? "none" }),
   },
   {
     name: "viewwidth",
-    aliases: ["viewWidth"],
+    aliases: [],
     params: [],
-    doc: docs("Read the logical viewport width in pixels.", "Return the configured logical viewport width in pixels; physical display geometry does not change this value."),
+    doc: docs("Read the configured logical viewport width in pixels.", "Return the configured logical viewport width in pixels; physical display geometry does not change this value."),
     call: (view) => ({ value: view.logicalViewport?.width ?? 320 }),
   },
   {
     name: "viewheight",
-    aliases: ["viewHeight"],
+    aliases: [],
     params: [],
-    doc: docs("Read the logical viewport height in pixels.", "Return the configured logical viewport height in pixels; physical display geometry does not change this value."),
+    doc: docs("Read the configured logical viewport height in pixels.", "Return the configured logical viewport height in pixels; physical display geometry does not change this value."),
     call: (view) => ({ value: view.logicalViewport?.height ?? 240 }),
   },
   {
     name: "marginwidth",
-    aliases: ["marginWidth"],
+    aliases: [],
     params: [{ name: "side", optional: false, byRef: false, variadic: false }],
-    doc: docs("Read the display margin in logical pixels for one side.", "For left, right, top, or bottom, return the distance between the content edge and game rectangle edge, divided by the corresponding game-to-logical scale and floored. Side names are case-insensitive.", [{ code: "builtin.bad-arg", when: "The side is not a string or is not left, right, top, or bottom." }]),
+    doc: docs("Read the display margin for a side in logical pixels.", "For left, right, top, or bottom, return the distance between the content edge and game rectangle edge, divided by the corresponding game-to-logical scale and floored. Side names are case-insensitive.", [{ code: "builtin.bad-arg", when: "The side is not a string or is not left, right, top, or bottom." }]),
     call: (view, args) => ({ value: geometryValue(view, args, "marginwidth") }),
   },
   {
     name: "safeareainset",
-    aliases: ["safeAreaInset"],
+    aliases: [],
     params: [{ name: "side", optional: false, byRef: false, variadic: false }],
     doc: docs("Read a hardware safe-area inset in logical pixels.", "For top, right, bottom, or left, return the CSS-pixel inset divided by the corresponding game-to-logical scale and floored. Side names are case-insensitive.", [{ code: "builtin.bad-arg", when: "The side is not a string or is not top, right, bottom, or left." }]),
     call: (view, args) => ({ value: geometryValue(view, args, "safeareainset") }),
   },
   {
     name: "displayaspect",
-    aliases: ["displayAspect"],
+    aliases: [],
     params: [],
-    doc: docs("Read the physical content window's aspect ratio.", "Return content.width divided by content.height from the current normalized display geometry."),
+    doc: docs("Read the physical content-window aspect ratio.", "Return content.width divided by content.height from the current normalized display geometry."),
     call: (view) => {
       const geometry = view.state?.display.geometry;
       return { value: geometry === undefined ? 4 / 3 : geometry.content.width / geometry.content.height };

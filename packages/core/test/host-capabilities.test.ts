@@ -1,6 +1,6 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import { createAssetIndex, createEmptyBoard, createEngine, PACKAGE_ROOT, writeBoard, type GameState } from "../src/index.ts";
+import { createAssetIndex, createEmptyBoard, createEngine, createGameState, PACKAGE_ROOT, queueNativeEvent, readEvent, writeBoard, type GameState } from "../src/index.ts";
 
 const updatedGeometry = {
   content: { width: 1280, height: 720 },
@@ -123,4 +123,17 @@ test("viewport changes and gamepad connection edges queue script-visible game ev
   equal(globals.disconnecteddevice, 2);
   equal(globals.viewportcount, 1, "an unchanged geometry update must not create a resize event");
   equal(disconnected.consumed.length, 1);
+});
+
+test("native viewport listeners receive the documented detail field names", () => {
+  const state = createGameState({ seed: 9 });
+  const handle = queueNativeEvent(state.vm, state.events, "game", "viewportResized", {
+    marginleft: 1, marginright: 2, margintop: 3, marginbottom: 4,
+    safearealeft: 5, safearearight: 6, safeareatop: 7, safeareabottom: 8,
+  });
+  const event = readEvent(state, { kind: "object", handle, className: "" });
+  deepEqual(event?.detail, {
+    marginLeft: 1, marginRight: 2, marginTop: 3, marginBottom: 4,
+    safeAreaLeft: 5, safeAreaRight: 6, safeAreaTop: 7, safeAreaBottom: 8,
+  });
 });

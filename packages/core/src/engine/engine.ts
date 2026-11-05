@@ -3461,15 +3461,16 @@ export function createEngine(init: EngineInit): Engine {
       ) {
         const scaleX = geometry.game.width / init.width;
         const scaleY = geometry.game.height / init.height;
+        // Script member names are ASCII-folded by the RPGCode parser.
         queueNativeEvent(state.vm, state.events, "game", "viewportResized", {
-          marginLeft: Math.floor(geometry.game.x / scaleX),
-          marginRight: Math.floor((geometry.content.width - geometry.game.x - geometry.game.width) / scaleX),
-          marginTop: Math.floor(geometry.game.y / scaleY),
-          marginBottom: Math.floor((geometry.content.height - geometry.game.y - geometry.game.height) / scaleY),
-          safeAreaTop: Math.floor(geometry.safeArea.top / scaleY),
-          safeAreaRight: Math.floor(geometry.safeArea.right / scaleX),
-          safeAreaBottom: Math.floor(geometry.safeArea.bottom / scaleY),
-          safeAreaLeft: Math.floor(geometry.safeArea.left / scaleX),
+          marginleft: Math.floor(geometry.game.x / scaleX),
+          marginright: Math.floor((geometry.content.width - geometry.game.x - geometry.game.width) / scaleX),
+          margintop: Math.floor(geometry.game.y / scaleY),
+          marginbottom: Math.floor((geometry.content.height - geometry.game.y - geometry.game.height) / scaleY),
+          safeareatop: Math.floor(geometry.safeArea.top / scaleY),
+          safearearight: Math.floor(geometry.safeArea.right / scaleX),
+          safeareabottom: Math.floor(geometry.safeArea.bottom / scaleY),
+          safearealeft: Math.floor(geometry.safeArea.left / scaleX),
         });
       }
       return true;
