@@ -31,6 +31,7 @@ export type BoardBlit = {
 };
 
 export type SpriteFrame = {
+  /** GIF frames use a content-derived private key for their decoded page texture. */
   readonly asset?: AssetKey;
   readonly file?: string;
   readonly tile?: number | null;

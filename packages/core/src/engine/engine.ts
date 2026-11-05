@@ -351,6 +351,10 @@ export function createEngine(init: EngineInit): Engine {
    * so it is a per-run cache and never saved state; `null` records a file that cannot be decoded so it is not retried.
    */
   const spriteAnimations = new Map<AssetKey, DecodedAnimation | null>();
+  /** Source byte object used to invalidate actor animation metadata when the same key is reloaded with new content. */
+  const spriteAnimationSourceBytes = new Map<AssetKey, Uint8Array>();
+  /** Decoded GIF pages owned by actor animations, released when those animations leave the active visual set. */
+  const spriteGifPageAssets = new Map<AssetKey, readonly AssetKey[]>();
   /** Animation files whose frames name a missing asset, so each is reported once rather than every tick. */
   const missingSpriteAnimationAssets = new Set<AssetKey>();
   const decodedBundled = new Map<AssetKey, RasterAsset | null>();
@@ -3170,7 +3174,7 @@ export function createEngine(init: EngineInit): Engine {
    * the pending queue is asked for again instead of leaving the actor on its marker for the rest of the run (#1259).
    */
   function requestSpriteFrameAssets(decoded: DecodedAnimation): void {
-    // An animated GIF's pages live in surfaces, which a sprite frame cannot name yet (#1254).
+    // GIF pages are installed in the decoded picture cache during preparation, never during draw-list reads.
     if (decoded.gifPixels !== undefined) return;
     for (const frame of decoded.frames) {
       if (frame.asset === null || frame.surface !== undefined) continue;
@@ -3187,20 +3191,22 @@ export function createEngine(init: EngineInit): Engine {
 
   /**
    * Decode one actor animation file from the asset cache (E-54): its frame list, delay and size, shared by every
-   * sprite that names the file. Returns null while the bytes are outstanding (the request is posted here), and caches
-   * an undecodable file as null so it is reported once. Frame pictures are ordinary assets; each is requested too.
+   * sprite that names the file. Returns null while bytes are outstanding and caches undecodable files as null.
+   * GIF pages are prepared separately as content-addressed picture entries.
    */
   function decodeSpriteAnimation(key: AssetKey): DecodedAnimation | null {
-    const cached = spriteAnimations.get(key);
-    if (cached !== undefined) {
-      if (cached !== null) requestSpriteFrameAssets(cached);
-      return cached;
-    }
     const bytes = cache.get(key);
     if (bytes === undefined) {
       request(key, "animation");
       return null;
     }
+    const cached = spriteAnimations.get(key);
+    if (cached !== undefined && spriteAnimationSourceBytes.get(key) === bytes) {
+      if (cached !== null) requestSpriteFrameAssets(cached);
+      return cached;
+    }
+    releaseSpriteGifPageAssets(key);
+    spriteAnimationSourceBytes.set(key, bytes);
     const decoded = decodeAnimationFrames(bytes, key, key, resolveAnimationImage);
     if (decoded === null) {
       spriteAnimations.set(key, null);
@@ -3211,6 +3217,63 @@ export function createEngine(init: EngineInit): Engine {
     spriteAnimations.set(key, decoded);
     return decoded;
   }
+  /** Give every GIF page a deterministic private picture key derived from the exact animation bytes and frame index. */
+  function spriteGifAssetKeys(key: AssetKey, decoded: DecodedAnimation): readonly AssetKey[] {
+    const pages = decoded.gifPixels;
+    if (pages === undefined) return [];
+    const cached = spriteGifPageAssets.get(key);
+    if (cached !== undefined) {
+      for (let index = 0; index < pages.length; index += 1) {
+        const asset = cached[index];
+        const pixels = pages[index];
+        if (asset !== undefined && pixels !== undefined && !decodedImages.has(asset)) {
+          decodedImages.set(asset, { w: decoded.width, h: decoded.height, rgba: pixels });
+        }
+      }
+      return cached;
+    }
+    const bytes = spriteAnimationSourceBytes.get(key);
+    if (bytes === undefined) return [];
+    const contentIdentity = fnv1a64(bytes);
+    const assets: AssetKey[] = [];
+    for (let index = 0; index < pages.length; index += 1) {
+      const pixels = pages[index];
+      if (pixels === undefined) continue;
+      // NUL cannot occur in an indexed path, keeping this private namespace disjoint from authored assets.
+      const pageKey = `\u0000rpgtoolkit-gif-page/${contentIdentity}/${index}` as AssetKey;
+      decodedImages.set(pageKey, { w: decoded.width, h: decoded.height, rgba: pixels });
+      assets.push(pageKey);
+    }
+    spriteGifPageAssets.set(key, assets);
+    return assets;
+  }
+  function releaseSpriteGifPageAssets(key: AssetKey): void {
+    const assets = spriteGifPageAssets.get(key);
+    if (assets === undefined) return;
+    spriteGifPageAssets.delete(key);
+    for (const asset of assets) {
+      let referenced = false;
+      for (const pages of spriteGifPageAssets.values()) {
+        if (pages.includes(asset)) {
+          referenced = true;
+          break;
+        }
+      }
+      if (!referenced) decodedImages.delete(asset);
+    }
+  }
+
+  function releaseInactiveSpriteGifPages(active: ReadonlySet<AssetKey>): void {
+    for (const key of spriteGifPageAssets.keys()) {
+      if (active.has(key)) continue;
+      releaseSpriteGifPageAssets(key);
+      const decoded = spriteAnimations.get(key);
+      if (decoded?.gifPixels !== undefined) {
+        spriteAnimations.delete(key);
+        spriteAnimationSourceBytes.delete(key);
+      }
+    }
+  }
 
   /**
    * Ask for every actor animation file before a tick can use it. Runs beside the boot/board driver, so a board never
@@ -3218,6 +3281,7 @@ export function createEngine(init: EngineInit): Engine {
    */
   function prepareSpriteVisuals(): void {
     if (failed || pending.size > 0 || pendingBlobs.size > 0) return;
+    const active = new Set<AssetKey>();
     for (const file of spriteAnimationFiles()) {
       const key = resolveAnimationFile(file);
       if (key === null) {
@@ -3228,10 +3292,12 @@ export function createEngine(init: EngineInit): Engine {
         }
         continue;
       }
-      decodeSpriteAnimation(key);
+      active.add(key);
+      const decoded = decodeSpriteAnimation(key);
+      if (decoded !== null) spriteGifAssetKeys(key, decoded);
     }
+    releaseInactiveSpriteGifPages(active);
   }
-
   /** The actor animation clock's metadata: the count of non-empty frames and the frame delay (E-21, E-54). */
   function resolveSpriteAnimationSpec(file: string): { readonly file: string; readonly frames: number; readonly delayTicks: number } | null {
     const key = resolveAnimationFile(file);
@@ -3243,19 +3309,33 @@ export function createEngine(init: EngineInit): Engine {
 
   /**
    * The draw payload of one actor animation frame: the tileset cell (or picture) the compositor blits at the sprite's
-   * position. A frame whose picture is still outstanding, or an animated GIF frame (whose pixels live in a surface the
-   * sprite path does not draw yet), yields null so the sprite keeps its marker until its artwork is available.
+   * position. A frame whose picture is still outstanding yields null so the sprite keeps its marker until its artwork
+   * is available.
    */
   function spriteFrameFor(file: string, frame: number): SpriteFrame | null {
     const key = resolveAnimationFile(file);
     if (key === null) return null;
     const data = spriteAnimations.get(key) ?? decodeSpriteAnimation(key);
-    if (data === null || data.frames.length === 0 || data.gifPixels !== undefined) return null;
-    // A draw can happen without a preparation pass (a stance started mid-tick), so re-acquire here as well.
-    requestSpriteFrameAssets(data);
+    if (data === null || data.frames.length === 0) return null;
     const index = ((Math.trunc(frame) % data.frames.length) + data.frames.length) % data.frames.length;
     const entry = data.frames[index];
-    if (entry === undefined || entry.asset === null || entry.surface !== undefined) return null;
+    if (entry === undefined || entry.asset === null) return null;
+    if (data.gifPixels !== undefined) {
+      const pageAsset = spriteGifPageAssets.get(key)?.[index];
+      if (pageAsset === undefined) return null;
+      return {
+        file,
+        asset: pageAsset,
+        tile: null,
+        src: { x: 0, y: 0, w: data.width, h: data.height },
+        width: data.width,
+        height: data.height,
+        transparent: entry.transparent,
+      };
+    }
+    // A draw can happen without a preparation pass (a stance started mid-tick), so re-acquire ordinary assets here too.
+    requestSpriteFrameAssets(data);
+    if (entry.surface !== undefined) return null;
     // The frame's picture is a separate asset; until the host has delivered and decoded it the sprite keeps its
     // marker, so a frame never names a texture the runner cannot resolve yet.
     const lower = entry.asset.toLowerCase();
