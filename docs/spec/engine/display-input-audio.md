@@ -290,6 +290,8 @@ Rules: the pointer moves the surface cursor by hover and activates on release ov
 
 For on-screen button slots, a primary-button press only records the enabled slot; it does not activate it. Leaving that slot, disabling it, or losing focus cancels the press. A primary release over the same enabled slot activates it once. The input section saves the pressed slot id as `pressedButtonSlot` (or `null`); schema 4 restores older input sections with no pending slot press. The general pointer record cannot hold this identity: another mouse button can replace its last-press coordinates while the primary button is still down.
 
+When a primary pointer leaves the live canvas while held, or the host cancels it, the host sends a `pointer.cancel` input event. Core clears the pending slot press and the primary held bit without generating a release edge, a key, an action, or a click-to-move destination; other pointer buttons and keyboard state are unchanged. After a held pointer leaves, the host suppresses that primary button until its physical release or cancellation, so re-entering while still held cannot start a new press; a later fresh press works normally. Web, desktop and mobile live players use the same rule. The event is ordered and recorded like other input records, so replay and saves observe the same state. This is a Reawakened engineering rule for #1376, not a claim about legacy behavior.
+
 ## Audio
 
 | Sound | Source |
