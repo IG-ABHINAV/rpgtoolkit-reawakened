@@ -55,6 +55,7 @@ import {
   PARTY_SCHEMA_VERSION, INVENTORY_SCHEMA_VERSION, MENU_SCHEMA_VERSION,
 } from "../menu/model.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection } from "../battle/model.ts";
+import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
 import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import { DISPLAY_SCHEMA_VERSION, HOST_FEATURES_SCHEMA_VERSION, createDisplaySection, normalizeDisplayGeometry, normalizeHostFeatures, type DisplaySection, type HostFeaturesSection } from "./sections/host.ts";
 
@@ -79,6 +80,7 @@ export const SCHEMA_VERSIONS = {
   rng: 1,
   time: 1,
   engine: 1,
+  events: 1,
   features: HOST_FEATURES_SCHEMA_VERSION,
   display: DISPLAY_SCHEMA_VERSION,
 } as const;
@@ -107,6 +109,7 @@ export type SchemaState = {
   rng: number;
   time: number;
   engine: number;
+  events: number;
   features: number;
   display: number;
   ir: string;
@@ -163,6 +166,7 @@ export function createSchemaState(): SchemaState {
     rng: SCHEMA_VERSIONS.rng,
     time: SCHEMA_VERSIONS.time,
     engine: SCHEMA_VERSIONS.engine,
+    events: SCHEMA_VERSIONS.events,
     features: SCHEMA_VERSIONS.features,
     display: SCHEMA_VERSIONS.display,
     ir: IR_VERSION,
@@ -182,6 +186,7 @@ export function createGameState(init: { seed: number; width?: number; height?: n
     vm: createVmState(),
     battle: createBattleSection(),
     menu: createMenuSection(),
+    input: createInputSection(),
     features: normalizeHostFeatures(init.features),
     display: { geometry: init.displayGeometry === undefined ? createDisplaySection(init.width ?? 320, init.height ?? 240).geometry : normalizeDisplayGeometry(init.displayGeometry) },
     ui: {} as UiSection,

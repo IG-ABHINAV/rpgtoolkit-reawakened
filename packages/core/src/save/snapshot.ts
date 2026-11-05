@@ -73,6 +73,7 @@ import type { Diagnostic } from "../ports/engine.ts";
 import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection, validateBattleSection } from "../battle/model.ts";
 import { migrateMenuSections } from "../menu/migrate.ts";
+import { surfaceByteLength } from "../raster/surfaces.ts";
 import { createDisplaySection, HOST_FEATURES_SCHEMA_VERSION, DISPLAY_SCHEMA_VERSION, normalizeDisplayGeometry, normalizeHostFeatures } from "./sections/host.ts";
 /** Upgrade the old empty battle placeholder to the fighter-reference section. */
 function migrateBattle(record: Record<string, unknown>, schema: Record<string, unknown>): void {
@@ -988,6 +989,8 @@ function validateShape(record: Record<string, unknown>): void {
     if (key === "sprites") validateSpritesShape(record[key]);
     if (key === "surfaces") validateSurfacesShape(record[key]);
     if (key === "actors") validateActorsShape(record[key]);
+    if (key === "triggers") validateTriggersShape(record[key]);
+    if (key === "audio") validateAudioShape(record[key]);
     if (key === "features") validateHostFeaturesShape(record[key]);
     if (key === "display") validateDisplayShape(record[key]);
   }
