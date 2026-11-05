@@ -109,10 +109,7 @@ test("malformed author surfaces report diagnostics without publishing a partial 
   const reports: string[] = [];
   applyUiEffect(state, "uiBegin", [9, "broken", "menu", 0, 0, 0, 10, 0], undefined, (_owner, message) => reports.push(message));
   applyUiEffect(state, "uiEnd", [9], undefined, (_owner, message) => reports.push(message));
-  deepEqual(reports, [
-    "uiBegin rejected a malformed author surface",
-    "uiEnd requires an open uiBegin surface",
-  ]);
+  deepEqual(reports, ["uiBegin rejected a malformed author surface"]);
   equal(state.ui.actionSurfaces.length, 0);
 });
 

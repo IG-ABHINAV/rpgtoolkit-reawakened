@@ -344,10 +344,7 @@ export function applyUiEffect(
     case "uiitem": {
       const owner = numberArg(first);
       const builderIndex = ui.surfaceBuilders.findIndex((builder) => builder.owner === owner);
-      if (builderIndex < 0) {
-        reportSurfaceError?.(owner, "uiItem requires an open uiBegin/uiEnd surface");
-        return;
-      }
+      if (builderIndex < 0) return;
       const builder = ui.surfaceBuilders[builderIndex]!;
       const label = stringArg(args[1]);
       const idValue = args[2];
@@ -395,10 +392,7 @@ export function applyUiEffect(
       const owner = numberArg(first);
       const builder = ui.surfaceBuilders.find((candidate) => candidate.owner === owner);
       ui.surfaceBuilders = ui.surfaceBuilders.filter((candidate) => candidate.owner !== owner);
-      if (builder === undefined) {
-        reportSurfaceError?.(owner, "uiEnd requires an open uiBegin surface");
-        return;
-      }
+      if (builder === undefined) return;
       if (builder.invalid || builder.items.length === 0) {
         reportSurfaceError?.(owner, "uiEnd rejected a malformed or empty author surface");
         return;
@@ -416,7 +410,7 @@ export function applyUiEffect(
       if (selection < 0) selection = -1;
       ui.surfaceSelection[selectionKey] = selection;
       const surface = { id: builder.id, owner, role: builder.role, bounds: builder.bounds, items, selection };
-      ui.actionSurfaces = [...ui.actionSurfaces.filter((candidate) => candidate.owner !== owner || candidate.id !== builder.id), surface];
+      ui.actionSurfaces = [...ui.actionSurfaces.filter((candidate) => candidate.owner !== owner), surface];
       return;
     }
     case "uifocus": {
