@@ -6,7 +6,7 @@ import { configureInput } from "../../input/input.ts";
 import type { GameState } from "../../save/state.ts";
 import type { SpriteActor, SpritePoint, Facing, SpritesSection } from "../../sprites/model.ts";
 import { enqueueDirectionMove, enqueueScriptDirectionMove } from "../../sprites/movement.ts";
-import { enqueueMove, enqueuePathMove, enqueuePointPathMove, setWaypoint } from "../../sprites/runtime.ts";
+import { enqueueMove, enqueuePathMove, enqueuePointPathMove, setWaypoint, itemKey } from "../../sprites/runtime.ts";
 import type { Character } from "../../formats/actor/index.ts";
 import { actorFromSource } from "../../sprites/model.ts";
 import { createInitialPlayer } from "../../sprites/runtime.ts";
@@ -58,7 +58,7 @@ function playerIdFor(state: SpritesSection | undefined, arg: number | string | u
 }
 function itemIdFor(state: SpritesSection | undefined, arg: number | string | undefined): string {
   if (typeof arg === "string") {
-    const byId = state?.items.find((value) => value.id === arg);
+    const byId = state?.items.find((value) => value.id === arg || itemKey(value) === arg);
     if (byId !== undefined) return byId.id;
     const handle = Number(arg);
     if (arg.trim() !== "" && Number.isInteger(handle)) {
@@ -68,6 +68,17 @@ function itemIdFor(state: SpritesSection | undefined, arg: number | string | und
   }
   const item = state?.items.find((value) => value.handle === arg || value.index === arg);
   return item?.id ?? "";
+}
+
+function itemIdForThread(state: GameState | undefined, threadId: number | undefined, arg: number | string | undefined): string {
+  if (typeof arg === "string" && arg.toLowerCase() === "source") {
+    const thread = state?.vm.threads.find((candidate) => candidate.id === threadId);
+    if (thread?.kind === "item") {
+      const source = state?.sprites.items.find((candidate) => itemKey(candidate) === thread.source);
+      if (source !== undefined) return source.id;
+    }
+  }
+  return itemIdFor(state?.sprites, arg);
 }
 function playerId(view: CommandView, arg: number | string): string {
   return playerIdFor(view.state?.sprites, arg);
@@ -86,7 +97,7 @@ function movementPlayerId(view: CommandView, arg: Value | undefined): string {
   throw new ScriptError("builtin.bad-arg", `unknown player handle "${String(arg)}"`);
 }
 function itemId(view: CommandView, arg: number | string): string {
-  return itemIdFor(view.state?.sprites, arg);
+  return itemIdForThread(view.state, view.thread, arg);
 }
 function blocking(view: CommandView): boolean {
   const thread = view.state?.vm.threads.find((value) => value.id === view.thread);
@@ -339,14 +350,14 @@ export function applyInputEffect(state: GameState, name: string, args: readonly 
   }
 }
 function numberValue(value: Value | undefined): number { return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : 0; }
-export function applySpriteEffect(state: GameState, name: string, args: readonly Value[]): boolean {
+export function applySpriteEffect(state: GameState, name: string, args: readonly Value[], threadId = 0): boolean {
   const idArg = name === "push" ? args[1] : args[0];
   const selected = state.sprites.selectedPlayer ?? state.sprites.players[0]?.id ?? "";
   const playerCommand = name === "push" || name === "playerstep" || name === "playerpath" || name === "playerdirection" || name === "playerspeed" || name === "playerstance";
   const itemCommand = name === "pushitem" || name === "itemstep" || name === "itempath" || name === "itemdirection" || name === "itemspeed" || name === "itemstance" || name === "wander";
   const numericOrStringId = typeof idArg === "number" || typeof idArg === "string" ? idArg : undefined;
   const playerId = playerCommand ? playerIdFor(state.sprites, numericOrStringId) : selected;
-  const id = itemCommand ? itemIdFor(state.sprites, numericOrStringId) : playerCommand ? playerId : String(idArg ?? "");
+  const id = itemCommand ? itemIdForThread(state, threadId, numericOrStringId) : playerCommand ? playerId : String(idArg ?? "");
 
   if (name === "__party_addplayer_asset") {
     const file = String(args[0] ?? "");
