@@ -2883,12 +2883,17 @@ export function createEngine(init: EngineInit): Engine {
       tick: state.time.tick,
       input: inputView(state.input),
       ui: state.ui,
-      sprites: [...state.sprites.players, ...state.sprites.items].map((actor) => ({
-        id: actor.id,
-        stance: actor.visual.stance,
-        stanceComplete: actor.visual.stanceComplete,
-        moving: actor.movement.active !== null || actor.queue.moves.length > 0,
-      })),
+      sprites: [...state.sprites.players, ...state.sprites.items].map((actor) => {
+        const waypoint = actor.queue.waypoint;
+        const waypointPending = waypoint !== null && waypoint.points.length > 0 &&
+          (waypoint.cycles !== 0 || (waypoint.cycle === 0 && waypoint.cursor < waypoint.points.length));
+        return {
+          id: actor.id,
+          stance: actor.visual.stance,
+          stanceComplete: actor.visual.stanceComplete,
+          moving: actor.movement.active !== null || actor.queue.moves.length > 0 || waypointPending,
+        };
+      }),
       claims: state.engine.claims ?? [],
       audio: state.audio,
       events: state.events,

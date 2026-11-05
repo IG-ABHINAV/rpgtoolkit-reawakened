@@ -3,7 +3,7 @@ import type { Value } from "../../ports/value.ts";
 import type { Wait } from "../../ports/wait.ts";
 import type { InputSection } from "../../save/sections/input.ts";
 import type { GameState } from "../../save/state.ts";
-import type { SpriteActor, SpritePoint, Facing } from "../../sprites/model.ts";
+import type { SpriteActor, SpritePoint, Facing, SpritesSection } from "../../sprites/model.ts";
 import { enqueueDirectionMove, enqueueScriptDirectionMove } from "../../sprites/movement.ts";
 import { enqueueMove, enqueuePathMove, enqueuePointPathMove, setWaypoint } from "../../sprites/runtime.ts";
 import type { Character } from "../../formats/actor/index.ts";
@@ -41,17 +41,36 @@ function actor(view: CommandView, id: string): SpriteActor | null {
   const state = view.state?.sprites;
   return state?.players.find((value) => value.id === id) ?? state?.items.find((value) => value.id === id) ?? null;
 }
-function playerId(view: CommandView, arg: number | string): string {
-  const state = view.state?.sprites;
-  if (typeof arg === "string" && arg !== "") return arg;
-  if (typeof arg === "number" && Number.isInteger(arg) && state?.players[arg] !== undefined) return state.players[arg]!.id;
-  return state?.selectedPlayer ?? state?.players[0]?.id ?? "";
+function playerIdFor(state: SpritesSection | undefined, arg: number | string | undefined): string {
+  const fallback = state?.selectedPlayer ?? state?.players[0]?.id ?? "";
+  if (typeof arg !== "number" && typeof arg !== "string") return fallback;
+  if (arg === "") return fallback;
+  const byId = state?.players.find((value) => value.id === String(arg));
+  if (byId !== undefined) return byId.id;
+  const index = typeof arg === "number" ? arg : Number(arg);
+  if (Number.isInteger(index) && (typeof arg === "number" || arg.trim() !== "")) {
+    return state?.players.find((value) => value.index === index)?.id ?? state?.players[index]?.id ?? (typeof arg === "string" ? arg : fallback);
+  }
+  return typeof arg === "string" ? arg : fallback;
 }
-function itemId(view: CommandView, arg: number | string): string {
-  const state = view.state?.sprites;
-  if (typeof arg === "string") return arg;
+function itemIdFor(state: SpritesSection | undefined, arg: number | string | undefined): string {
+  if (typeof arg === "string") {
+    const byId = state?.items.find((value) => value.id === arg);
+    if (byId !== undefined) return byId.id;
+    const handle = Number(arg);
+    if (arg.trim() !== "" && Number.isInteger(handle)) {
+      return state?.items.find((value) => value.handle === handle || value.index === handle)?.id ?? arg;
+    }
+    return arg;
+  }
   const item = state?.items.find((value) => value.handle === arg || value.index === arg);
   return item?.id ?? "";
+}
+function playerId(view: CommandView, arg: number | string): string {
+  return playerIdFor(view.state?.sprites, arg);
+}
+function itemId(view: CommandView, arg: number | string): string {
+  return itemIdFor(view.state?.sprites, arg);
 }
 function blocking(view: CommandView): boolean {
   const thread = view.state?.vm.threads.find((value) => value.id === view.thread);
@@ -72,6 +91,9 @@ function direction(value: string): Facing {
   const found = DIRECTIONS.find((candidate) => candidate.toLowerCase() === value.trim().toLowerCase());
   if (found === undefined) throw new ScriptError("builtin.bad-arg", `unknown movement direction "${value}"`);
   return found;
+}
+function directions(value: string): Facing[] {
+  return value.split(",").filter((part) => part.trim() !== "").map(direction);
 }
 function pointsFromArgs(args: readonly Arg[], start: number): SpritePoint[] {
   const points: SpritePoint[] = [];
@@ -98,7 +120,7 @@ const PUSH: BuiltinSpec = {
   call: (view, args) => {
     const id = playerId(view, args[1]?.value as number | string ?? "");
     const flags = number(args, 2);
-    const dirs = string(args, 0).split(",").filter((value) => value.trim() !== "").map(direction);
+    const dirs = directions(string(args, 0));
     return movementResult(view, id, dirs.length, flags, args);
   },
 };
@@ -108,7 +130,7 @@ const PUSH_ITEM: BuiltinSpec = {
   call: (view, args) => {
     const id = itemId(view, args[0]?.value as number | string ?? "");
     const flags = number(args, 2);
-    const dirs = string(args, 1).split(",").filter((value) => value.trim() !== "").map(direction);
+    const dirs = directions(string(args, 1));
     return movementResult(view, id, dirs.length, flags, args);
   },
 };
@@ -294,15 +316,15 @@ export function applyInputEffect(state: GameState, name: string, args: readonly 
   }
 }
 function numberValue(value: Value | undefined): number { return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : 0; }
-
 export function applySpriteEffect(state: GameState, name: string, args: readonly Value[], pixelMovement = 0): boolean {
   const idArg = name === "push" ? args[1] : args[0];
   const selected = state.sprites.selectedPlayer ?? state.sprites.players[0]?.id ?? "";
   const playerCommand = name === "push" || name === "playerstep" || name === "playerpath" || name === "playerdirection" || name === "playerspeed" || name === "playerstance";
-  const playerId = playerCommand
-    ? state.sprites.players.find((value) => value.id === String(idArg) || String(value.index) === String(idArg))?.id ?? selected
-    : selected;
-  const id = playerCommand ? playerId : String(idArg ?? "");
+  const itemCommand = name === "pushitem" || name === "itemstep" || name === "itempath" || name === "itemdirection" || name === "itemspeed" || name === "itemstance";
+  const numericOrStringId = typeof idArg === "number" || typeof idArg === "string" ? idArg : undefined;
+  const playerId = playerCommand ? playerIdFor(state.sprites, numericOrStringId) : selected;
+  const id = itemCommand ? itemIdFor(state.sprites, numericOrStringId) : playerCommand ? playerId : String(idArg ?? "");
+
   if (name === "__party_addplayer_asset") {
     const file = String(args[0] ?? "");
     const character = args[1] as unknown as Character;
@@ -348,9 +370,9 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
   if (actor === undefined && name !== "activeplayer") return false;
   if (name === "activeplayer") { const target = String(args[0] ?? ""); state.sprites.selectedPlayer = state.sprites.players.find((value) => value.id === target || String(value.index) === target)?.id ?? state.sprites.selectedPlayer; return true; }
   if (name === "push" || name === "pushitem") {
-    const dirs = String(args[name === "push" ? 0 : 1] ?? "").split(",").filter((value) => value !== "");
+    const dirs = directions(String(args[name === "push" ? 0 : 1] ?? ""));
     const distance = pixelMovement === 0 ? 32 : 8;
-    for (const raw of dirs) enqueueScriptDirectionMove(state.sprites, actor!.id, direction(raw), distance, false);
+    for (const facing of dirs) enqueueScriptDirectionMove(state.sprites, actor!.id, facing, distance, false);
     return true;
   }
   if (name === "playerstep" || name === "itemstep") { const board = state.world.board; if (board === null || board === undefined) return false; const path = findPath(board, state.sprites, actor!, { x: numberValue(args[1]), y: numberValue(args[2]) }, 1); return enqueuePointPathMove(state.sprites, actor!.id, path.points, true, 1); }

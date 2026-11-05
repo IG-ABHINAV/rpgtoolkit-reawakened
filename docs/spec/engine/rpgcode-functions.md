@@ -352,7 +352,7 @@ run("nextChapter.prg")                                         // legacy Toolkit
 | `playerlocation` | `void playerlocation(variant handle, int &x, int &y, int &layer)` | Read where a player is now. Pixel x/y and the one-based layer are written through the references. |  |
 | `spritetranslucency` | `void spritetranslucency(int percent)` | Set how visible sprites remain under covered tiles. |  |
 | `activeplayer` | `void activeplayer(variant handle)` | Choose or read the active player. Selection is stored by stable player handle. |  |
-| `playerpath` | `void playerpath(variant handle, int flags, int x1, int y1, ... , int xn, int yn)` | Give a player one or more destinations. Points, path-find mode, and waypoint copy/link mode are queued deterministically; pause or blocking waits for completion. |  |
+| `playerpath` | `void playerpath(variant handle, int flags, int x1, int y1, ... , int xn, yn)` | Give a player one or more destinations. Points, path-find mode, and waypoint copy/link mode are queued deterministically; pause or blocking waits through a finite path, or through the first traversal of a forever waypoint. |  |
 | `playergetpath` | `int playergetpath(variant handle)` | Inspect a queued player destination. The indexed pixel point is returned through x/y references. |  |
 | `playerdirection` | `int playerdirection(variant handle)` | Read or set which way a player faces. The facing is one of the eight deterministic directions. |  |
 ## Items, inventory, shop & gold (28)
@@ -384,7 +384,7 @@ run("nextChapter.prg")                                         // legacy Toolkit
 | `shopcolors` | `shopcolors(int index, int r, int g, int b)` | Set shop colors. | obsolete: shows a warning (when warnings are on) and still runs |
 | `itemspeed` | `void itemspeed(variant handle, int speed)` | Set how quickly an item walks. The speed is stored on the actor and affects fixed-tick cadence. |  |
 | `itemstance` | `itemstance(handle item, string stance [, int flags])` | Play an item's stance animation. The command waits for the animation owner to report completion. |  |
-| `itempath` | `void itempath(variant handle, int flags, int x1, int y1, ... , int xn, int yn)` | Give an item destinations. Points, path-find mode, and waypoint copy/link mode are queued deterministically; pause or blocking waits for completion. |  |
+| `itempath` | `void itempath(variant handle, int flags, int x1, int y1, ... , int xn, yn)` | Give an item destinations. Points, path-find mode, and waypoint copy/link mode are queued deterministically; pause or blocking waits through a finite path, or through the first traversal of a forever waypoint. |  |
 | `itemgetpath` | `int itemgetpath(variant handle)` | Inspect a queued item destination. The indexed pixel point is returned through x/y references. |  |
 | `itemdirection` | `int itemdirection(variant handle)` | Read or set which way an item faces. The facing is one of the eight deterministic directions. |  |
 
