@@ -465,6 +465,13 @@ jobs:
           fi
       - uses: actions/checkout@v7
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+      - name: Reclaim unused hosted-runner toolchains
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+        run: |
+          df -h "$HOME"
+          # These toolchains are not used by the Android build; leave the SDK, Java and Node intact.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          df -h "$HOME"
       - uses: pnpm/action-setup@v6
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - uses: actions/setup-node@v7
@@ -481,7 +488,7 @@ jobs:
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         with:
           packages: platform-tools
-      - run: sdkmanager "platforms;android-33" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"
+      - run: sdkmanager "emulator" "platforms;android-33" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "build-tools;37.0.0" "system-images;android-33;google_apis;x86_64"
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: mkdir -p artifacts/mobile-proof
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
@@ -521,6 +528,25 @@ jobs:
             exit 1
           fi
           stat -c '%A %U:%G %n' /dev/kvm
+      - name: Require Android emulator disk space
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+        run: |
+          # The emulator action sets ANDROID_AVD_HOME to this exact directory.
+          avd_home="$HOME/.android/avd"
+          mkdir -p "$avd_home"
+          df -h "$avd_home"
+          # The observed emulator requires 7,372.80 MB even with a 2048M userdata setting.
+          df -Pk "$avd_home" | {
+            read -r header
+            read -r filesystem blocks used available rest
+            case "$available" in
+              ''|*[!0-9]*) echo "::error::Cannot determine free space for the Android AVD"; exit 1 ;;
+            esac
+            if [ "$available" -lt 8388608 ]; then
+              echo "::error::Android AVD needs at least 8 GiB free after SDK installation; available: ${available} KiB"
+              exit 1
+            fi
+          }
       - name: Exercise APK on API 33 emulator
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         uses: reactivecircus/android-emulator-runner@v2
