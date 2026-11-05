@@ -52,6 +52,8 @@ The state section is `state.display = { geometry: HostDisplayGeometry }`. `state
 ```
 
 `NormalizedHostFeatures` has the same six fields as `HostFeatures`, but all are required. Both event kinds are stamped with the tick at which they take effect, validated as exact AD-14 records, and included in `TickReport.consumed`. Repeated events are retained in order; applying the same complete value twice leaves the same final state. No unspecified property is inferred from OS, browser, or display APIs by core.
+
+The `action` input record is `{ kind: "action", action, down, source: "runner.fallback" }`. It carries one semantic transition from runner-owned fallback controls; its `tick` is the ordinary `InputRecord.tick`. The source is stable across matching `down`/`up` records. It is not a key, pointer or gamepad event, and physical binding tables are not consulted. Unknown or unregistered action names are ignored with the ACT-2 once-per-boot diagnostic. The core and runners use this same action transition contract; author-surface pointer releases call the core transition helper from the recorded pointer event instead of manufacturing a second external record.
 ### Controller transition notifications
 
 When an AD-14 `gamepad` input changes a device from disconnected to connected, or from connected to disconnected, the engine queues a script event for delivery in the ordinary events phase:
@@ -106,7 +108,9 @@ Authors query capabilities by name without knowing the underlying OS or hardware
 |---|---|---|---|
 | `hasFeature` | `int hasFeature(string name)` | `1` or `0` | Returns `1` when the named normalized capability is active, otherwise `0`; names are case-insensitive. `touch`, `keyboard`, `gamepad`, and `haptics` use their boolean values; `pointer` is active unless its value is `"none"`; `orientation` is active unless its value is `null`. Unknown names return `0`. |
 | `pointerType` | `string pointerType()` | `"fine"`, `"coarse"`, or `"none"` | Current normalized pointer precision. |
+| `declareCustomTouchControls` | `void declareCustomTouchControls()` | none | Explicitly declares that this game supplies usable custom touch controls. A capability query or ordinary `uiBegin`/`uiEnd` surface does not declare them. Declaration is persistent deterministic game state, included in snapshots and hashes, and remains set until the game state is replaced by loading another game. |
 
+The host reads the current declaration through `Engine.customTouchControlsDeclared()`. The query returns the saved declaration bit and does not inspect host capabilities or infer intent from rendered commands. Hosts suppress fallback controls only when it returns `true`.
 ```rpgcode
 // Adaptive author logic
 if (hasFeature("touch") && !hasFeature("gamepad")) {
@@ -186,15 +190,10 @@ presentation policy**:
 
 ### Tier 1: Author-Owned Touch HUD (Preferred)
 
-**Owner ruling:** A game must explicitly declare or register its own touch controls to suppress the runner's fallback.
-Checking `hasFeature("touch")` alone does not suppress it: a query does not prove that usable controls exist.
-For example, a package may declare `touchControls: "custom"`:
-* **The runner renders zero chrome.** No virtual sticks, D-pads, or buttons are injected by the host.
-* **Margin Positioning:** Authors may place custom touch controls directly inside the Plane 3 lateral margins. This
-  prevents fingers from obscuring the game canvas or text boxes on mobile devices.
-* **Action Integration:** Author-drawn touch controls utilize the ADR 0017 Surface API (`uiBegin`, `uiItem`, `uiEnd`).
-  Tapping a custom button triggers the semantic action (`confirm`, `cancel`, or `game.*`) with hit-testing on pointer
-  release.
+The game explicitly calls `declareCustomTouchControls()` when it supplies usable custom touch controls. `hasFeature("touch")` alone does not suppress fallback controls, and publishing an ordinary accessibility surface does not imply a usable touch HUD.
+* **The runner renders zero chrome** after the declaration is committed. No virtual sticks, D-pads, or buttons are injected by the host.
+* **Margin positioning:** Authors may place custom controls directly inside usable Plane 3.
+* **Action integration:** Author-drawn touch controls use the `uiBegin`, `uiItem`, `uiEnd` surface API. A declared item's explicit semantic action (`confirm`, `cancel`, or registered `game.*`) dispatches on primary-pointer release over the same enabled item.
 
 ### Tier 2: Runner Fallback Virtual Gamepad (Legacy Compatibility)
 
