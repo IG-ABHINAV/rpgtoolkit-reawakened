@@ -1500,6 +1500,13 @@ export function createEngine(init: EngineInit): Engine {
     failed = true;
     if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
   }
+  function appendAuthorMarginBlit(command: DrawCommand): void {
+    if (command.kind !== "blit") return;
+    const { x, y, w, h } = command.dst;
+    if (![x, y, w, h, x + w, y + h].every(Number.isSafeInteger) || w <= 0 || h <= 0) return;
+    if (x >= 0 && y >= 0 && x + w <= init.width && y + h <= init.height) return;
+    state.ui.authorMarginCommands = [...(state.ui.authorMarginCommands ?? []), command];
+  }
   /** E-56 `text` / `pixelText` with a canvas: draw the glyphs into that canvas with the active font, colour and underline. */
   function applyCanvasText(cells: boolean, args: readonly PlainData[]): void {
     const canvas = args[3] as SurfaceId;
@@ -1522,7 +1529,7 @@ export function createEngine(init: EngineInit): Engine {
     }
     blitTexture(state.surfaces, { w: rendered.width, h: rendered.height, rgba: rendered.rgba }, canvas, x, y);
   }
-  function applySurfaceImage(effect: EffectRecord, texture: DecodedTexture): void {
+  function applySurfaceImage(effect: EffectRecord, texture: DecodedTexture, sourceAsset: AssetKey): void {
     const args = effect.args;
     let destination = 0 as SurfaceId;
     let x = 0;
@@ -1560,12 +1567,36 @@ export function createEngine(init: EngineInit): Engine {
       imageDiagnostic(args[0], `${effect.name}: image dimensions are invalid`);
       return;
     }
+    const screenTarget = destination === (0 as SurfaceId);
+    const dst = {
+      x: Math.trunc(x),
+      y: Math.trunc(y),
+      w: Math.max(0, Math.trunc(width)),
+      h: Math.max(0, Math.trunc(height)),
+    };
+    const keyPixels = keyColour === undefined ? null : [keyColour.r, keyColour.g, keyColour.b].map(Math.trunc);
+    const normalizedKey = keyPixels !== null && keyPixels.every((value) => Number.isSafeInteger(value) && value >= 0 && value <= 255)
+      ? { r: keyPixels[0]!, g: keyPixels[1]!, b: keyPixels[2]! }
+      : null;
+    const source: DrawCommand = {
+      kind: "blit",
+      source: { asset: sourceAsset, tile: null },
+      src: { x: 0, y: 0, w: texture.w, h: texture.h },
+      dst,
+      key: normalizedKey,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha,
+      blend: additive ? "additive" : "normal",
+      iso2d: false,
+    };
     // An image that names no canvas lands on the script-screen layer, exactly like the drawing commands
     // (docs/spec/engine/runners.md#surface-read-and-state-hash); destination 0 is the derived presented frame.
     if (destination === (0 as SurfaceId)) destination = ensureScriptScreen(state.surfaces);
     if (!blitTexture(state.surfaces, texture, destination, x, y, width, height, keyColour, alpha, additive)) {
       imageDiagnostic(args[0], `${effect.name}: destination surface is not live`);
+      return;
     }
+    if (screenTarget) appendAuthorMarginBlit(source);
   }
   function applySurfaceEffect(effect: EffectRecord): void {
     if (!IMAGE_EFFECTS[effect.name]) {
@@ -1589,8 +1620,7 @@ export function createEngine(init: EngineInit): Engine {
         }
         return;
       }
-      applySurfaceImage(effect, texture);
-      return;
+      applySurfaceImage(effect, texture, MENU_HAND_ASSET);
     }
     const optional = effect.name === MENU_GRAPHIC_EFFECT;
     const reference = typeof effect.args[0] === "string" ? effect.args[0] : "";
@@ -1611,7 +1641,7 @@ export function createEngine(init: EngineInit): Engine {
       request(key, "image");
       return;
     }
-    applySurfaceImage(effect, texture);
+    applySurfaceImage(effect, texture, key);
   }
   function syncEngineState(): void {
     const next: EngineSection = {
@@ -1771,7 +1801,7 @@ export function createEngine(init: EngineInit): Engine {
         continue;
       }
       pendingImageEffects.splice(index, 1);
-      applySurfaceImage(item.effect, texture);
+      applySurfaceImage(item.effect, texture, item.key);
     }
   }
   function consumeBlob(record: InputRecord, consumed: InputRecord[]): BlobReplyResult {

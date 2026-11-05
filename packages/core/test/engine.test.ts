@@ -195,6 +195,61 @@ test("screen vector primitives crossing Plane 1 enter margin commands and render
   equal(alphaAt(0, 14), 255); // drawcircle, logical x=-1
   equal(alphaAt(0, 20), 255); // fillcircle, logical x=-1
 });
+
+test("screen-target canvas blits retain source pixels for Plane 3 rendering and respect safe-area clipping", () => {
+  const geometry = {
+    content: { width: 36, height: 32 },
+    game: { x: 2, y: 0, width: 32, height: 32 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const engine = loadedEngine([], undefined, geometry, [
+    "createcanvas(2, 1, c)",
+    "setpixel(0, 0, c)",
+    "setpixel(1, 0, c)",
+    "drawcanvas(c, -1, 0)",
+    "drawcanvastransparent(c, -1, 2, 255, 255, 255)",
+    "canvasdrawpart(c, -1, 4, 1, 0, 1, 1)",
+    "threadSleep(getThreadId(), 60)",
+  ].join("\n"));
+  engine.advance(1, []);
+  const drawList = engine.drawList();
+  equal(drawList.marginCommands.length, 3);
+  deepEqual(drawList.marginCommands.map((command) => command.kind), ["blit", "blit", "blit"]);
+  if (drawList.marginCommands[1]?.kind !== "blit" || drawList.marginCommands[2]?.kind !== "blit") throw new Error("expected blit commands");
+  deepEqual(drawList.marginCommands[1].key, { r: 255, g: 255, b: 255 });
+  deepEqual(drawList.marginCommands[2].src, { x: 1, y: 0, w: 1, h: 1 });
+  const surfaces = new Map() as RasterSurfaces;
+  surfaces.get = (surface, revision = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+  const raster = rasterizePresentation(drawList, geometry, new Map(), surfaces);
+  equal(raster.error, null);
+  const alphaAt = (x: number, y: number): number => raster.rgba[(y * raster.width + x) * 4 + 3]!;
+  equal(alphaAt(1, 0), 255, "the blit crossing the left edge is visible in the margin");
+  equal(alphaAt(2, 0), 255, "the in-game part is rendered by the legacy screen layer");
+  equal(alphaAt(1, 4), 255, "a source-cropped canvas blit is visible in the margin");
+
+  const interior = loadedEngine([], undefined, geometry, [
+    "createcanvas(2, 1, c)",
+    "setpixel(0, 0, c)",
+    "drawcanvas(c, 0, 0)",
+    "threadSleep(getThreadId(), 60)",
+  ].join("\n"));
+  interior.advance(1, []);
+  equal(interior.drawList().marginCommands.length, 0);
+
+  const clippedGeometry = { ...geometry, safeArea: { ...geometry.safeArea, left: 2 } };
+  const clipped = loadedEngine([], undefined, clippedGeometry, [
+    "createcanvas(2, 1, c)",
+    "setpixel(0, 0, c)",
+    "drawcanvas(c, -1, 0)",
+    "threadSleep(getThreadId(), 60)",
+  ].join("\n"));
+  clipped.advance(1, []);
+  const clippedSurfaces = new Map() as RasterSurfaces;
+  clippedSurfaces.get = (surface, revision = 0) => clipped.surfacePixels(surface, revision) ?? undefined;
+  const clippedRaster = rasterizePresentation(clipped.drawList(), clippedGeometry, new Map(), clippedSurfaces);
+  equal(clippedRaster.error, null);
+  equal(clippedRaster.rgba[(0 * clippedGeometry.content.width + 1) * 4 + 3], 0, "safe-area clipping suppresses the margin blit");
+});
 test("author surfaces remain live through the next input frame then expire with unfinished builders", () => {
   const capture = captureState();
   const surfaceRegistration: EnginePhaseRegistration = {
@@ -1208,6 +1263,72 @@ test("image graphics command families apply exact decoded pixels", () => {
   deepEqual(pixelsAfter('setimagetransparent("pixel.bmp", 0, 0, 2, 1, 255, 0, 0, c)').slice(0, 8), new Uint8Array([0, 0, 0, 0, 0, 255, 0, 255]));
   deepEqual(pixelsAfter('setimagetranslucent("pixel.bmp", 0, 0, 2, 1, c)').slice(0, 8), new Uint8Array([128, 0, 0, 255, 0, 128, 0, 255]));
   deepEqual(pixelsAfter('setimageadditive("pixel.bmp", 0, 0, 2, 1, 50, c)').slice(0, 8), new Uint8Array([127, 0, 0, 255, 0, 127, 0, 255]));
+});
+
+test("screen-target image blits render crossing/exterior pixels and obey safe-area clipping", () => {
+  const texture = { w: 2, h: 1, rgba: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255]) };
+  const geometry = {
+    content: { width: 4, height: 2 },
+    game: { x: 1, y: 0, width: 2, height: 2 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const render = (x: number, safeLeft = 0) => {
+    const board = authoredBoard();
+    const engine = createEngine({
+      seed: 19,
+      assetIndex: createAssetIndex(["Boards/test.brd", "Bitmap/pixel.bmp"]),
+      assetRoot: PACKAGE_ROOT,
+      initialBoard: "test.brd",
+      width: 2,
+      height: 2,
+      maxTicks: 20,
+      displayGeometry: { ...geometry, safeArea: { ...geometry.safeArea, left: safeLeft } },
+      program: `setimage("pixel.bmp", ${x}, 0, 2, 1)\nthreadSleep(getThreadId(), 60)\n`,
+    });
+    let result = engine.advance(0, []);
+    let imageProvided = false;
+    for (let step = 0; step < 8; step += 1) {
+      const events = result.requests
+        .filter((request) => request.kind === "asset")
+        .map((request) => {
+          if (request.key === "bitmap/pixel.bmp") imageProvided = true;
+          return {
+            tick: result.tickAfter,
+            event: {
+              kind: "asset" as const,
+              reqId: request.reqId,
+              bytes: request.key === "boards/test.brd" ? board : authoredBmp(),
+            },
+          };
+        });
+      result = engine.advance(1, events);
+      if (imageProvided && result.requests.length === 0 && !result.loading) break;
+    }
+    const surfaces = new Map() as RasterSurfaces;
+    surfaces.get = (surface, revision = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+    const assets = new Map([[assetKey("bitmap/pixel.bmp"), texture]]);
+    const raster = rasterizePresentation(engine.drawList(), { ...geometry, safeArea: { ...geometry.safeArea, left: safeLeft } }, assets, surfaces);
+    equal(raster.error, null);
+    return { engine, raster };
+  };
+
+  const crossing = render(-1);
+  equal(crossing.engine.drawList().marginCommands.length, 1);
+  deepEqual([...crossing.raster.rgba.slice(0, 4)], [255, 0, 0, 255], "the exterior half of the image is rendered");
+  deepEqual([...crossing.raster.rgba.slice(4, 8)], [0, 255, 0, 255], "the interior half is rendered once");
+
+  const exterior = render(-2);
+  equal(exterior.engine.drawList().marginCommands.length, 1);
+  deepEqual([...exterior.raster.rgba.slice(0, 4)], [0, 255, 0, 255]);
+  equal(exterior.raster.rgba[(0 * 4 + 1) * 4], 0, "fully exterior image does not add red pixels to Plane 1");
+  equal(exterior.raster.rgba[(0 * 4 + 1) * 4 + 1], 0, "fully exterior image does not add green pixels to Plane 1");
+
+  const interior = render(0);
+  equal(interior.engine.drawList().marginCommands.length, 0);
+
+  const clipped = render(-1, 1);
+  equal(clipped.raster.rgba[3], 0, "safe-area clipping suppresses the crossing image's margin pixel");
+  deepEqual([...clipped.raster.rgba.slice(4, 8)], [0, 255, 0, 255]);
 });
 
 test("board preview image pixels are applied after the image reply", () => {

@@ -61,6 +61,51 @@ function recordAuthorMarginCommand(
   current.ui.authorMarginCommands = [...current.ui.authorMarginCommands, command];
 }
 
+function prepareAuthorMarginBlit(
+  current: AnyState,
+  screenTarget: boolean,
+  source: SurfaceId,
+  x: number,
+  y: number,
+  width?: number,
+  height?: number,
+  key?: Rgb,
+  sourceRect?: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+): DrawCommand | null {
+  if (!screenTarget) return null;
+  const sourceSize = surfaceSize(current.surfaces, source);
+  const sourceRev = current.surfaces.entries[String(source)]?.rev;
+  const screenSize = surfaceSize(current.surfaces, writingTarget(current, SCREEN));
+  if (sourceSize === null || sourceRev === undefined || screenSize === null) return null;
+  const sx = sourceRect === undefined ? 0 : Math.max(0, Math.trunc(sourceRect.x));
+  const sy = sourceRect === undefined ? 0 : Math.max(0, Math.trunc(sourceRect.y));
+  const sw = sourceRect === undefined ? sourceSize.w : Math.min(sourceSize.w - sx, Math.max(0, Math.trunc(sourceRect.w)));
+  const sh = sourceRect === undefined ? sourceSize.h : Math.min(sourceSize.h - sy, Math.max(0, Math.trunc(sourceRect.h)));
+  const dst = {
+    x: Math.trunc(x),
+    y: Math.trunc(y),
+    w: width === undefined ? sw : Math.max(0, Math.trunc(width)),
+    h: height === undefined ? sh : Math.max(0, Math.trunc(height)),
+  };
+  if (![sx, sy, sw, sh, dst.x, dst.y, dst.w, dst.h, dst.x + dst.w, dst.y + dst.h].every(Number.isSafeInteger) || sw <= 0 || sh <= 0 || dst.w <= 0 || dst.h <= 0) return null;
+  if (dst.x >= 0 && dst.y >= 0 && dst.x + dst.w <= screenSize.w && dst.y + dst.h <= screenSize.h) return null;
+  const keyPixels = key === undefined ? null : [key.r, key.g, key.b].map(Math.trunc);
+  const normalizedKey = keyPixels !== null && keyPixels.every((value) => Number.isSafeInteger(value) && value >= 0 && value <= 255)
+    ? { r: keyPixels[0]!, g: keyPixels[1]!, b: keyPixels[2]! }
+    : null;
+  return {
+    kind: "blit",
+    source: { surface: source, rev: sourceRev },
+    src: { x: sx, y: sy, w: sw, h: sh },
+    dst,
+    key: normalizedKey,
+    tint: { r: 0, g: 0, b: 0 },
+    alpha: 255,
+    blend: "normal",
+    iso2d: false,
+  };
+}
+
 function numberArg(args: readonly Arg[], index: number, fallback = 0): number {
   const value = args[index]?.value;
   return typeof value === "number" ? value : fallback;
@@ -278,27 +323,45 @@ const KILL_CANVAS = command("killcanvas", [], params(["canvas"]), docs("Release 
 });
 
 const DRAW_CANVAS = command("drawcanvas", [], params(["canvas", "x", "y", "width", "height", "destination"], 3), docs("Draw one canvas onto another surface.", "Copies the canvas with nearest-neighbour sampling at x,y; optional dimensions resize it and the optional destination defaults to the screen."), (view, args) => {
+  const current = state(view);
   const source = handle(args[0]?.value);
-  const destination = writingTarget(state(view), canvasArg(args, args.length >= 6 ? 5 : 3));
+  const screenTarget = canvasArg(args, args.length >= 6 ? 5 : 3) === SCREEN;
+  const destination = writingTarget(current, canvasArg(args, args.length >= 6 ? 5 : 3));
   if (source === SCREEN) view.refreshScreen?.();
-  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), args.length >= 5 ? numberArg(args, 3) : undefined, args.length >= 5 ? numberArg(args, 4) : undefined);
+  const width = args.length >= 5 ? numberArg(args, 3) : undefined;
+  const height = args.length >= 5 ? numberArg(args, 4) : undefined;
+  const marginCommand = prepareAuthorMarginBlit(current, screenTarget, source, numberArg(args, 1), numberArg(args, 2), width, height);
+  const ok = blitSurface(current.surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), width, height);
   if (!ok) throw new ScriptError("surface.unknown", "drawcanvas: source or destination canvas is not live");
+  if (marginCommand?.kind === "blit") recordAuthorMarginCommand(current, screenTarget, marginCommand, marginCommand.dst);
   return { value: null, effects: effects(args) };
 });
 const DRAW_CANVAS_TRANSPARENT = command("drawcanvastransparent", [], params(["canvas", "x", "y", "r", "g", "b", "width", "height", "destination"], 6), docs("Draw a canvas with one colour transparent.", "Copies the selected canvas to the screen or optional destination, skipping the exact RGB key and optionally resizing it."), (view, args) => {
+  const current = state(view);
   const source = handle(args[0]?.value);
-  const destination = writingTarget(state(view), canvasArg(args, args.length >= 9 ? 8 : 6));
+  const screenTarget = canvasArg(args, args.length >= 9 ? 8 : 6) === SCREEN;
+  const destination = writingTarget(current, canvasArg(args, args.length >= 9 ? 8 : 6));
   if (source === SCREEN) view.refreshScreen?.();
-  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), args.length >= 8 ? numberArg(args, 6) : undefined, args.length >= 8 ? numberArg(args, 7) : undefined, { r: numberArg(args, 3), g: numberArg(args, 4), b: numberArg(args, 5) });
+  const key = { r: numberArg(args, 3), g: numberArg(args, 4), b: numberArg(args, 5) };
+  const width = args.length >= 8 ? numberArg(args, 6) : undefined;
+  const height = args.length >= 8 ? numberArg(args, 7) : undefined;
+  const marginCommand = prepareAuthorMarginBlit(current, screenTarget, source, numberArg(args, 1), numberArg(args, 2), width, height, key);
+  const ok = blitSurface(current.surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), width, height, key);
   if (!ok) throw new ScriptError("surface.unknown", "drawcanvastransparent: source or destination canvas is not live");
+  if (marginCommand?.kind === "blit") recordAuthorMarginCommand(current, screenTarget, marginCommand, marginCommand.dst);
   return { value: null, effects: effects(args) };
 });
 const CANVAS_DRAW_PART = command("canvasdrawpart", [], params(["canvas", "x", "y", "xsrc", "ysrc", "width", "height", "destination"], 7), docs("Draw part of a canvas.", "Copies a source rectangle from the canvas to x,y on the screen or optional destination using nearest-neighbour pixels."), (view, args) => {
+  const current = state(view);
   const source = handle(args[0]?.value);
-  const destination = writingTarget(state(view), canvasArg(args, 7));
+  const screenTarget = canvasArg(args, 7) === SCREEN;
+  const destination = writingTarget(current, canvasArg(args, 7));
   if (source === SCREEN) view.refreshScreen?.();
-  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, 255, false, { x: numberArg(args, 3), y: numberArg(args, 4), w: numberArg(args, 5), h: numberArg(args, 6) });
+  const sourceRect = { x: numberArg(args, 3), y: numberArg(args, 4), w: numberArg(args, 5), h: numberArg(args, 6) };
+  const marginCommand = prepareAuthorMarginBlit(current, screenTarget, source, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, sourceRect);
+  const ok = blitSurface(current.surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, 255, false, sourceRect);
   if (!ok) throw new ScriptError("surface.unknown", "canvasdrawpart: source or destination canvas is not live");
+  if (marginCommand?.kind === "blit") recordAuthorMarginCommand(current, screenTarget, marginCommand, marginCommand.dst);
   return { value: null, effects: effects(args) };
 });
 const CANVAS_GET_SCREEN = command("canvasgetscreen", [], params(["destination"]), docs("Capture the current screen into a canvas.", "Copies the composed screen surface 0 into the destination canvas and increments its revision."), (view, args) => {
