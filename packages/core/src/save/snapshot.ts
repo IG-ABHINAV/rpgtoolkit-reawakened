@@ -220,6 +220,20 @@ function migrateHostSections(record: Record<string, unknown>, schema: Record<str
   }
 }
 
+/** Upgrade old world snapshots while retaining field-by-field absence for the main-file fallback. */
+function migrateWorld(record: Record<string, unknown>, schema: Record<string, unknown>): void {
+  const version = schema.world;
+  if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `world` version");
+  if (version > SCHEMA_VERSIONS.world) shapeError(`the snapshot's world schema version ${String(version)} is newer than supported version ${SCHEMA_VERSIONS.world}`);
+  const world = recordAt(record.world, "world");
+  const movement = world.movement === undefined ? {} : recordAt(world.movement, "world.movement");
+  world.movement = {
+    walking: movement.walking === undefined ? null : movement.walking,
+    pushing: movement.pushing === undefined ? null : movement.pushing,
+  };
+  schema.world = SCHEMA_VERSIONS.world;
+}
+
 /** Migrate the old empty sprites placeholder and v2 actors to the movement-aware section. */
 function migrateSprites(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.sprites;
@@ -990,6 +1004,15 @@ function validateShape(record: Record<string, unknown>): void {
     if (key === "surfaces") validateSurfacesShape(record[key]);
     if (key === "actors") validateActorsShape(record[key]);
     if (key === "triggers") validateTriggersShape(record[key]);
+    if (key === "world") {
+      const movement = recordAt(record.world, "world").movement;
+      const settings = recordAt(movement, "world.movement");
+      for (const field of ["walking", "pushing"] as const) {
+        if (settings[field] === null) continue;
+        const value = numberAt(settings[field], `world.movement.${field}`);
+        if (value !== 0 && value !== 1) shapeError(`the snapshot's world.movement.${field} must be 0, 1 or null`);
+      }
+    }
     if (key === "audio") validateAudioShape(record[key]);
     if (key === "features") validateHostFeaturesShape(record[key]);
     if (key === "display") validateDisplayShape(record[key]);
@@ -1184,6 +1207,7 @@ export function restoreGameState(
       throw new ScriptError("restore.shape", `the snapshot is missing the "${key}" section`);
     }
   }
+  migrateWorld(record, schema as Record<string, unknown>);
 
   migrateVm(record, schema as Record<string, unknown>);
   migrateSprites(record, schema as Record<string, unknown>);

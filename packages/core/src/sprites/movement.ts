@@ -557,9 +557,11 @@ export function movementPhaseRegistration(options: MovementOptions & { readonly 
   return {
     phase: "movement",
     rank: options.rank ?? 0,
+    ...(options.pixelMovement === undefined ? {} : { pixelMovement: options.pixelMovement }),
     run(state: GameState): void {
       runMovementPhase(state.sprites, state.world.board ?? null, state.time.tick, {
         ...options,
+        pixelMovement: state.world.movement.walking ?? options.pixelMovement ?? 0,
         freezePointer: scriptOwnsInput(state.vm),
         onEvent: (ev) => {
           options.onEvent?.(ev);

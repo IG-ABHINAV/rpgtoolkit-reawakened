@@ -1,4 +1,4 @@
-import { BasicMIDI, SoundBankLoader, SpessaSynthProcessor } from "spessasynth_core";
+import { BasicMIDI, BasicSoundBank, SoundBankLoader, SpessaSynthProcessor } from "spessasynth_core";
 import { err } from "@tk-reawakened/core";
 import type { Result } from "@tk-reawakened/core";
 import { midiLengthTicks } from "./midi.ts";
@@ -7,6 +7,9 @@ import { opened } from "./source.ts";
 import type { AudioSource, SourceEnv, SourceError, SourceVoice } from "./source.ts";
 import type { BankRef } from "./protocol.ts";
 import type { MidiSynth } from "./midi.ts";
+
+/** Resolves once compressed SoundFont samples can be decoded; rejects if decoder initialization fails. */
+export const soundFontDecoderReady: Promise<void> = BasicSoundBank.isSF3DecoderReady;
 
 export interface SpessaSynthOptions {
   readonly bank?: Uint8Array | ArrayBuffer;

@@ -92,8 +92,7 @@ function parseRecoveryAssetManifest(value: unknown): RecoveryAssetManifest {
 /** Serialize an engine checkpoint with asset fingerprints for the later recovery launch. */
 export function snapshotRecoveryCandidate(state: GameState, recoveryAssets: RecoveryAssetManifest): string {
   const manifest = parseRecoveryAssetManifest(recoveryAssets);
-  const root = JSON.parse(snapshotGameSave(state)) as Record<string, unknown>;
-  return canon({ ...root, recoveryAssets: manifest } as never);
+  return canon({ ...gameSaveRoot(state), recoveryAssets: manifest } as never);
 }
 
 function restoreGameSaveEnvelope(json: string, currentAudio: AudioStateV2, recovery = false, restoreOptions: RestoreOptions = {}): {
@@ -185,10 +184,15 @@ export function restoreRecoveryCandidate(json: string, currentAudio: AudioStateV
   return { ...restored.save, recoveryAssets: restored.recoveryAssets };
 }
 
+/** Build the same projection for normal saves and recovery candidates. */
+function gameSaveRoot(state: GameState): Record<string, unknown> {
+  const root = tagNonFinite(state) as Record<string, unknown>;
+  return { ...root, audio: audioSaveProjection(state.audio, state.time.tick) };
+}
+
 /** Serialize the complete canonical game state while keeping only audio playback in a game save. */
 export function snapshotGameSave(state: GameState): string {
-  const root = tagNonFinite(state) as Record<string, unknown>;
-  return canon({ ...root, audio: audioSaveProjection(state.audio, state.time.tick) } as never);
+  return canon(gameSaveRoot(state) as never);
 }
 
 function shape(path: string): never {

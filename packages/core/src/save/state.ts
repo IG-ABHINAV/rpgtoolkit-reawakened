@@ -62,7 +62,7 @@ import { DISPLAY_SCHEMA_VERSION, HOST_FEATURES_SCHEMA_VERSION, createDisplaySect
 /** Every `GameState` section key (AD-10), i.e. the schema version map's keys. */
 export const SCHEMA_VERSIONS = {
   schema: 2,
-  world: 1,
+  world: 2,
   sprites: 2,
   actors: 2,
   party: PARTY_SCHEMA_VERSION,
@@ -177,7 +177,7 @@ export function createSchemaState(): SchemaState {
 export function createGameState(init: { seed: number; width?: number; height?: number; features?: HostFeatures; displayGeometry?: HostDisplayGeometry }): GameState {
   return {
     schema: createSchemaState(),
-    world: {},
+    world: { movement: { walking: null, pushing: null } },
     sprites: createSpritesSection(),
     actors: createActorsSection(),
     party: createPartySection(),

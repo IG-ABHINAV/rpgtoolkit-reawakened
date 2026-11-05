@@ -370,18 +370,20 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
   // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
   // else did; every other hash, tick and diagnostic is unchanged.
-  // #1349: normalized host capability and geometry sections are part of each state hash.
+  // Re-pinned by #1298: the world schema and persisted movement settings/remainders now contribute to state hashes;
+  // draw hashes, ticks and diagnostics remain unchanged.
+  // #1349: host capability and display state are now included in the state hash.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "548db59c3ce54dcf",
-    "sample-system-demo": "39c8f0459743e88f",
-    "sample-sys-test-demo": "39c8f0459743e88f",
-    "sample-win-demo": "550f2a9f82202775",
-    "sample-oldman-demo": "8ac725bf5bf9dbac",
-    "sample-man-demo": "ad004701538378ea",
-    "sample-man-wander-demo": "cd728c65aa767395",
-    "sample-start-basic": "4715cb41306e5593",
-    "sample-system-basic": "39c8f0459743e88f",
-    "sample-wander-basic": "0507dad674c05ec9",
+    "sample-start-demo": "82a8564e09531410",
+    "sample-system-demo": "0086db612ec35664",
+    "sample-sys-test-demo": "0086db612ec35664",
+    "sample-win-demo": "1d79a3fc3df700f6",
+    "sample-oldman-demo": "8a505b0724c491f1",
+    "sample-man-demo": "0707504c90db43e3",
+    "sample-man-wander-demo": "8799e088efabdb96",
+    "sample-start-basic": "baae2919e3e43438",
+    "sample-system-basic": "0086db612ec35664",
+    "sample-wander-basic": "a6750c09bedd419e",
   };
 
   for (const res of results) {
@@ -404,7 +406,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "0507dad674c05ec9"); // #1349: host state is included in the state hash
+  equal(hash1, "a6750c09bedd419e"); // #1349: host state is included in the state hash
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

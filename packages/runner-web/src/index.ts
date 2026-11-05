@@ -137,7 +137,11 @@ export function liveTextureProvider(
       return ready;
     }
     const bytes = lookup(asset);
-    if (bytes === null) return null;
+    if (bytes === null) {
+      const picture = pictures?.(asset) ?? null;
+      if (picture !== null) cache.set(asset, picture);
+      return picture;
+    }
     const decoded = decodeAssetTexture(asset, bytes);
     if (decoded !== null) {
       const pixels = { w: decoded.w, h: decoded.h, rgba: decoded.rgba };
