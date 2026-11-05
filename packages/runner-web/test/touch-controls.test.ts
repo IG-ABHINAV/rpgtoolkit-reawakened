@@ -33,3 +33,12 @@ test("safe-area insets are excluded from usable docking margins", () => {
   }));
   equal(layout.docked, false, "the 110 px left margin is insufficient after its inset");
 });
+
+test("overlaid controls stay inside horizontal safe areas", () => {
+  const layout = fallbackTouchLayout(geometry({
+    game: { x: 40, y: 0, width: 1520, height: 855 },
+    safeArea: { top: 0, right: 80, bottom: 0, left: 80 },
+  }));
+  equal(layout.docked, false);
+  deepEqual({ left: layout.left, right: layout.right }, { left: 88, right: 1400 });
+});

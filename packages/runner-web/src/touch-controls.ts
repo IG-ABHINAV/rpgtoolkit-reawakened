@@ -21,12 +21,17 @@ export function fallbackTouchLayout(geometry: TouchControlGeometry): { readonly 
   const docked = leftSpace >= D_PAD_WIDTH + MARGIN_CLEARANCE &&
     rightSpace >= ACTION_WIDTH + MARGIN_CLEARANCE &&
     availableHeight >= D_PAD_HEIGHT + MARGIN_CLEARANCE;
+  const overlayLeft = Math.max(geometry.game.x, geometry.safeArea.left) + MARGIN_CLEARANCE;
+  const overlayRight = Math.min(
+    geometry.game.x + geometry.game.width,
+    geometry.content.width - geometry.safeArea.right,
+  ) - ACTION_WIDTH - MARGIN_CLEARANCE;
   const left = docked
     ? geometry.safeArea.left + (leftSpace - D_PAD_WIDTH) / 2
-    : geometry.game.x + MARGIN_CLEARANCE;
+    : overlayLeft;
   const right = docked
     ? geometry.content.width - geometry.safeArea.right - (rightSpace - ACTION_WIDTH) / 2 - ACTION_WIDTH
-    : geometry.game.x + geometry.game.width - ACTION_WIDTH - MARGIN_CLEARANCE;
+    : overlayRight;
   return { docked, left, right };
 }
 
@@ -114,7 +119,10 @@ export function createFallbackTouchControls(
       event.stopPropagation();
       release(event.pointerId);
     });
-    button.addEventListener("lostpointercapture", (event) => release(event.pointerId));
+    button.addEventListener("lostpointercapture", (event) => {
+      event.stopPropagation();
+      release(event.pointerId);
+    });
     button.addEventListener("click", (event) => {
       // Native keyboard activation has detail 0; pointer activation already emitted its press/release edges.
       if (event.detail === 0 && !button.disabled) {
