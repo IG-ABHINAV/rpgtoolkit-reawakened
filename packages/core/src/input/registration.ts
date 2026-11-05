@@ -98,7 +98,7 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   let directionBlocked = scriptOwnsInput(state.vm);
   const configured = options.menuKey;
   const lastConfiguredEdge = configured === undefined ? undefined : [...state.input.keys].reverse().find((key) => key.action === configured.action);
-  if (!directionBlocked && (actions.includes("menu") ||
+  if (!directionBlocked && state.battle === null && (actions.includes("menu") ||
       (configured !== undefined && actions.includes(configured.action) && lastConfiguredEdge?.code === configured.code))) {
     // A menu opened by this very press owns input from now on, so a direction pressed on the same tick queues no step
     // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement: a blocking script freezes movement).

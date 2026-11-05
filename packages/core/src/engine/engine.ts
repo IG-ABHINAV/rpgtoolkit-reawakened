@@ -1149,6 +1149,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
     const movementFallback = movementDefaults(mainFile);
+    const externallyRegisteredActions = state.input.registeredActions.slice();
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -1168,11 +1169,7 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
-      const startupActions = {
-        registeredActions: state.input.registeredActions,
-        actionRegistry: state.input.actionRegistry,
-        controlActions: state.input.controlActions,
-      };
+      const startupActions = state.input.registeredActions.slice();
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1180,13 +1177,17 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
-      state.input.registeredActions = startupActions.registeredActions;
-      state.input.actionRegistry = startupActions.actionRegistry;
-      state.input.controlActions = startupActions.controlActions;
-      for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.semanticActionSources)])) {
+      const actionRegistry = createInputSection();
+      for (const action of [...startupActions, ...externallyRegisteredActions]) registerGameAction(actionRegistry, action);
+      state.input.registeredActions = actionRegistry.registeredActions;
+      state.input.actionRegistry = actionRegistry.actionRegistry;
+      state.input.controlActions = actionRegistry.controlActions;
+      state.input.actionPadMasks = actionRegistry.actionPadMasks;
+      for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.keyboardActionSources), ...Object.keys(state.input.semanticActionSources)])) {
         if (Object.hasOwn(state.input.actionRegistry, action)) continue;
         delete state.input.actions[action];
         delete state.input.keyboardActions[action];
+        delete state.input.keyboardActionSources[action];
         delete state.input.semanticActionSources[action];
         state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
       }

@@ -1,7 +1,7 @@
 /** Owner: core/input (AD-10/AD-14; E-110..E-112). */
 import type { PlainData } from "../../ports/plain-data.ts";
 
-export const INPUT_SCHEMA_VERSION = 6;
+export const INPUT_SCHEMA_VERSION = 7;
 
 export type InputKeyState = {
   readonly seq: number;
@@ -91,7 +91,9 @@ export type InputSection = {
   registeredActions: RegisteredAction[];
   actionRegistry: { [action: string]: true };
   controlActions: { [control: string]: string[] };
+  actionPadMasks: { [action: string]: number };
   semanticActionSources: { [action: string]: { [source: string]: boolean } };
+  keyboardActionSources: { [action: string]: { [control: string]: boolean } };
   pendingActions: string[];
   pendingClicks: { gestureId: number; x: number; y: number }[];
   pointerMovementSuppressed: boolean;

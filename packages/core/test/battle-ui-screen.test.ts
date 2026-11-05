@@ -78,6 +78,17 @@ function ruleHash(rig: UiRig): string {
 
 
 
+test("normalized semantic actions operate the stock battle command and list consumers", () => {
+  const rig = bootUiRig();
+  awaitMenu(rig);
+  rig.action("down", "runner.fallback");
+  equal(ui(rig)["cursor"], 1, "semantic down moves the command selection");
+  rig.action("confirm", "runner.fallback");
+  equal(ui(rig)["mode"], "list", "semantic confirm opens the selected special list");
+  rig.action("cancel", "runner.fallback");
+  equal(ui(rig)["mode"], "command", "semantic cancel returns from the list");
+});
+
 test("a seeded battle opens the command box for the first charged player, and every command, list and target is reachable by keyboard", () => {
   const rig = bootUiRig();
   awaitMenu(rig);

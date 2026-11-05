@@ -158,7 +158,7 @@ function validateGamepad(record: UnknownRecord): InputEventValidation {
   const axisRecord = axes as UnknownRecord;
   if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid("axes.x", "expected an integer from -1000 through 1000");
   if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid("axes.y", "expected an integer from -1000 through 1000");
-  if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 127) return invalid("buttons", "expected a 7-bit non-negative integer");
+  if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 0x1ffff) return invalid("buttons", "expected a 17-bit non-negative physical button mask");
   return accept(record);
 }
 

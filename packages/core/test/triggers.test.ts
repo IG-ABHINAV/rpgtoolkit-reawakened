@@ -74,7 +74,7 @@ test("a released pointer tap faces toward the reachable item and dispatches one 
   equal(events[0]?.key, "item:0", "the confirm edge is constrained to the hit item's identity");
 });
 test("a pointer activation is dispatched only to the tapped item, not the nearer eligible item", () => {
-  const world = board([], [item(0, 16, 0, 1), item(1, 24, 0, 1)]);
+  const world = board([], [item(0, 32, 0, 1), item(1, 16, 0, 1)]);
   const actors = [itemActor(world, world.items![0]!, 0), itemActor(world, world.items![1]!, 1)];
   const state = stateWith(world, actors);
   state.sprites.players = state.sprites.players.map((player) => ({
@@ -85,12 +85,12 @@ test("a pointer activation is dispatched only to the tapped item, not the nearer
     ...actor,
     activationBase: { points: rectangle(-8, -8, 8, 8) },
   }));
-  applyInputEvent(state.input, { kind: "pointer", x: 25, y: 0, buttons: 1 });
-  applyInputEvent(state.input, { kind: "pointer", x: 25, y: 0, buttons: 0 });
+  applyInputEvent(state.input, { kind: "pointer", x: 32, y: 0, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 32, y: 0, buttons: 0 });
   runInputPhase(state);
-  equal(state.input.keys[0]?.target, "item:1");
+  equal(state.input.keys[0]?.target, "item:0");
   const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
-  equal(events[0]?.key, "item:1");
+  equal(events[0]?.key, "item:0");
 });
 test("multiple pointer gestures in one tick retain their own target and click work", () => {
   const world = board([], [item(0, 16, 0, 1), item(1, 24, 0, 1)]);

@@ -17,12 +17,26 @@ export type InputConfig = {
   readonly pointerPlane?: { readonly width: number; readonly height: number };
 };
 
-const GAMEPAD_BITS: readonly string[] = ["up", "down", "left", "right", "confirm", "cancel", "menu"];
+const ENGINE_ACTIONS = new Set(["up", "down", "left", "right", "confirm", "cancel", "menu"]);
+const ENGINE_PAD_ACTIONS: Readonly<Record<number, string>> = {
+  0: "confirm", 1: "cancel", 9: "menu", 12: "up", 13: "down", 14: "left", 15: "right",
+  17: "left", 18: "right", 19: "up", 20: "down",
+};
+const ENGINE_PAD_MASKS: Readonly<Record<string, number>> = {
+  confirm: 1 << 0, cancel: 1 << 1, menu: 1 << 9,
+  up: (1 << 12) | (1 << 19), down: (1 << 13) | (1 << 20),
+  left: (1 << 14) | (1 << 17), right: (1 << 15) | (1 << 18),
+};
+const LEGACY_ACTION_ALIASES: Readonly<Record<string, string>> = { ENTER: "menu", " ": "confirm", SPACE: "confirm" };
+const DEFAULT_KEY_ACTIONS: Readonly<Record<string, readonly string[]>> = {
+  ArrowUp: ["up"], ArrowDown: ["down"], ArrowLeft: ["left"], ArrowRight: ["right"],
+  Enter: ["confirm", "menu"], Space: ["confirm"], Escape: ["cancel"],
+};
 const DIRECTIONS: Readonly<Record<string, true>> = { up: true, down: true, left: true, right: true };
 
 export function createInputSection(config: InputConfig = {}): InputSection {
   const state: InputSection = {
-    version: 6,
+    version: 7,
     nextSeq: 1,
     keys: [],
     held: {},
@@ -41,6 +55,8 @@ export function createInputSection(config: InputConfig = {}): InputSection {
     registeredActions: [],
     actionRegistry: Object.fromEntries([...ENGINE_ACTIONS].map((action) => [action, true])),
     controlActions: {},
+    actionPadMasks: {},
+    keyboardActionSources: {},
     semanticActionSources: {},
     directionOrder: [],
     pendingActions: [],
@@ -84,7 +100,6 @@ export function inputView(state: InputSection): InputView {
   return state;
 }
 
-const ENGINE_ACTIONS = new Set(["up", "down", "left", "right", "confirm", "cancel", "menu"]);
 const GAME_ACTION_NAME = /^game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/;
 
 function mappedAction(state: InputSection, event: KeyInput): string | undefined {
@@ -110,6 +125,10 @@ export function registerGameAction(state: InputSection, action: RegisteredAction
   for (const control of definition.controls) {
     const actions = state.controlActions[control] ?? (state.controlActions[control] = []);
     actions.push(action.name);
+    if (control.startsWith("pad:")) {
+      const bit = control === "pad:axis0-" ? 17 : control === "pad:axis0+" ? 18 : control === "pad:axis1-" ? 19 : control === "pad:axis1+" ? 20 : Number(control.slice(4));
+      state.actionPadMasks[action.name] = (state.actionPadMasks[action.name] ?? 0) | (1 << bit);
+    }
   }
   return true;
 }
@@ -128,9 +147,8 @@ export function applySemanticActionEdge(
   registeredActions?: ReadonlySet<string>,
   target?: string,
 ): boolean {
-  const registered = registeredActions === undefined
-    ? Object.hasOwn(state.actionRegistry, action)
-    : registeredActions.has(action);
+  const registered = Object.hasOwn(state.actionRegistry, action) &&
+    (registeredActions === undefined || registeredActions.has(action));
   if (!registered || source.length === 0) return false;
   let claims = state.semanticActionSources[action];
   const priorClaim = claims !== undefined && Object.hasOwn(claims, source) && claims[source] === true;
@@ -177,17 +195,9 @@ function maskForGamepad(event: Pick<GamepadInput, "axes" | "buttons">): number {
   return mask;
 }
 function actionHeldFromPads(state: InputSection, action: string): boolean {
-  const bound = boundActions(state).has(action);
-  if (bound) {
-    const bit = GAMEPAD_BITS.indexOf(action);
-    if (bit >= 0) for (const pad of Object.values(state.gamepads)) if (pad.connected && (pad.mask & (1 << bit)) !== 0) return true;
-    const axisBit = action === "left" ? 17 : action === "right" ? 18 : action === "up" ? 19 : action === "down" ? 20 : -1;
-    if (axisBit >= 0) for (const pad of Object.values(state.gamepads)) if (pad.connected && (pad.mask & (1 << axisBit)) !== 0) return true;
-  }
-  for (let bit = 0; bit < 21; bit++) {
-    if (!(state.controlActions[controlForPadBit(bit)] ?? []).includes(action)) continue;
-    for (const pad of Object.values(state.gamepads)) if (pad.connected && (pad.mask & (1 << bit)) !== 0) return true;
-  }
+  const mask = state.actionPadMasks[action] ?? ENGINE_PAD_MASKS[action] ?? 0;
+  if (mask === 0) return false;
+  for (const pad of Object.values(state.gamepads)) if (pad.connected && (pad.mask & mask) !== 0) return true;
   return false;
 }
 
@@ -200,7 +210,10 @@ function setDirectionOrder(state: InputSection, action: string, pressed: boolean
 function updateAction(state: InputSection, action: string, emitEdge: boolean, code: string): void {
   if (!Object.hasOwn(state.actionRegistry, action)) return;
   const previous = state.actions[action] === true;
-  const current = state.keyboardActions[action] === true || actionHeldFromPads(state, action) || Object.keys(state.semanticActionSources[action] ?? {}).length > 0;
+  const current = Object.keys(state.keyboardActionSources[action] ?? {}).length > 0
+    || actionHeldFromPads(state, action)
+    || Object.keys(state.semanticActionSources[action] ?? {}).length > 0;
+  state.keyboardActions[action] = Object.keys(state.keyboardActionSources[action] ?? {}).length > 0;
   state.actions[action] = current;
   if (current === previous) return;
   setDirectionOrder(state, action, current);
@@ -210,7 +223,11 @@ function updateAction(state: InputSection, action: string, emitEdge: boolean, co
   }
 }
 function updateAllActions(state: InputSection, emitEdges: boolean, code: string): void {
-  const actions = new Set<string>([...Object.keys(state.keyboardActions), ...GAMEPAD_BITS.filter((action) => boundActions(state).has(action))]);
+  const actions = new Set<string>([
+    ...Object.keys(state.keyboardActionSources),
+    ...Object.keys(state.semanticActionSources),
+  ]);
+  for (const action of ENGINE_ACTIONS) if (actionHeldFromPads(state, action)) actions.add(action);
   for (let bit = 0; bit < 21; bit++) {
     if (Object.values(state.gamepads).some((pad) => pad.connected && (pad.mask & (1 << bit)) !== 0)) {
       for (const action of state.controlActions[controlForPadBit(bit)] ?? []) actions.add(action);
@@ -219,27 +236,16 @@ function updateAllActions(state: InputSection, emitEdges: boolean, code: string)
   for (const action of actions) updateAction(state, action, emitEdges, code);
 }
 function updatePadActions(state: InputSection, previousMask: number, currentMask: number, emitEdges: boolean, code: string): void {
-  const actions = new Set<string>();
+  const processed = new Set<string>();
   for (let bit = 0; bit < 21; bit++) {
     if (((previousMask ^ currentMask) & (1 << bit)) === 0) continue;
-    if (bit < GAMEPAD_BITS.length && boundActions(state).has(GAMEPAD_BITS[bit]!)) actions.add(GAMEPAD_BITS[bit]!);
-    if (bit >= 17) {
-      const action = bit === 17 ? "left" : bit === 18 ? "right" : bit === 19 ? "up" : "down";
-      if (boundActions(state).has(action)) actions.add(action);
+    const actions = [ENGINE_PAD_ACTIONS[bit], ...(state.controlActions[controlForPadBit(bit)] ?? [])];
+    for (const action of actions) {
+      if (action === undefined || processed.has(action)) continue;
+      processed.add(action);
+      updateAction(state, action, emitEdges, code);
     }
-    for (const action of state.controlActions[controlForPadBit(bit)] ?? []) actions.add(action);
   }
-  const ordered = [...actions].sort((left, right) => {
-    const leftBit = GAMEPAD_BITS.indexOf(left);
-    const rightBit = GAMEPAD_BITS.indexOf(right);
-    if (leftBit >= 0 && rightBit >= 0) return leftBit - rightBit;
-    if (leftBit >= 0) return -1;
-    if (rightBit >= 0) return 1;
-    const leftIndex = state.registeredActions.findIndex((item) => item.name === left);
-    const rightIndex = state.registeredActions.findIndex((item) => item.name === right);
-    return leftIndex - rightIndex;
-  });
-  for (const action of ordered) updateAction(state, action, emitEdges, code);
 }
 
 function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (action: string) => void): void {
@@ -247,18 +253,38 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
   const priorRaw = state.held[event.name] === true;
   state.held[event.name] = event.down;
   if (event.code !== event.name) state.held[event.code] = event.down;
-  const actions = [...(state.controlActions[`key:${event.code}`] ?? [])];
-  const mapped = mappedAction(state, event);
-  if (mapped !== undefined && !actions.includes(mapped)) actions.push(mapped);
-  if (event.down) appendKey(state, event.name, event.code, event.char);
-  if (event.down && event.repeat === true) return;
-  if (event.down && priorRaw) return;
-  for (const action of actions) {
+  const control = `key:${event.code}`;
+  const configured = mappedAction(state, event);
+  const defaultActions = DEFAULT_KEY_ACTIONS[event.code] ?? [];
+  const mapped = configured === undefined ? undefined : LEGACY_ACTION_ALIASES[configured] ?? configured;
+  const bound = state.controlActions[control] ?? [];
+  const candidates = [...defaultActions, ...bound, ...(mapped === undefined ? [] : [mapped])];
+  const engineBound = new Set(candidates.filter((action) => ENGINE_ACTIONS.has(action)));
+  const game: string[] = [];
+  const seenGame = new Set<string>();
+  for (const action of [...bound, ...(mapped === undefined ? [] : [mapped])]) {
+    if (ENGINE_ACTIONS.has(action) || seenGame.has(action)) continue;
+    seenGame.add(action);
     if (!Object.hasOwn(state.actionRegistry, action)) {
-      onUnknownAction?.(action);
+      if (configured === action) onUnknownAction?.(action);
       continue;
     }
-    state.keyboardActions[action] = event.down;
+    game.push(action);
+  }
+  if (mapped !== undefined && !Object.hasOwn(state.actionRegistry, mapped)) {
+    if (configured !== undefined && !Object.hasOwn(LEGACY_ACTION_ALIASES, configured)) onUnknownAction?.(configured);
+  }
+  const ordered = [...[...ENGINE_ACTIONS].filter((action) => engineBound.has(action)), ...game];
+  if (event.down) {
+    appendKey(state, event.name, event.code, event.char, ordered[0]);
+  }
+  if (event.down && event.repeat === true) return;
+  if (event.down && priorRaw) return;
+  for (const action of ordered) {
+    let sources = state.keyboardActionSources[action];
+    if (sources === undefined) sources = state.keyboardActionSources[action] = {};
+    if (event.down) Object.defineProperty(sources, control, { value: true, enumerable: true, configurable: true, writable: true });
+    else delete sources[control];
     updateAction(state, action, false, event.code);
   }
 }
@@ -275,6 +301,7 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
 function releaseHeld(state: InputSection): void {
   for (const name of Object.keys(state.held)) if (state.held[name] === true) state.held[name] = false;
   for (const action of Object.keys(state.keyboardActions)) if (state.keyboardActions[action] === true) state.keyboardActions[action] = false;
+  for (const sources of Object.values(state.keyboardActionSources)) for (const source of Object.keys(sources)) delete sources[source];
   updateAllActions(state, false, "focus");
   state.pointer = { ...state.pointer, buttons: 0 };
   state.pressedButtonSlot = null;
