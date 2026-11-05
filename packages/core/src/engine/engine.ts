@@ -542,7 +542,11 @@ export function createEngine(init: EngineInit): Engine {
       applyCanvasText(lower === "text", effect.args);
       return;
     }
-    applyUiEffect(state, effect.name, effect.args, (name) => resolveFontAsset(name, index.keys));
+    applyUiEffect(state, effect.name, effect.args, (name) => resolveFontAsset(name, index.keys), (owner, message) => {
+      const thread = state.vm.threads.find((candidate) => candidate.id === owner);
+      const location = thread === undefined ? null : threadLocation(thread);
+      diagnostics.push({ code: "a11y.surface", file: location?.file ?? mainKey ?? "", line: location?.line ?? 0, message });
+    });
     // `winGraphic` names an image; resolve and fetch it now so the window can draw it (E-55).
     if (lower === "wingraphic") primeMessageGraphic();
   });
@@ -3478,6 +3482,7 @@ export function createEngine(init: EngineInit): Engine {
     return false;
   }
 
+  const authorSurfaceSelectionKey = (owner: number, surfaceId: string): string => `${owner}:${surfaceId}`;
   function authorSurfaceTargetAt(x: number, y: number): UiActionClaim | null {
     const width = init.width;
     const height = init.height;
@@ -3502,7 +3507,7 @@ export function createEngine(init: EngineInit): Engine {
         const item = surface.items[index]!;
         if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
             x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h) {
-          return { surfaceId: surface.id, itemId: item.id, index, action: item.action ?? null };
+          return { surfaceId: surface.id, owner: surface.owner, itemId: item.id, index, action: item.action ?? null };
         }
       }
     }
@@ -3532,14 +3537,20 @@ export function createEngine(init: EngineInit): Engine {
     const nextSeq = state.input.nextSeq;
     applyInputEvent(state.input, event);
 
-    if (state.ui.modal !== null) return;
+    if (state.ui.modal !== null) {
+      state.input.pendingClicks.length = pendingClicks;
+      return;
+    }
     if (downEdge && target !== null) {
       state.ui.surfacePointerClaim = target;
-      state.ui.actionSurfaces = state.ui.actionSurfaces.map((surface) =>
-        surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
-      );
-      state.ui.surfaceSelection[target.surfaceId] = target.index;
       state.input.pendingClicks.length = pendingClicks;
+      state.input.keys.length = keys;
+      state.input.pendingActions.length = pendingActions;
+      state.input.nextSeq = nextSeq;
+      state.ui.actionSurfaces = state.ui.actionSurfaces.map((surface) =>
+        surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+      );
+      state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
       state.input.pressedButtonSlot = null;
       return;
     }
@@ -3550,16 +3561,16 @@ export function createEngine(init: EngineInit): Engine {
       state.input.pendingActions.length = pendingActions;
       state.input.nextSeq = nextSeq;
       state.input.pressedButtonSlot = null;
-      if (target?.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) {
+      if (target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) {
         state.ui.surfaceActivated = pressed;
       }
       return;
     }
     if (target !== null) {
       state.ui.actionSurfaces = state.ui.actionSurfaces.map((surface) =>
-        surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+        surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
       );
-      state.ui.surfaceSelection[target.surfaceId] = target.index;
+      state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
     }
     if (isPrimaryDown && (event.x < 0 || event.y < 0 || event.x >= init.width || event.y >= init.height)) {
       state.input.pendingClicks.length = pendingClicks;
@@ -3570,7 +3581,8 @@ export function createEngine(init: EngineInit): Engine {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        // Backfill older/manual waits before this tick's input records are appended.
+        state.ui.surfaceActivated = null;
+        state.ui.surfaceCancelled = false;
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }
@@ -3584,7 +3596,7 @@ export function createEngine(init: EngineInit): Engine {
             consumeAsset(record, consumed);
             continue;
           }
-          applyInputEvent(state.input, record.event);
+          applyRoutedInputEvent(record.event);
           consumed.push(record);
         }
         processGamepadEvents(state.input, ({ device, connected }) => {
@@ -3744,13 +3756,13 @@ export function createEngine(init: EngineInit): Engine {
                 at += 1;
                 continue;
               }
-              applyInputEvent(state.input, earlier.event);
+              applyRoutedInputEvent(earlier.event);
             }
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
         }
-        applyInputEvent(state.input, record.event);
+        applyRoutedInputEvent(record.event);
         consumed.push(record);
       } else if (!state.input.focused && applyHostStateEvent(record.event)) {
         consumed.push(record);
@@ -3767,7 +3779,7 @@ export function createEngine(init: EngineInit): Engine {
       if (applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
-        applyInputEvent(state.input, record.event);
+        applyRoutedInputEvent(record.event);
         consumed.push(record);
       }
     }

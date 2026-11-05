@@ -5,6 +5,7 @@ import {
   assetKey,
   colourSurface,
   composeUi,
+  uiAccessibilityTree,
   createGameState,
   createScriptServices,
   createSurfacesSection,
@@ -39,9 +40,9 @@ function firstEffect(result: ReturnType<typeof command>): NonNullable<NonNullabl
   return effect;
 }
 
-test("UI pack exposes message, cursor-map and cursor commands", () => {
-  equal(UI_COMMANDS.length, 34);
-  equal(new Set(UI_COMMANDS.map((entry) => entry.name)).size, 34);
+test("UI pack exposes message, cursor-map, accessibility surface and touch declaration commands", () => {
+  equal(UI_COMMANDS.length, 42);
+  equal(new Set(UI_COMMANDS.map((entry) => entry.name)).size, 42);
   equal(UI_COMMANDS.every((entry) => (entry.doc?.summary.length ?? 0) > 0 && (entry.doc?.behaviour.length ?? 0) > 0), true);
 });
 test("dialogue UI effect uses the message window and appends text", () => {
@@ -75,6 +76,46 @@ test("message-window effects splice globals and use deterministic defaults", () 
   equal(state.ui.message.translucency, 50);
   equal(composeUi(state.ui, 800, 600).some((entry) => entry.kind === "rect"), true);
 });
+test("author UI effects publish one ordered navigation surface and accessibility subtree", () => {
+  const state = createGameState({ seed: 0 });
+  applyUiEffect(state, "uiBegin", [7, "title", "menu", 10, 20, 200, 120, 1]);
+  applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, "confirm", null, 1]);
+  applyUiEffect(state, "uiItem", [7, "Settings", "settings", "audio", 0, "button", null, null, 1]);
+  applyUiEffect(state, "uiEnd", [7]);
+  const surface = state.ui.actionSurfaces[0];
+  ok(surface);
+  equal(surface.selection, 0);
+  deepEqual(surface.items.map(({ id, label, enabled, bounds }) => ({ id, label, enabled, bounds })), [
+    { id: "play", label: "Play", enabled: true, bounds: { x: 10, y: 20, w: 200, h: 60 } },
+    { id: "settings", label: "Settings", enabled: false, bounds: { x: 10, y: 80, w: 200, h: 60 } },
+  ]);
+  deepEqual(uiAccessibilityTree(state.ui), [{
+    id: "surface:7:title",
+    role: "menu",
+    label: "title",
+    value: null,
+    state: { disabled: false, selected: false, checked: null },
+    focused: false,
+    bounds: { x: 10, y: 20, w: 200, h: 120 },
+    children: [
+      { id: "7:title:play", role: "menuitem", label: "Play", value: null, state: { disabled: false, selected: true, checked: null }, focused: true, bounds: { x: 10, y: 20, w: 200, h: 60 }, children: [] },
+      { id: "7:title:settings", role: "button", label: "Settings", value: "audio", state: { disabled: true, selected: false, checked: null }, focused: false, bounds: { x: 10, y: 80, w: 200, h: 60 }, children: [] },
+    ],
+  }]);
+  equal(composeUi(state.ui, 320, 240).some((entry) => entry.kind === "rect"), true);
+});
+test("malformed author surfaces report diagnostics without publishing a partial surface", () => {
+  const state = createGameState({ seed: 0 });
+  const reports: string[] = [];
+  applyUiEffect(state, "uiBegin", [9, "broken", "menu", 0, 0, 0, 10, 0], undefined, (_owner, message) => reports.push(message));
+  applyUiEffect(state, "uiEnd", [9], undefined, (_owner, message) => reports.push(message));
+  deepEqual(reports, [
+    "uiBegin rejected a malformed author surface",
+    "uiEnd requires an open uiBegin surface",
+  ]);
+  equal(state.ui.actionSurfaces.length, 0);
+});
+
 
 test("engine-backed message windows use the default translucent colour surface", () => {
   const state = createGameState({ seed: 0 });

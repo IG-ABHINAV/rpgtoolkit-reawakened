@@ -112,6 +112,7 @@ export type UiSurfaceBuilder = {
 
 export type UiActionClaim = {
   readonly surfaceId: string;
+  readonly owner: number;
   readonly itemId: string;
   readonly index: number;
   readonly action: string | null;

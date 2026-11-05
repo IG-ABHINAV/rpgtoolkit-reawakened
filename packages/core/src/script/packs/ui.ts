@@ -121,6 +121,9 @@ function itemOptions(view: CommandView, value: unknown): Record<string, unknown>
 function surfaceEffect(view: CommandView, args: readonly PlainData[]): CommandEffect {
   return { kind: "state-write", section: "ui", args: [view.thread ?? -1, ...args] };
 }
+function surfaceSelectionKey(owner: number, id: string): string {
+  return `${owner}:${id}`;
+}
 
 export const UI_COMMANDS: readonly BuiltinSpec[] = [
   uiCommand("createCursorMap", [{ name: "ret", optional: true, byRef: true, variadic: false }], cursorDoc("Create a cursor map.", "Creates an empty cursor map and returns its integer handle, also writing the optional reference; points are added in order and the call does not wait."), (view, args) => {
@@ -214,38 +217,48 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
     { name: "w", optional: false, byRef: false, variadic: false },
     { name: "h", optional: false, byRef: false, variadic: false },
   ], plainDoc("Declare an interactive author surface.", "Opens a per-thread surface with logical-pixel bounds; returns 1 when accepted and 0 when malformed. Close it with uiEnd()."), (view, args) => {
-    const owner = view.thread;
+    const owner = view.thread ?? -1;
     const id = text(args, 0);
     const role = text(args, 1);
     const x = number(args, 2); const y = number(args, 3);
     const w = number(args, 4); const h = number(args, 5);
-    const valid = owner !== undefined && owner >= 0 && id !== "" &&
+    const valid = view.thread !== undefined && owner >= 0 && id !== "" &&
       (role === "menu" || role === "list" || role === "dialog" || role === "surface") &&
       [x, y, w, h].every(Number.isSafeInteger) && w > 0 && h > 0;
-    if (!valid) return { value: 0, effects: [effect([], "pure")] };
-    const argsData = [id, role, x, y, w, h] as PlainData[];
-    return { value: 1, effects: [surfaceEffect(view, argsData)] };
+    const argsData = [id, role, x, y, w, h, valid ? 1 : 0] as PlainData[];
+    return { value: valid ? 1 : 0, effects: [surfaceEffect(view, argsData)] };
   }),
   uiCommand("uiItem", [
     { name: "label", optional: false, byRef: false, variadic: false },
     { name: "options", optional: true, byRef: false, variadic: false },
   ], plainDoc("Add a labelled item to the current author surface.", "Adds one navigable item to the calling thread's open surface. Optional dictionary fields are id, value, enabled, role, bounds and explicit semantic action."), (view, args) => {
-    const options = itemOptions(view, args[1]?.value);
+    const optionsValue = args[1]?.value;
+    const options = itemOptions(view, optionsValue);
     const bounds = options?.bounds === undefined ? null : dictionary(view, options.bounds);
     const boundsData = bounds === null ? null : {
-      x: bounds.x as number, y: bounds.y as number, w: bounds.w as number, h: bounds.h as number,
+      x: typeof bounds.x === "number" ? bounds.x : 0,
+      y: typeof bounds.y === "number" ? bounds.y : 0,
+      w: typeof bounds.w === "number" ? bounds.w : 0,
+      h: typeof bounds.h === "number" ? bounds.h : 0,
     };
     const action = options?.action;
     const actionValid = action === undefined || (typeof action === "string" && /^(confirm|cancel|game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*)$/.test(action));
+    const allowedOptions: Record<string, true> = { id: true, value: true, enabled: true, role: true, bounds: true, action: true };
+    const optionsValid = options !== null && Object.keys(options).every((key) => allowedOptions[key] === true);
+    const enabledValid = options?.enabled === undefined || typeof options.enabled === "number" || options.enabled === "0" || options.enabled === "1";
+    const boundsValid = options?.bounds === undefined || (
+      bounds !== null && boundsData !== null &&
+      [boundsData.x, boundsData.y, boundsData.w, boundsData.h].every(Number.isSafeInteger) &&
+      boundsData.w > 0 && boundsData.h > 0
+    );
     const argsData = [
       text(args, 0),
       options?.id === undefined ? null : options.id as PlainData,
       options?.value === undefined ? null : options.value as PlainData,
-      options?.enabled === undefined ? 1 : (options.enabled as number | string) === 0 || options.enabled === "0" ? 0 : 1,
+      options?.enabled === undefined ? 1 : (options.enabled === 0 || options.enabled === "0" ? 0 : 1),
       options?.role === undefined ? null : options.role as PlainData,
-      typeof action === "string" ? action : null,
       boundsData,
-      options !== null && actionValid && (options.enabled === undefined || typeof options.enabled === "number" || typeof options.enabled === "string"),
+      optionsValid && enabledValid && boundsValid && actionValid,
     ] as PlainData[];
     return { value: null, effects: [surfaceEffect(view, argsData)] };
   }),
@@ -255,14 +268,21 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
     const selected = (view.state?.ui.actionSurfaces ?? []).find((surface) => surface.owner === owner)?.selection ?? -1;
     return { value: selected, out: output(args, 0, selected), effects: [effect([], "pure")] };
   }),
-  uiCommand("uiFocus", [{ name: "index", optional: false, byRef: false, variadic: false }], plainDoc("Move focus within the author surface.", "Sets focus to an enabled item by its 0-based index; invalid and disabled indexes are ignored."), (view, args) => ({ value: null, effects: [surfaceEffect(view, [Math.trunc(number(args, 0))])] })),
+  uiCommand("uiFocus", [{ name: "index", optional: false, byRef: false, variadic: false }], plainDoc("Move focus within the author surface.", "Sets focus to an enabled item by its 0-based index; invalid and disabled indexes are ignored."), (view, args) => {
+    const index = number(args, 0);
+    return { value: null, effects: Number.isSafeInteger(index) ? [surfaceEffect(view, [index])] : [effect([], "pure")] };
+  }),
   uiCommand("uiActivated", [{ name: "ret", optional: true, byRef: true, variadic: false }], plainDoc("Read this frame's author-surface activation claim.", "Returns the 0-based activated item index for this frame, or −1 otherwise, and writes the optional reference."), (view, args) => {
     const owner = view.thread ?? -1;
     const claim = view.state?.ui.surfaceActivated;
-    const index = claim !== null && claim !== undefined && view.state?.ui.actionSurfaces.some((surface) => surface.owner === owner && surface.id === claim.surfaceId) ? claim.index : -1;
-    return { value: index, out: output(args, 0, index), effects: [effect([], "pure")] };
+    const index = claim !== null && claim !== undefined && claim.owner === owner ? claim.index : -1;
+    return { value: index, out: output(args, 0, index), effects: [surfaceEffect(view, [owner])] };
   }),
-  uiCommand("uiCancelled", NO_ARGS, plainDoc("Read this frame's author-surface cancel claim.", "Returns 1 when cancel was claimed for this author surface on this frame, otherwise 0."), (view) => ({ value: view.state?.ui.surfaceCancelled === true && view.state.ui.actionSurfaces.some((surface) => surface.owner === (view.thread ?? -1)) ? 1 : 0, effects: [effect([], "pure")] })),
+  uiCommand("uiCancelled", NO_ARGS, plainDoc("Read this frame's author-surface cancel claim.", "Returns 1 when cancel was claimed for this author surface on this frame, otherwise 0."), (view) => {
+    const owner = view.thread ?? -1;
+    const claimed = view.state?.ui.surfaceCancelled === true && view.state.ui.actionSurfaces.some((surface) => surface.owner === owner);
+    return { value: claimed ? 1 : 0, effects: claimed ? [surfaceEffect(view, [owner])] : [effect([], "pure")] };
+  }),
   uiCommand("prompt", [{ name: "question", optional: false, byRef: false, variadic: false }, { name: "ret", optional: true, byRef: true, variadic: false }], { summary: "Ask the player for text.", behaviour: "Shows a modal prompt and yields until the UI supplies a typed value; the value is returned and written to the optional reference.", groups: [DIALOGUE], waits: { kind: "until-input", summary: "Yields until the prompt is answered." } }, (view, args) => ({ value: null, effects: [effect([spliceVariables(text(args, 0), view)])], wait: { kind: "render.msgbox", global: true, id: "prompt", payload: [spliceVariables(text(args, 0), view)], resumeRefs: args[1]?.ref === null || args[1]?.ref === undefined ? [] : [args[1].ref] } })),
   uiCommand("msgBox", [{ name: "text", optional: false, byRef: false, variadic: false }, { name: "title", optional: true, byRef: false, variadic: false }, { name: "style", optional: true, byRef: false, variadic: false }, { name: "textColor", optional: true, byRef: false, variadic: false }, { name: "backColor", optional: true, byRef: false, variadic: false }, { name: "bitmap", optional: true, byRef: false, variadic: false }], { summary: "Ask a question with buttons.", behaviour: "Shows a centred wrapped panel, merges the title as its first body line, then yields until the first OK or Yes/No button is selected; it returns 1, 6 or 7.", groups: [DIALOGUE], waits: { kind: "until-input", summary: "Yields until a button is selected." } }, (_view, args) => { const style = Math.trunc(number(args, 2)); if (style !== 0 && style !== 1) throw new ScriptError("builtin.bad-arg", "msgbox: style must be 0 (OK) or 1 (Yes/No)"); return { value: 0, effects: [effect(values(args))], wait: { kind: "render.msgbox", global: true, id: "msgbox", payload: values(args), resumeRefs: [] } }; }),
 ];
@@ -280,6 +300,8 @@ export function applyUiEffect(
   args: readonly PlainData[],
   /** Resolve a `font(name)` argument against the assets the project ships, when the caller has them. */
   resolveFont?: (name: string) => AssetKey | null,
+  /** Report malformed author UI without raising into the script. */
+  reportSurfaceError?: (owner: number, message: string) => void,
 ): void {
   const ui = state.ui;
   if (ui.message === undefined) Object.assign(ui, createUiSection());
@@ -300,22 +322,32 @@ export function applyUiEffect(
       return;
     case "uibegin": {
       const owner = numberArg(first);
-      const id = stringArg(args[1]);
-      const role = stringArg(args[2]);
-      const x = numberArg(args[3]); const y = numberArg(args[4]);
-      const w = numberArg(args[5]); const h = numberArg(args[6]);
-      const valid = Number.isSafeInteger(owner) && owner >= 0 && id !== "" &&
+      if (numberArg(args[7]) !== 1) {
+        reportSurfaceError?.(owner, "uiBegin rejected a malformed author surface");
+        return;
+      }
+      const id = stringArg(args[1]); const role = stringArg(args[2]);
+      const bounds = { x: numberArg(args[3]), y: numberArg(args[4]), w: numberArg(args[5]), h: numberArg(args[6]) };
+      const accepted = owner >= 0 && id !== "" &&
         (role === "menu" || role === "list" || role === "dialog" || role === "surface") &&
-        Number.isSafeInteger(x) && Number.isSafeInteger(y) && Number.isSafeInteger(w) && Number.isSafeInteger(h) && w > 0 && h > 0;
-      ui.surfaceBuilders = ui.surfaceBuilders.filter((builder) => builder.owner !== owner);
-      if (!valid) return;
-      ui.surfaceBuilders = [...ui.surfaceBuilders, { owner, id, role, bounds: { x, y, w, h }, items: [], invalid: false }];
+        Object.values(bounds).every(Number.isSafeInteger) && bounds.w > 0 && bounds.h > 0;
+      if (!accepted) {
+        reportSurfaceError?.(owner, "uiBegin rejected a malformed author surface");
+        return;
+      }
+      ui.surfaceBuilders = [
+        ...ui.surfaceBuilders.filter((builder) => builder.owner !== owner),
+        { owner, id, role, bounds, items: [], invalid: false },
+      ];
       return;
     }
     case "uiitem": {
       const owner = numberArg(first);
       const builderIndex = ui.surfaceBuilders.findIndex((builder) => builder.owner === owner);
-      if (builderIndex < 0) return;
+      if (builderIndex < 0) {
+        reportSurfaceError?.(owner, "uiItem requires an open uiBegin/uiEnd surface");
+        return;
+      }
       const builder = ui.surfaceBuilders[builderIndex]!;
       const label = stringArg(args[1]);
       const idValue = args[2];
@@ -325,7 +357,7 @@ export function applyUiEffect(
       const actionValue = args[6];
       const boundsValue = args[7];
       const accepted = numberArg(args[8]) === 1;
-      const itemId = typeof idValue === "string" && idValue !== "" ? idValue : `item-${builder.items.length}`;
+      const itemId = typeof idValue === "string" ? idValue : `item-${builder.items.length}`;
       const role = typeof roleValue === "string" ? roleValue : builder.role === "list" ? "listitem" : builder.role === "surface" ? "button" : "menuitem";
       const allowedRole = role === "menuitem" || role === "button" || role === "listitem" || role === "text";
       const enabled = numberArg(enabledValue) !== 0;
@@ -345,6 +377,7 @@ export function applyUiEffect(
       );
       const validAction = actionValue === null || (typeof actionValue === "string" && /^(confirm|cancel|game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*)$/.test(actionValue));
       if (builder.items.length >= 256 || label === "" || (typeof idValue !== "string" && idValue !== null) ||
+          (typeof idValue === "string" && idValue === "") ||
           (typeof value !== "string" && value !== null) || !allowedRole || !validBounds || !validAction ||
           (typeof actionValue !== "string" && actionValue !== null) || !accepted ||
           builder.items.some((item) => item.id === itemId)) {
@@ -362,7 +395,14 @@ export function applyUiEffect(
       const owner = numberArg(first);
       const builder = ui.surfaceBuilders.find((candidate) => candidate.owner === owner);
       ui.surfaceBuilders = ui.surfaceBuilders.filter((candidate) => candidate.owner !== owner);
-      if (builder === undefined || builder.invalid || builder.items.length === 0) return;
+      if (builder === undefined) {
+        reportSurfaceError?.(owner, "uiEnd requires an open uiBegin surface");
+        return;
+      }
+      if (builder.invalid || builder.items.length === 0) {
+        reportSurfaceError?.(owner, "uiEnd rejected a malformed or empty author surface");
+        return;
+      }
       const count = builder.items.length;
       const items = builder.items.map((item, index) => {
         if (item.bounds.h > 0) return item;
@@ -370,10 +410,11 @@ export function applyUiEffect(
         const bottom = Math.floor((index + 1) * builder.bounds.h / count);
         return { ...item, bounds: { x: builder.bounds.x, y: builder.bounds.y + top, w: builder.bounds.w, h: bottom - top } };
       });
-      let selection = ui.surfaceSelection[builder.id] ?? 0;
+      const selectionKey = surfaceSelectionKey(owner, builder.id);
+      let selection = ui.surfaceSelection[selectionKey] ?? 0;
       if (selection < 0 || selection >= items.length || items[selection]?.enabled !== true) selection = items.findIndex((item) => item.enabled);
       if (selection < 0) selection = -1;
-      ui.surfaceSelection[builder.id] = selection;
+      ui.surfaceSelection[selectionKey] = selection;
       const surface = { id: builder.id, owner, role: builder.role, bounds: builder.bounds, items, selection };
       ui.actionSurfaces = [...ui.actionSurfaces.filter((candidate) => candidate.owner !== owner || candidate.id !== builder.id), surface];
       return;
@@ -383,11 +424,19 @@ export function applyUiEffect(
       ui.actionSurfaces = ui.actionSurfaces.map((surface) => {
         const item = surface.items[index];
         if (surface.owner !== owner || item === undefined || !item.enabled) return surface;
-        ui.surfaceSelection[surface.id] = index;
+        ui.surfaceSelection[surfaceSelectionKey(owner, surface.id)] = index;
         return { ...surface, selection: index };
       });
       return;
     }
+    case "uiactivated": {
+      const owner = numberArg(first);
+      if (ui.surfaceActivated?.owner === owner) ui.surfaceActivated = null;
+      return;
+    }
+    case "uicancelled":
+      ui.surfaceCancelled = false;
+      return;
     case "dialogue":
     case "mwin":
     case "show":
