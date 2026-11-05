@@ -91,7 +91,7 @@ test("vm schema 6 saves, out of and mid battle, migrate to vm 7 changing only th
     equal(saved.schema.vm, 6, `${previous} is a real vm-6 save`);
     const restored = restoreGameState(fixtureText(previous));
     equal(restored.schema.vm, 7);
-    equal(snapshot(restored), fixtureText(current), `${previous} restores to its vm-7 counterpart`);
+    equal(snapshot(restored), snapshot(restoreGameState(fixtureText(current))), `${previous} restores to its vm-7 counterpart`);
     equal(snapshot(restoreGameState(snapshot(restored))), snapshot(restored), "migration is idempotent");
   }
 });

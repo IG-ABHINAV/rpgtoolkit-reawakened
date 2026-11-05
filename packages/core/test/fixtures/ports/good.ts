@@ -133,6 +133,8 @@ export function checkInputEventExhaustive(kind: InputEvent["kind"]): void {
     case "pointer":
     case "pointer.cancel":
     case "gamepad":
+    case "host.features":
+    case "host.display":
     case "focus":
     case "asset":
     case "blob.loaded":

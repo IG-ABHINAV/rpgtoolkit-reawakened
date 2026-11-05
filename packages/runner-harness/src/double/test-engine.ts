@@ -128,6 +128,8 @@ export function createTestEngine(): Engine {
             break;
           }
           case "gamepad":
+          case "host.features":
+          case "host.display":
           case "asset":
           case "blob.loaded":
           case "blob.saved":

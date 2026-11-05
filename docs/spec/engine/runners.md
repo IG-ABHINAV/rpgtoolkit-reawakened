@@ -40,9 +40,8 @@ sends a runner is plain data — structured-cloneable, fixed keys, absent values
 which sources and banks are installed, presentation scaling and letterboxing (AD-33), where a save physically lives
 (AD-17), and the player-facing preferences of [audio-media.md#soundfont-layers](audio-media.md#soundfont-layers).
 
-**May not:** change the meaning of a record, drop or invent a reply the core expects (AD-5, AD-14), feed device state
-into the simulation, depend on how ticks were batched (AD-1), or keep anything caches hold observable: discarding a
-cache at any moment must change no pixel, no sound and no hash (G4 rule 3).
+- **May not:** change the meaning of a record, drop or invent a reply the core expects (AD-5, AD-14), feed raw device or display observations directly into simulation, depend on how ticks were batched (AD-1), or keep anything caches hold observable: discarding a cache at any moment must change no pixel, no sound and no hash (G4 rule 3). A host observation may affect simulation only when captured as the initial host records or as the explicit, tick-stamped `host.features` / `host.display` AD-14 input in [host-capabilities-and-viewports.md#state-and-input-records](host-capabilities-and-viewports.md#state-and-input-records). Those records are hashed because script-visible; the runner's raw observation and presentation transform are not.
+- **Pointer and geometry state:** mapping a physical pointer through the displayed game rectangle is presentation work, but the resulting logical pointer input is an AD-14 input and the current normalized display geometry is deterministic state. Therefore a runner MUST use the same measured game rectangle for pointer mapping and `host.display` inputs; it MUST NOT mutate core geometry through an out-of-band setter.
 
 <a id="draw-list"></a>
 ## Draw-list replay and the presented frame

@@ -4,7 +4,7 @@ import { AUDIO_SCHEMA_VERSION, createAudioSection, createTrack, type AudioStateV
 import { ScriptError } from "../script/errors.ts";
 import { isRecord } from "../script/cells.ts";
 import type { Diagnostic } from "../ports/engine.ts";
-import { refuseNewerFrameIr, refuseNewerIr, restoreGameState } from "./snapshot.ts";
+import { refuseNewerFrameIr, refuseNewerIr, restoreGameState, type RestoreOptions } from "./snapshot.ts";
 import { SCHEMA_VERSIONS } from "./state.ts";
 import type { GameState } from "./state.ts";
 
@@ -95,7 +95,7 @@ export function snapshotRecoveryCandidate(state: GameState, recoveryAssets: Reco
   return canon({ ...gameSaveRoot(state), recoveryAssets: manifest } as never);
 }
 
-function restoreGameSaveEnvelope(json: string, currentAudio: AudioStateV2, recovery = false): {
+function restoreGameSaveEnvelope(json: string, currentAudio: AudioStateV2, recovery = false, restoreOptions: RestoreOptions = {}): {
   readonly save: RestoredGameSave;
   readonly recoveryAssets: RecoveryAssetManifest | null;
 } {
@@ -166,20 +166,20 @@ function restoreGameSaveEnvelope(json: string, currentAudio: AudioStateV2, recov
     settings: currentAudio.settings,
   };
   const diagnostics: Diagnostic[] = [];
-  const state = restoreGameState(canon(tagNonFinite(root) as never), diagnostics, recovery ? { requireCurrentIr: true } : {});
+  const state = restoreGameState(canon(tagNonFinite(root) as never), diagnostics, { ...restoreOptions, ...(recovery ? { requireCurrentIr: true } : {}) });
   if (state.time.tick !== tick) shape("audio.tick must match time.tick");
   state.audio = resetPlayback(currentAudio);
   return { save: { state, audio: projection as unknown as AudioSaveProjection, diagnostics }, recoveryAssets };
 }
 
 /** Validate and migrate an untrusted canonical game save against the live game's audio configuration. */
-export function restoreGameSave(json: string, currentAudio: AudioStateV2): RestoredGameSave {
-  return restoreGameSaveEnvelope(json, currentAudio).save;
+export function restoreGameSave(json: string, currentAudio: AudioStateV2, options: RestoreOptions = {}): RestoredGameSave {
+  return restoreGameSaveEnvelope(json, currentAudio, false, options).save;
 }
 
 /** Validate a checkpoint candidate and its recovery-only asset fingerprints. */
-export function restoreRecoveryCandidate(json: string, currentAudio: AudioStateV2): RestoredRecoveryCandidate {
-  const restored = restoreGameSaveEnvelope(json, currentAudio, true);
+export function restoreRecoveryCandidate(json: string, currentAudio: AudioStateV2, options: RestoreOptions = {}): RestoredRecoveryCandidate {
+  const restored = restoreGameSaveEnvelope(json, currentAudio, true, options);
   if (restored.recoveryAssets === null) throw new ScriptError("recovery.assets-missing", "the recovery candidate has no asset fingerprint manifest");
   return { ...restored.save, recoveryAssets: restored.recoveryAssets };
 }

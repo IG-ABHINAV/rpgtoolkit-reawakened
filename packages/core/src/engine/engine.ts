@@ -35,6 +35,7 @@ import type { AssetIndex, AssetRoot } from "../formats/resolver/model.ts";
 import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
@@ -44,6 +45,7 @@ import type { AssetKey, SurfaceId } from "../ports/keys.ts";
 import type { BlobKey } from "../ports/requests.ts";
 import { createGameState, type GameState, type SectionKey } from "../save/state.ts";
 import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 import { applyMenuStateEffect, createMenuOwnerPorts } from "../menu/index.ts";
 import { createShopSessionRuntime } from "./shop-session.ts";
 import { hashGameState } from "../save/hash.ts";
@@ -194,6 +196,9 @@ type EngineCommonInit = {
   readonly defaultSoundFont?: AssetKey | null;
   readonly input?: InputConfig;
   readonly include?: DrawListInclude;
+  readonly features?: HostFeatures;
+  /** Measured CSS-pixel geometry for the logical game viewport. */
+  readonly displayGeometry?: HostDisplayGeometry;
   /** Decoded image assets supplied by a host or deterministic scene runner. */
   readonly assets?: ReadonlyMap<AssetKey, DecodedTexture>;
   /** Files the host ships with the engine under `media/` (the default bitmap font, bundled TrueType fonts and cursor images), as bytes like every other asset. */
@@ -322,7 +327,13 @@ export function createEngine(init: EngineInit): Engine {
     ? null
     : new Uint8Array(init.recoveryCandidate);
   const recoveryLaunchRequested = recoveryCandidateBytes !== null;
-  const state: GameState = createGameState({ seed: init.seed });
+  const state: GameState = createGameState({
+    seed: init.seed,
+    width: init.width,
+    height: init.height,
+    ...(init.features === undefined ? {} : { features: init.features }),
+    ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+  });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
   state.input = createInputSection(init.input);
   state.engine = { claims: [] };
@@ -1140,7 +1151,13 @@ export function createEngine(init: EngineInit): Engine {
     const previousFrameFailure = frameFailure;
     const restoredLayers = createPluginLayers();
     try {
-      Object.assign(state, createGameState({ seed: init.seed }));
+      Object.assign(state, createGameState({
+        seed: init.seed,
+        width: init.width,
+        height: init.height,
+        ...(init.features === undefined ? {} : { features: init.features }),
+        ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+      }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
       Object.assign(state, previous);
@@ -1744,7 +1761,7 @@ export function createEngine(init: EngineInit): Engine {
         return "consumed";
       }
       try {
-        const restored = restoreGameSave(utf8Decode(event.bytes), state.audio);
+        const restored = restoreGameSave(utf8Decode(event.bytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
         diagnostics.push(...restored.diagnostics);
         applyLoadedGame(restored.state, restored.audio);
         discardRecoveryCandidates();
@@ -1926,7 +1943,13 @@ export function createEngine(init: EngineInit): Engine {
       initialCharacterKey = null;
       initialCharacterResolved = true;
     }
-    const fresh = createGameState({ seed: 0 });
+    const fresh = createGameState({
+      seed: 0,
+      width: init.width,
+      height: init.height,
+      ...(init.features === undefined ? {} : { features: init.features }),
+      ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+    });
     state.world = { ...fresh.world, movement: movementDefaults(mainFile) };
     state.sprites = fresh.sprites;
     state.actors = fresh.actors;
@@ -2587,7 +2610,7 @@ export function createEngine(init: EngineInit): Engine {
   function initializeRecovery(): boolean {
     if (recoveryCandidateBytes === null) return recoveryFailure("recovery.candidate-missing", "recovery was requested without candidate bytes");
     try {
-      const candidate = restoreRecoveryCandidate(utf8Decode(recoveryCandidateBytes), state.audio);
+      const candidate = restoreRecoveryCandidate(utf8Decode(recoveryCandidateBytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
       const ledger = projectGameLedger(candidate.state);
       if (ledger.world.board.state !== "present") throw new Error("the recovery candidate has no saved board");
       const cloneDiagnostics: Diagnostic[] = [];
@@ -3414,6 +3437,18 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
 
+  function applyHostStateEvent(event: InputRecord["event"]): boolean {
+    if (event.kind === "host.features") {
+      state.features = normalizeHostFeatures(event.features);
+      return true;
+    }
+    if (event.kind === "host.display") {
+      state.display = { geometry: normalizeDisplayGeometry(event.geometry) };
+      return true;
+    }
+    return false;
+  }
+
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
@@ -3424,6 +3459,10 @@ export function createEngine(init: EngineInit): Engine {
         }
         const records = takeQueuedInputs(state.time.tick);
         for (const record of records) {
+          if (applyHostStateEvent(record.event)) {
+            consumed.push(record);
+            continue;
+          }
           if (record.event.kind === "asset") {
             consumeAsset(record, consumed);
             continue;
@@ -3548,6 +3587,18 @@ export function createEngine(init: EngineInit): Engine {
       if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
       } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
+        if (record.event.kind === "blob.loaded") {
+          // Earlier host observations belong to the old timeline, not a later tick after a load rewinds it.
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (!applyHostStateEvent(earlier.event)) {
+              at += 1;
+              continue;
+            }
+            consumed.push(earlier);
+            deferred.splice(at, 1);
+          }
+        }
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
@@ -3562,21 +3613,24 @@ export function createEngine(init: EngineInit): Engine {
         consumed.push(record);
       } else if (record.event.kind === "focus") {
         if (record.event.state === "lost" && state.engine.openTick === undefined) {
-          // Records queued before the blur happened before it. Apply the keys among them first, so a key pressed in
-          // the blur's own frame is released with the rest instead of surviving into the resumed game
-          // (display-input-audio.md rule 4; issue #1120).
+          // Apply earlier keys and host updates in order before focus loss stops the tick.
+          // Keys must be released by the blur; host observations must not wait for a resumed tick.
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
-            if (earlier.event.kind !== "key") {
-              at += 1;
-              continue;
+            if (!applyHostStateEvent(earlier.event)) {
+              if (earlier.event.kind !== "key") {
+                at += 1;
+                continue;
+              }
+              applyInputEvent(state.input, earlier.event);
             }
-            applyInputEvent(state.input, earlier.event);
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
         }
         applyInputEvent(state.input, record.event);
+        consumed.push(record);
+      } else if (!state.input.focused && applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
         deferred.push(record);
@@ -3588,8 +3642,12 @@ export function createEngine(init: EngineInit): Engine {
     if (!failed) return;
     const records = takeQueuedInputs(state.time.tick);
     for (const record of records) {
-      applyInputEvent(state.input, record.event);
-      consumed.push(record);
+      if (applyHostStateEvent(record.event)) {
+        consumed.push(record);
+      } else {
+        applyInputEvent(state.input, record.event);
+        consumed.push(record);
+      }
     }
   }
   /** Hide the message window when an outermost (blocking) program ends, without clearing its text. */

@@ -234,7 +234,9 @@ export function applyInputEvent(state: InputSection, event: InputEvent): void {
     case "blob.listed":
     case "extension.result":
     case "audio.ended":
-    case "video.ended": return;
+    case "video.ended":
+    case "host.features":
+    case "host.display": return;
     default: {
       const neverEvent: never = event;
       return neverEvent;

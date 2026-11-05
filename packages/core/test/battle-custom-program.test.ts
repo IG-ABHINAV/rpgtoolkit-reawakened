@@ -329,7 +329,7 @@ test("custom fight seed and mid-battle save restore preserve state and drawing",
   equal(drawHash, hashDrawList(drawListFor(repeated.state)));
   equal(stateHash === hashState(differentSeed.state), false);
   equal(drawHash === hashDrawList(drawListFor(differentSeed.state)), false);
-  equal(stateHash, "bbd6a2b116321027"); // Input schema 4 and world schema 2 are both included in the state hash.
+  equal(stateHash, "c77efdff1b908987"); // Input schema 4, world schema 2 and host state enter the hash.
   equal(drawHash, "3fa17af6365a9ba5");
 
   const restoredState = restoreGameState(snapshot(first.state));
