@@ -15,6 +15,7 @@ import type { DrawList } from "./draw.ts";
 import type { HostDisplayGeometry, NormalizedHostFeatures } from "./host.ts";
 import type { InputRecord } from "./input.ts";
 import type { RegisteredAction } from "../save/sections/input.ts";
+import type { AssetKey, SurfaceId } from "./keys.ts";
 import type { RunnerRequest } from "./requests.ts";
 
 /**

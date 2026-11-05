@@ -69,9 +69,48 @@ test("a released pointer tap faces toward the reachable item and dispatches one 
   equal(state.sprites.players[0]?.facing, "E", "the tap turns the player horizontally toward the target");
   deepEqual(state.input.pendingClicks, [], "a target tap does not also become a ground path");
   equal(state.input.actions.confirm, false, "the synthesized confirm is a one-tick edge");
-  deepEqual(state.input.keys.map((key) => [key.name, key.action]), [["confirm", "confirm"]]);
+  deepEqual(state.input.keys.map((key) => [key.name, key.action, key.target]), [["confirm", "confirm", "item:0"]]);
   const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
-  equal(events[0]?.key, "item:0", "the ordinary trigger dispatcher consumes that same confirm edge");
+  equal(events[0]?.key, "item:0", "the confirm edge is constrained to the hit item's identity");
+});
+test("a pointer activation is dispatched only to the tapped item, not the nearer eligible item", () => {
+  const world = board([], [item(0, 32, 0, 1), item(1, 16, 0, 1)]);
+  const actors = [itemActor(world, world.items![0]!, 0), itemActor(world, world.items![1]!, 1)];
+  const state = stateWith(world, actors);
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player,
+    collisionBase: { points: rectangle(-8, -8, 32, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor,
+    activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  applyInputEvent(state.input, { kind: "pointer", x: 32, y: 0, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 32, y: 0, buttons: 0 });
+  runInputPhase(state);
+  equal(state.input.keys[0]?.target, "item:0");
+  const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
+  equal(events[0]?.key, "item:0");
+});
+test("multiple pointer gestures in one tick retain their own target and click work", () => {
+  const world = board([], [item(0, 16, 0, 1), item(1, 24, 0, 1)]);
+  const actors = [itemActor(world, world.items![0]!, 0), itemActor(world, world.items![1]!, 1)];
+  const state = stateWith(world, actors);
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player,
+    collisionBase: { points: rectangle(-8, -8, 32, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor,
+    activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  for (const x of [10, 25]) {
+    applyInputEvent(state.input, { kind: "pointer", x, y: 0, buttons: 1 });
+    applyInputEvent(state.input, { kind: "pointer", x, y: 0, buttons: 0 });
+  }
+  runInputPhase(state);
+  deepEqual(state.input.keys.map((key) => key.target), ["item:0", "item:1"]);
+  equal(state.input.pendingClicks.length, 0, "each contextual tap consumes only its own gesture path");
 });
 
 test("pointer target selection refuses a non-key or unreachable item", () => {
@@ -85,7 +124,7 @@ test("pointer target selection refuses a non-key or unreachable item", () => {
     ...actor,
     activationBase: { points: rectangle(-8, -8, 8, 8) },
   }));
-  equal(selectPointerActivationTarget(state, { x: 16, y: 0 }), false, "step-only items cannot be key-confirm targets");
+  equal(selectPointerActivationTarget(state, { x: 16, y: 0 }), null, "step-only items cannot be key-confirm targets");
 });
 
 test("a released pointer tap without an eligible item remains a ground click", () => {
@@ -94,7 +133,7 @@ test("a released pointer tap without an eligible item remains a ground click", (
   applyInputEvent(state.input, { kind: "pointer", x: 80, y: 80, buttons: 0 });
   runInputPhase(state);
   equal(state.input.keys.length, 0, "no confirm edge is generated");
-  equal(state.sprites.players[0]?.queue.moves.length > 0, true, "the ordinary click-to-walk path is retained");
+  equal((state.sprites.players[0]?.queue.moves.length ?? 0) > 0, true, "the ordinary click-to-walk path is retained");
 });
 test("trigger precedence, conditions, re-arm and key dispatch are deterministic", () => {
   const world = board([region(0), region(1)], [item(0, 0, 0), item(1, 8, 0)]);

@@ -42,7 +42,7 @@ test("configured keyboard edges and disabled diagonals are deterministic", () =>
   applyInputEvent(state, { kind: "key", name: "UP", code: "ArrowUp", char: null, down: true });
   applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true });
   applyInputEvent(state, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true, repeat: true });
-  equal(state.keys.length, 2);
+  equal(state.keys.length, 3);
   equal(state.actions.up, true);
   equal(state.actions.right, true);
   deepEqual(state.directionOrder, ["up", "right"]);
@@ -52,16 +52,17 @@ test("configured keyboard edges and disabled diagonals are deterministic", () =>
 
 test("gamepad dead-zone, merge, device ordering and disconnect share edge state", () => {
   const state = createInputSection({ bindings: { keys: { ArrowRight: "right", Enter: "confirm", Escape: "cancel" } } });
-  applyInputEvent(state, { kind: "gamepad", device: 1, connected: true, axes: { x: 250, y: 0 }, buttons: 16 });
-  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 32 });
+  applyInputEvent(state, { kind: "gamepad", device: 1, connected: true, axes: { x: 250, y: 0 }, buttons: 1 });
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 1 });
   processGamepadEvents(state);
-  deepEqual(state.keys.map((key) => key.name), ["cancel", "right", "confirm"]);
+  deepEqual(state.keys.map((key) => key.name), ["cancel", "confirm", "right"]);
   equal(state.actions.right, true);
   equal(state.actions.confirm, true);
   equal(state.actions.cancel, true);
   applyInputEvent(state, { kind: "gamepad", device: 1, connected: true, axes: { x: 249, y: 0 }, buttons: 0 });
   processGamepadEvents(state);
   equal(state.actions.right, false);
+  equal(state.actions.confirm, false);
   applyInputEvent(state, { kind: "gamepad", device: 1, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
   processGamepadEvents(state);
   equal(state.gamepads["1"]?.connected, false);
@@ -69,7 +70,7 @@ test("gamepad dead-zone, merge, device ordering and disconnect share edge state"
 test("same-tick gamepad down and up report both ordered action transitions", () => {
   const state = createInputSection({ bindings: { keys: { Enter: "confirm" } } });
   const transitions: string[] = [];
-  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 16 });
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 });
   applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
   processGamepadEvents(state, undefined, (action, down, firstSeq) => transitions.push(`${action}:${down}:${firstSeq}`));
   deepEqual(transitions, ["confirm:true:1", "confirm:false:2"]);
@@ -105,6 +106,73 @@ test("registered game actions preserve order and semantic source claims emit one
   equal(state.actions["game.fireball"], false);
   deepEqual(state.keys.map((key) => key.seq), [1]);
 });
+test("keyboard bindings retain independent physical claims for one game action", () => {
+  const state = createInputSection();
+  const action = { name: "game.dash", label: "Dash", icon: null, group: null, controls: ["key:KeyF", "key:KeyG"], locked: false, hidden: false };
+  equal(registerGameAction(state, action), true);
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  applyInputEvent(state, { kind: "key", name: "G", code: "KeyG", char: "g", down: true });
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: false });
+  equal(state.actions["game.dash"], true);
+  applyInputEvent(state, { kind: "key", name: "G", code: "KeyG", char: "g", down: false });
+  equal(state.actions["game.dash"], false);
+});
+
+test("a registry with the specified 512 actions dispatches the bound action", () => {
+  const state = createInputSection();
+  for (let index = 0; index < 512; index += 1) {
+    equal(registerGameAction(state, {
+      name: `game.action${index}`,
+      label: `Action ${index}`,
+      icon: null,
+      group: null,
+      controls: index === 511 ? ["key:KeyF"] : [],
+      locked: false,
+      hidden: false,
+    }), true);
+  }
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  equal(state.actions["game.action511"], true);
+});
+
+test("registered keyboard and gamepad controls dispatch without extra key aliases", () => {
+  const state = createInputSection();
+  const action = { name: "game.fireball", label: "Fireball", icon: null, group: "Spells", controls: ["key:KeyF", "pad:0"], locked: false, hidden: false };
+  equal(registerGameAction(state, action), true);
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  equal(state.actions["game.fireball"], true);
+  deepEqual(state.keys.map((key) => key.name), ["F"]);
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: false });
+  equal(state.actions["game.fireball"], false);
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 });
+  processGamepadEvents(state);
+  equal(state.actions.confirm, true, "W3C pad:0 is confirm and the game action binding");
+  equal(state.actions["game.fireball"], true);
+  deepEqual(state.keys.map((key) => key.name), ["F", "confirm", "game.fireball"]);
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
+  processGamepadEvents(state);
+  equal(state.actions.confirm, false);
+  equal(state.actions["game.fireball"], false);
+});
+
+test("semantic claims accept prototype-named sources and ignore unbound pad bits", () => {
+  const state = createInputSection();
+  applyInputEvent(state, { kind: "action", action: "confirm", down: true, source: "__proto__" });
+  equal(state.actions.confirm, true);
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 16 });
+  processGamepadEvents(state);
+  applyInputEvent(state, { kind: "action", action: "confirm", down: false, source: "__proto__" });
+  equal(state.actions.confirm, false);
+});
+
+test("action registration refuses non-plain extension metadata without partial mutation", () => {
+  const state = createInputSection();
+  const cyclic: { self?: unknown } = {};
+  cyclic.self = cyclic;
+  const action = { name: "game.invalid", label: "Invalid", icon: null, group: null, controls: [], locked: false, hidden: false, metadata: cyclic } as never;
+  equal(registerGameAction(state, action), false);
+  equal(state.registeredActions.length, 0);
+});
 
 
 test("action registry order is hashed, runtime snapshots restore it, and game saves rebuild it", () => {
@@ -139,7 +207,7 @@ test("button slots use logical half-open hit tests and click destinations use ca
   applyInputEvent(state, { kind: "pointer", x: 30, y: 30, buttons: 1 });
   applyInputEvent(state, { kind: "pointer", x: 31, y: 30, buttons: 1 });
   deepEqual(state.keys, []);
-  deepEqual(state.pendingClicks, [{ x: 130, y: 230 }, { x: 131, y: 230 }]);
+  deepEqual(state.pendingClicks, [{ gestureId: 1, x: 130, y: 230 }, { gestureId: 1, x: 131, y: 230 }]);
 });
 
 test("button slots activate once on release over the pressed target and cancel on departure", () => {
@@ -212,7 +280,7 @@ test("pointer cancellation emits no click request", () => {
   applyInputEvent(state, { kind: "pointer", x: 30, y: 40, buttons: 1 });
   const clicks = [...state.pendingClicks];
   applyInputEvent(state, { kind: "pointer.cancel" });
-  deepEqual(state.pendingClicks, clicks);
+  deepEqual(state.pendingClicks, [], "cancellation drops only the gesture's uncommitted movement points");
   deepEqual(state.pointer.buttons, 0);
 });
 
@@ -271,7 +339,7 @@ test("focus and held state are owned by the input section", () => {
   deepEqual(state.pointer, { x: 0, y: 0, buttons: 0, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
 });
 
-const GAMEPAD_RIGHT = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 8 } as const;
+const GAMEPAD_RIGHT = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 15 } as const;
 
 function steeringSection(): InputView {
   return createInputSection({
@@ -296,12 +364,12 @@ test("focus loss releases every held keyboard key exactly as its key-up would, a
 
   equal(blurred.focused, false);
   deepEqual({ ...blurred, focused: true }, released, "the only difference from three key-ups is the focus flag");
-  deepEqual(blurred.actions, { right: false, down: false, confirm: false });
-  deepEqual(blurred.keyboardActions, { right: false, down: false, confirm: false });
+  deepEqual(blurred.actions, { right: false, down: false, confirm: false, menu: false });
+  deepEqual(blurred.keyboardActions, { right: false, down: false, confirm: false, menu: false });
   deepEqual(blurred.directionOrder, []);
   equal(blurred.held.ArrowRight, false);
   equal(blurred.held.RIGHT, false);
-  equal(blurred.pendingActions.length, 3, "the three press edges were queued once, at the presses; the blur adds none");
+  equal(blurred.pendingActions.length, 4, "direction, confirm and menu press edges were queued once; the blur adds none");
 });
 
 test("focus loss releases held keys of an unbound keyboard too", () => {
@@ -364,7 +432,7 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 6);
+  equal(state.input.version, 7);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);
@@ -410,7 +478,11 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   raw.input.pointer = { x: 9, y: 8, buttons: 1 };
   const migrated = restoreGameState(JSON.stringify(raw)).input;
   deepEqual(migrated.pointer, { x: 9, y: 8, buttons: 1, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
-  equal(migrated.version, 6);
+  equal(migrated.pointerGestureId, 0, "an old snapshot's held primary pointer remains releasable");
+  equal(migrated.nextPointerGestureId, 1);
+  applyInputEvent(migrated, { kind: "pointer", x: 9, y: 8, buttons: 0 });
+  deepEqual(migrated.pendingPointerUps, [{ gestureId: 0, x: 9, y: 8 }]);
+  equal(migrated.version, 7);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
 });
 
@@ -419,7 +491,7 @@ test("pointer-up interaction candidates are tick state and v5 snapshots migrate 
   state.input = createInputSection();
   applyInputEvent(state.input, { kind: "pointer", x: 9, y: 8, buttons: 1 });
   applyInputEvent(state.input, { kind: "pointer", x: 12, y: 14, buttons: 0 });
-  deepEqual(state.input.pendingPointerUps, [{ x: 12, y: 14 }]);
+  deepEqual(state.input.pendingPointerUps, [{ gestureId: 1, x: 12, y: 14 }]);
   const saved = snapshot(state);
   const restored = restoreGameState(saved);
   deepEqual(restored.input, state.input);

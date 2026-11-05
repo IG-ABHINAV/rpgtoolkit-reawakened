@@ -1,6 +1,7 @@
 /** Owner: core/input (AD-10/AD-14; E-110..E-112). */
+import type { PlainData } from "../../ports/plain-data.ts";
 
-export const INPUT_SCHEMA_VERSION = 6;
+export const INPUT_SCHEMA_VERSION = 7;
 
 export type InputKeyState = {
   readonly seq: number;
@@ -8,6 +9,7 @@ export type InputKeyState = {
   readonly code: string;
   readonly char: string | null;
   readonly action?: string;
+  readonly target?: string;
 };
 
 export type InputButtonSlot = {
@@ -47,10 +49,10 @@ export type RegisteredAction = {
   readonly label: string;
   readonly icon: string | null;
   readonly group: string | null;
-  readonly controls: readonly string[];
+  readonly controls: string[];
   readonly locked: boolean;
   readonly hidden: boolean;
-  readonly [extension: string]: unknown;
+  readonly [extension: string]: PlainData;
 };
 export type InputPointer = {
   x: number;
@@ -87,12 +89,18 @@ export type InputSection = {
   actions: { [action: string]: boolean };
   directionOrder: string[];
   registeredActions: RegisteredAction[];
+  actionRegistry: { [action: string]: true };
+  controlActions: { [control: string]: string[] };
+  actionPadMasks: { [action: string]: number };
   semanticActionSources: { [action: string]: { [source: string]: boolean } };
+  keyboardActionSources: { [action: string]: { [control: string]: boolean } };
   pendingActions: string[];
-  pendingClicks: { x: number; y: number }[];
+  pendingClicks: { gestureId: number; x: number; y: number }[];
   pointerMovementSuppressed: boolean;
   pointerPlane: { width: number; height: number } | null;
-  pendingPointerUps: { x: number; y: number }[];
+  nextPointerGestureId: number;
+  pointerGestureId: number | null;
+  pendingPointerUps: { gestureId: number; x: number; y: number }[];
   pendingGamepads: Array<{
     device: number;
     connected: boolean;

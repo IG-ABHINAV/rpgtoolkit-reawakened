@@ -213,10 +213,10 @@ function orderItemCandidates(player: SpriteActor, candidates: Candidate[]): Cand
 }
 
 /** Select an eligible adjacent authored item hit by a released pointer tap; mutation is facing-only. */
-export function selectPointerActivationTarget(state: GameState, point: { readonly x: number; readonly y: number }): boolean {
+export function selectPointerActivationTarget(state: GameState, point: { readonly x: number; readonly y: number }): string | null {
   const board = state.world.board ?? null;
   const player = selectedPlayer(state);
-  if (board === null || player === null || !player.visible) return false;
+  if (board === null || player === null || !player.visible) return null;
   const tap = pointFixed(point);
   const reach = playerShape(player);
   const candidates: Candidate[] = [];
@@ -230,10 +230,10 @@ export function selectPointerActivationTarget(state: GameState, point: { readonl
     candidates.push(candidate);
   }
   const winner = orderItemCandidates(player, candidates)[0];
-  if (winner?.actor === undefined) return false;
+  if (winner?.actor === undefined) return null;
   const facing = cardinalFacingToward(player, winner.actor);
   state.sprites.players = state.sprites.players.map((actor) => actor.id === player.id ? { ...actor, facing } : actor);
-  return true;
+  return winner.key;
 }
 function stepDistance(player: SpriteActor): number {
   const movement = player.movement as typeof player.movement & { readonly lastStepDistance?: number };
@@ -375,10 +375,12 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
         || state.input.held.Space === true || state.input.held[" "] === true));
   const step = stepTick(player) === state.time.tick;
   const unbound = Object.keys(state.input.bindings.keys).length === 0;
-  const key = (bootPoll && heldActivation) || state.input.keys.some((entry) => entry.seq > section.lastKeySeq
-    && isActivationKey(entry.name, entry.action, unbound));
+  const activationEntries = state.input.keys.filter((entry) => entry.seq > section.lastKeySeq && isActivationKey(entry.name, entry.action, unbound));
+  const pointerTarget = activationEntries[0]?.target;
+  const key = (bootPoll && heldActivation) || activationEntries.length > 0;
   if (bootPoll) section.lastKeySeq = 0;
-  for (const entry of state.input.keys) if (entry.seq > section.lastKeySeq) section.lastKeySeq = entry.seq;
+  if (activationEntries.length > 0) section.lastKeySeq = activationEntries[0]!.seq;
+  else for (const entry of state.input.keys) if (entry.seq > section.lastKeySeq) section.lastKeySeq = entry.seq;
   if (!step && !key) return events;
   const kind = key ? "key" : "step";
   const shape = playerShape(player);
@@ -417,7 +419,7 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
     const inArea = candidate.layer === player.layer
       && (candidate.source === "item" ? overlaps(shape, itemShape(candidate)) : overlaps(shape, polygon(candidate.points), candidate.closed !== 0));
     if (!inArea || !conditionMatches(state, candidate) || candidate.program === "") return false;
-    if (kind === "key") return true;
+    if (kind === "key") return pointerTarget === undefined || candidate.key === pointerTarget;
     const fired = section.fired[candidate.key] === true;
     if (!fired) return true;
     if ((candidate.activationType & 3) !== 2) return false;

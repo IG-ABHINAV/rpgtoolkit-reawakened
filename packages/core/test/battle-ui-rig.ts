@@ -537,7 +537,7 @@ function catalogue(): readonly PackageCatalogueEntry[] {
   }];
 }
 
-type Reply = { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: string | null; readonly down: boolean } };
+type Reply = { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: string | null; readonly down: boolean } | { readonly kind: "action"; readonly action: string; readonly down: boolean; readonly source: string } };
 
 export type UiRig = {
   readonly engine: Engine;
@@ -553,6 +553,8 @@ export type UiRig = {
   tick(count?: number): void;
   /** Press one key (down, then up on the next tick) and run `ticks` ticks. */
   press(name: string, ticks?: number): void;
+  /** Send one normalized semantic action press/release pair through engine ticks. */
+  action(action: string, source: string, ticks?: number): void;
   /** Run until `done` is true, at most `limit` ticks. */
   until(done: (state: GameState) => boolean, limit?: number): void;
   /** The composed frame. */
@@ -686,6 +688,14 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
       ], ticks);
       // A sound or picture used for the first time is requested during these ticks; let the host answer it so the
       // cue it was waiting for is reported before the caller looks.
+      for (let guard = 0; guard < 6 && replies.length > 0; guard += 1) advance([], 2);
+    },
+    action(action, source, ticks = 4) {
+      const tick = latest?.time.tick ?? 0;
+      advance([
+        { tick, event: { kind: "action", action, down: true, source } },
+        { tick: tick + 1, event: { kind: "action", action, down: false, source } },
+      ], ticks);
       for (let guard = 0; guard < 6 && replies.length > 0; guard += 1) advance([], 2);
     },
     until(done, limit = 4000) {

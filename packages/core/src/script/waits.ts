@@ -46,12 +46,12 @@ export function pollSleep(view: WaitView, wait: Wait): WaitResult | null {
 
 type InputKeyWait = Extract<Wait, { readonly kind: "input.key" }>;
 
-function pollCursorMapKey(wait: InputKeyWait, key: string, count: number, claim?: number): WaitResult | null {
-  const normalized = key.toLowerCase();
+function pollCursorMapKey(wait: InputKeyWait, key: string, action: string | undefined, count: number, claim?: number): WaitResult | null {
+  const normalized = (action ?? key).toLowerCase();
   let selected = Math.max(0, Math.min(count - 1, Math.trunc(wait.cursorSelection ?? 0)));
   if (normalized === "left" || normalized === "up" || normalized === "arrowleft" || normalized === "arrowup") selected = (selected + count - 1) % count;
   else if (normalized === "right" || normalized === "down" || normalized === "arrowright" || normalized === "arrowdown") selected = (selected + 1) % count;
-  else if (normalized === "enter" || normalized === "return" || normalized === "space" || normalized === " ") {
+  else if (normalized === "confirm" || normalized === "enter" || normalized === "return" || normalized === "space" || normalized === " ") {
     return claim === undefined ? { value: selected, ok: true } : { value: selected, ok: true, claim };
   } else return null;
   wait.cursorSelection = selected;
@@ -74,12 +74,12 @@ export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
     if (view.input !== undefined) {
       for (const key of view.input.keys) {
         if (key.seq < floor || claimed.has(key.seq)) continue;
-        const result = pollCursorMapKey(wait, key.name, count, key.seq);
+        const result = pollCursorMapKey(wait, key.name, key.action, count, key.seq);
         if (result !== null) return result;
       }
     }
     if (wait.key !== null) {
-      const result = pollCursorMapKey(wait, wait.key, count);
+      const result = pollCursorMapKey(wait, wait.key, undefined, count);
       wait.key = null;
       if (result !== null) return result;
     }
@@ -208,15 +208,15 @@ export function pollRenderMsgBox(view: WaitView, wait: Wait): WaitResult | null 
   const claimed = new Set(view.claims ?? []);
   for (const key of view.input.keys) {
     if (claimed.has(key.seq)) continue;
-    const normalized = key.name.toLowerCase();
+    const normalized = (key.action ?? key.name).toLowerCase();
     if (wait.id === "prompt") {
-      if (normalized === "enter" || normalized === "return" || normalized === "space") return { value: key.char ?? "", ok: true, claim: key.seq };
+      if (normalized === "confirm" || normalized === "enter" || normalized === "return" || normalized === "space") return { value: key.char ?? "", ok: true, claim: key.seq };
       continue;
     }
     const style = wait.payload[2] === 1 ? 1 : 0;
     if (normalized === "yes" || normalized === "y") return { value: 6, ok: true, claim: key.seq };
     if (normalized === "no" || normalized === "n") return { value: 7, ok: true, claim: key.seq };
-    if (normalized === "enter" || normalized === "return" || normalized === "space") return { value: style === 1 ? 6 : 1, ok: true, claim: key.seq };
+    if (normalized === "confirm" || normalized === "enter" || normalized === "return" || normalized === "space") return { value: style === 1 ? 6 : 1, ok: true, claim: key.seq };
   }
   return null;
 }

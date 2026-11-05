@@ -68,6 +68,8 @@ import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection, UiActionClaim } from "../save/sections.ts";
 import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
+import type { AnimationState, FxSection } from "../save/sections.ts";
+import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -1158,6 +1160,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
     const movementFallback = movementDefaults(mainFile);
+    const externallyRegisteredActions = state.input.registeredActions.slice();
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -1177,7 +1180,7 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
-      const registeredActions = state.input.registeredActions;
+      const startupActions = state.input.registeredActions.slice();
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1185,7 +1188,20 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
-      state.input.registeredActions = registeredActions;
+      const actionRegistry = createInputSection();
+      for (const action of [...startupActions, ...externallyRegisteredActions]) registerGameAction(actionRegistry, action);
+      state.input.registeredActions = actionRegistry.registeredActions;
+      state.input.actionRegistry = actionRegistry.actionRegistry;
+      state.input.controlActions = actionRegistry.controlActions;
+      state.input.actionPadMasks = actionRegistry.actionPadMasks;
+      for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.keyboardActionSources), ...Object.keys(state.input.semanticActionSources)])) {
+        if (Object.hasOwn(state.input.actionRegistry, action)) continue;
+        delete state.input.actions[action];
+        delete state.input.keyboardActions[action];
+        delete state.input.keyboardActionSources[action];
+        delete state.input.semanticActionSources[action];
+        state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
+      }
       state.world = {
         ...state.world,
         movement: {
