@@ -301,6 +301,7 @@ async function main() {
         const area = document.querySelector("#viewport").getBoundingClientRect();
         return { width: area.width, height: area.height };
       })()`);
+      const consumedBefore = await evaluate("window.__hostConsumed?.length ?? 0");
       const nativeContentSize = await resizeWindowContent(mainDebugger, width, height, beforeArea);
 
       let resizeObservation = null;
@@ -308,15 +309,15 @@ async function main() {
       for (let attempt = 0; attempt < 40 && resizeObservation === null; attempt += 1) {
         const observation = await evaluate(`(() => {
           const area = document.querySelector("#viewport").getBoundingClientRect();
-          const display = window.__hostConsumed?.filter(input => input.event.kind === "host.display"
-            && Math.abs(input.event.geometry.content.width - ${width}) < 0.05
-            && Math.abs(input.event.geometry.content.height - ${height}) < 0.05).at(-1) ?? null;
-          return { area: { width: area.width, height: area.height }, display };
+          const consumed = window.__hostConsumed?.slice(${consumedBefore}).filter(input => input.event.kind === "host.display").at(-1) ?? null;
+          return { area: { width: area.width, height: area.height }, display: consumed?.event.geometry ?? null };
         })()`);
         lastResizeObservation = observation;
-        if (Math.abs(observation.area.width - width) < 0.05
-          && Math.abs(observation.area.height - height) < 0.05
-          && observation.display !== null) resizeObservation = observation;
+        if (Math.abs(observation.area.width - width) < 0.5
+          && Math.abs(observation.area.height - height) < 0.5
+          && observation.display !== null
+          && Math.abs(observation.display.content.width - observation.area.width) < 0.01
+          && Math.abs(observation.display.content.height - observation.area.height) < 0.01) resizeObservation = observation;
         else await sleep(50);
       }
       if (resizeObservation === null) {
@@ -331,9 +332,7 @@ async function main() {
           view: window.__session.viewSize(),
           box: { x: box.x, y: box.y, width: box.width, height: box.height },
           area: { x: area.x, y: area.y, width: area.width, height: area.height },
-          hostDisplay: window.__hostConsumed.filter(input => input.event.kind === "host.display"
-            && Math.abs(input.event.geometry.content.width - ${width}) < 0.05
-            && Math.abs(input.event.geometry.content.height - ${height}) < 0.05).at(-1)?.event.geometry ?? null });
+          hostDisplay: window.__hostConsumed.slice(${consumedBefore}).filter(input => input.event.kind === "host.display").at(-1)?.event.geometry ?? null });
       })))`);
       geometry.nativeContentSize = nativeContentSize;
       const { view, backing, box, area } = geometry;
