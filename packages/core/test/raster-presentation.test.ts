@@ -40,24 +40,35 @@ test("presentation raster samples Plane 1 and safe Plane 3 at per-axis pixel cen
     0, 0, 0, 0,
   ]);
 });
-test("partial-alpha normal and translucent margin blits match screen compositing", () => {
+test("margin blits use screen compositing without changing ordinary AD-3 replay", () => {
   const background = { r: 17, g: 101, b: 203 };
-  const texture: DecodedTexture = { w: 1, h: 1, rgba: new Uint8Array([255, 0, 0, 128]) };
-  const asset = assetKey("bitmaps/partial.png");
+  const cases = [
+    { blend: "normal" as const, alpha: 255, rgba: [255, 0, 0, 128], expected: [136, 50, 101, 255] },
+    { blend: "translucent" as const, alpha: 128, rgba: [255, 0, 0, 128], expected: [76, 75, 152, 255] },
+    { blend: "additive" as const, alpha: 127, rgba: [2, 0, 0, 255], expected: [17, 101, 203, 255] },
+    { blend: "additive" as const, alpha: 127, rgba: [255, 0, 0, 0], expected: [144, 101, 203, 255] },
+  ];
   const geometry: HostDisplayGeometry = {
     content: { width: 3, height: 1 },
     game: { x: 1, y: 0, width: 1, height: 1 },
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
-  for (const { blend, alpha, expected } of [
-    { blend: "normal" as const, alpha: 255, expected: [136, 50, 101, 255] },
-    { blend: "translucent" as const, alpha: 128, expected: [76, 75, 152, 255] },
-  ]) {
+  for (const { blend, alpha, rgba, expected } of cases) {
+    const texture: DecodedTexture = { w: 1, h: 1, rgba: new Uint8Array(rgba) };
+    const asset = assetKey("bitmaps/partial.png");
+    const surfaceState = createSurfacesSection();
+    const screen = createSurface(surfaceState, 1, 1, new Uint8Array([background.r, background.g, background.b, 255]));
+    equal(blitTexture(surfaceState, texture, screen, 0, 0, 1, 1, undefined, alpha, blend === "additive"), true);
+    const revision = surfaceState.entries[String(screen)]!.rev;
+    const reference = readSurfacePixels(surfaceState, screen, revision);
+    if (reference === null) throw new Error("expected composited screen pixels");
+    deepEqual([...reference.rgba], expected, `${blend} screen pixels use legacy source-alpha, truncation and additive rules`);
+
     const blit = {
       kind: "blit" as const,
       source: { asset, tile: null },
       src: { x: 0, y: 0, w: 1, h: 1 },
-      dst: { x: 0, y: 0, w: 1, h: 1 },
+      dst: { x: -1, y: 0, w: 1, h: 1 },
       key: null,
       tint: { r: 0, g: 0, b: 0 },
       alpha,
@@ -68,25 +79,21 @@ test("partial-alpha normal and translucent margin blits match screen compositing
       tick: 0,
       width: 1,
       height: 1,
-      commands: [
-        { kind: "rect", rect: { x: 0, y: 0, w: 1, h: 1 }, rgb: background, filled: true },
-        blit,
-      ],
+      commands: [{
+        ...blit,
+        source: { surface: screen, rev: revision },
+        dst: { x: 0, y: 0, w: 1, h: 1 },
+        alpha: 255,
+        blend: "normal",
+      }],
       marginCommands: [
         { kind: "rect", rect: { x: -1, y: 0, w: 1, h: 1 }, rgb: background, filled: true },
-        { ...blit, dst: { x: -1, y: 0, w: 1, h: 1 } },
+        blit,
       ],
-    }, geometry, new Map([[asset, texture]]));
+    }, geometry, new Map([[asset, texture]]), new Map([[screen, reference]]));
     equal(result.error, null);
-
-    const surfaceState = createSurfacesSection();
-    const screen = createSurface(surfaceState, 1, 1, new Uint8Array([background.r, background.g, background.b, 255]));
-    equal(blitTexture(surfaceState, texture, screen, 0, 0, 1, 1, undefined, alpha), true);
-    const reference = readSurfacePixels(surfaceState, screen, surfaceState.entries[String(screen)]!.rev);
-    if (reference === null) throw new Error("expected composited screen pixels");
-    deepEqual([...reference.rgba], expected, `${blend} screen compositing uses source alpha and truncation`);
-    deepEqual([...result.rgba.slice(0, 4)], expected, `${blend} margin pixel matches the screen pixel`);
-    deepEqual([...result.rgba.slice(4, 8)], expected, `${blend} Plane 1 pixel matches the screen pixel`);
+    deepEqual([...result.rgba.slice(0, 4)], expected, `${blend} Plane 3 pixel matches screen compositing`);
+    deepEqual([...result.rgba.slice(4, 8)], expected, "Plane 1 remains a normal AD-3 blit of the screen's composed pixels");
   }
 });
 

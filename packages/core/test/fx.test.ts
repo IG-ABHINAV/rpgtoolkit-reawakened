@@ -28,7 +28,7 @@ function effect(name: string, args: (string | number)[]): EffectRecord {
 }
 
 function blank(): DrawList {
-  return { tick: 0, width: 640, height: 480, commands: [] };
+  return { tick: 0, width: 640, height: 480, commands: [], marginCommands: [] };
 }
 
 test("fx section defaults are deterministic and saveable", () => {

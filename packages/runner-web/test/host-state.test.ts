@@ -1,6 +1,6 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import type { InputRecord } from "@tk-reawakened/core";
+import { assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type InputRecord } from "@tk-reawakened/core";
 import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
 
@@ -106,30 +106,88 @@ test("pointer geometry keeps the newest queued host display through an advance b
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
-test("post-restore geometry is consumed before the first frame without pointer input", async () => {
+test("post-restore geometry is consumed before the first rendered frame without pointer input", async () => {
   const initial = {
-    content: { width: 640, height: 480 },
-    game: { x: 0, y: 0, width: 640, height: 480 },
+    content: { width: 4, height: 2 },
+    game: { x: 1, y: 0, width: 2, height: 2 },
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
   const resized = {
-    content: { width: 800, height: 600 },
-    game: { x: 80, y: 60, width: 640, height: 480 },
+    content: { width: 6, height: 2 },
+    game: { x: 2, y: 0, width: 2, height: 2 },
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
-  const observed = createObservedHostGeometry(initial);
-  observed.observe({ kind: "host.display", geometry: resized });
-
-  // The preceding advance completed a save restore and rolled simulation geometry back.
-  let engineGeometry = initial;
-  await reconcileObservedGeometryAfterAdvance(engineGeometry, observed, 7, async (ticks, inputs) => {
-    equal(ticks, 0);
-    deepEqual(inputs, [{ tick: 7, event: { kind: "host.display", geometry: resized } }]);
-    for (const input of inputs) if (input.event.kind === "host.display") engineGeometry = input.event.geometry;
+  const savedState = createGameState({ seed: 7, width: 2, height: 2, displayGeometry: initial });
+  // Host display observations are consumed pre-tick while unfocused, matching the no-input restore case.
+  savedState.input.focused = false;
+  const saved = new TextEncoder().encode(snapshotGameSave(savedState));
+  const board = writeBoard(createEmptyBoard());
+  if (!board.ok) throw new Error(board.error.message);
+  const main = writeMainFile({
+    ...createEmptyMainFile(),
+    major: 2,
+    minor: 9,
+    startupPrg: "start.prg",
+    initBoard: "start.brd",
   });
+  if (!main.ok) throw new Error(main.error.message);
+  const files = new Map([
+    [assetKey("main.gam"), main.value],
+    [assetKey("boards/start.brd"), board.value],
+    [assetKey("prg/start.prg"), new TextEncoder().encode('Load("slot")\nend()\n')],
+  ]);
+  const engine = createEngine({
+    seed: 7,
+    assetIndex: createAssetIndex(["main.gam", "Boards/start.brd", "Prg/start.prg"]),
+    assetRoot: PACKAGE_ROOT,
+    mainFile: "main.gam",
+    gameIdentity: "host-state-geometry-restore-test",
+    width: 2,
+    height: 2,
+    maxTicks: 100,
+    displayGeometry: resized,
+    startup: {
+      presence: { hasPlayer: () => true },
+      savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+    },
+  });
+  let loadReport = engine.advance(0, []);
+  let loadRequest = loadReport.requests.find((request) => request.kind === "loadBlob");
+  for (let step = 0; step < 8 && loadRequest?.kind !== "loadBlob"; step += 1) {
+    const events = loadReport.requests.flatMap((request) => request.kind === "asset"
+      ? [{ tick: loadReport.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: files.get(request.key) ?? null } }]
+      : []);
+    loadReport = engine.advance(1, events);
+    loadRequest = loadReport.requests.find((request) => request.kind === "loadBlob");
+  }
+  if (loadRequest?.kind !== "loadBlob") throw new Error("expected RPGCode load request");
+  const restored = engine.advance(0, [{
+    tick: loadReport.tickAfter,
+    event: { kind: "blob.loaded", reqId: loadRequest.reqId, bytes: saved },
+  }]);
+  deepEqual(engine.hostDisplayGeometry(), initial, "Load restores the older saved display geometry");
 
-  const firstPostRestoreFrameGeometry = engineGeometry;
-  deepEqual(firstPostRestoreFrameGeometry, resized);
+  const observed = createObservedHostGeometry(resized);
+  const postRestoreTick = engine.advance(0, []).tickAfter;
+  await reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, postRestoreTick, async (ticks, inputs) => {
+    let report = engine.advance(ticks, inputs);
+    const consumed = report.consumed.map(({ event }) => event.kind);
+    for (let step = 0; step < 8 && !consumed.includes("host.display"); step += 1) {
+      const replies = report.requests.flatMap((request) => request.kind === "asset"
+        ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: files.get(request.key) ?? null } }]
+        : []);
+      if (replies.length === 0) break;
+      report = engine.advance(0, replies);
+      consumed.push(...report.consumed.map(({ event }) => event.kind));
+    }
+    deepEqual(consumed, ["host.display"], "post-restore geometry is consumed before drawing");
+  });
+  const geometryForFirstDraw = engine.hostDisplayGeometry();
+  deepEqual(geometryForFirstDraw, resized);
+  const firstFrame = rasterizePresentation(engine.drawList(), geometryForFirstDraw, new Map());
+  equal(firstFrame.error, null);
+  equal(firstFrame.width, 6, "the first post-restore frame uses live host content geometry");
+  equal(firstFrame.height, 2);
 });
 
 test("zero-sized host surfaces defer geometry instead of fitting or publishing invalid dimensions", () => {

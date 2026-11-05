@@ -1121,7 +1121,7 @@ function runMainFileApiFight(options: { readonly stock: boolean; readonly seed: 
     recorded,
     stockPresent: state.vm.globals.stockbattle !== undefined,
     stateHash: hashState(projection as Parameters<typeof hashState>[0]),
-    drawHash: hashDrawList({ tick: 0, width: 640, height: 480, commands: composeUi(state.ui, 640, 480, state.input, false) }),
+    drawHash: hashDrawList({ tick: 0, width: 640, height: 480, commands: composeUi(state.ui, 640, 480, state.input, false), marginCommands: [] }),
     gold: state.inventory.gold,
     diagnostics: booted.diagnostics.map(({ code, message }) => `${code}: ${message}`),
     drewCustomText: state.ui.draws.some((draw) => draw.text.startsWith("Custom fight ")),

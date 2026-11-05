@@ -124,7 +124,7 @@ export function rasterizePresentation(
     height: bounds.height,
     commands: list.marginCommands.map((command) => offsetCommand(command, marginOffset)),
     marginCommands: [],
-  }, assets, surfaces);
+  }, assets, surfaces, "screen");
   if (margin.error !== null) return failedPresentation(margin.error, geometry);
 
   const outWidth = Math.ceil(geometry.content.width);

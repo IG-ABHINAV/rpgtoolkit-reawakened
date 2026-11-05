@@ -80,7 +80,7 @@ export function reapplyObservedGeometryBeforePointer(
   if (pending.some((input) => input.event.kind === "host.display" && sameGeometry(input.event.geometry, geometry))) return;
   pending.push({ tick: null, event: { kind: "host.display", geometry } });
 }
-/** Restore can replace logged host geometry during an advance; consume its live replacement before that frame is drawn. */
+/** Restore can replace logged host geometry during an advance; consume its live replacement on the next input tick before drawing. */
 export async function reconcileObservedGeometryAfterAdvance(
   engineGeometry: HostDisplayGeometry,
   observed: ObservedHostGeometry,
@@ -90,7 +90,10 @@ export async function reconcileObservedGeometryAfterAdvance(
   const pending: PendingInput[] = [];
   reapplyObservedGeometryBeforePointer(engineGeometry, observed, pending);
   const inputs = stampPendingInputs(pending, tick);
-  if (inputs.length > 0) await advance(0, inputs);
+  if (inputs.length > 0) {
+    // A zero-tick advance only admits this record; it is applied at the input phase of the next tick.
+    await advance(1, inputs);
+  }
 }
 
 

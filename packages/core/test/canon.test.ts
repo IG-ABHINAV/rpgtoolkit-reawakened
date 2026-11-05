@@ -141,6 +141,7 @@ function drawList(surfaceRev: number): DrawList {
     tick: 0,
     width: 320,
     height: 200,
+    marginCommands: [],
     commands: [
       {
         kind: "blit",
@@ -446,6 +447,7 @@ test("hashDrawList matches fixed external Python vector", () => {
     tick: 1,
     width: 320,
     height: 240,
+    marginCommands: [],
     commands: [
       {
         kind: "fill",

@@ -17,6 +17,9 @@ import type { AssetKey, ScratchId, SurfaceId } from "../ports/keys.ts";
 
 export type RasterAsset = DecodedTexture | LegacyFont | TrueTypeFont | Uint8Array;
 export type RasterAssets = ReadonlyMap<AssetKey, RasterAsset>;
+/** Pixel compositing behavior selected by the target that owns a replay. */
+export type RasterBlendTarget = "ad3" | "screen";
+
 export type RasterSurfaces = ReadonlyMap<SurfaceId, DecodedTexture> & {
   get(surface: SurfaceId, revision?: number): DecodedTexture | undefined;
 };
@@ -106,6 +109,7 @@ function blend(
   at: number,
   source: [number, number, number, number],
   command: BlitCommand,
+  blendTarget: RasterBlendTarget,
 ): void {
   const [sr, sg, sb, sa] = source;
   const tint = command.tint;
@@ -114,19 +118,22 @@ function blend(
   const g = tintChannel(sg, tint.g, tinted);
   const b = tintChannel(sb, tint.b, tinted);
   const alpha = Math.max(0, Math.min(255, command.alpha));
-  if (command.blend === "normal" || command.blend === "translucent") {
-    // Match blitTexture: combine source and command opacity, then composite
-    // over the opaque screen pixel with truncation at each channel.
+  if (blendTarget === "screen") {
     const effective = Math.trunc(sa * alpha / 255);
-    if (effective >= 255) {
+    const dr = target.rgba[at] ?? 0;
+    const dg = target.rgba[at + 1] ?? 0;
+    const db = target.rgba[at + 2] ?? 0;
+    if (command.blend === "additive") {
+      target.rgba[at] = Math.min(255, dr + Math.trunc(r * alpha / 255));
+      target.rgba[at + 1] = Math.min(255, dg + Math.trunc(g * alpha / 255));
+      target.rgba[at + 2] = Math.min(255, db + Math.trunc(b * alpha / 255));
+      target.rgba[at + 3] = 255;
+    } else if (effective >= 255) {
       target.rgba[at] = r;
       target.rgba[at + 1] = g;
       target.rgba[at + 2] = b;
       target.rgba[at + 3] = sa;
     } else if (effective > 0) {
-      const dr = target.rgba[at] ?? 0;
-      const dg = target.rgba[at + 1] ?? 0;
-      const db = target.rgba[at + 2] ?? 0;
       target.rgba[at] = Math.trunc((r * effective + dr * (255 - effective)) / 255);
       target.rgba[at + 1] = Math.trunc((g * effective + dg * (255 - effective)) / 255);
       target.rgba[at + 2] = Math.trunc((b * effective + db * (255 - effective)) / 255);
@@ -134,12 +141,25 @@ function blend(
     }
     return;
   }
+  if (command.blend === "normal") {
+    target.rgba[at] = r;
+    target.rgba[at + 1] = g;
+    target.rgba[at + 2] = b;
+    target.rgba[at + 3] = sa;
+    return;
+  }
   const dr = target.rgba[at] ?? 0;
   const dg = target.rgba[at + 1] ?? 0;
   const db = target.rgba[at + 2] ?? 0;
-  target.rgba[at] = Math.min(255, dr + Math.floor((r * alpha + 127) / 255));
-  target.rgba[at + 1] = Math.min(255, dg + Math.floor((g * alpha + 127) / 255));
-  target.rgba[at + 2] = Math.min(255, db + Math.floor((b * alpha + 127) / 255));
+  if (command.blend === "translucent") {
+    target.rgba[at] = Math.floor((dr * (255 - alpha) + r * alpha + 127) / 255);
+    target.rgba[at + 1] = Math.floor((dg * (255 - alpha) + g * alpha + 127) / 255);
+    target.rgba[at + 2] = Math.floor((db * (255 - alpha) + b * alpha + 127) / 255);
+  } else {
+    target.rgba[at] = Math.min(255, dr + Math.floor((r * alpha + 127) / 255));
+    target.rgba[at + 1] = Math.min(255, dg + Math.floor((g * alpha + 127) / 255));
+    target.rgba[at + 2] = Math.min(255, db + Math.floor((b * alpha + 127) / 255));
+  }
   target.rgba[at + 3] = 255;
 }
 
@@ -148,6 +168,7 @@ function drawBlit(
   command: BlitCommand,
   assets: RasterAssets,
   surfaces: RasterSurfaces,
+  blendTarget: RasterBlendTarget,
 ): string | null {
   const texture = sourceTexture(command, assets, surfaces);
   if (!texture) return "missing decoded texture or surface";
@@ -176,11 +197,11 @@ function drawBlit(
       const sa = texture.rgba[si + 3] ?? 0;
       // The key is tested on the sampled pixels — a composed picture's pixels already include their cell shade — and
       // the world tint is applied after it (docs/spec/engine/runners.md#blit-pipeline).
-      if (sa === 0 || (command.key !== null && sr === command.key.r && sg === command.key.g && sb === command.key.b)) continue;
+      if ((sa === 0 && blendTarget === "ad3") || (command.key !== null && sr === command.key.r && sg === command.key.g && sb === command.key.b)) continue;
       const dx = command.dst.x + x;
       const dy = command.dst.y + y;
       if (dx < 0 || dy < 0 || dx >= target.width || dy >= target.height) continue;
-      blend(target, (dy * target.width + dx) * 4, [sr, sg, sb, sa], command);
+      blend(target, (dy * target.width + dx) * 4, [sr, sg, sb, sa], command, blendTarget);
     }
   }
   return null;
@@ -226,6 +247,7 @@ export function rasterize(
   list: DrawList,
   assets: RasterAssets,
   surfaces: RasterSurfaces = new Map(),
+  blendTarget: RasterBlendTarget = "ad3",
 ): RasterResult {
   if (!Number.isInteger(list.width) || !Number.isInteger(list.height) || list.width <= 0 || list.height <= 0) {
     return { width: list.width, height: list.height, rgba: new Uint8Array(), error: "invalid draw-list dimensions" };
@@ -247,7 +269,7 @@ export function rasterize(
         }
         break;
       case "blit":
-        error = drawBlit(targets[targets.length - 1]!, command, assets, surfaces);
+        error = drawBlit(targets[targets.length - 1]!, command, assets, surfaces, blendTarget);
         break;
       case "line":
         drawLine(targets[targets.length - 1]!, command.x1, command.y1, command.x2, command.y2, command.rgb);

@@ -267,6 +267,7 @@ function drawListFor(state: GameState): DrawList {
     tick: state.time.tick,
     width: 640,
     height: 480,
+    marginCommands: [],
     commands: composeUi(state.ui, 640, 480, state.input, false),
   };
 }
