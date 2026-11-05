@@ -363,7 +363,7 @@ function startLiveLoop(
   const viewSize = session.viewSize(),
       observedGeometry = createObservedHostGeometry(session.displayGeometry()),
       touchControls = createFallbackTouchControls(stage, () => observedGeometry.current(), (action, down) => {
-        pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } });
+        pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" } });
         fallbackActionSequence += 1;
         return fallbackActionSequence;
       });
@@ -456,34 +456,35 @@ function startLiveLoop(
             const submittedActionSequence = fallbackActionSequence;
       pending = [];
       advancing = true;
-      session.advance(wholeTicks, inputs).then(() => {
-        advancing = false;
-        if (disposed) return;
-        touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
-              const drawn = session.draw(accumulator / stepMs);
-        const player = session.playerPosition();
-        const state = loadState();
-        const live: LiveReport = {
-          tick: session.tick(),
-          stateHash: session.stateHash(),
-          drawHash: drawn.drawHash,
-          board: session.boardKey(),
-          player,
-          load: { mode: state.mode, storage: state.storage },
-          stalls: summary(overlay?.update() ?? false),
-          diagnostics: session.diagnostics(),
-        };
-        window.__live = live;
-        window.__report = live;
-        report.textContent = [
-          `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
-          `state ${live.stateHash}`,
-          `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
-          player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
-          `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
-          "Move: arrows or WASD; click the board to walk.",
-        ].join("\n");
-      }).catch((error: unknown) => {
+      const tickBeforeAdvance = session.tick();
+            session.advance(wholeTicks, inputs).then(() => {
+              advancing = false;
+              if (disposed) return;
+              if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
+                    const drawn = session.draw(accumulator / stepMs);
+              const player = session.playerPosition();
+              const state = loadState();
+              const live: LiveReport = {
+                tick: session.tick(),
+                stateHash: session.stateHash(),
+                drawHash: drawn.drawHash,
+                board: session.boardKey(),
+                player,
+                load: { mode: state.mode, storage: state.storage },
+                stalls: summary(overlay?.update() ?? false),
+                diagnostics: session.diagnostics(),
+              };
+              window.__live = live;
+              window.__report = live;
+              report.textContent = [
+                `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
+                `state ${live.stateHash}`,
+                `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
+                player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
+                `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
+                "Move: arrows or WASD; click the board to walk.",
+              ].join("\n");
+            }).catch((error: unknown) => {
         advancing = false;
         if (disposed) return;
         window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };

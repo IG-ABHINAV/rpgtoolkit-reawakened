@@ -233,7 +233,7 @@ function run(
   const viewSize = session.viewSize(),
       observedGeometry = createObservedHostGeometry(session.displayGeometry());
   const touchControls = createFallbackTouchControls(hostViewport.viewport, () => observedGeometry.current(), (action, down) => {
-    pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } });
+    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" } });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
   });
@@ -289,9 +289,10 @@ function run(
     const inputs = stampPendingInputs(pending, session.tick());
           const submittedActionSequence = fallbackActionSequence;
     pending = [];
+    const tickBeforeAdvance = session.tick();
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
-      touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
+      if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
             const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const board = session.boardKey();

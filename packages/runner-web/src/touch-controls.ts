@@ -168,13 +168,13 @@ export function createFallbackTouchControls(
     button.addEventListener("pointercancel", (event) => { event.preventDefault(); releasePointer(event.pointerId); });
     button.addEventListener("lostpointercapture", (event) => releasePointer(event.pointerId));
     button.addEventListener("keydown", (event) => {
-      if ((event.code !== "Enter" && event.code !== "Space") || button.disabled || event.repeat) return;
-      event.preventDefault();
-      if (activeKeys.has(event.code)) return;
-      const wasActive = hasActiveSource(entry.action);
-      activeKeys.set(event.code, entry.action);
-      press(entry.action, wasActive);
-    });
+          if (event.code !== "Enter" && event.code !== "Space") return;
+          event.preventDefault();
+          if (button.disabled || event.repeat || activeKeys.has(event.code)) return;
+          const wasActive = hasActiveSource(entry.action);
+          activeKeys.set(event.code, entry.action);
+          press(entry.action, wasActive);
+        });
     button.addEventListener("keyup", releaseKey);
     button.addEventListener("click", (event) => {
       if (event.detail === 0 && !button.disabled) activateClick(entry.action);
