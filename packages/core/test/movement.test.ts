@@ -71,6 +71,48 @@ test("R-50 moves a tile in eight 4-pixel advances and completes at tick 21", () 
   equal(events.some((record) => record.type === "movement-complete" && record.tick === 21), true);
 });
 
+test("diagonal pixel directions finish both axes in one advance in both modes", () => {
+  const cases = [["NE", 52, 59], ["SE", 52, 67], ["SW", 44, 67], ["NW", 44, 59]] as const;
+  for (const mode of [1, 2]) {
+    for (const [facing, x, y] of cases) {
+      const currentBoard = board();
+      const sprites = playerState(currentBoard);
+      enqueueDirectionMove(sprites, "hero", facing, mode);
+      const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+      equal(sprites.players[0]?.x, x, `${mode} ${facing} x`);
+      equal(sprites.players[0]?.y, y, `${mode} ${facing} y`);
+      equal(sprites.players[0]?.movement.active, null);
+      equal(events.filter((record) => record.type === "step-complete").length, 1);
+      equal(events.filter((record) => record.type === "movement-complete").length, 1);
+    }
+  }
+});
+
+test("diagonal pixel movement samples collision at its full four-pixel destination", () => {
+  const wall = { handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 66, y: 40 }, { x: 70, y: 40 }, { x: 70, y: 90 }, { x: 66, y: 90 }] };
+  for (const mode of [1, 2]) {
+    const currentBoard = board([wall]);
+    const sprites = playerState(currentBoard);
+    enqueueDirectionMove(sprites, "hero", "SE", mode);
+    const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+    equal(events.some((record) => record.type === "blocked"), false);
+    equal(events.filter((record) => record.type === "step-complete").length, 1);
+    equal(sprites.players[0]?.movement.active, null);
+    equal(sprites.players[0]?.x, 48, "glancing wall slides south without moving east");
+    equal(sprites.players[0]?.y, 67);
+
+    const distantWall = { ...wall, points: wall.points.map((point) => ({ x: point.x + 100, y: point.y })) };
+    const distantBoard = board([distantWall]);
+    const clear = playerState(distantBoard);
+    enqueueDirectionMove(clear, "hero", "SE", mode);
+    const clearEvents = runMovementPhase(clear, distantBoard, 0, { pixelMovement: mode });
+    equal(clearEvents.some((record) => record.type === "blocked"), false);
+    equal(clearEvents.filter((record) => record.type === "step-complete").length, 1);
+    equal(clear.players[0]?.x, 52, "a distant wall does not block east movement");
+    equal(clear.players[0]?.y, 67);
+  }
+});
+
 test("corner collision is independent of polygon winding and starting vertex", () => {
   const points = [{ x: 100, y: 100 }, { x: 140, y: 100 }, { x: 140, y: 140 }, { x: 100, y: 140 }];
   const variants = [points, [...points].reverse(), [...points.slice(1), points[0]!]];

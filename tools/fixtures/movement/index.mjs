@@ -26,7 +26,7 @@ export const MOVEMENT_OUT = join(repoRoot, "packages", "core", "test", "fixtures
 export const PROPOSED = {
   "P-1": "Step cadence: the next queued step's first advance is one cadence slot after the previous advance; an idle sprite starts on the tick the command arrives.",
   "P-2": "Grid path nodes are the tile's bottom-centre reference point (32 cx + 16, 32 cy + 31); edges are checked by sweeping the base in 4 px samples.",
-  "P-3": "An advance of 4 px is Euclidean along the step vector, truncated to 1/256 px (45 degrees = 724/256 px per axis).",
+  "P-3": "A pixel-mode direction step moves 4 px on each axis in one advance; other advances use a Euclidean 4 px increment truncated to 1/256 px.",
   "P-4": "A step ends when its target is reached or passed (non-positive projection on the original direction); a blocked step ends alone and the next queued step continues.",
   "P-5": "R-54 slide: select the hit edge by canonically ordered endpoints independently of vertex order; the turned step has the same length, and the facing is the octant of its vector.",
   "P-6": "Triggers are evaluated when a player step completes and when the activation key is pressed; a repeat region fires on entry then every distanceRepeat px; losing candidates are not marked fired; re-arming is evaluated at step completion.",
