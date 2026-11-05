@@ -479,7 +479,11 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
         });
       }
     }
+    if (!Array.isArray(migrated.authorMarginSurfaces)) migrated.authorMarginSurfaces = [];
     record.ui = migrated;
+  } else {
+    const current = old as Record<string, unknown>;
+    if (!Array.isArray(current.authorMarginSurfaces)) current.authorMarginSurfaces = [];
   }
   schema.ui = UI_SCHEMA_VERSION;
 }

@@ -5,7 +5,6 @@
  * section; asset-backed calls retain their deterministic request/effect seam.
  * Source: docs/spec/engine/rpgcode-functions.md#e-56, #e-58, #e-63.
  */
-import { createSurfacesSection } from "../../raster/surfaces.ts";
 import type { GameState } from "../../save/state.ts";
 import type { DrawCommand, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
@@ -16,6 +15,7 @@ import {
   blitSurface,
   canvasGetScreen,
   createSurface,
+  createSurfacesSection,
   drawSurfaceCircle,
   drawSurfaceLine,
   drawSurfaceRect,
@@ -23,6 +23,7 @@ import {
   getPixel,
   killSurface,
   ensureScriptScreen,
+  readSurfacePixels,
   renderNowCanvas,
   renderNowEnabled,
   restoreScreen,
@@ -61,6 +62,12 @@ function recordAuthorMarginCommand(
   current.ui.authorMarginCommands = [...current.ui.authorMarginCommands, command];
 }
 
+function clearAuthorMarginCommands(current: AnyState): void {
+  for (const id of current.ui.authorMarginSurfaces) killSurface(current.surfaces, id);
+  current.ui.authorMarginSurfaces = [];
+  current.ui.authorMarginCommands = [];
+}
+
 function prepareAuthorMarginBlit(
   current: AnyState,
   screenTarget: boolean,
@@ -89,13 +96,19 @@ function prepareAuthorMarginBlit(
   };
   if (![sx, sy, sw, sh, dst.x, dst.y, dst.w, dst.h, dst.x + dst.w, dst.y + dst.h].every(Number.isSafeInteger) || sw <= 0 || sh <= 0 || dst.w <= 0 || dst.h <= 0) return null;
   if (dst.x >= 0 && dst.y >= 0 && dst.x + dst.w <= screenSize.w && dst.y + dst.h <= screenSize.h) return null;
+  const pixels = readSurfacePixels(current.surfaces, source, sourceRev);
+  if (pixels === null) return null;
+  const sourceSnapshot = createSurface(current.surfaces, pixels.w, pixels.h, pixels.rgba);
+  current.ui.authorMarginSurfaces.push(sourceSnapshot);
+  const snapshotRev = current.surfaces.entries[String(sourceSnapshot)]?.rev;
+  if (snapshotRev === undefined) return null;
   const keyPixels = key === undefined ? null : [key.r, key.g, key.b].map(Math.trunc);
   const normalizedKey = keyPixels !== null && keyPixels.every((value) => Number.isSafeInteger(value) && value >= 0 && value <= 255)
     ? { r: keyPixels[0]!, g: keyPixels[1]!, b: keyPixels[2]! }
     : null;
   return {
     kind: "blit",
-    source: { surface: source, rev: sourceRev },
+    source: { surface: sourceSnapshot, rev: snapshotRev },
     src: { x: sx, y: sy, w: sw, h: sh },
     dst,
     key: normalizedKey,
@@ -194,7 +207,7 @@ const CLEAR = command("clear", [], [{ name: "canvas", optional: true, byRef: fal
   const bounds = size === null ? undefined : { first: 0, last: size.w * size.h - 1 };
   const ok = editSurfaceWithBounds(surfaces, target, (rgba) => rgba.fill(0), bounds);
   if (!ok) throw new ScriptError("surface.unknown", `clear: no canvas ${String(target)}`);
-  if (canvas === SCREEN) current.ui.authorMarginCommands = [];
+  if (canvas === SCREEN) clearAuthorMarginCommands(current);
   return { value: null, effects: effects(args) };
 });
 
@@ -245,11 +258,23 @@ function primitive(name: string, filled: boolean, circle: boolean): BuiltinSpec 
       else drawSurfaceRect(rgba, width, height, a0, a1, a2, a3, rgb, filled);
     }, bounds);
     if (!ok) throw new ScriptError("surface.unknown", `${name}: no canvas ${String(target)}`);
-    if (circle) {
+    if (circle && canvas === SCREEN) {
       const cx = Math.trunc(a0); const cy = Math.trunc(a1); const radius = Math.max(0, Math.trunc(a2));
-      const rect = { x: cx - radius, y: cy - radius, w: radius * 2 + 1, h: radius * 2 + 1 };
-      recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "ellipse", rect, rgb, filled }, rect);
-    } else {
+      // Match drawSurfaceCircle's scanline arithmetic exactly; AD-3 ellipse uses a midpoint raster
+      // whose small-radius pixels differ (for example radius 2 at y±1).
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        const span = Math.floor(Math.sqrt(Math.max(0, radius * radius - dy * dy)));
+        if (filled) {
+          const rect = { x: cx - span, y: cy + dy, w: span * 2 + 1, h: 1 };
+          recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "rect", rect, rgb, filled: true }, rect);
+        } else {
+          const x1 = cx - span;
+          const x2 = cx + span;
+          recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "line", x1, y1: cy + dy, x2: x1, y2: cy + dy, rgb }, { x: x1, y: cy + dy, w: 1, h: 1 });
+          if (x2 !== x1) recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "line", x1: x2, y1: cy + dy, x2, y2: cy + dy, rgb }, { x: x2, y: cy + dy, w: 1, h: 1 });
+        }
+      }
+    } else if (!circle) {
       const left = Math.min(Math.trunc(a0), Math.trunc(a2)); const top = Math.min(Math.trunc(a1), Math.trunc(a3));
       const rect = { x: left, y: top, w: Math.abs(Math.trunc(a2) - Math.trunc(a0)) + 1, h: Math.abs(Math.trunc(a3) - Math.trunc(a1)) + 1 };
       recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "rect", rect, rgb, filled }, rect);

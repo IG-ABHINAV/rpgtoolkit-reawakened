@@ -106,7 +106,7 @@ test("pointer geometry keeps the newest queued host display through an advance b
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
-test("pointer handling reapplies current observed geometry after stale save restore", () => {
+test("frame reconciliation reapplies live geometry after stale restore without pointer input", () => {
   const initial = {
     content: { width: 640, height: 480 },
     game: { x: 0, y: 0, width: 640, height: 480 },
@@ -123,7 +123,9 @@ test("pointer handling reapplies current observed geometry after stale save rest
   reapplyObservedGeometryBeforePointer(initial, observed, pending);
   deepEqual(pending, [{ tick: null, event: { kind: "host.display", geometry: resized } }]);
   reapplyObservedGeometryBeforePointer(initial, observed, pending);
-  equal(pending.length, 1, "do not enqueue duplicate geometry ahead of the same pointer");
+  equal(pending.length, 1, "do not enqueue duplicate geometry before the next frame");
+  const stamped = stampPendingInputs(pending, 7);
+  deepEqual(stamped, [{ tick: 7, event: { kind: "host.display", geometry: resized } }]);
 });
 
 test("zero-sized host surfaces defer geometry instead of fitting or publishing invalid dimensions", () => {

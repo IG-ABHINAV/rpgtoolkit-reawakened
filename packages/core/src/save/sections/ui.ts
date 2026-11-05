@@ -3,7 +3,7 @@
 import type { DrawCommand, FontRef, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 
-export const UI_SCHEMA_VERSION = 5;
+export const UI_SCHEMA_VERSION = 6;
 export type UiTextDraw = {
   readonly x: number;
   readonly y: number;
@@ -128,6 +128,7 @@ export type UiSection = {
   message: UiMessageWindow;
   draws: UiTextDraw[];
   authorMarginCommands: DrawCommand[];
+  authorMarginSurfaces: SurfaceId[];
   cursorX: number;
   cursorY: number;
   modal: UiModal | null;
@@ -181,6 +182,7 @@ export function createUiSection(): UiSection {
     backgroundRev: 0,
     actionSurfaces: [],
     authorMarginCommands: [],
+    authorMarginSurfaces: [],
     surfaceBuilders: [],
     surfaceSelection: {},
     surfaceActivated: null,
@@ -199,10 +201,12 @@ export function createUiSection(): UiSection {
  * starting image replaces whatever the previous program drew. Has no effect until the engine has
  * installed the UI section.
  */
-export function resetUiForProgramStart(ui: UiSection): void {
+export function resetUiForProgramStart(ui: UiSection, releaseSurface: (id: SurfaceId) => void): void {
   if (ui.message === undefined) return;
   ui.message = { ...ui.message, visible: false, text: "" };
   ui.draws = [];
+  for (const id of ui.authorMarginSurfaces) releaseSurface(id);
+  ui.authorMarginSurfaces = [];
   ui.authorMarginCommands = [];
   ui.actionSurfaces = [];
   ui.surfaceBuilders = [];

@@ -126,7 +126,7 @@ import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
 import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
-import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch } from "../raster/surfaces.ts";
+import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
 
 const MENU_HAND_ASSET = assetKey("media/cursors/tkr-menu-hand.png");
@@ -658,7 +658,7 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     const kind = blockingAlive() ? "board" : "blocking";
-    if (kind === "blocking") resetUiForProgramStart(state.ui);
+    if (kind === "blocking") resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
     const ref: ProgramRef = {
       kind: "inline",
       text: `${command}(${JSON.stringify(encodeInlineScriptString(serialized))})`,
@@ -685,7 +685,7 @@ export function createEngine(init: EngineInit): Engine {
         return;
       }
       if (!blockingAlive()) {
-        resetUiForProgramStart(state.ui);
+        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
         startProgram(state.vm, { kind: "inline", text: "wait()", ir: IR_VERSION });
       }
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
@@ -1252,7 +1252,7 @@ export function createEngine(init: EngineInit): Engine {
     const ref: ProgramRef = typeof init.program === "string"
       ? { kind: "inline", text: init.program, ir: IR_VERSION, dialect: "tk3" }
       : init.program;
-    resetUiForProgramStart(state.ui);
+    resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
     startProgram(state.vm, ref);
   }
 
@@ -1539,6 +1539,7 @@ export function createEngine(init: EngineInit): Engine {
     let keyColour: { readonly r: number; readonly g: number; readonly b: number } | undefined;
     let alpha = 255;
     let additive = false;
+    let translucent = false;
     if (effect.name === "bitmap") {
       destination = typeof args[1] === "number" ? args[1] as SurfaceId : destination;
       const size = state.surfaces.entries[String(destination)]?.bitmap;
@@ -1556,7 +1557,10 @@ export function createEngine(init: EngineInit): Engine {
         g: typeof args[6] === "number" ? args[6] : 0,
         b: typeof args[7] === "number" ? args[7] : 0,
       };
-      if (effect.name === "setimagetranslucent") alpha = 128;
+      if (effect.name === "setimagetranslucent") {
+        alpha = 128;
+        translucent = true;
+      }
       if (effect.name === "setimageadditive") {
         const percent = typeof args[5] === "number" ? Math.max(0, Math.min(100, Math.trunc(args[5]))) : 0;
         alpha = Math.trunc(percent * 255 / 100);
@@ -1586,7 +1590,7 @@ export function createEngine(init: EngineInit): Engine {
       key: normalizedKey,
       tint: { r: 0, g: 0, b: 0 },
       alpha,
-      blend: additive ? "additive" : "normal",
+      blend: additive ? "additive" : translucent ? "translucent" : "normal",
       iso2d: false,
     };
     // An image that names no canvas lands on the script-screen layer, exactly like the drawing commands
@@ -1621,6 +1625,7 @@ export function createEngine(init: EngineInit): Engine {
         return;
       }
       applySurfaceImage(effect, texture, MENU_HAND_ASSET);
+      return;
     }
     const optional = effect.name === MENU_GRAPHIC_EFFECT;
     const reference = typeof effect.args[0] === "string" ? effect.args[0] : "";
@@ -2395,7 +2400,7 @@ export function createEngine(init: EngineInit): Engine {
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // A blocking enter program is a new outermost program; reset the message window.
       const blocking = blockingAlive();
-      if (!blocking) resetUiForProgramStart(state.ui);
+      if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
       const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
       if (blocking && enterThread !== null) state.engine.pendingEnterThread = enterThread.id;
       else delete state.engine.pendingEnterThread;
@@ -2420,7 +2425,7 @@ export function createEngine(init: EngineInit): Engine {
       clearPendingExit(player.id);
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // An edge link that runs a program starts a new outermost program.
-      resetUiForProgramStart(state.ui);
+      resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
       startFileProgram(link, board.key, "blocking");
       return;
     }
@@ -2618,7 +2623,7 @@ export function createEngine(init: EngineInit): Engine {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
       }
       if (mainFile.startupPrg !== "") {
-        resetUiForProgramStart(state.ui);
+        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
         startFileProgram(mainFile.startupPrg, mainKey, "blocking");
       }
       boot.stage = "startup";
@@ -2927,7 +2932,7 @@ export function createEngine(init: EngineInit): Engine {
       for (const ref of prepared.boardPrograms) startThread(stagedVm, { ref, kind: "board", owner: "world" });
       if (prepared.entryProgram !== null) {
         const blocking = stagedVm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
-        if (!blocking) resetUiForProgramStart(state.ui);
+        if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
         startThread(stagedVm, { ref: prepared.entryProgram, kind: blocking ? "board" : "blocking", owner: blocking ? "world" : "script" });
       }
     } catch (error) {
@@ -3591,7 +3596,7 @@ export function createEngine(init: EngineInit): Engine {
     return state.input.keys.find((key) => key.seq >= firstSeq && key.action === action)?.seq ?? null;
   }
   function routeAuthorSurfaceAction(action: string, down: boolean, inputSeq: number | null = null): void {
-    if (!down) return;
+    if (!down || state.ui.modal !== null) return;
     const surfaces = state.ui.actionSurfaces ?? [];
     const surface = surfaces[surfaces.length - 1];
     if (surface === undefined) return;
@@ -4064,8 +4069,26 @@ export function createEngine(init: EngineInit): Engine {
    * silently, so a simulation that never reads the screen never reports a presentation failure, and a script that
    * reads a frame that cannot be replayed is told (docs/spec/engine/runners.md#surface-read-and-state-hash).
    */
+  function primeMarginAssets(list: DrawList): void {
+    const visited = new Set<AssetKey>();
+    for (const command of list.marginCommands) {
+      if (command.kind !== "blit" || !("asset" in command.source)) continue;
+      const asset = command.source.asset;
+      if (visited.has(asset)) continue;
+      visited.add(asset);
+      if (command.source.tile === null) {
+        if (cache.has(asset) || init.bundled?.has(asset)) imageTexture(asset);
+        else request(asset, "image");
+      } else if (cache.has(asset)) {
+        tileTexture(asset);
+      } else {
+        request(asset, "tile");
+      }
+    }
+  }
   function refreshFrame(report: boolean): void {
     const list = currentDrawList(0);
+    primeMarginAssets(list);
     // The rasteriser reads the list's size and commands, never its tick, so a static scene is rebuilt once, not every
     // tick. A rebuild is also forced when an asset has arrived, because a command that named it may now replay.
     const nextHash = `${hashDrawList({ ...list, tick: 0 })}:${cache.size}:${installedFonts.size}`;

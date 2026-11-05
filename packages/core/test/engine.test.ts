@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { TextEncoder } from "node:util";
 import { test } from "node:test";
-import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, rasterizePresentation, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type RasterSurfaces, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
+import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, rasterizePresentation, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type DrawCommand, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type RasterSurfaces, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
 import { applyUiEffect } from "../src/script/packs/ui.ts";
 import { resolveManifestPlugins } from "../src/engine/boot.ts";
 import { ensureScriptScreen, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
@@ -146,6 +146,36 @@ test("same-tick gamepad confirm transitions activate the published author surfac
   equal(state.ui.surfaceActivated?.itemId, "confirm", "the down edge is routed before the same-tick up edge");
   equal(state.input.actions.confirm, false, "the short gamepad tap is released by the end of the input batch");
 });
+test("an active engine modal owns confirm before an underlying author surface", () => {
+  const capture = captureState();
+  const surface: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "touch", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Confirm", "confirm", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+      state.ui.modal = {
+        kind: "msgbox",
+        text: "Modal",
+        title: "",
+        style: 0,
+        textColor: { r: 255, g: 255, b: 255 },
+        background: { r: 0, g: 0, b: 0 },
+        graphic: "",
+        selected: 0,
+        result: null,
+      };
+    },
+  };
+  const engine = loadedEngine([capture.registration, surface]);
+  engine.advance(1, []);
+  engine.advance(1, [
+    { tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } },
+  ]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated, null);
+});
 test("author surface margin hit-testing uses safe whole cells", () => {
   const capture = captureState();
   const surface: EnginePhaseRegistration = {
@@ -202,7 +232,7 @@ test("screen vector primitives crossing Plane 1 enter margin commands and render
   engine.advance(1, []);
   const state = capture.state();
   if (state === undefined) throw new Error("expected captured game state");
-  deepEqual(state.ui.authorMarginCommands.map((command) => command.kind), ["line", "rect", "line", "rect", "ellipse", "ellipse"]);
+  deepEqual(state.ui.authorMarginCommands.map((command) => command.kind), ["line", "rect", "line", "rect", "line", "rect"]);
   const drawList = engine.drawList();
   deepEqual(drawList.marginCommands, state.ui.authorMarginCommands);
   const surfaces = new Map() as RasterSurfaces;
@@ -215,6 +245,9 @@ test("screen vector primitives crossing Plane 1 enter margin commands and render
   equal(alphaAt(33, 0), 255); // setpixel, logical x=32
   equal(alphaAt(33, 9), 255); // fillrect, logical x=32
   equal(alphaAt(0, 14), 255); // drawcircle, logical x=-1
+  equal(alphaAt(0, 13), 0, "radius-2 outline does not extend diagonally into the margin");
+  equal(alphaAt(1, 13), 255, "the screen circle's same row is unchanged");
+  equal(alphaAt(0, 19), 0, "radius-2 fill does not create a margin seam");
   equal(alphaAt(0, 20), 255); // fillcircle, logical x=-1
 });
 
@@ -231,6 +264,8 @@ test("screen-target canvas blits retain source pixels for Plane 3 rendering and 
     "drawcanvas(c, -1, 0)",
     "drawcanvastransparent(c, -1, 2, 255, 255, 255)",
     "canvasdrawpart(c, -1, 4, 1, 0, 1, 1)",
+    "clear(c)",
+    "killcanvas(c)",
     "threadSleep(getThreadId(), 60)",
   ].join("\n"));
   engine.advance(1, []);
@@ -272,6 +307,38 @@ test("screen-target canvas blits retain source pixels for Plane 3 rendering and 
   equal(clippedRaster.error, null);
   equal(clippedRaster.rgba[(0 * clippedGeometry.content.width + 1) * 4 + 3], 0, "safe-area clipping suppresses the margin blit");
 });
+test("refresh requests images referenced only by retained margin blits", () => {
+  const board = writeBoard(createEmptyBoard());
+  if (!board.ok) throw new Error(board.error.message);
+  const image = assetKey("bitmaps/retained.bmp");
+  const tileBitmap = assetKey("bitmaps/retained.tbm");
+  const command: DrawCommand = {
+    kind: "blit",
+    source: { asset: image, tile: null },
+    src: { x: 0, y: 0, w: 1, h: 1 },
+    dst: { x: -1, y: 0, w: 1, h: 1 },
+    key: null,
+    tint: { r: 0, g: 0, b: 0 },
+    alpha: 255,
+    blend: "normal",
+    iso2d: false,
+  };
+  const registration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      if (state.time.tick === 0) state.ui.authorMarginCommands.push(command, {
+        ...command,
+        source: { asset: tileBitmap, tile: 1 },
+        dst: { x: -2, y: 0, w: 1, h: 1 },
+      });
+    },
+  };
+  const engine = loadedEngine([registration], undefined, undefined, "threadSleep(getThreadId(), 60)");
+  const refreshed = engine.advance(1, []);
+  if (!refreshed.requests.some((request) => request.kind === "asset" && request.key === image)) throw new Error("retained margin image dependency was not requested");
+  if (!refreshed.requests.some((request) => request.kind === "asset" && request.key === tileBitmap)) throw new Error("retained margin tile-bitmap dependency was not requested");
+});
+
 test("author surfaces remain live through the next input frame then expire with unfinished builders", () => {
   const capture = captureState();
   const surfaceRegistration: EnginePhaseRegistration = {
@@ -1294,7 +1361,7 @@ test("screen-target image blits render crossing/exterior pixels and obey safe-ar
     game: { x: 1, y: 0, width: 2, height: 2 },
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
-  const render = (x: number, safeLeft = 0) => {
+  const render = (x: number, safeLeft = 0, effect = "setimage") => {
     const board = authoredBoard();
     const engine = createEngine({
       seed: 19,
@@ -1305,7 +1372,7 @@ test("screen-target image blits render crossing/exterior pixels and obey safe-ar
       height: 2,
       maxTicks: 20,
       displayGeometry: { ...geometry, safeArea: { ...geometry.safeArea, left: safeLeft } },
-      program: `setimage("pixel.bmp", ${x}, 0, 2, 1)\nthreadSleep(getThreadId(), 60)\n`,
+      program: `${effect}("pixel.bmp", ${x}, 0, 2, 1)\nthreadSleep(getThreadId(), 60)\n`,
     });
     let result = engine.advance(0, []);
     let imageProvided = false;
@@ -1351,6 +1418,11 @@ test("screen-target image blits render crossing/exterior pixels and obey safe-ar
   const clipped = render(-1, 1);
   equal(clipped.raster.rgba[3], 0, "safe-area clipping suppresses the crossing image's margin pixel");
   deepEqual([...clipped.raster.rgba.slice(4, 8)], [0, 255, 0, 255]);
+  const translucent = render(-1, 0, "setimagetranslucent");
+  const translucentCommand = translucent.engine.drawList().marginCommands[0];
+  if (translucentCommand?.kind !== "blit") throw new Error("expected translucent image margin blit");
+  equal(translucentCommand.blend, "translucent");
+  deepEqual([...translucent.raster.rgba.slice(0, 4)], [128, 0, 0, 255]);
 });
 
 test("board preview image pixels are applied after the image reply", () => {

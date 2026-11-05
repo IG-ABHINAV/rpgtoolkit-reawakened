@@ -21,6 +21,7 @@ import {
   type Wait,
 } from "../src/index.ts";
 import { resetUiForProgramStart } from "../src/save/sections/ui.ts";
+import { killSurface } from "../src/raster/surfaces.ts";
 import { pollMenuScreen } from "../src/script/waits.ts";
 import type { DrawCommand } from "../src/ports/draw.ts";
 
@@ -89,7 +90,7 @@ test("custom touch suppression requires an explicit persistent declaration", () 
   applyUiEffect(state, "declareCustomTouchControls", []);
   equal(state.ui.customTouchControlsDeclared, true);
   equal(hashGameState(state) === initialHash, false);
-  resetUiForProgramStart(state.ui);
+  resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
   equal(state.ui.customTouchControlsDeclared, true);
   const saved = snapshot(state);
   const restored = restoreGameState(saved);

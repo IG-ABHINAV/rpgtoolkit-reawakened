@@ -117,6 +117,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
+    reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
     const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
     void session.advance(ticks, inputs).then(() => {

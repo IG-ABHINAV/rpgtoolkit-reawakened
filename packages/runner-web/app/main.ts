@@ -428,6 +428,7 @@ function startLiveLoop(
       accumulator += elapsed;
       const wholeTicks = Math.floor(accumulator / stepMs);
       accumulator -= wholeTicks * stepMs;
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
       const inputs = stampPendingInputs(pending, session.tick());
       pending = [];
       advancing = true;
