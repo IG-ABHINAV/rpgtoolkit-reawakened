@@ -63,17 +63,6 @@ When an AD-14 `gamepad` input changes a device from disconnected to connected, o
 
 `device` is the normalized AD-14 controller index (0 through 3). Repeated connected samples for an already-connected device and disconnect samples for an already-disconnected or unknown device do not emit a transition event. The event contains no browser object, device name, or other host-specific identity. A runner reports the normalized `gamepad` input; it never dispatches these script events directly. Thus connection notifications are replayed from the same ordered input log as controller state.
 
-### Controller transition notifications
-
-When an AD-14 `gamepad` input changes a device from disconnected to connected, or from connected to disconnected, the engine queues a script event for delivery in the ordinary events phase:
-
-| Input edge | Script event | Detail |
-|---|---|---|
-| `connected: true` for a previously disconnected device | `device.connected` | `{ device: number, type: "gamepad" }` |
-| `connected: false` for a previously connected device | `device.disconnected` | `{ device: number, type: "gamepad" }` |
-
-`device` is the normalized AD-14 controller index (0 through 3). Repeated connected samples for an already-connected device and disconnect samples for an already-disconnected or unknown device do not emit a transition event. The event contains no browser object, device name, or other host-specific identity. A runner reports the normalized `gamepad` input; it never dispatches these script events directly. Thus connection notifications are replayed from the same ordered input log as controller state.
-
 ### Geometry-derived values
 
 For configured logical size `W × H`, `scaleX = game.width / W` and `scaleY = game.height / H`. `marginWidth(side)` returns `floor(distance / scaleX)` for left/right, using `game.x` and `content.width - game.x - game.width`; `marginWidth`'s vertical counterpart uses `scaleY` and the top/bottom distances. `safeAreaInset(side)` returns `floor(the corresponding CSS-pixel inset / that axis's scale)`. `displayAspect()` is `content.width / content.height`. `viewWidth()` and `viewHeight()` remain the configured logical dimensions. Pointer mapping and presentation use the same presented rectangle but do not mutate `state.display`.
