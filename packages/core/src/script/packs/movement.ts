@@ -57,7 +57,7 @@ function playerIdFor(state: SpritesSection | undefined, arg: number | string | u
 }
 function itemIdFor(state: SpritesSection | undefined, arg: number | string | undefined): string {
   if (typeof arg === "string") {
-    const byId = state?.items.find((value) => value.id === arg);
+    const byId = state?.items.find((value) => value.id === arg || itemKey(value) === arg);
     if (byId !== undefined) return byId.id;
     const handle = Number(arg);
     if (arg.trim() !== "" && Number.isInteger(handle)) {

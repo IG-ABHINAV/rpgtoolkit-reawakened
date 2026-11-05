@@ -28,6 +28,7 @@ import { createActorEventSink } from "../actors/object.ts";
 import { createBehaviourRegistry, resolveBehaviour, type BehaviourRegistry } from "../actors/behaviour.ts";
 import { createMenuOwnerPorts, type ItemActionRequest, type ItemActionResult, type MenuOwnerPorts } from "../menu/ports.ts";
 import { SHOP_SCREEN } from "../menu/shop.ts";
+import { itemKey } from "../sprites/runtime.ts";
 import type { Arg, BuiltinSpec } from "./builtins.ts";
 import { createDefaultVirtuals, type VirtualVariablePort } from "./virtuals.ts";
 import { MEDIA_HOST_TYPES, objectValue, mediaVoiceRef, type MediaPlayOptions, type MediaScriptService } from "../audio/script.ts";
@@ -2758,7 +2759,7 @@ function hasLiveEntityHandle(state: GameState | undefined, handle: string): bool
     foldedEntityHandle(sprite.id) === wanted || foldedEntityHandle(sprite.source) === wanted
   )) return true;
   if (state.sprites.items.some((sprite) =>
-    foldedEntityHandle(sprite.id) === wanted || foldedEntityHandle(sprite.source) === wanted
+    foldedEntityHandle(sprite.id) === wanted || foldedEntityHandle(sprite.source) === wanted || foldedEntityHandle(itemKey(sprite)) === wanted
   )) return true;
   return state.actors.actors.some((actor) =>
     foldedEntityHandle(String(actor.id)) === wanted ||

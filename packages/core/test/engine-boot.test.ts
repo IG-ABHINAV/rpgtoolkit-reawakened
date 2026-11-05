@@ -2126,7 +2126,7 @@ for (const pixelMovement of [1, 2]) test(`packaged demo returns through its door
   key("Enter", true); key("Enter", false); advance(30);
   equal(current().world.board?.key, "boards/start.brd");
   equal(current().sprites.items.length, 1, "the real demo board creates its placed item");
-  equal(current().sprites.items[0]?.source, "item/oldman.itm");
+  equal(current().sprites.items[0]?.source, "oldman.itm");
   deepEqual(position(), [213, 146]);
   deepEqual(current().sprites.players[0]?.collisionBase.points, [{ x: -15, y: -15 }, { x: 15, y: -15 }, { x: 15, y: 0 }, { x: -15, y: 0 }]);
   key("ArrowRight", true); advance(24); key("ArrowRight", false);
@@ -2184,14 +2184,14 @@ test("demo item activation starts the real oldman program after walking into its
   key("Enter", true); key("Enter", false); run(engine, sample.files, 5);
   key("Enter", true); key("Enter", false); run(engine, sample.files, 30);
   equal(current().world.board?.key, "boards/start.brd");
-  const item = current().sprites.items.find((candidate) => candidate.source === "item/oldman.itm");
+  const item = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
   ok(item, "the real demo board places oldman.itm");
   ok(item.multitaskThread !== null, "the demo item's inline wander program started");
   const activationType = current().world.board?.items?.find((candidate) => candidate.itemFile.toLowerCase() === "oldman.itm")?.activationType;
   ok(activationType !== undefined && ((activationType & 3) === 0 || (activationType & 3) === 2), "oldman's item activates on a step");
   const initialItemPosition = [item.x, item.y];
   run(engine, sample.files, 90);
-  const movedItem = current().sprites.items.find((candidate) => candidate.source === "item/oldman.itm");
+  const movedItem = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
   ok(movedItem, "oldman remains on the board while its wander program runs");
   ok(movedItem.x !== initialItemPosition[0] || movedItem.y !== initialItemPosition[1], "the real demo item wanders to a different position");
   let held: string | null = null;
@@ -2199,7 +2199,7 @@ test("demo item activation starts the real oldman program after walking into its
   let stuck = 0;
   for (let guard = 0; guard < 500 && !oldmanProgramStarted(); guard += 1) {
     const player = current().sprites.players[0];
-    const wanderingItem = current().sprites.items.find((candidate) => candidate.source === "item/oldman.itm");
+    const wanderingItem = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
     if (player === undefined || wanderingItem === undefined) throw new Error("demo player or oldman disappeared");
     const dx = wanderingItem.x - player.x;
     const dy = wanderingItem.y - player.y;

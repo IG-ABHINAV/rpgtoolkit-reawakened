@@ -41,6 +41,10 @@ The merge keeps `state.world.movement` when replacing the board and passes the i
 
 Independent quick review found no actionable findings; it checked the captured state, draw list, image and unchanged baseline consumers. CI and publication were outside that static review.
 
+Two independent reviews of integration head `80eaea341202fbfbb7986bca2c7d78a072df941b` found and prompted fixes for: (1) resolved item keys not matching authored recovery slots (#1381), (2) item `sourceHandle()` keys not accepted by item commands or explicit child-program context (#1382), and (3) the special script global `__proto__` lost while copying loading variables (#1383). The new real-engine tests failed before the fixes and passed afterward. The checkpoint test also exposed existing ledger rejection of the documented signed `-1` item reserved field (#1384); the real hydrated board now checkpoints and resumes its item program. Source identity uses the already-required authored slot value, with no ledger schema change.
+
+The identity fix changes only four state fields relative to the prior integrated demo capture at ticks 90/120/600: the item's `id` and `source` and its thread's source/target. The old-man filename now remains `oldman.itm` rather than the resolved asset key. All title/board/later draw lists and RGBA buffers are byte-identical to the earlier reviewed capture; only the three corresponding state hashes were deliberately updated.
+
 ## Verification
 
 Focused real-demo item activation passed; `node --test packages/runner-headless/test/closing.test.ts` passed all six tests, including extra-settled-request coverage; Node and Bun closing each matched all eight baselines with batches 600/30/7; five selected browser files passed all eight tests, including the six previously failing paths. Existing CI run 41971025852 demonstrates the old state/draw/pixel baselines detect this changed behavior.

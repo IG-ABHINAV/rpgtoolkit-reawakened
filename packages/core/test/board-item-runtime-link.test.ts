@@ -104,8 +104,8 @@ test("initial board entry starts its item thread without retaining a temporary s
   equal(state.vm.globals.ghoststarted, 1, "the temporary startup board item's thread executed before cleanup");
   const activeItemThreads = state.vm.threads.filter((thread) => thread.kind === "item" && thread.status !== "finished");
   equal(activeItemThreads.length, 1, "only the initial board item's multitask thread remains active");
-  deepEqual(activeItemThreads.map((thread) => thread.source), ["item:item/walker.itm"]);
-  deepEqual(runtime.section.items.map(({ id, visible }) => [id, visible]), [["item/walker.itm", true]]);
+  deepEqual(activeItemThreads.map((thread) => thread.source), ["item:walker.itm"]);
+  deepEqual(runtime.section.items.map(({ id, visible }) => [id, visible]), [["walker.itm", true]]);
 });
 
 test("loaded game rebinds supplied sprite runtime to restored item state and VM", () => {
@@ -126,7 +126,7 @@ test("loaded game rebinds supplied sprite runtime to restored item state and VM"
   let mutated = false;
   const engine = makeEngine(loadingGame, runtime, [{ phase: "movement", run(current) {
     if (!mutated && current.vm.globals.persistedmark === 42) {
-      runtime.hideItem("item/walker.itm");
+      runtime.hideItem("walker.itm");
       mutated = true;
     }
     restoredStates.push(current);

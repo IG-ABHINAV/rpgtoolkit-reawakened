@@ -2264,14 +2264,14 @@ export function createEngine(init: EngineInit): Engine {
         fail({ code: "asset.invalid", file: resolved.value, line: parsed.error.offset, message: parsed.error.message });
         return;
       }
-      itemFiles.set(resolved.value, parsed.value);
+      itemFiles.set(item.itemFile, parsed.value);
       activationPrograms.set(item.slot, item.activationPrg || parsed.value.activationProgram);
-      hydratedItems.push({ ...item, itemFile: resolved.value });
+      hydratedItems.push(item);
     }
     const activeItems = (board.items ?? []).map((item) => ({ ...item, activationPrg: activationPrograms.get(item.slot) ?? item.activationPrg }));
     const activeRaw = board.rawItems?.map((item) => ({ ...item, activationPrg: activationPrograms.get(item.slot) ?? item.activationPrg }));
     state.world = { ...state.world, board: { ...board, items: activeItems, ...(activeRaw === undefined ? {} : { rawItems: activeRaw }) } };
-    const variables: Record<string, string | number | boolean> = {};
+    const variables: Record<string, string | number | boolean> = Object.create(null);
     for (const [name, value] of Object.entries(state.vm.globals)) {
       if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") variables[name] = value;
     }

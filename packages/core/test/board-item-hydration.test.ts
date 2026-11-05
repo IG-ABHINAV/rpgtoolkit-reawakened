@@ -1,7 +1,7 @@
 // Authored-board item hydration, program precedence and item-owned multitask thread (E-45).
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
-import { TextEncoder } from "node:util";
+import { TextDecoder, TextEncoder } from "node:util";
 import {
   ANIMATION_MAGIC,
   assetKey,
@@ -13,10 +13,14 @@ import {
   createEngine,
   createSpriteRuntime,
   fileProgramRef,
+  IR_VERSION,
   inputPhaseRegistration,
   movementPhaseRegistration,
   PACKAGE_ROOT,
+  projectGameLedger,
   resolveProgram,
+  restoreRecoveryCandidate,
+  startProgram,
   triggerPhaseRegistration,
   writeAnimation,
   writeBoard,
@@ -90,13 +94,14 @@ function authoredBoard(overrides = true, separatePlayer = false) {
   };
 }
 
-function setup(overrides = true, multitask = "boardMultitask = boardMultitask + 1\nend()\n", separatePlayer = false): { engine: Engine; files: Map<AssetKey, Uint8Array>; state: () => GameState } {
-  const board = authoredBoard(overrides, separatePlayer);
+function setup(overrides = true, multitask = "boardMultitask = boardMultitask + 1\nend()\n", separatePlayer = false, specialLoading = false, recoveryCandidate?: Uint8Array): { engine: Engine; files: Map<AssetKey, Uint8Array>; state: () => GameState } {
+  const initialBoard = authoredBoard(overrides, separatePlayer);
+  const board = specialLoading ? { ...initialBoard, sprites: [{ ...initialBoard.sprites[0]!, loadingVar: "__proto__", loadingValue: "5" }] } : initialBoard;
   const files = new Map<AssetKey, Uint8Array>();
   const mainKey = assetKey("main.gam");
   const boardKey = assetKey("Boards/start.brd");
   const itemKey = assetKey("Item/token.itm");
-  const main = { ...createEmptyMainFile(), major: 2, minor: 9, initBoard: "start.brd", initChar: "hero.tem" };
+  const main = { ...createEmptyMainFile(), major: 2, minor: 9, initBoard: "start.brd", initChar: "hero.tem", startupPrg: specialLoading ? "startup.prg" : "" };
   const characterBytes = writeCharacter({
     ...createEmptyCharacter(),
     minor: 7,
@@ -125,6 +130,7 @@ function setup(overrides = true, multitask = "boardMultitask = boardMultitask + 
     "board-activation.prg": "boardActivation = 1\nend()\n",
     "item-activation.prg": "itemActivation = 1\nend()\n",
     "board-multitask.prg": multitask,
+    "startup.prg": "__proto__ = 5\nend()\n",
     "item-multitask.prg": "itemMultitask = itemMultitask + 1\nend()\n",
   })) files.set(assetKey(`Prg/${name}`), encoder.encode(source));
   const index = createAssetIndex([...files.keys()]);
@@ -142,6 +148,7 @@ function setup(overrides = true, multitask = "boardMultitask = boardMultitask + 
     height: 240,
     maxTicks: 600,
     include: { shading: true, images: true, sprites: true },
+    ...(recoveryCandidate === undefined ? {} : { recoveryCandidate }),
     spriteRuntime,
     phaseRegistrations: [
       inputPhaseRegistration(),
@@ -191,7 +198,7 @@ test("board entry hydrates authored item appearance and board-level programs ove
   equal(state.sprites.items.length, 1);
   const sprite = state.sprites.items[0];
   ok(sprite);
-  equal(sprite.source, "item/token.itm");
+  equal(sprite.source, "token.itm");
   equal(sprite.x, 48);
   equal(sprite.y, 63);
   equal(sprite.visible, true);
@@ -251,4 +258,46 @@ test("a hydrated item thread uses its source and the runtime push mode together"
   const state = latest();
   deepEqual(state.world.movement, { walking: 1, pushing: 1 });
   equal(state.sprites.items[0]?.x, 56, "the item-owned source moves one runtime-selected 8-pixel step");
+});
+
+test("a hydrated board item survives an actual interruption checkpoint", () => {
+  const { engine, files, state: latest } = setup();
+  advance(engine, files, 30);
+  const state = latest();
+  projectGameLedger(state);
+  startProgram(state.vm, { kind: "inline", text: "checkpoint()\nend()\n", ir: IR_VERSION });
+  advance(engine, files, 1);
+  const candidate = engine.recoveryCandidate();
+  ok(candidate !== null, "a hydrated item must not invalidate checkpoint capture");
+  const restored = restoreRecoveryCandidate(new TextDecoder().decode(candidate.bytes), state.audio);
+  equal(restored.state.sprites.items[0]?.source, restored.state.world.board?.rawItems?.[0]?.itemFile);
+  const resumed = setup(true, undefined, false, false, candidate.bytes);
+  advance(resumed.engine, resumed.files, 30);
+  equal(resumed.engine.recoveryStatus(), "paused");
+  equal(resumed.engine.resumeRecovery(), true);
+  advance(resumed.engine, resumed.files, 1);
+  equal(resumed.state().sprites.items[0]?.source, restored.state.sprites.items[0]?.source);
+  equal(resumed.state().vm.globals.boardmultitask, 2, "recovered item program executes on resume");
+});
+
+test("a hydrated item thread's sourceHandle works as an item and child-program handle", () => {
+  const { engine, files, state: latest } = setup(
+    true,
+    'handle = sourceHandle()\nitemLocation(handle, observedX, observedY, observedLayer)\npushitem(handle, "E", 4)\nexecuteProgram("item-activation.prg", { source: "source" })\nchildReturned = 1\nend()\n',
+    true,
+  );
+  advance(engine, files, 60);
+  const state = latest();
+  equal(state.vm.globals.observedx, 48);
+  ok((state.sprites.items[0]?.x ?? 0) > 48, "the emitted handle selects the item for movement");
+  equal(state.vm.globals.itemactivation, 1);
+  equal(state.vm.globals.childreturned, 1);
+});
+
+test("an item loading condition can name the __proto__ script global", () => {
+  const { engine, files, state: latest } = setup(true, "loaded = 1\nend()\n", false, true);
+  advance(engine, files, 30);
+  equal(latest().vm.globals.__proto__, 5);
+  equal(latest().sprites.items[0]?.visible, true);
+  equal(latest().vm.globals.loaded, 1);
 });
