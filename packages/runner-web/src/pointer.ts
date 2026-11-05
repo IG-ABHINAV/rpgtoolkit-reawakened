@@ -7,6 +7,8 @@
  * not through window or device coordinates.
  */
 
+import { isFallbackTouchControlTarget } from "./touch-controls.ts";
+
 export type LogicalPointer = { readonly x: number; readonly y: number };
 
 /**
@@ -53,68 +55,71 @@ export function attachPointerInput(
     routedButtons &= ~1;
   };
   const route = (event: PointerEvent): void => {
-    const rect = canvas.getBoundingClientRect();
-    const outside = event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom;
-    const primaryNow = (event.buttons & 1) !== 0;
-    const newPrimaryDown = event.type === "pointerdown" && event.button === 0 && primaryNow;
-    const chordedPrimaryMove = event.type === "pointermove" &&
-      (event.pointerType === "mouse" || event.pointerType === "pen") &&
-      primaryNow &&
-      (routedButtons & 1) === 0;
-    if (primaryPointerId === null && !outside && (newPrimaryDown || chordedPrimaryMove)) {
-      primaryPointerId = event.pointerId;
-      suppressedPointerId = null;
-    } else if (event.pointerId === primaryPointerId && newPrimaryDown) {
-      suppressedPointerId = null;
-    }
-    const ownsPrimary = event.pointerId === primaryPointerId;
-    const eventButtons = ownsPrimary
-      ? event.buttons
-      : (event.buttons & ~1) | (routedButtons & 1);
-
-    if (outside) {
-      if (ownsPrimary && (primaryNow || (routedButtons & 1) !== 0)) cancelPrimary(event.pointerId);
-      const releasableButtons = (eventButtons & routedButtons & ~1) | (ownsPrimary ? 0 : routedButtons & 1);
-      if (releasableButtons !== routedButtons) {
-        onPointer(lastPointer, releasableButtons);
-        routedButtons = releasableButtons;
+      if (isFallbackTouchControlTarget(event.target)) return;
+      const rect = canvas.getBoundingClientRect();
+      const outside = event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom;
+      const primaryNow = (event.buttons & 1) !== 0;
+      const newPrimaryDown = event.type === "pointerdown" && event.button === 0 && primaryNow;
+      const chordedPrimaryMove = event.type === "pointermove" &&
+        (event.pointerType === "mouse" || event.pointerType === "pen") &&
+        primaryNow &&
+        (routedButtons & 1) === 0;
+      if (primaryPointerId === null && !outside && (newPrimaryDown || chordedPrimaryMove)) {
+        primaryPointerId = event.pointerId;
+        suppressedPointerId = null;
+      } else if (event.pointerId === primaryPointerId && newPrimaryDown) {
+        suppressedPointerId = null;
       }
-      if (ownsPrimary && !primaryNow) {
+      const ownsPrimary = event.pointerId === primaryPointerId;
+      const eventButtons = ownsPrimary
+        ? event.buttons
+        : (event.buttons & ~1) | (routedButtons & 1);
+  
+      if (outside) {
+        if (ownsPrimary && (primaryNow || (routedButtons & 1) !== 0)) cancelPrimary(event.pointerId);
+        const releasableButtons = (eventButtons & routedButtons & ~1) | (ownsPrimary ? 0 : routedButtons & 1);
+        if (releasableButtons !== routedButtons) {
+          onPointer(lastPointer, releasableButtons);
+          routedButtons = releasableButtons;
+        }
+        if (ownsPrimary && !primaryNow) {
+          primaryPointerId = null;
+          suppressedPointerId = null;
+        }
+        return;
+      }
+      if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
+  
+      if (ownsPrimary && event.pointerId === suppressedPointerId && !primaryNow) suppressedPointerId = null;
+      const buttons = event.pointerId === suppressedPointerId ? eventButtons & ~1 : eventButtons;
+      lastPointer = pointerEventToLogical(event, canvas, viewSize);
+      onPointer(lastPointer, buttons);
+      routedButtons = buttons;
+      if (ownsPrimary && event.type === "pointerup" && !primaryNow) {
         primaryPointerId = null;
         suppressedPointerId = null;
       }
-      return;
-    }
-    if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
-
-    if (ownsPrimary && event.pointerId === suppressedPointerId && !primaryNow) suppressedPointerId = null;
-    const buttons = event.pointerId === suppressedPointerId ? eventButtons & ~1 : eventButtons;
-    lastPointer = pointerEventToLogical(event, canvas, viewSize);
-    onPointer(lastPointer, buttons);
-    routedButtons = buttons;
-    if (ownsPrimary && event.type === "pointerup" && !primaryNow) {
-      primaryPointerId = null;
-      suppressedPointerId = null;
-    }
-  };
+    };
   const onPointerLeave = (event: PointerEvent): void => cancelPrimary(event.pointerId);
   const onPointerUpOutside = (event: PointerEvent): void => {
-    if (event.pointerId !== primaryPointerId || event.target === canvas) return;
-    if ((event.buttons & 1) === 0) {
-      cancelPrimary(event.pointerId);
+      if (isFallbackTouchControlTarget(event.target)) return;
+      if (event.pointerId !== primaryPointerId || event.target === canvas) return;
+      if ((event.buttons & 1) === 0) {
+        cancelPrimary(event.pointerId);
+        primaryPointerId = null;
+        suppressedPointerId = null;
+      }
+    };
+  const onPointerCancel = (event: PointerEvent): void => {
+      if (isFallbackTouchControlTarget(event.target)) return;
+      if (event.currentTarget === window && event.target === canvas) return;
+      if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
+      if (primaryPointerId === event.pointerId) cancelPrimary(event.pointerId);
+      else onCancel();
       primaryPointerId = null;
       suppressedPointerId = null;
-    }
-  };
-  const onPointerCancel = (event: PointerEvent): void => {
-    if (event.currentTarget === window && event.target === canvas) return;
-    if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
-    if (primaryPointerId === event.pointerId) cancelPrimary(event.pointerId);
-    else onCancel();
-    primaryPointerId = null;
-    suppressedPointerId = null;
-    routedButtons &= ~1;
-  };
+      routedButtons &= ~1;
+    };
   const onWindowBlur = (): void => {
     if (primaryPointerId === null || (routedButtons & 1) === 0) return;
     onCancel();

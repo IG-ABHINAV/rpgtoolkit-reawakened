@@ -16,13 +16,14 @@ test("fallback controls dock in both safe side margins when each has room", () =
   ok(layout.left + 160 <= 320);
   ok(layout.right >= 1280);
   ok(layout.right + 104 <= 1600);
+  equal(layout.bottom, 8);
 });
 
 test("fallback controls use gameplay overlay when either side margin is too narrow", () => {
   const measured = geometry({ game: { x: 40, y: 0, width: 1520, height: 855 } });
   const layout = fallbackTouchLayout(measured);
   equal(layout.docked, false);
-  deepEqual({ left: layout.left, right: layout.right }, { left: 48, right: 1448 });
+  deepEqual({ left: layout.left, right: layout.right, bottom: layout.bottom }, { left: 48, right: 1448, bottom: 53 });
   equal(measured.game.width, 1520, "control placement does not resize the gameplay viewport");
 });
 
@@ -41,4 +42,18 @@ test("overlaid controls stay inside horizontal safe areas", () => {
   }));
   equal(layout.docked, false);
   deepEqual({ left: layout.left, right: layout.right }, { left: 88, right: 1400 });
+});
+
+test("portrait overlay anchors controls inside the safe game rectangle", () => {
+  const measured = geometry({
+    content: { width: 430, height: 932 },
+    game: { x: 0, y: 305, width: 430, height: 322 },
+    safeArea: { top: 24, right: 0, bottom: 34, left: 0 },
+  });
+  const layout = fallbackTouchLayout(measured);
+  equal(layout.docked, false);
+  const padBottom = measured.content.height - layout.bottom;
+  const padTop = padBottom - 104;
+  ok(padTop >= measured.game.y, "the D-pad begins inside the game rectangle");
+  ok(padBottom <= measured.game.y + measured.game.height, "the D-pad ends inside the game rectangle");
 });

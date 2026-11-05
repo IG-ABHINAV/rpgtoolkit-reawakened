@@ -13,8 +13,13 @@ const D_PAD_HEIGHT = CONTROL_SIZE * 2 + CONTROL_GAP;
 const ACTION_WIDTH = CONTROL_SIZE * 2 + CONTROL_GAP;
 const MARGIN_CLEARANCE = 8;
 
+/** Identifies events originating in host fallback controls so runner gameplay handlers can leave them to the controls. */
+export function isFallbackTouchControlTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(".fallback-touch-controls") !== null;
+}
+
 /** Physical-pixel placement for the fallback controls; margin docking is all-or-nothing. */
-export function fallbackTouchLayout(geometry: TouchControlGeometry): { readonly docked: boolean; readonly left: number; readonly right: number } {
+export function fallbackTouchLayout(geometry: TouchControlGeometry): { readonly docked: boolean; readonly left: number; readonly right: number; readonly bottom: number } {
   const leftSpace = geometry.game.x - geometry.safeArea.left;
   const rightSpace = geometry.content.width - geometry.game.x - geometry.game.width - geometry.safeArea.right;
   const availableHeight = geometry.content.height - geometry.safeArea.top - geometry.safeArea.bottom;
@@ -32,7 +37,10 @@ export function fallbackTouchLayout(geometry: TouchControlGeometry): { readonly 
   const right = docked
     ? geometry.content.width - geometry.safeArea.right - (rightSpace - ACTION_WIDTH) / 2 - ACTION_WIDTH
     : overlayRight;
-  return { docked, left, right };
+  const bottom = docked
+    ? geometry.safeArea.bottom + MARGIN_CLEARANCE
+    : geometry.content.height - Math.min(geometry.game.y + geometry.game.height, geometry.content.height - geometry.safeArea.bottom) + MARGIN_CLEARANCE;
+  return { docked, left, right, bottom };
 }
 
 const TOUCH_STYLES = `
@@ -71,6 +79,7 @@ export function createFallbackTouchControls(
   actionGroup.setAttribute("role", "group");
   const buttons = new Map<FallbackTouchAction, HTMLButtonElement>();
   const activePointers = new Map<number, FallbackTouchAction>();
+  const activeKeys = new Map<string, FallbackTouchAction>();
   const actions: readonly { readonly action: FallbackTouchAction; readonly label: string; readonly glyph: string; readonly zone: "dpad" | "actions"; readonly row: number; readonly column: number }[] = [
     { action: "up", label: "Move up", glyph: "▲", zone: "dpad", row: 0, column: 1 },
     { action: "left", label: "Move left", glyph: "◀", zone: "dpad", row: 1, column: 0 },
@@ -80,21 +89,33 @@ export function createFallbackTouchControls(
     { action: "cancel", label: "Cancel", glyph: "B", zone: "actions", row: 0, column: 1 },
   ];
 
-  const hasActivePointer = (action: FallbackTouchAction): boolean => {
+  const hasActiveSource = (action: FallbackTouchAction): boolean => {
     for (const activeAction of activePointers.values()) if (activeAction === action) return true;
+    for (const activeAction of activeKeys.values()) if (activeAction === action) return true;
     return false;
   };
-  const release = (pointerId: number): void => {
-    const action = activePointers.get(pointerId);
-    if (action === undefined) return;
-    activePointers.delete(pointerId);
-    if (!hasActivePointer(action)) {
+  const press = (action: FallbackTouchAction, wasActive: boolean): void => {
+      buttons.get(action)?.setAttribute("aria-pressed", "true");
+      if (!wasActive) dispatch(action, true);
+    };
+  const release = (action: FallbackTouchAction): void => {
+    if (!hasActiveSource(action)) {
       buttons.get(action)?.setAttribute("aria-pressed", "false");
       dispatch(action, false);
     }
   };
+  const releasePointer = (pointerId: number): void => {
+    const action = activePointers.get(pointerId);
+    if (action === undefined) return;
+    activePointers.delete(pointerId);
+    release(action);
+  };
   const releaseAll = (): void => {
-    for (const pointerId of [...activePointers.keys()]) release(pointerId);
+    for (const pointerId of [...activePointers.keys()]) releasePointer(pointerId);
+    for (const [code, action] of activeKeys) {
+      activeKeys.delete(code);
+      release(action);
+    }
   };
   window.addEventListener("blur", releaseAll);
   for (const entry of actions) {
@@ -107,35 +128,46 @@ export function createFallbackTouchControls(
     button.style.gridRow = String(entry.row + 1);
     button.style.gridColumn = String(entry.column + 1);
     button.addEventListener("pointerdown", (event) => {
-      event.stopPropagation();
       if (!button.disabled && event.button === 0) {
         event.preventDefault();
         button.setPointerCapture(event.pointerId);
-        const alreadyActive = hasActivePointer(entry.action);
-        activePointers.set(event.pointerId, entry.action);
-        button.setAttribute("aria-pressed", "true");
-        if (!alreadyActive) dispatch(entry.action, true);
+        const wasActive = hasActiveSource(entry.action);
+                activePointers.set(event.pointerId, entry.action);
+        press(entry.action, wasActive);
       }
     });
-    button.addEventListener("pointermove", (event) => event.stopPropagation());
+    button.addEventListener("pointermove", (event) => event.preventDefault());
     button.addEventListener("pointerup", (event) => {
-      event.stopPropagation();
-      release(event.pointerId);
+      event.preventDefault();
+      releasePointer(event.pointerId);
     });
     button.addEventListener("pointercancel", (event) => {
-      event.stopPropagation();
-      release(event.pointerId);
+      event.preventDefault();
+      releasePointer(event.pointerId);
     });
-    button.addEventListener("lostpointercapture", (event) => {
-      event.stopPropagation();
-      release(event.pointerId);
+    button.addEventListener("lostpointercapture", (event) => releasePointer(event.pointerId));
+    button.addEventListener("keydown", (event) => {
+      if ((event.code === "Enter" || event.code === "Space") && !button.disabled) {
+        event.preventDefault();
+        if (!activeKeys.has(event.code)) {
+          const wasActive = hasActiveSource(entry.action);
+                    activeKeys.set(event.code, entry.action);
+          press(entry.action, wasActive);
+        }
+      }
+    });
+    button.addEventListener("keyup", (event) => {
+      if (event.code === "Enter" || event.code === "Space") {
+        event.preventDefault();
+        const action = activeKeys.get(event.code);
+        if (action !== undefined) {
+          activeKeys.delete(event.code);
+          release(action);
+        }
+      }
     });
     button.addEventListener("click", (event) => {
-      // Native keyboard activation has detail 0; pointer activation already emitted its press/release edges.
-      if (event.detail === 0 && !button.disabled) {
-        dispatch(entry.action, true);
-        dispatch(entry.action, false);
-      }
+      event.preventDefault();
     });
     buttons.set(entry.action, button);
     (entry.zone === "dpad" ? pad : actionGroup).append(button);
@@ -157,9 +189,8 @@ export function createFallbackTouchControls(
     actionGroup.style.position = "absolute";
     pad.style.left = `${layout.left}px`;
     actionGroup.style.right = `${measured.content.width - layout.right - ACTION_WIDTH}px`;
-    const bottom = measured.safeArea.bottom + MARGIN_CLEARANCE;
-    pad.style.bottom = `${bottom}px`;
-    actionGroup.style.bottom = `${bottom}px`;
+    pad.style.bottom = `${layout.bottom}px`;
+    actionGroup.style.bottom = `${layout.bottom}px`;
   };
   stage.append(root);
   position();

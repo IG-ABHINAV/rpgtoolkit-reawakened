@@ -83,6 +83,15 @@ test("touch-capable live player exposes accessible fallback controls without shr
     expect(affordances.height).toBeGreaterThanOrEqual(44);
     expect(affordances.outlineWidth).toBe("3px");
     expect(affordances.outlineStyle).toBe("solid");
+        const overlayBounds = await page.locator(".fallback-touch-pad").evaluate((pad) => {
+          const canvas = document.querySelector("#screen");
+          if (canvas === null) throw new Error("player canvas is missing");
+          const padBounds = pad.getBoundingClientRect();
+          const gameBounds = canvas.getBoundingClientRect();
+          return { padTop: padBounds.top, padBottom: padBounds.bottom, gameTop: gameBounds.top, gameBottom: gameBounds.bottom };
+        });
+        expect(overlayBounds.padTop).toBeGreaterThanOrEqual(overlayBounds.gameTop);
+        expect(overlayBounds.padBottom).toBeLessThanOrEqual(overlayBounds.gameBottom);
     await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
 
     const before = await page.evaluate(() => ({
@@ -94,10 +103,26 @@ test("touch-capable live player exposes accessible fallback controls without shr
     expect(before.logicalWidth).toBe(640);
     expect(before.logicalHeight).toBe(480);
     await moveRight.tap();
-    await page.waitForFunction((start) => {
-      const player = window.__live?.player;
-      return player !== null && player !== undefined && player.x > start.x;
-    }, before.player, { timeout: 10_000 });
+    await page.waitForFunction((start) => { const player = window.__live?.player; return player !== null && player !== undefined && player.x > start.x; }, before.player, { timeout: 10_000 });
+        await moveRight.focus();
+        const keyboardStart = await page.evaluate(() => window.__live?.player ?? null);
+        if (keyboardStart === null) throw new Error("live player position is not available");
+        await page.keyboard.down("Space");
+        await page.waitForFunction((start) => {
+          const player = window.__live?.player;
+          return player !== null && player !== undefined && player.x > start.x;
+        }, keyboardStart, { timeout: 10_000 });
+        await page.keyboard.up("Space");
+    
+        const box = await moveRight.boundingBox();
+        if (box === null) throw new Error("move-right fallback button has no bounds");
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.keyboard.down("Space");
+        await page.mouse.up();
+        await expect(moveRight).toHaveAttribute("aria-pressed", "true");
+        await page.keyboard.up("Space");
+        await expect(moveRight).toHaveAttribute("aria-pressed", "false");
   } finally {
     await context.close();
   }

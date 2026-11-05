@@ -6,7 +6,7 @@
  */
 
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
-import { createFallbackTouchControls } from "@tk-reawakened/runner-web/touch-controls";
+import { createFallbackTouchControls, isFallbackTouchControlTarget } from "@tk-reawakened/runner-web/touch-controls";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
@@ -207,12 +207,16 @@ function run(
   const savePath = "slot-1.json";
   const saveBytes = (): Uint8Array => new TextEncoder().encode(JSON.stringify({ gameId, tick: session.tick() }));
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
-  };
+      if (isFallbackTouchControlTarget(event.target)) return;
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+      pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
+    };
   const onKeyUp = (event: KeyboardEvent): void => {
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
-  };
+      if (isFallbackTouchControlTarget(event.target)) return;
+      {
+        pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
+      };
+    };
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state } });
   };

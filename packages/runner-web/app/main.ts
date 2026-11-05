@@ -11,7 +11,7 @@ import { createLiveSession, type LiveSession } from "../src/live-session.ts";
 import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
-import { createFallbackTouchControls } from "../src/touch-controls.ts";
+import { createFallbackTouchControls, isFallbackTouchControlTarget } from "../src/touch-controls.ts";
 
 type LiveReport = {
   tick: number;
@@ -383,11 +383,15 @@ function startLiveLoop(
       () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
     );
   const key = (event: KeyboardEvent, down: boolean): void => {
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
-  };
+      if (isFallbackTouchControlTarget(event.target)) return;
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+      pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
+    }
   const onKeyDown = (event: KeyboardEvent): void => key(event, true);
-  const onKeyUp = (event: KeyboardEvent): void => key(event, false);
+  const onKeyUp = (event: KeyboardEvent): void => {
+      if (isFallbackTouchControlTarget(event.target)) return;
+      key(event, false);
+    };
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state } });
   };
