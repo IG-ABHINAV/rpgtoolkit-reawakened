@@ -118,6 +118,13 @@ export function createFallbackTouchControls(
       pressSequences.set(action, dispatch(action, true));
     }
   };
+  const forceRelease = (action: FallbackTouchAction): void => {
+    if (hasActiveSource(action) || !pressSequences.has(action)) return;
+    pendingReleases.delete(action);
+    pressSequences.delete(action);
+    buttons.get(action)?.setAttribute("aria-pressed", "false");
+    dispatch(action, false);
+  };
   const release = (action: FallbackTouchAction): void => {
     if (hasActiveSource(action)) return;
     const submittedAt = pressSequences.get(action);
@@ -135,6 +142,12 @@ export function createFallbackTouchControls(
     if (action === undefined) return;
     activePointers.delete(pointerId);
     release(action);
+  };
+  const cancelPointer = (pointerId: number): void => {
+    const action = activePointers.get(pointerId);
+    if (action === undefined) return;
+    activePointers.delete(pointerId);
+    forceRelease(action);
   };
   const releaseKey = (event: KeyboardEvent): void => {
     if (event.code !== "Enter" && event.code !== "Space") return;
@@ -154,11 +167,7 @@ export function createFallbackTouchControls(
     activePointers.clear();
     activeKeys.clear();
     pendingReleases.clear();
-    for (const action of actions) {
-      pressSequences.delete(action);
-      buttons.get(action)?.setAttribute("aria-pressed", "false");
-      dispatch(action, false);
-    }
+    for (const action of actions) forceRelease(action);
   };
   const releaseAll = (): void => {
     forceReleaseAll();
@@ -194,8 +203,8 @@ export function createFallbackTouchControls(
     });
     button.addEventListener("pointermove", (event) => event.preventDefault());
     button.addEventListener("pointerup", (event) => { event.preventDefault(); releasePointer(event.pointerId); });
-    button.addEventListener("pointercancel", (event) => { event.preventDefault(); releasePointer(event.pointerId); });
-    button.addEventListener("lostpointercapture", (event) => releasePointer(event.pointerId));
+    button.addEventListener("pointercancel", (event) => { event.preventDefault(); cancelPointer(event.pointerId); });
+    button.addEventListener("lostpointercapture", (event) => cancelPointer(event.pointerId));
     button.addEventListener("keydown", (event) => {
           if (event.code !== "Enter" && event.code !== "Space") return;
           event.preventDefault();

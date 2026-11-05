@@ -220,20 +220,39 @@ test("touch-capable live player exposes accessible fallback controls without shr
     });
     expect(leakedSpaceEvents).toBe(0);
 
+    const preDoubleTapTick = await page.evaluate(() => window.__live?.tick ?? 0);
+    await page.waitForFunction((tick) => window.__live !== undefined && window.__live.tick >= tick + 30, preDoubleTapTick, { timeout: 10_000 });
     await page.evaluate(() => {
+      const windowWithTrace = window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[]; consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] };
+      windowWithTrace.__touchTrace = [];
       const button = document.querySelector<HTMLButtonElement>('[aria-label="Move right"]');
       if (button === null) throw new Error("fallback Move right button is missing");
       button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
       button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
     });
     await expect(moveRight).toHaveAttribute("aria-pressed", "false");
-    const doubleTapEdges = await page.evaluate(() => {
-      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
-      return trace.flatMap((entry) => entry.inputs ?? [])
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[]; consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      const inputEdges = trace.flatMap((entry) => entry.inputs ?? [])
         .filter((input) => input.event.kind === "action" && input.event.action === "right" && input.event.source === "runner.fallback")
         .map((input) => input.event.down);
+      const consumedEdges = trace.flatMap((entry) => entry.consumed ?? [])
+        .filter((input) => input.event.kind === "action" && input.event.action === "right" && input.event.source === "runner.fallback")
+        .map((input) => input.event.down);
+      return inputEdges.length >= 3 && consumedEdges.length >= 3;
+    }, undefined, { timeout: 10_000 });
+    const doubleTapEdges = await page.evaluate(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[]; consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      const edges = (entries: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[]): (boolean | undefined)[] => entries
+        .filter((entry) => entry.event.kind === "action" && entry.event.action === "right" && entry.event.source === "runner.fallback")
+        .map((entry) => entry.event.down);
+      return {
+        input: edges(trace.flatMap((entry) => entry.inputs ?? [])),
+        consumed: edges(trace.flatMap((entry) => entry.consumed ?? [])),
+      };
     });
-    expect(doubleTapEdges.some((_, index) => doubleTapEdges.slice(index, index + 3).join(",") === "true,false,true")).toBe(true);
+    expect(doubleTapEdges.input.slice(0, 3)).toEqual([true, false, true]);
+    expect(doubleTapEdges.consumed.slice(0, 3)).toEqual([true, false, true]);
     await expect(moveRight).toHaveAttribute("aria-pressed", "false");
 
     const settledTick = await page.evaluate(() => window.__live?.tick ?? 0);
@@ -243,7 +262,7 @@ test("touch-capable live player exposes accessible fallback controls without shr
     await page.evaluate(() => {
       const button = document.querySelector<HTMLButtonElement>('[aria-label="Move up"]');
       if (button === null) throw new Error("fallback Move up button is missing");
-      Object.defineProperty(button, "setPointerCapture", { value: () => undefined });
+      Object.defineProperty(button, "setPointerCapture", { value: () => undefined, configurable: true });
       button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 902, pointerType: "touch", button: 0 }));
       window.dispatchEvent(new Event("blur"));
       window.dispatchEvent(new Event("focus"));
@@ -251,6 +270,93 @@ test("touch-capable live player exposes accessible fallback controls without shr
     await page.waitForFunction((tick) => window.__live !== undefined && window.__live.tick >= tick + 30, beforeCancelledHold.tick, { timeout: 10_000 });
     const afterCancelledHold = await page.evaluate(() => window.__live?.player ?? null);
     expect(afterCancelledHold).toEqual(beforeCancelledHold.player);
+
+    const moveUp = page.getByRole("button", { name: "Move up" });
+    const beforeActiveUp = await page.evaluate(() => window.__live?.player ?? null);
+    if (beforeActiveUp === null) throw new Error("live player position is not available");
+    await page.evaluate(() => {
+      const button = document.querySelector<HTMLButtonElement>('[aria-label="Move up"]');
+      if (button === null) throw new Error("fallback Move up button is missing");
+      Object.defineProperty(button, "setPointerCapture", { value: () => undefined, configurable: true });
+      button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 903, pointerType: "touch", button: 0 }));
+    });
+    await page.waitForFunction((start) => {
+      const player = window.__live?.player;
+      return player !== null && player !== undefined && (player.x !== start.x || player.y !== start.y);
+    }, beforeActiveUp, { timeout: 10_000 });
+    await page.evaluate(() => {
+      document.querySelector<HTMLButtonElement>('[aria-label="Move up"]')
+        ?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 903, pointerType: "touch", button: 0 }));
+    });
+    await expect(moveUp).toHaveAttribute("aria-pressed", "false");
+    const settleActiveTick = await page.evaluate(() => window.__live?.tick ?? 0);
+    await page.waitForFunction((tick) => window.__live !== undefined && window.__live.tick >= tick + 30, settleActiveTick, { timeout: 10_000 });
+    const beforePointerCancel = await page.evaluate(() => ({ player: window.__live?.player ?? null, tick: window.__live?.tick ?? 0 }));
+    if (beforePointerCancel.player === null) throw new Error("live player position is not available");
+    await page.evaluate(() => {
+      const windowWithTrace = window as Window & { __touchTrace?: readonly { consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] };
+      windowWithTrace.__touchTrace = [];
+      const button = document.querySelector<HTMLButtonElement>('[aria-label="Move up"]');
+      if (button === null) throw new Error("fallback Move up button is missing");
+      button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 904, pointerType: "touch", button: 0 }));
+      button.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, pointerId: 904, pointerType: "touch", button: 0 }));
+    });
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      return trace.some((entry) => {
+        const edges = (entry.consumed ?? [])
+          .filter((input) => input.event.kind === "action" && input.event.action === "up" && input.event.source === "runner.fallback")
+          .map((input) => input.event.down);
+        return edges.includes(true) && edges.includes(false);
+      });
+    }, undefined, { timeout: 10_000 });
+    const cancelBatchEdges = await page.evaluate(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      const entry = trace.find((candidate) => {
+        const edges = (candidate.consumed ?? [])
+          .filter((input) => input.event.kind === "action" && input.event.action === "up" && input.event.source === "runner.fallback")
+          .map((input) => input.event.down);
+        return edges.includes(true) && edges.includes(false);
+      });
+      return (entry?.consumed ?? [])
+        .filter((input) => input.event.kind === "action" && input.event.action === "up" && input.event.source === "runner.fallback")
+        .map((input) => input.event.down);
+    });
+    expect(cancelBatchEdges).toEqual([true, false]);
+    const afterPointerCancel = await page.evaluate(() => window.__live?.player ?? null);
+    expect(afterPointerCancel).toEqual(beforePointerCancel.player);
+
+    await page.evaluate(() => {
+      const windowWithTrace = window as Window & { __touchTrace?: readonly { consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] };
+      windowWithTrace.__touchTrace = [];
+    });
+    await moveUp.focus();
+    await page.keyboard.down("Space");
+    await page.evaluate(() => {
+      const button = document.querySelector<HTMLButtonElement>('[aria-label="Move up"]');
+      if (button === null) throw new Error("fallback Move up button is missing");
+      button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 905, pointerType: "touch", button: 0 }));
+      button.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, pointerId: 905, pointerType: "touch", button: 0 }));
+    });
+    await expect(moveUp).toHaveAttribute("aria-pressed", "true");
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      return trace.some((entry) => entry.consumed?.some((input) => input.event.kind === "action" && input.event.action === "up" && input.event.down === true && input.event.source === "runner.fallback"));
+    }, undefined, { timeout: 10_000 });
+    const heldAfterPointerCancel = await page.evaluate(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      return trace.flatMap((entry) => entry.consumed ?? [])
+        .filter((input) => input.event.kind === "action" && input.event.action === "up" && input.event.source === "runner.fallback")
+        .map((input) => input.event.down);
+    });
+    expect(heldAfterPointerCancel).toEqual([true]);
+    await page.keyboard.up("Space");
+    await expect(moveUp).toHaveAttribute("aria-pressed", "false");
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      return trace.flatMap((entry) => entry.consumed ?? [])
+        .some((input) => input.event.kind === "action" && input.event.action === "up" && input.event.down === false && input.event.source === "runner.fallback");
+    }, undefined, { timeout: 10_000 });
   } finally {
     await context.close();
   }
