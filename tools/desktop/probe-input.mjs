@@ -60,7 +60,7 @@ function hostMetricsPackagePath() {
   const startupPath = "host-metrics.prg";
   const startup = `on(game, "viewportResized", (event) => {
   leftMargin = marginWidth("left")
-  if (leftMargin == event.detail.marginLeft && leftMargin == 160) {
+  if (leftMargin > 0 && leftMargin == event.detail.marginLeft) {
     send("start.brd", 128, 128, 1)
   }
 })
@@ -148,6 +148,29 @@ async function resizeWindowContent(mainDebugger, width, height, area) {
     return window.getContentSize();
   })()`;
   const result = await mainDebugger.send("Runtime.evaluate", { expression, returnByValue: true });
+  if (result.exceptionDetails !== undefined) {
+    throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? JSON.stringify(result.exceptionDetails));
+  }
+  return result.result.value;
+}
+async function inspectWindowCapacity(mainDebugger) {
+  const result = await mainDebugger.send("Runtime.evaluate", {
+    expression: `(() => {
+      const { screen } = process.mainModule.require("electron");
+      const window = process.mainModule.require("electron").BrowserWindow.getAllWindows()[0];
+      if (window === undefined) throw new Error("Electron has no BrowserWindow");
+      const bounds = window.getBounds();
+      const display = screen.getDisplayMatching(bounds);
+      window.setPosition(display.workArea.x, display.workArea.y);
+      return {
+        bounds: window.getBounds(),
+        contentSize: window.getContentSize(),
+        workArea: display.workArea,
+        workAreaSize: display.workAreaSize,
+      };
+    })()`,
+    returnByValue: true,
+  });
   if (result.exceptionDetails !== undefined) {
     throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? JSON.stringify(result.exceptionDetails));
   }
@@ -293,10 +316,30 @@ async function main() {
         return report;
       };
     })()`);
-    // Resize the real BrowserWindow, not just Chromium's emulated CSS viewport. The window's decoration and
-    // the status row are accounted for by applying the difference between the measured viewport area and target.
+    // Resize the real BrowserWindow, not just Chromium's emulated CSS viewport. Use the matched display's work area
+    // and the measured window/viewport chrome to choose three distinct content sizes that the display can hold.
+    const displayCapacity = await inspectWindowCapacity(mainDebugger);
+    const initialArea = await evaluate(`(() => {
+      const area = document.querySelector("#viewport").getBoundingClientRect();
+      return { width: area.width, height: area.height };
+    })()`);
+    const maxViewport = {
+      width: Math.max(1, displayCapacity.workAreaSize.width - displayCapacity.bounds.width + initialArea.width),
+      height: Math.max(1, displayCapacity.workAreaSize.height - displayCapacity.bounds.height + initialArea.height),
+    };
+    const availableScale = Math.min(maxViewport.width / 960, maxViewport.height / 480);
+    const middleScale = Math.min(1, availableScale * 0.75);
+    const resizeTargets = [
+      [Math.round(640 * middleScale * 0.75), Math.round(480 * middleScale * 0.75)],
+      [Math.round(960 * middleScale), Math.round(480 * middleScale)],
+      [Math.min(1440, Math.floor(maxViewport.width)), Math.min(900, Math.floor(maxViewport.height))],
+    ];
+    if (new Set(resizeTargets.map(([width, height]) => `${width}x${height}`)).size !== resizeTargets.length
+      || resizeTargets.some(([width, height]) => width > maxViewport.width || height > maxViewport.height)) {
+      throw new Error(`desktop work area cannot provide three distinct viewport sizes: ${JSON.stringify({ displayCapacity, maxViewport, resizeTargets })}`);
+    }
     const fits = [];
-    for (const [width, height] of [[480, 360], [960, 720], [1440, 900]]) {
+    for (const [targetIndex, [width, height]] of resizeTargets.entries()) {
       const beforeArea = await evaluate(`(() => {
         const area = document.querySelector("#viewport").getBoundingClientRect();
         return { width: area.width, height: area.height };
@@ -337,7 +380,8 @@ async function main() {
       geometry.nativeContentSize = nativeContentSize;
       const { view, backing, box, area } = geometry;
       const ratio = Math.min(area.width / view.width, area.height / view.height);
-      if (width === 1440 && (ratio <= 1.5 || ratio >= 2)) throw new Error(`probe did not reach its non-integer scale boundary: ${ratio}`);
+      if (targetIndex === 2 && maxViewport.width > 960 && maxViewport.height > 720
+        && (ratio <= 1.5 || ratio >= 2)) throw new Error(`probe did not reach its non-integer scale boundary: ${ratio}`);
       const scale = ratio >= 1 ? Math.floor(ratio) : ratio;
       const gameWidth = view.width * scale;
       const gameHeight = view.height * scale;
@@ -356,22 +400,24 @@ async function main() {
         || Math.abs(hostDisplay.game.height - gameHeight) > 0.05) {
         throw new Error(`desktop host.display geometry does not match logical frame fit: ${JSON.stringify(geometry)}`);
       }
-      fits.push({ ...geometry, marginLeft: Math.floor(hostDisplay.game.x / scale) });
-      if (process.argv.includes("--host-metrics") && width === 960) {
+      fits.push({ requested: { width, height }, ...geometry, marginLeft: Math.floor(hostDisplay.game.x / scale) });
+      if (process.argv.includes("--host-metrics") && targetIndex === 1) {
         let scriptPlayer = null;
         for (let attempt = 0; attempt < 40 && scriptPlayer?.x !== 128; attempt += 1) {
           scriptPlayer = await evaluate("window.__live?.player ?? null");
           if (scriptPlayer?.x !== 128) await sleep(50);
         }
         if (scriptPlayer?.x !== 128 || scriptPlayer?.y !== 128) {
-          throw new Error(`desktop viewportResized script listener did not observe marginWidth(left)=160: ${JSON.stringify(scriptPlayer)}`);
+          throw new Error(`desktop viewportResized script listener did not observe positive marginWidth(left): ${JSON.stringify(scriptPlayer)}`);
         }
         fits[fits.length - 1].scriptPlayer = scriptPlayer;
       }
     }
-    if (fits[0].marginLeft === fits[2].marginLeft) throw new Error("desktop marginWidth did not change across viewport sizes");
+    if (fits[0].marginLeft === fits[1].marginLeft || fits[1].marginLeft <= 0) {
+      throw new Error(`desktop marginWidth did not change across feasible viewport sizes: ${JSON.stringify({ maxViewport, fits: fits.map(({ requested, marginLeft }) => ({ requested, marginLeft })) })}`);
+    }
     if (process.argv.includes("--host-metrics")) {
-      console.log(JSON.stringify({ package: pkg, opened: { tick: opened.tick, player: opened.player ?? null }, fits }, null, 2));
+      console.log(JSON.stringify({ package: pkg, displayCapacity, maxViewport, opened: { tick: opened.tick, player: opened.player ?? null }, fits }, null, 2));
       return;
     }
 
