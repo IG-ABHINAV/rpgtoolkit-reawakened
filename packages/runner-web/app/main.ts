@@ -8,7 +8,7 @@ import { createLoadController, type LoadModeRequest, type LoadState } from "../s
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, type LiveSession } from "../src/live-session.ts";
-import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 import { createFallbackTouchControls } from "../src/touch-controls.ts";
@@ -358,19 +358,30 @@ function startLiveLoop(
   let pending: PendingInput[] = [];
   const stage = canvas.parentElement;
   if (stage === null) throw new Error("player: the screen has no stage for fallback touch controls");
-  const touchControls = createFallbackTouchControls(
-    stage,
-    () => session.displayGeometry(),
-    (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } }),
-  );
-  const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const viewSize = session.viewSize(),
+      observedGeometry = createObservedHostGeometry(session.displayGeometry()),
+      touchControls = createFallbackTouchControls(
+        stage,
+        () => observedGeometry.current(),
+        (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } }),
+      );
+  
+  const stopObservingHost = observeHostState(
+      hostViewport,
+      viewSize,
+      (event) => {
+        observedGeometry.observe(event);
+        pending.push({ tick: null, event });
+      },
+      session.hostState ?? undefined,
+    );
   const stopPointerInput = attachPointerInput(
-    canvas,
-    viewSize,
-    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
-  );
+      hostViewport,
+      viewSize,
+      observedGeometry.current,
+      ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
+      () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+    );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
