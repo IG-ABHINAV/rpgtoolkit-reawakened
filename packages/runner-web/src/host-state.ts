@@ -49,11 +49,16 @@ export function createSafeAreaProbe(): { readonly read: () => HostDisplayGeometr
 }
 
 /** A queued input with `tick: null` is stamped only when the runner starts the next serialized advance. */
-export type PendingInput = { readonly tick: number | null; readonly event: InputRecord["event"] };
+export type PendingInput = {
+  readonly tick: number | null;
+  readonly event: InputRecord["event"];
+  /** Geometry used to normalize a pointer, carried only until ordered host.display events are stamped. */
+  readonly pointerGeometry: HostDisplayGeometry | null;
+};
 
 /** Stamp deferred host observations when they are handed to the next serialized engine advance. */
 export function stampPendingInputs(inputs: readonly PendingInput[], tick: number): InputRecord[] {
-  return inputs.map((input) => ({ tick: input.tick ?? tick, event: input.event }));
+  return inputs.map(({ tick: inputTick, event }) => ({ tick: inputTick ?? tick, event }));
 }
 
 export type ObservedHostGeometry = {
@@ -69,27 +74,50 @@ function sameGeometry(left: HostDisplayGeometry, right: HostDisplayGeometry): bo
     left.safeArea.bottom === right.safeArea.bottom && left.safeArea.left === right.safeArea.left;
 }
 
-/** Reapply the live observation after load/restore when engine geometry rolled back; preserve host-before-pointer order. */
+/** Restore queued geometry before any pointer normalized with it, keeping unrelated input order intact. */
+function reconcilePendingGeometry(
+  engineGeometry: HostDisplayGeometry,
+  latest: HostDisplayGeometry,
+  pending: PendingInput[],
+): boolean {
+  let queuedGeometry = engineGeometry;
+  for (let index = 0; index < pending.length; index += 1) {
+    const input = pending[index]!;
+    if (input.event.kind === "host.display") {
+      queuedGeometry = input.event.geometry;
+      continue;
+    }
+    if (input.event.kind !== "pointer" || input.pointerGeometry === null || sameGeometry(queuedGeometry, input.pointerGeometry)) continue;
+    pending.splice(index, 0, {
+      tick: null,
+      event: { kind: "host.display", geometry: input.pointerGeometry },
+      pointerGeometry: null,
+    });
+    queuedGeometry = input.pointerGeometry;
+    index += 1;
+  }
+  if (!sameGeometry(queuedGeometry, latest)) {
+    pending.push({ tick: null, event: { kind: "host.display", geometry: latest }, pointerGeometry: null });
+  }
+  return !sameGeometry(engineGeometry, latest);
+}
+
+/** Reapply the live observation before an incoming pointer is appended. */
 export function reapplyObservedGeometryBeforePointer(
   engineGeometry: HostDisplayGeometry,
   observed: ObservedHostGeometry,
   pending: PendingInput[],
 ): boolean {
-  const geometry = observed.current();
-  if (sameGeometry(engineGeometry, geometry)) return false;
-  if (!pending.some((input) => input.event.kind === "host.display" && sameGeometry(input.event.geometry, geometry))) {
-    pending.push({ tick: null, event: { kind: "host.display", geometry } });
-  }
-  return true;
+  return reconcilePendingGeometry(engineGeometry, observed.current(), pending);
 }
 
-/** A restore may roll geometry back; queue the fresh observation for the next budgeted input tick. */
+/** A restore may roll geometry back; repair each queued pointer's geometry before the next budgeted tick. */
 export function reconcileObservedGeometryAfterAdvance(
   engineGeometry: HostDisplayGeometry,
   observed: ObservedHostGeometry,
   pending: PendingInput[],
 ): boolean {
-  return reapplyObservedGeometryBeforePointer(engineGeometry, observed, pending);
+  return reconcilePendingGeometry(engineGeometry, observed.current(), pending);
 }
 
 

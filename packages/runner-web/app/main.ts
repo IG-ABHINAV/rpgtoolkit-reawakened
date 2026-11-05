@@ -359,29 +359,30 @@ function startLiveLoop(
   const displayGeometry = createObservedHostGeometry(session.displayGeometry());
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
     displayGeometry.observe(event);
-    pending.push({ tick: null, event });
+    pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
     hostViewport.viewport,
     viewSize,
     displayGeometry.current,
     ({ x, y }, buttons) => {
+      const geometry = displayGeometry.current();
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
-      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } });
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
     },
     () => {
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
-      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } });
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
   const onKeyDown = (event: KeyboardEvent): void => key(event, true);
   const onKeyUp = (event: KeyboardEvent): void => key(event, false);
   const focus = (state: "lost" | "gained"): void => {
-    pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+    pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   };
   const onBlur = (): void => focus("lost");
   const onFocus = (): void => focus("gained");

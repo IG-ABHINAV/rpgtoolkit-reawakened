@@ -1,6 +1,6 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import { assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type InputRecord } from "@tk-reawakened/core";
+import { applyUiEffect, assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, hydrateBoard, initCameraForBoard, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type InputRecord } from "@tk-reawakened/core";
 import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
 
@@ -79,7 +79,7 @@ function makeHost(width: number, height: number): { readonly canvas: HTMLCanvasE
 
 test("deferred host records are stamped at the consuming advance boundary", () => {
   const event: InputRecord["event"] = { kind: "host.features", features: { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: "portrait" } };
-  const pending: PendingInput[] = [{ tick: null, event }, { tick: 4, event }];
+  const pending: PendingInput[] = [{ tick: null, event, pointerGeometry: null }, { tick: 4, event, pointerGeometry: null }];
   deepEqual(stampPendingInputs(pending, 19), [{ tick: 19, event }, { tick: 4, event }]);
 });
 
@@ -106,7 +106,7 @@ test("pointer geometry keeps the newest queued host display through an advance b
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
-test("post-restore geometry applies without an unbudgeted tick and preserves queued key input", () => {
+test("post-restore geometry is inserted before stalled-load margin pointers without spending a tick", () => {
   const initial = {
     content: { width: 4, height: 2 },
     game: { x: 1, y: 0, width: 2, height: 2 },
@@ -117,10 +117,6 @@ test("post-restore geometry applies without an unbudgeted tick and preserves que
     game: { x: 2, y: 0, width: 2, height: 2 },
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
-  const savedState = createGameState({ seed: 7, width: 2, height: 2, displayGeometry: initial });
-  // The restored game is temporarily unfocused, so geometry applies pre-tick.
-  savedState.input.focused = false;
-  const saved = new TextEncoder().encode(snapshotGameSave(savedState));
   const board = writeBoard(createEmptyBoard());
   if (!board.ok) throw new Error(board.error.message);
   const main = writeMainFile({
@@ -136,9 +132,22 @@ test("post-restore geometry applies without an unbudgeted tick and preserves que
     [assetKey("boards/start.brd"), board.value],
     [assetKey("prg/start.prg"), new TextEncoder().encode('Load("slot")\nend()\n')],
   ]);
+  const assetIndex = createAssetIndex(["main.gam", "Boards/start.brd", "Prg/start.prg"]);
+  const hydratedBoard = hydrateBoard(assetKey("boards/start.brd"), board.value, assetIndex, PACKAGE_ROOT, files);
+  if (hydratedBoard.value === null) throw new Error("expected saved board to hydrate");
+  const savedState = createGameState({ seed: 7, width: 2, height: 2, displayGeometry: initial });
+  Object.assign(savedState.world, { board: hydratedBoard.value.board });
+  Object.assign(savedState, { camera: initCameraForBoard(savedState.camera, hydratedBoard.value.board, null) });
+  applyUiEffect(savedState, "uiBegin", [7, "touch", "surface", -2, 0, 1, 2, 1]);
+  savedState.camera.target = { kind: "point", point: { x: 0, y: 0 } };
+  applyUiEffect(savedState, "uiItem", [7, "Go", "margin-go", null, 1, null, "confirm", null, 1]);
+  applyUiEffect(savedState, "uiEnd", [7]);
+  savedState.input.focused = false;
+  const saved = new TextEncoder().encode(snapshotGameSave(savedState));
+  let activatedItem: string | null = null;
   const engine = createEngine({
     seed: 7,
-    assetIndex: createAssetIndex(["main.gam", "Boards/start.brd", "Prg/start.prg"]),
+    assetIndex,
     assetRoot: PACKAGE_ROOT,
     mainFile: "main.gam",
     gameIdentity: "host-state-geometry-restore-test",
@@ -146,6 +155,12 @@ test("post-restore geometry applies without an unbudgeted tick and preserves que
     height: 2,
     maxTicks: 100,
     displayGeometry: resized,
+    phaseRegistrations: [{
+      phase: "animation",
+      run(state) {
+        activatedItem = state.ui.surfaceActivated?.itemId ?? null;
+      },
+    }],
     startup: {
       presence: { hasPlayer: () => true },
       savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
@@ -161,6 +176,18 @@ test("post-restore geometry applies without an unbudgeted tick and preserves que
     loadRequest = loadReport.requests.find((request) => request.kind === "loadBlob");
   }
   if (loadRequest?.kind !== "loadBlob") throw new Error("expected RPGCode load request");
+
+  // A pointer arrives while Load is waiting for bytes. The engine still reports the resized geometry at this point,
+  // so the input is correctly normalized as a Plane 3 point but has no new geometry record in the pending queue.
+  const observed = createObservedHostGeometry(resized);
+  const host = { getBoundingClientRect: () => ({ left: 0, top: 0 } as DOMRect) } as HTMLElement;
+  const logical = pointerEventToLogical({ clientX: 0, clientY: 0 } as PointerEvent, host, { width: 2, height: 2 }, observed.current());
+  deepEqual(logical, { x: -2, y: 0 });
+  const pending: PendingInput[] = [
+    { tick: null, event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true }, pointerGeometry: null },
+    { tick: null, event: { kind: "pointer", ...logical, buttons: 1 }, pointerGeometry: resized },
+    { tick: null, event: { kind: "pointer", ...logical, buttons: 0 }, pointerGeometry: resized },
+  ];
   const restored = engine.advance(0, [{
     tick: loadReport.tickAfter,
     event: { kind: "blob.loaded", reqId: loadRequest.reqId, bytes: saved },
@@ -174,26 +201,28 @@ test("post-restore geometry applies without an unbudgeted tick and preserves que
     readyReport = engine.advance(0, assetReplies);
   }
   deepEqual(engine.hostDisplayGeometry(), initial, "Load restores the older saved display geometry");
-
-  const observed = createObservedHostGeometry(resized);
-  const pending: PendingInput[] = [{
-    tick: null,
-    event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true },
-  }];
   const queued = reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, pending);
   equal(queued, true, "restored geometry remains queued until a budgeted tick");
-  deepEqual(pending.map(({ event }) => event.kind), ["key", "host.display"], "resize follows the already queued key without discarding it");
+  deepEqual(pending.map(({ event }) => event.kind), ["key", "host.display", "pointer", "pointer"], "restore geometry is inserted immediately before the pointers it qualifies, preserving key and pointer order");
   deepEqual(engine.hostDisplayGeometry(), initial, "reconciliation does not mutate or advance simulation state");
+
   const resumed = engine.advance(0, stampPendingInputs(pending, readyReport.tickAfter));
   equal(resumed.ticksRun, 0, "geometry reconciliation never spends an unbudgeted simulation tick");
   equal(resumed.tickAfter, readyReport.tickAfter, "the tick counter stays unchanged");
-  deepEqual(resumed.consumed.map(({ event }) => event.kind), ["host.display"], "unfocused pre-tick consumes geometry but leaves the key for a later tick");
+  deepEqual(resumed.consumed.map(({ event }) => event.kind), ["host.display"], "unfocused pre-tick consumes geometry but leaves key and pointer events queued");
+  deepEqual(engine.hostDisplayGeometry(), resized);
   const geometryForFirstDraw = engine.hostDisplayGeometry();
-  deepEqual(geometryForFirstDraw, resized);
   const firstFrame = rasterizePresentation(engine.drawList(), geometryForFirstDraw, new Map());
   equal(firstFrame.error, null);
   equal(firstFrame.width, 6, "the first post-restore frame uses live host content geometry");
   equal(firstFrame.height, 2);
+
+  const focused = engine.advance(0, [{ tick: readyReport.tickAfter, event: { kind: "focus", state: "gained" } }]);
+  equal(focused.ticksRun, 0, "focus restoration remains pre-tick");
+  deepEqual(focused.consumed.map(({ event }) => event.kind), ["focus"], "host focus resumes the restored state");
+  const pointerTick = engine.advance(1, []);
+  equal(pointerTick.ticksRun, 1, JSON.stringify(pointerTick));
+  equal(activatedItem, "margin-go", "the queued Plane 3 press/release is hit-tested using the restored live geometry");
 });
 
 test("zero-sized host surfaces defer geometry instead of fitting or publishing invalid dimensions", () => {

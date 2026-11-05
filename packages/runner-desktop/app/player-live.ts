@@ -66,10 +66,10 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   let disposed = false;
   const onKeyDown = (event: KeyboardEvent): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
-  const onKeyUp = (event: KeyboardEvent): void => pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
-  const focus = (state: "lost" | "gained"): void => pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+  const onKeyUp = (event: KeyboardEvent): void => pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false }, pointerGeometry: null });
+  const focus = (state: "lost" | "gained"): void => pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   const onBlur = (): void => focus("lost");
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
@@ -77,7 +77,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const observedGeometry = createObservedHostGeometry(session.displayGeometry());
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
     observedGeometry.observe(event);
-    pending.push({ tick: null, event });
+    pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
   const pointerHost = stage;
   const stopPointerInput = attachPointerInput(
@@ -85,12 +85,13 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     viewSize,
     observedGeometry.current,
     ({ x, y }, buttons) => {
+      const geometry = observedGeometry.current();
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
-      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } });
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
     },
     () => {
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
-      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } });
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
   );
   window.addEventListener("keydown", onKeyDown);
