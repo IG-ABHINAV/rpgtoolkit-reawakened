@@ -80,12 +80,18 @@ export function createFallbackTouchControls(
     { action: "cancel", label: "Cancel", glyph: "B", zone: "actions", row: 0, column: 1 },
   ];
 
+  const hasActivePointer = (action: FallbackTouchAction): boolean => {
+    for (const activeAction of activePointers.values()) if (activeAction === action) return true;
+    return false;
+  };
   const release = (pointerId: number): void => {
     const action = activePointers.get(pointerId);
     if (action === undefined) return;
     activePointers.delete(pointerId);
-    buttons.get(action)?.setAttribute("aria-pressed", "false");
-    dispatch(action, false);
+    if (!hasActivePointer(action)) {
+      buttons.get(action)?.setAttribute("aria-pressed", "false");
+      dispatch(action, false);
+    }
   };
   const releaseAll = (): void => {
     for (const pointerId of [...activePointers.keys()]) release(pointerId);
@@ -105,9 +111,10 @@ export function createFallbackTouchControls(
       if (!button.disabled && event.button === 0) {
         event.preventDefault();
         button.setPointerCapture(event.pointerId);
+        const alreadyActive = hasActivePointer(entry.action);
         activePointers.set(event.pointerId, entry.action);
         button.setAttribute("aria-pressed", "true");
-        dispatch(entry.action, true);
+        if (!alreadyActive) dispatch(entry.action, true);
       }
     });
     button.addEventListener("pointermove", (event) => event.stopPropagation());
