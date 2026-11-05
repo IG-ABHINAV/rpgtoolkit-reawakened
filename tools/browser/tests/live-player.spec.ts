@@ -581,6 +581,11 @@ test("blur keeps a held primary suppressed until physical release", async ({ pag
     };
   });
   await page.evaluate(() => {
+    (window as Window & {
+      __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+    }).__session!.capturedPointerInputs = [];
+  });
+  await page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>("#screen");
     if (canvas === null) throw new Error("live canvas is absent");
     const rect = canvas.getBoundingClientRect();
@@ -597,7 +602,11 @@ test("blur keeps a held primary suppressed until physical release", async ({ pag
   const beforePhysicalHold = await page.evaluate(() => (window as Window & {
     __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
   }).__session?.capturedPointerInputs ?? []);
-  expect(beforePhysicalHold.some((event) => event.kind === "pointer.cancel")).toBe(true);
+  expect(beforePhysicalHold.map(({ kind, buttons }) => kind === "pointer" ? { kind, buttons } : { kind })).toEqual([
+    { kind: "pointer", buttons: 1 },
+    { kind: "pointer.cancel" },
+    { kind: "pointer", buttons: 0 },
+  ]);
   const box = await page.locator("#screen").boundingBox();
   if (box === null) throw new Error("live canvas has no layout box");
   const x = box.x + box.width / 2;
