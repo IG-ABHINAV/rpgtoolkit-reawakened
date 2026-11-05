@@ -71,6 +71,26 @@ test("R-50 moves a tile in eight 4-pixel advances and completes at tick 21", () 
   equal(events.some((record) => record.type === "movement-complete" && record.tick === 21), true);
 });
 
+test("corner collision is independent of polygon winding and starting vertex", () => {
+  const points = [{ x: 100, y: 100 }, { x: 140, y: 100 }, { x: 140, y: 140 }, { x: 100, y: 140 }];
+  const variants = [points, [...points].reverse(), [...points.slice(1), points[0]!]];
+  for (const mode of [1, 2]) {
+    const outcomes = variants.map((vertices) => {
+      const currentBoard = board([{ handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: vertices }]);
+      const sprites = playerState(currentBoard, 82);
+      sprites.players[0] = { ...sprites.players[0]!, y: 101 };
+      enqueueDirectionMove(sprites, "hero", "E", mode);
+      const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+      return { x: sprites.players[0]?.x, y: sprites.players[0]?.y, events };
+    });
+    deepEqual(outcomes[1], outcomes[0]);
+    deepEqual(outcomes[2], outcomes[0]);
+    equal(outcomes[0]?.x, 82);
+    equal(outcomes[0]?.y, 101);
+    equal(outcomes[0]?.events.filter((record) => record.type === "blocked").length, 1);
+  }
+});
+
 test("solid vectors block a tile step without moving the actor", () => {
   const currentBoard = board([{ handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 96, y: 32 }, { x: 128, y: 32 }, { x: 128, y: 224 }, { x: 96, y: 224 }] }]);
   const sprites = playerState(currentBoard);
