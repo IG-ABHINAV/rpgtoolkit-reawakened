@@ -50,14 +50,14 @@ Measured on **macOS 27.0.0 arm64, Electron 45.2.1** (`tools/desktop/measurements
 |---|---|
 | scheme / service workers | `app`, **0** registered |
 | package from disk | `demo.tpk`, 623,286 bytes, opened through `packageFiles` |
-| tick 120 | previous state hash (current demo closing baseline `91172695de52cfd6`), draw `9a40be8a0b5ca816`, 128 commands |
+| tick 120 | previous state hash (later E-02 baseline `91172695de52cfd6`), draw `9a40be8a0b5ca816`, 128 commands |
 | WebGL2 | present, `WebGL 2.0 (OpenGL ES 3.0 Chromium)`, max texture 16,384 |
 | D-7 blend bound | **exact** — worst channel delta 0 on the `translucent-127` vector |
 | audio | 15 ticks (the fixture's hand-worked length), non-silent (energy 61.09) |
 | same draw list, same frame | WebGL2 against the reference rasteriser: worst channel **0** over 640×480 |
 | save | written through the blob host under `gameId` `desktop-probe-game` and read back, 42 bytes |
 
-**Historical measurement note:** This macOS table records the pre-E-02 desktop run. Its previous state hash is preserved as observed, but is superseded by the current demo closing baseline `91172695de52cfd6`; the draw hash remains `9a40be8a0b5ca816`. No post-E-02 desktop measurement is recorded here.
+**Historical measurement note:** This macOS table records the pre-E-02 desktop run. The later E-02 state hash `91172695de52cfd6` and draw hash `9a40be8a0b5ca816` are historical too; see `golden/regression/closing.json` for current values. No post-E-02 desktop measurement is recorded here.
 
 **Windows and Linux were not measured in this session.** The `desktop` CI job in `.github/workflows/ci.yml` runs the same
 `measure.mjs` on `ubuntu-24.04` (under `xvfb-run -a`), `macos-14` and `windows-2022` and uploads each record; that job is
