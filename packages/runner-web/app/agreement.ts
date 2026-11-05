@@ -10,7 +10,7 @@
  * (AD-27, G4 rule 3).
  */
 
-import { assetKey, DEFAULT_FONT_ASSET, rasterizePresentation, type AssetKey, type DrawList, type HostDisplayGeometry, type RasterAsset, type RasterSurfaces, type SurfaceId } from "@tk-reawakened/core";
+import { assetKey, DEFAULT_FONT_ASSET, rasterizePresentation, type AssetKey, type DrawList, type HostDisplayGeometry, type RasterAsset, type RasterSurfaces, type ScratchId, type SurfaceId } from "@tk-reawakened/core";
 import { createWebgl2Renderer, type RenderStats, type TexturePixels } from "@tk-reawakened/render-webgl2";
 import {
   decodeAssetTexture,
@@ -40,6 +40,7 @@ type RowReport = {
 declare global {
   interface Window {
     __agreement?: readonly RowReport[];
+    __scratchFeedback?: boolean;
   }
 }
 
@@ -121,6 +122,26 @@ function renderBoth(input: Presentation): { actual: Uint8Array; worst: number; a
   }
   const first = reads[0]!;
   const flushStable = reads.every((frame) => frame.every((value, index) => value === first[index]));
+  // Exercise first-use and resized scratch FBOs on the actual WebGL2 context; sampler feedback is an INVALID_OPERATION.
+  for (let drained = 0; drained < 16 && gl.getError() !== gl.NO_ERROR; drained += 1) { /* discard errors from preceding ledger frame */ }
+  let scratchNoErrors = true;
+  for (const width of [2, 3]) {
+    const scratchList: DrawList = {
+      tick: 0, width, height: 2, marginCommands: [],
+      commands: [
+        { kind: "pushTarget", scratch: 1 as ScratchId },
+        { kind: "fill", rgb: { r: 20, g: 30, b: 40 } },
+        { kind: "popTarget" },
+        { kind: "fill", rgb: { r: 50, g: 60, b: 70 } },
+      ],
+    };
+    renderer.render(scratchList, {
+      content: { width, height: 2 }, game: { x: 0, y: 0, width, height: 2 },
+      safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+    }, options);
+    scratchNoErrors &&= gl.getError() === gl.NO_ERROR;
+  }
+  window.__scratchFeedback = (window.__scratchFeedback ?? true) && scratchNoErrors;
   renderer.dispose();
 
   // The oracle is the independent reference rasteriser replaying the same draw list; never the engine's own screen pixels.
@@ -155,6 +176,7 @@ async function sceneFiles(scene: TracerScene): Promise<Map<string, Uint8Array>> 
 }
 
 void (async () => {
+  window.__scratchFeedback = true;
   const ledgerResponse = await fetch("/golden/ledger.json");
   if (!ledgerResponse.ok) throw new Error(`agreement: golden/ledger.json answered ${ledgerResponse.status}`);
   const ledger = (await ledgerResponse.json()) as { goldens: readonly LedgerRow[] };
