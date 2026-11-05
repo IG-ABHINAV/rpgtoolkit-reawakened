@@ -77,7 +77,6 @@ test("same-tick gamepad down and up report both ordered action transitions", () 
   deepEqual(state.keys.map((key) => key.action), ["confirm"]);
   equal(state.actions.confirm, false);
 });
-
 test("registered game actions preserve order and semantic source claims emit one compatibility edge", () => {
   const state = createInputSection();
   const fireball = { name: "game.fireball", label: "Fireball", icon: null, group: "Spells", controls: [], locked: false, hidden: false, narration: "Cast" };
@@ -245,7 +244,6 @@ test("action registration refuses non-plain extension metadata without partial m
   equal(registerGameAction(state, action), false);
   equal(state.registeredActions.length, 0);
 });
-
 
 test("action registry order is hashed, runtime snapshots restore it, and game saves rebuild it", () => {
   const state = createGameState({ seed: 7 });

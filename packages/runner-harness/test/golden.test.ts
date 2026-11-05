@@ -9,10 +9,10 @@ import {
 } from "../src/golden.ts";
 
 const GAMEPAD = { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 } as const;
-test("parseRun parses valid run with all 11 event kinds including non-BMP char and bytes", () => {
+test("parseRun parses v1 events with non-BMP char and bytes", () => {
   const runText = JSON.stringify({
     schema: 1,
-    ticks: 12,
+    ticks: 13,
     log: [
       {
         tick: 0,
@@ -67,7 +67,7 @@ test("parseRun parses valid run with all 11 event kinds including non-BMP char a
 
   const run = parseRun(runText);
   equal(run.schema, 1);
-  equal(run.ticks, 12);
+  equal(run.ticks, 13);
   equal(run.log.length, 12);
 
   const keyEv = run.log[0]!.event;
@@ -86,6 +86,7 @@ test("parseRun parses valid run with all 11 event kinds including non-BMP char a
     throw new Error("expected asset event with bytes");
   }
 });
+
 
 
 test("parseRun rejects bad files and root schema", () => {

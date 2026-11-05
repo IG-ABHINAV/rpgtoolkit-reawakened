@@ -243,6 +243,7 @@ A `ControlId` is one of three canonical ASCII strings:
 | `gamepad { device, connected, axes, buttons }` | `pad:<n>` for each changed bit, `pad:axis…` for each axis that crosses the dead-zone |
 | `action { action, down, source }` | already-normalized semantic action edge, consumed inside the stamped tick |
 
+
 The published `ActionInput` shape is `{ kind: "action", action: string, down: boolean, source: string }`. Runners log it as an ordinary tick-stamped `InputRecord`; fallback controls use `source: "runner.fallback"`, and author-surface activation uses a stable `ui:<surface-id>/<item-id>` source. A UI activation may apply the same edge helper inside the tick consuming its logged pointer event; it does not invent a second input record.
 
 `applySemanticActionEdge(input, action, down, source, registeredActions)` validates against the engine action set and current game registry. An unregistered action returns false and changes no state. Each source owns an independent claim: down sets that source's claim, repeats from the same source do nothing, and up releases only that source. The public held state is true while at least one source claims the action. A transition to held appends exactly one compatibility-name key-queue entry and one pending action edge; a transition to released appends neither. Thus simultaneous devices cannot release one another's hold, and compatibility `wait()` behavior remains driven by semantic press edges.

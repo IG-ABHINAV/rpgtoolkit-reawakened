@@ -11,6 +11,7 @@ import { createLiveSession, type LiveSession } from "../src/live-session.ts";
 import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
+import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "../src/touch-controls.ts";
 
 type LiveReport = {
   tick: number;
@@ -357,6 +358,13 @@ function startLiveLoop(
   let pending: PendingInput[] = [];
   const viewSize = session.viewSize();
   const displayGeometry = createObservedHostGeometry(session.displayGeometry());
+  const fallbackControlKeys = new Set<string>();
+  let fallbackActionSequence = 0;
+  const touchControls = createFallbackTouchControls(hostViewport.viewport, displayGeometry.current, (action, down) => {
+    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
+    fallbackActionSequence += 1;
+    return fallbackActionSequence;
+  });
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
     displayGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
@@ -376,6 +384,7 @@ function startLiveLoop(
     },
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
+    if (shouldSuppressGameplayKey(event.code, event.repeat, down, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
@@ -384,7 +393,10 @@ function startLiveLoop(
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   };
-  const onBlur = (): void => focus("lost");
+  const onBlur = (): void => {
+      fallbackControlKeys.clear();
+      focus("lost");
+    };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
@@ -394,6 +406,9 @@ function startLiveLoop(
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);
   canvas.addEventListener("contextmenu", onContextMenu);
+  const syncTouchControls = (): void => {
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
+  };
   // The spinner is driven by its own timer as well as by each frame, so it appears even if the browser throttles
   // animation frames, and never from the pending `advance`, which cannot resolve while the engine waits on an asset.
   const spinnerTimer = overlay === null ? null : window.setInterval(() => overlay.update(), 100);
@@ -410,6 +425,7 @@ function startLiveLoop(
     document.removeEventListener("visibilitychange", onVisibility);
     stopPointerInput();
     canvas.removeEventListener("contextmenu", onContextMenu);
+    touchControls.close();
     session.close();
   };
   const summary = (spinner: boolean): NonNullable<LiveReport["stalls"]> => {
@@ -423,6 +439,7 @@ function startLiveLoop(
     const elapsed = Math.max(0, now - previous);
     previous = now;
     const spinner = overlay?.update() ?? false;
+    syncTouchControls();
     // While the engine waits on an asset the simulation is frozen, so wall time is not banked: a long wait must not come
     // back as a burst of catch-up ticks. The last presented frame stays on the canvas and the loop keeps running.
     if (!advancing) {
@@ -432,10 +449,13 @@ function startLiveLoop(
       const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
       if (wholeTicks !== 0 || !geometryNeedsTick) {
         const inputs = stampPendingInputs(pending, session.tick());
+        const submittedActionSequence = fallbackActionSequence;
+        const tickBeforeAdvance = session.tick();
         pending = [];
         advancing = true;
         session.advance(wholeTicks, inputs).then(() => {
           if (disposed) return;
+          if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
           const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), displayGeometry, pending, session.tick());
           advancing = false;
           if (disposed || restoredGeometryNeedsTick) return;

@@ -209,3 +209,14 @@ unpatched Toolkit 3.1 games:
   (owner ruling).
 * **Contextual Tap-to-Walk:** Direct pointer taps on walkable ground dispatch movement toward that coordinate, while
   tapping adjacent interactable tiles dispatches the `confirm` action.
+
+Fallback contextual taps are resolved on **primary-pointer release**, not press. The core first resolves the tapped
+board point against interactables using the same eligibility, reach/collision checks, and deterministic precedence as
+the ordinary `confirm` path ([movement-and-collision.md#activation-programs-and-items](movement-and-collision.md#activation-programs-and-items),
+including the item-before-region and item/region tie-breaks). If that resolution yields an interactable that the normal
+`confirm` path can activate from the player's current position, the core updates the player's facing to the cardinal
+board-axis direction from the player toward that interactable, then applies exactly one semantic `confirm` press through
+the normal trigger path; it does not move the player. Facing uses the greater absolute pixel displacement; an exact tie
+selects the horizontal board axis. If no eligible reachable interactable is hit, the pointer tap is handled as the
+ordinary click-to-walk destination. The tap never bypasses activation conditions, trigger order, script blocking, or
+collision/reach rules.

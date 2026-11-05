@@ -1,4 +1,4 @@
-/**
+/*
  * The mobile player page (entry 9.12): the **same** live page as the desktop shell, run against the mobile host.
  *
  * The wrapper adds no renderer, input path or asset source of its own; on a device the host is Capacitor's `Filesystem`,
@@ -6,6 +6,7 @@
  */
 
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
+import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "@tk-reawakened/runner-web/touch-controls";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
@@ -202,6 +203,8 @@ function run(
   let previous = performance.now();
   let accumulator = 0;
   let pending: PendingInput[] = [];
+    const fallbackControlKeys = new Set<string>();
+      let fallbackActionSequence = 0;
   let disposed = false;
   let frameId: number | null = null;
   let startPlayer = session.playerPosition();
@@ -212,16 +215,21 @@ function run(
   const savePath = "slot-1.json";
   const saveBytes = (): Uint8Array => new TextEncoder().encode(JSON.stringify({ gameId, tick: session.tick() }));
   const onKeyDown = (event: KeyboardEvent): void => {
+    if (shouldSuppressGameplayKey(event.code, event.repeat, true, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
   const onKeyUp = (event: KeyboardEvent): void => {
+    if (shouldSuppressGameplayKey(event.code, event.repeat, false, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false }, pointerGeometry: null });
   };
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   };
-  const onBlur = (): void => focus("lost");
+  const onBlur = (): void => {
+      fallbackControlKeys.clear();
+      focus("lost");
+    };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
@@ -230,8 +238,12 @@ function run(
     observedGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
-  const stage = canvas.parentElement;
-  if (stage === null) throw new Error("mobile player canvas has no content host");
+  const stage = hostViewport.viewport;
+  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, (action, down) => {
+    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
+    fallbackActionSequence += 1;
+    return fallbackActionSequence;
+  });
   const stopPointerInput = attachPointerInput(
     stage,
     viewSize,
@@ -267,12 +279,14 @@ function run(
     document.removeEventListener("visibilitychange", onVisibility);
     stopPointerInput();
     canvas.removeEventListener("contextmenu", onContextMenu);
+    touchControls.close();
     session.close();
   };
 
   const draw = (now: number): void => {
     frameId = null;
     if (disposed || !isCurrent()) return;
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     accumulator += Math.max(0, now - previous);
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
@@ -283,9 +297,12 @@ function run(
       return;
     }
     const inputs = stampPendingInputs(pending, session.tick());
+          const submittedActionSequence = fallbackActionSequence;
     pending = [];
+    const tickBeforeAdvance = session.tick();
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
+      if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
       const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
       if (restoredGeometryNeedsTick) {
         frameId = window.requestAnimationFrame(draw);
