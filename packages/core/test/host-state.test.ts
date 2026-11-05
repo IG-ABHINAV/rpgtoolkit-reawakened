@@ -145,3 +145,4 @@ test("engine applies and records complete host updates on their consuming tick",
   deepEqual(live.state.features, features, "reset keeps the current host features");
   deepEqual(live.state.display.geometry, geometry, "reset keeps the current display geometry");
 });
+
