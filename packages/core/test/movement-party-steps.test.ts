@@ -85,7 +85,7 @@ function makeRig(options: Options) {
           points: [{ x: wall.left, y: 32 }, { x: wall.right, y: 32 }, { x: wall.right, y: 200 }, { x: wall.left, y: 200 }],
         }];
         const board = { ...base, key: assetKey("boards/test.brd"), width: 320, height: 240, sizeX: 10, sizeY: 8, sizeL: 1, vectors } as unknown as WorldBoard;
-        current.world = { board };
+        current.world = { ...current.world, board };
         world = board;
         const hero = addActor(current.actors, { kind: "party", source: "hero.tem", name: "Hero" });
         const other = addActor(current.actors, { kind: "party", source: "other.tem", name: "Other" });
@@ -256,7 +256,7 @@ test("the interruption-recovery ledger carries the sub-tile remainder", () => {
   equal(ledger.party.steps, 0);
   equal(ledger.party.stepRemainder, 28 * 256, "the ledger projection carries the remainder");
   const target = createGameState({ seed: 3 });
-  applyRecoveryLedger(target, ledger);
+  applyRecoveryLedger(target, ledger, { walking: 0, pushing: 0 });
   equal(target.party.steps, 0);
   equal(target.party.stepRemainder, 28 * 256, "a recovered game keeps the accumulation");
 });
@@ -322,7 +322,7 @@ test("a save taken mid-accumulation restores the remainder and completes the sam
 
   // The board arrives through the asset provider, not the save; hand the board back the way the engine does,
   // then finish the move: 28 px saved + the rest of the 32 px step is 60 px, one whole party step.
-  restored.world = { board: rig.board };
+  restored.world = { ...restored.world, board: rig.board };
   const phase = movementPhaseRegistration({ pixelMovement: 1 });
   for (let tick = 0; tick < 40 && (restored.sprites.players.find(({ id }) => id === "hero")?.movement.active ?? null) !== null; tick += 1) {
     restored.time.tick += 1;

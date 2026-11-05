@@ -17,6 +17,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { judgeMovement } from "./probe-judge.mjs";
 import { electronBinary } from "./electron-binary.mjs";
+import { probeDesktopCsp } from "./probe-csp.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -252,17 +253,24 @@ async function main() {
       }
       cursor = held.player;
     }
+    const finalTick = (await status()).tick;
+
+    const csp = await probeDesktopCsp(page, evaluate, root, sleep);
+    if (/WebAssembly\.instantiate\(\).*violates.*Content Security Policy/i.test(log.join(""))) {
+      throw new Error("desktop renderer logged a WebAssembly CSP violation");
+    }
 
     const report = {
       package: pkg,
       error: moved === null
         ? "no direction proved a one-tile tap (exactly 32 px on the tapped axis, no perpendicular drift) plus a continued hold (>= 64 px on that axis, perpendicular delta < 16 px)"
         : null,
-      tick: (await status()).tick,
+      tick: finalTick,
       opened: { tick: opened.tick, player: opened.player ?? null },
       fits,
       attempts,
       moved,
+      csp,
     };
     console.log(JSON.stringify(report, null, 2));
     if (report.error !== null) process.exitCode = 1;

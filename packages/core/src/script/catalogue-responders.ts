@@ -517,7 +517,7 @@ const MOVEMENT_PACK_NAMES: Record<string, true> = {
   newplyr: true, newplayer: true,
   playerdirection: true, itemdirection: true, playerspeed: true, itemspeed: true, playerstance: true,
   itemstance: true, wander: true, wait: true, get: true, clearbuffer: true, setbutton: true,
-  checkbutton: true, clearbuttons: true, mousemove: true, mouseclick: true,
+  checkbutton: true, clearbuttons: true, mousemove: true, mouseclick: true, pixelmovement: true,
 };
 const CORE_PURE_COMMANDS = new Set(PURE_SPECS.flatMap((command) => [command.name, ...command.aliases]));
 /** The default catalogue layer combines safe stubs and responders not owned by CORE_PLUGIN. */

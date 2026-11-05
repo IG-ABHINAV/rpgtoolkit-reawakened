@@ -240,3 +240,15 @@ test("an item-owned script reads and moves its own source sprite (#1253)", () =>
   ok(sprite);
   ok(sprite.x > 48, "the item actually moves along its own path");
 });
+
+test("a hydrated item thread uses its source and the runtime push mode together", () => {
+  const { engine, files, state: latest } = setup(
+    true,
+    'pixelmovement(1, 1)\npushitem("source", "E", 4)\nthreadSleep(getThreadId(), 120)\nend()\n',
+    true,
+  );
+  advance(engine, files, 60);
+  const state = latest();
+  deepEqual(state.world.movement, { walking: 1, pushing: 1 });
+  equal(state.sprites.items[0]?.x, 56, "the item-owned source moves one runtime-selected 8-pixel step");
+});

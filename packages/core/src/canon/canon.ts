@@ -274,6 +274,9 @@ function serializeString(value: string): string {
   // Large base64 snapshots contain no JSON escapes. A native character-class
   // search avoids constructing a rope one character at a time.
   if (value.length >= 128 && !/[^\x20-\x21\x23-\x5b\x5d-\x7e]/.test(value)) return '"' + value + '"';
+  // JSON's string escaping is the RFC 8785 form. Keep the validating path for
+  // any surrogate, since JSON.stringify accepts unpaired UTF-16 code units.
+  if (value.length >= 128 && !/[\ud800-\udfff]/.test(value)) return JSON.stringify(value);
   let out = '"';
   for (let i = 0; i < value.length; i++) {
     const code = value.charCodeAt(i);

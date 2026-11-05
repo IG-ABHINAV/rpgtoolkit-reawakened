@@ -31,6 +31,10 @@ Compared independently captured runs at common ancestor 7d5b874610a7e5f066c68dc3
 
 An initial comparison with current main included 108 unrelated title pixels changed by merged #1272. Repeating against the PR's actual common ancestor eliminated that unrelated difference; no title baseline is changed here. Only demo state/draw hashes and its board PNG are updated.
 
+After #1336 and #1332 merged, compared the integrated engine against main `6a363da5938b98f0764802a8d522741912e972c0`, with the same fixtures and closing plan. Tick 30 and 60 states and the title draw/pixels are unchanged. At ticks 90, 120 and 600 the differing fields are item sprite/handle, six asset request IDs, surface pixels/revision, and the item-owned VM thread, effect and global. At ticks 120/600 all 122 prior draw commands remain; the 25 added commands are the same old-man tile and occlusion strips. The 330 differing pixels remain entirely inside (202,332)–(226,351). Thus the mainline movement state hashes were deliberately combined with the previously reviewed item rendering; no other game baseline was edited.
+
+The merge keeps `state.world.movement` when replacing the board and passes the item thread ID to sprite effects while using the runtime movement mode. A real-engine test makes a hydrated item thread select itself and move exactly eight pixels after setting pixel pushing; the recovery test resumes an item program and checks every restored movement-default case remains intact.
+
 ## Plan Change Log
 
 ## Review Triage Log
