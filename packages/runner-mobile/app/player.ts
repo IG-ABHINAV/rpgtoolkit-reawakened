@@ -8,7 +8,7 @@
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -274,6 +274,13 @@ function run(
     const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
     void session.advance(ticks, inputs).then(async () => {
+      if (disposed || !isCurrent()) return;
+      await reconcileObservedGeometryAfterAdvance(
+        session.displayGeometry(),
+        observedGeometry,
+        session.tick(),
+        (nextTicks, records) => session.advance(nextTicks, records),
+      );
       if (disposed || !isCurrent()) return;
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();

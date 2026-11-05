@@ -80,6 +80,19 @@ export function reapplyObservedGeometryBeforePointer(
   if (pending.some((input) => input.event.kind === "host.display" && sameGeometry(input.event.geometry, geometry))) return;
   pending.push({ tick: null, event: { kind: "host.display", geometry } });
 }
+/** Restore can replace logged host geometry during an advance; consume its live replacement before that frame is drawn. */
+export async function reconcileObservedGeometryAfterAdvance(
+  engineGeometry: HostDisplayGeometry,
+  observed: ObservedHostGeometry,
+  tick: number,
+  advance: (ticks: number, inputs: readonly InputRecord[]) => Promise<void>,
+): Promise<void> {
+  const pending: PendingInput[] = [];
+  reapplyObservedGeometryBeforePointer(engineGeometry, observed, pending);
+  const inputs = stampPendingInputs(pending, tick);
+  if (inputs.length > 0) await advance(0, inputs);
+}
+
 
 /** Keep pointer normalization aligned with the newest ordered host.display observation, even before the engine consumes it. */
 export function createObservedHostGeometry(initial: HostDisplayGeometry): ObservedHostGeometry {

@@ -114,25 +114,32 @@ function blend(
   const g = tintChannel(sg, tint.g, tinted);
   const b = tintChannel(sb, tint.b, tinted);
   const alpha = Math.max(0, Math.min(255, command.alpha));
-  if (command.blend === "normal") {
-    target.rgba[at] = r;
-    target.rgba[at + 1] = g;
-    target.rgba[at + 2] = b;
-    target.rgba[at + 3] = sa;
+  if (command.blend === "normal" || command.blend === "translucent") {
+    // Match blitTexture: combine source and command opacity, then composite
+    // over the opaque screen pixel with truncation at each channel.
+    const effective = Math.trunc(sa * alpha / 255);
+    if (effective >= 255) {
+      target.rgba[at] = r;
+      target.rgba[at + 1] = g;
+      target.rgba[at + 2] = b;
+      target.rgba[at + 3] = sa;
+    } else if (effective > 0) {
+      const dr = target.rgba[at] ?? 0;
+      const dg = target.rgba[at + 1] ?? 0;
+      const db = target.rgba[at + 2] ?? 0;
+      target.rgba[at] = Math.trunc((r * effective + dr * (255 - effective)) / 255);
+      target.rgba[at + 1] = Math.trunc((g * effective + dg * (255 - effective)) / 255);
+      target.rgba[at + 2] = Math.trunc((b * effective + db * (255 - effective)) / 255);
+      target.rgba[at + 3] = 255;
+    }
     return;
   }
   const dr = target.rgba[at] ?? 0;
   const dg = target.rgba[at + 1] ?? 0;
   const db = target.rgba[at + 2] ?? 0;
-  if (command.blend === "translucent") {
-    target.rgba[at] = Math.floor((dr * (255 - alpha) + r * alpha + 127) / 255);
-    target.rgba[at + 1] = Math.floor((dg * (255 - alpha) + g * alpha + 127) / 255);
-    target.rgba[at + 2] = Math.floor((db * (255 - alpha) + b * alpha + 127) / 255);
-  } else {
-    target.rgba[at] = Math.min(255, dr + Math.floor((r * alpha + 127) / 255));
-    target.rgba[at + 1] = Math.min(255, dg + Math.floor((g * alpha + 127) / 255));
-    target.rgba[at + 2] = Math.min(255, db + Math.floor((b * alpha + 127) / 255));
-  }
+  target.rgba[at] = Math.min(255, dr + Math.floor((r * alpha + 127) / 255));
+  target.rgba[at + 1] = Math.min(255, dg + Math.floor((g * alpha + 127) / 255));
+  target.rgba[at + 2] = Math.min(255, db + Math.floor((b * alpha + 127) / 255));
   target.rgba[at + 3] = 255;
 }
 

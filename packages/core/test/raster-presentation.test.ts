@@ -1,6 +1,6 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import { rasterizePresentation } from "../src/index.ts";
+import { assetKey, blitTexture, createSurface, createSurfacesSection, rasterizePresentation, readSurfacePixels } from "../src/index.ts";
 import type { DrawListV2, HostDisplayGeometry } from "../src/index.ts";
 import type { SurfaceId } from "../src/ports/keys.ts";
 import type { DecodedTexture } from "../src/formats/image/model.ts";
@@ -40,6 +40,56 @@ test("presentation raster samples Plane 1 and safe Plane 3 at per-axis pixel cen
     0, 0, 0, 0,
   ]);
 });
+test("partial-alpha normal and translucent margin blits match screen compositing", () => {
+  const background = { r: 17, g: 101, b: 203 };
+  const texture: DecodedTexture = { w: 1, h: 1, rgba: new Uint8Array([255, 0, 0, 128]) };
+  const asset = assetKey("bitmaps/partial.png");
+  const geometry: HostDisplayGeometry = {
+    content: { width: 3, height: 1 },
+    game: { x: 1, y: 0, width: 1, height: 1 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  for (const { blend, alpha, expected } of [
+    { blend: "normal" as const, alpha: 255, expected: [136, 50, 101, 255] },
+    { blend: "translucent" as const, alpha: 128, expected: [76, 75, 152, 255] },
+  ]) {
+    const blit = {
+      kind: "blit" as const,
+      source: { asset, tile: null },
+      src: { x: 0, y: 0, w: 1, h: 1 },
+      dst: { x: 0, y: 0, w: 1, h: 1 },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha,
+      blend,
+      iso2d: false,
+    };
+    const result = rasterizePresentation({
+      tick: 0,
+      width: 1,
+      height: 1,
+      commands: [
+        { kind: "rect", rect: { x: 0, y: 0, w: 1, h: 1 }, rgb: background, filled: true },
+        blit,
+      ],
+      marginCommands: [
+        { kind: "rect", rect: { x: -1, y: 0, w: 1, h: 1 }, rgb: background, filled: true },
+        { ...blit, dst: { x: -1, y: 0, w: 1, h: 1 } },
+      ],
+    }, geometry, new Map([[asset, texture]]));
+    equal(result.error, null);
+
+    const surfaceState = createSurfacesSection();
+    const screen = createSurface(surfaceState, 1, 1, new Uint8Array([background.r, background.g, background.b, 255]));
+    equal(blitTexture(surfaceState, texture, screen, 0, 0, 1, 1, undefined, alpha), true);
+    const reference = readSurfacePixels(surfaceState, screen, surfaceState.entries[String(screen)]!.rev);
+    if (reference === null) throw new Error("expected composited screen pixels");
+    deepEqual([...reference.rgba], expected, `${blend} screen compositing uses source alpha and truncation`);
+    deepEqual([...result.rgba.slice(0, 4)], expected, `${blend} margin pixel matches the screen pixel`);
+    deepEqual([...result.rgba.slice(4, 8)], expected, `${blend} Plane 1 pixel matches the screen pixel`);
+  }
+});
+
 
 test("margin pixels are rejected when their whole logical cell crosses a safe-area edge", () => {
   const result = rasterizePresentation(list, {

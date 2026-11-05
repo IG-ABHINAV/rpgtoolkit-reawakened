@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import type { InputRecord } from "@tk-reawakened/core";
-import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reapplyObservedGeometryBeforePointer, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
 
 const viewSize = { width: 640, height: 480 };
@@ -106,7 +106,7 @@ test("pointer geometry keeps the newest queued host display through an advance b
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
-test("frame reconciliation reapplies live geometry after stale restore without pointer input", () => {
+test("post-restore geometry is consumed before the first frame without pointer input", async () => {
   const initial = {
     content: { width: 640, height: 480 },
     game: { x: 0, y: 0, width: 640, height: 480 },
@@ -119,13 +119,17 @@ test("frame reconciliation reapplies live geometry after stale restore without p
   };
   const observed = createObservedHostGeometry(initial);
   observed.observe({ kind: "host.display", geometry: resized });
-  const pending: PendingInput[] = [];
-  reapplyObservedGeometryBeforePointer(initial, observed, pending);
-  deepEqual(pending, [{ tick: null, event: { kind: "host.display", geometry: resized } }]);
-  reapplyObservedGeometryBeforePointer(initial, observed, pending);
-  equal(pending.length, 1, "do not enqueue duplicate geometry before the next frame");
-  const stamped = stampPendingInputs(pending, 7);
-  deepEqual(stamped, [{ tick: 7, event: { kind: "host.display", geometry: resized } }]);
+
+  // The preceding advance completed a save restore and rolled simulation geometry back.
+  let engineGeometry = initial;
+  await reconcileObservedGeometryAfterAdvance(engineGeometry, observed, 7, async (ticks, inputs) => {
+    equal(ticks, 0);
+    deepEqual(inputs, [{ tick: 7, event: { kind: "host.display", geometry: resized } }]);
+    for (const input of inputs) if (input.event.kind === "host.display") engineGeometry = input.event.geometry;
+  });
+
+  const firstPostRestoreFrameGeometry = engineGeometry;
+  deepEqual(firstPostRestoreFrameGeometry, resized);
 });
 
 test("zero-sized host surfaces defer geometry instead of fitting or publishing invalid dimensions", () => {

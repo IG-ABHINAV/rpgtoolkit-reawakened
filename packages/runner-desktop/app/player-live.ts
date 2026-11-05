@@ -3,7 +3,7 @@ import { interactivePackage } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -120,7 +120,14 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
     const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
-    void session.advance(ticks, inputs).then(() => {
+    void session.advance(ticks, inputs).then(async () => {
+      if (disposed) return;
+      await reconcileObservedGeometryAfterAdvance(
+        session.displayGeometry(),
+        observedGeometry,
+        session.tick(),
+        (nextTicks, records) => session.advance(nextTicks, records),
+      );
       if (disposed) return;
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();

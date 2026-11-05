@@ -8,7 +8,7 @@ import { createLoadController, type LoadModeRequest, type LoadState } from "../s
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, type LiveSession } from "../src/live-session.ts";
-import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 
@@ -432,7 +432,14 @@ function startLiveLoop(
       const inputs = stampPendingInputs(pending, session.tick());
       pending = [];
       advancing = true;
-      session.advance(wholeTicks, inputs).then(() => {
+      session.advance(wholeTicks, inputs).then(async () => {
+        if (disposed) return;
+        await reconcileObservedGeometryAfterAdvance(
+          session.displayGeometry(),
+          displayGeometry,
+          session.tick(),
+          (ticks, records) => session.advance(ticks, records),
+        );
         advancing = false;
         if (disposed) return;
         const drawn = session.draw(accumulator / stepMs);
