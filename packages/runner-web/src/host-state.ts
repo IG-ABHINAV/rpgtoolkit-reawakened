@@ -1,6 +1,5 @@
 import type { HostDisplayGeometry, NormalizedHostFeatures } from "@tk-reawakened/core";
 import type { InputRecord } from "@tk-reawakened/core";
-import { fitCanvas } from "./viewport.ts";
 
 export type HostViewport = { readonly canvas: HTMLCanvasElement; readonly viewport: HTMLElement };
 export type HostStateSnapshot = { readonly features: NormalizedHostFeatures; readonly geometry: HostDisplayGeometry };
@@ -65,11 +64,16 @@ export function measureHostDisplay(
 ): HostDisplayGeometry | null {
   const content = viewport.getBoundingClientRect();
   if (!Number.isFinite(content.width) || !Number.isFinite(content.height) || content.width <= 0 || content.height <= 0) return null;
-  fitCanvas(canvas, view.width, view.height, { width: content.width, height: content.height });
-  const frame = canvas.getBoundingClientRect();
+  const scaleRatio = Math.min(content.width / view.width, content.height / view.height);
+  const scale = scaleRatio >= 1 ? Math.floor(scaleRatio) : scaleRatio;
+  const gameWidth = view.width * scale;
+  const gameHeight = view.height * scale;
+  // The renderer owns a content-sized backing bitmap; CSS must expose the entire content plane.
+  canvas.style.width = `${content.width}px`;
+  canvas.style.height = `${content.height}px`;
   return {
     content: { width: content.width, height: content.height },
-    game: { x: frame.left - content.left, y: frame.top - content.top, width: frame.width, height: frame.height },
+    game: { x: (content.width - gameWidth) / 2, y: (content.height - gameHeight) / 2, width: gameWidth, height: gameHeight },
     safeArea,
   };
 }

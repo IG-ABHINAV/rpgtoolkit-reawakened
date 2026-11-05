@@ -358,8 +358,9 @@ function startLiveLoop(
   const viewSize = session.viewSize();
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
-    canvas,
+    hostViewport.viewport,
     viewSize,
+    session.displayGeometry,
     ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
     () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
   );

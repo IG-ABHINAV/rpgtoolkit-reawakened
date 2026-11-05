@@ -9,7 +9,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isEntryPoint } from "../fetch.mjs";
-import { schemaErrors, schemaProblems } from "./schema.mjs";
+import { schemaErrors, schemaProblems, refName } from "./schema.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "../../..");
@@ -45,6 +45,18 @@ function createSchema() {
   schema.description = `${schema.description} V2 DrawList records require both ordered command planes.`;
   schema.$defs.drawList.required = ["tick", "width", "height", "commands", "marginCommands"];
   schema.$defs.drawList.properties.marginCommands = { type: "array", items: { $ref: "#/$defs/drawCommand" } };
+  schema.$defs.actionInput = {
+    type: "object",
+    additionalProperties: false,
+    required: ["kind", "action", "down", "source"],
+    properties: {
+      kind: { const: "action" },
+      action: { type: "string", minLength: 1 },
+      down: { type: "boolean" },
+      source: { type: "string", minLength: 1 },
+    },
+  };
+  schema.$defs.inputEvent.oneOf.push({ $ref: "#/$defs/actionInput" });
   return schema;
 }
 
@@ -59,6 +71,8 @@ function createVectors() {
     { id: "draw-nonempty-margin-plane", family: "draw", valid: true, record: { tick: 12, width: 640, height: 480, commands: [], marginCommands: [command] } },
     { id: "refuse-draw-missing-margin-plane", family: "draw", valid: false, why: "v2 requires marginCommands, even when empty", record: { tick: 12, width: 640, height: 480, commands: [] } },
     { id: "refuse-draw-v1-extra-key", family: "draw", valid: false, why: "v2 rejects unknown keys", record: { tick: 12, width: 640, height: 480, commands: [], marginCommands: [], legacy: true } },
+    { id: "input-fallback-action-down", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } } },
+    { id: "refuse-action-missing-source", family: "input", valid: false, why: "semantic action records require a source", record: { tick: 8, event: { kind: "action", action: "confirm", down: true } } },
   );
   return {
     schema: 2,
@@ -81,16 +95,24 @@ function createVectors() {
 
 function documentOf(value) { return JSON.stringify(value, null, 2) + "\n"; }
 
-export async function check({ schema: schemaOverride, committedSchema, vectors: vectorsOverride, committedVectors } = {}) {
+function kindSetFromOneOf(schema, node) {
+  const alternatives = node?.$ref !== undefined ? [schema.$defs[refName(node.$ref)]] : node?.oneOf ?? [];
+  const values = alternatives.flatMap((alternative) => {
+    const target = alternative?.$ref !== undefined ? schema.$defs[refName(alternative.$ref)] : alternative;
+    return target?.properties?.kind?.const === undefined ? [] : [target.properties.kind.const];
+  });
+  return new Set(values);
+}
+
+export async function check({ schema: schemaOverride, committedSchema, vectors: vectorsOverride, committedVectors, sources = {} } = {}) {
   const schema = schemaOverride ?? JSON.parse(readFileSync(schemaPath, "utf8"));
   const vectors = vectorsOverride ?? createVectors();
   const problems = [];
   const expectedSchema = createSchema();
-  const expectedVectors = createVectors();
   const schemaText = committedSchema ?? (existsSync(schemaPath) ? readFileSync(schemaPath, "utf8") : null);
   const vectorText = committedVectors ?? (existsSync(vectorsPath) ? readFileSync(vectorsPath, "utf8") : null);
   if (schemaText !== null && schemaText !== documentOf(expectedSchema)) problems.push(`${schemaPath} differs; run node tools/fixtures/runner-protocol/generate-v2.mjs`);
-  if (vectorText !== null && vectorText !== documentOf(expectedVectors)) problems.push(`${vectorsPath} differs; run node tools/fixtures/runner-protocol/generate-v2.mjs`);
+  if (vectorText !== null && vectorText !== documentOf(vectors)) problems.push(`${vectorsPath} differs; run node tools/fixtures/runner-protocol/generate-v2.mjs`);
   problems.push(...schemaProblems(schema));
   for (const vector of vectors.vectors) {
     const errors = schemaErrors(schema, vector.record);
@@ -98,23 +120,21 @@ export async function check({ schema: schemaOverride, committedSchema, vectors: 
     else if (!vector.valid && errors.length === 0) problems.push(`vector ${vector.id}: should be refused${vector.why === undefined ? "" : ` (${vector.why})`}`);
   }
   for (const family of ["draw", "input", "request"]) {
-    const covered = new Set(vectors.vectors.filter((vector) => vector.family === family).flatMap((vector) => {
+    const covered = new Set(vectors.vectors.filter((vector) => vector.family === family && vector.valid).flatMap((vector) => {
       if (family === "draw") return [...vector.record.commands, ...vector.record.marginCommands].map((draw) => draw.kind);
       if (family === "input") return [vector.record.event.kind];
       return [vector.record.kind];
     }));
-    const defs = family === "draw" ? ["drawCommand"] : family === "input" ? ["inputEvent"] : ["request"];
-    for (const name of defs) {
-      const node = schema.$defs[name];
-      const kinds = node?.oneOf?.map((item) => item.properties?.kind?.const).filter((kind) => typeof kind === "string") ?? [];
-      for (const kind of kinds) if (!covered.has(kind)) problems.push(`vector kit covers ${family} kind "${kind}" defined in the schema`);
+    const definition = schema.$defs[family === "draw" ? "drawCommand" : family === "input" ? "inputEvent" : "request"];
+    for (const kind of kindSetFromOneOf(schema, definition)) {
+      if (!covered.has(kind)) problems.push(`vector kit covers ${family} kind "${kind}" defined in the schema`);
     }
   }
   for (const row of vectors.hashDrawList) {
     if (row.id === "draw-margin-only-change" && row.hashA === row.hashB) problems.push("draw-margin-only-change: marginCommands must affect the draw hash");
   }
   const { typeProblems } = await import("./types.mjs");
-  problems.push(...typeProblems(schema));
+  problems.push(...typeProblems(schema, { sources }));
   return problems;
 }
 
