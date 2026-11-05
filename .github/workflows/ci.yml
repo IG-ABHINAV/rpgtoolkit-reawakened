@@ -233,11 +233,6 @@ jobs:
           name: lcov-${{ matrix.group }}
           path: coverage/lcov-${{ matrix.group }}.info
           if-no-files-found: error
-      - uses: actions/upload-artifact@v6
-        with:
-          name: lcov-${{ matrix.group }}
-          path: coverage/lcov-${{ matrix.group }}.info
-          if-no-files-found: error
   # Classified (ADR 0016): always runs and prints the classifier's verdict; defers its steps only for an inert change.
   golden:
     needs: [changes]
