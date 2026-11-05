@@ -20,8 +20,8 @@
 import type { PlainData } from "./plain-data.ts";
 import type { Value } from "./value.ts";
 
-/** One sprite's move inside a `movement` wait: it ends at absolute tick `until`. */
-export type WaitMove = { sprite: string; until: number };
+/** One sprite's timed or live move inside a `movement` wait. */
+export type WaitMove = { sprite: string; until: number; actual?: true };
 
 /** The reply the host (or a replay) gives a request (AD-5). */
 export type WaitReply = { ok: boolean; value: Value };

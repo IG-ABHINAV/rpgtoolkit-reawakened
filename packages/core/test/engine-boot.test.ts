@@ -711,6 +711,25 @@ for (const [name, command, kind] of [
   });
 }
 
+test("multiRun starts both actual sprite moves before waiting for both (#1311)", () => {
+  const fixture = pushFixture('multirun()\npush("E")\npushitem(0, "E")\nmultirun()\ncontinued = 1\nend()', 0);
+  const state = fixture.state();
+  const item = actorFromSource({ id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem() }, state.world.board ?? null, 0, 0);
+  state.sprites.items = [item];
+  fixture.runtime.section.items = [item];
+  deepEqual(fixture.pressA().diagnostics, []);
+  const current = fixture.state();
+  const wait = current.vm.threads.find((thread) => thread.wait?.kind === "movement")?.wait;
+  equal(wait?.kind, "movement");
+  if (wait?.kind === "movement") deepEqual(wait.moves.map((move) => move.sprite), [current.sprites.players[0]?.id, item.id]);
+  ok(current.sprites.players[0]?.movement.active !== null || (current.sprites.players[0]?.queue.moves.length ?? 0) > 0);
+  ok(current.sprites.items[0]?.movement.active !== null || (current.sprites.items[0]?.queue.moves.length ?? 0) > 0);
+  equal(current.vm.globals.continued, undefined);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  equal(fixture.state().vm.globals.continued, 1);
+  equal(fixture.state().sprites.items[0]?.x, 192);
+});
+
 
 test("pushitem cannot resolve a player ID as an item (#1307)", () => {
   const fixture = pushFixture("end()", 0);

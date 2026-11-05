@@ -38,6 +38,7 @@ import {
   type ScriptError,
   type Wait,
 } from "../src/index.ts";
+import { actorFromSource } from "../src/sprites/model.ts";
 import { createScriptServices } from "./script-test-services.ts";
 
 function ref(text: string): ProgramRef {
@@ -447,6 +448,23 @@ test("multiRun collects several moves into one movement wait; the block lifts wh
     [5, 1],
     [5, 2],
   ]);
+});
+
+test("standalone scheduler waits for a live sprite's queued movement (#1313)", () => {
+  const { state, log, plugins } = setup("mark(1)\nend()\n");
+  const player = actorFromSource({ id: "hero", kind: "player", source: "hero.tem", x: 48, y: 64, layer: 1 }, null, 0, null);
+  player.queue.moves.push({ source: "direction", target: { x: 80, y: 64 }, facing: "E" });
+  state.sprites.players = [player];
+  const thread = state.vm.threads[0]!;
+  thread.wait = { kind: "sprite.movement", actor: player.id, global: true };
+  thread.status = "waiting";
+  const services = createScriptServices(state, plugins);
+  advanceScriptTick(state, services);
+  deepEqual(log.marks, []);
+  equal(thread.status, "waiting");
+  player.queue.moves.length = 0;
+  advanceScriptTick(state, services);
+  deepEqual(log.marks.map((mark) => mark[1]), [1]);
 });
 
 test("multiRun with no moves does not wait, and a lone move waits for its own end", () => {

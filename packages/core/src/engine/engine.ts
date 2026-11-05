@@ -3,6 +3,7 @@ import { restoreGameSave, snapshotGameSave, restoreRecoveryCandidate, snapshotRe
 import { deriveGameId } from "../save/game-id.ts";
 import { restoreGameState, snapshot } from "../save/snapshot.ts";
 import { createPluginLayers, type PluginLayers } from "../script/layers.ts";
+import { spriteWaitView } from "../script/waits.ts";
 import { MENU_GRAPHIC_EFFECT, MENU_HAND_EFFECT } from "../script/packs/menu.ts";
 import { actorEmitterKey, actorId } from "../actors/model.ts";
 import type { AudioSaveProjection } from "../audio/save.ts";
@@ -2883,17 +2884,7 @@ export function createEngine(init: EngineInit): Engine {
       tick: state.time.tick,
       input: inputView(state.input),
       ui: state.ui,
-      sprites: [...state.sprites.players, ...state.sprites.items].map((actor) => {
-        const waypoint = actor.queue.waypoint;
-        const waypointPending = waypoint !== null && waypoint.points.length > 0 &&
-          (waypoint.cycles !== 0 || (waypoint.cycle === 0 && waypoint.cursor < waypoint.points.length));
-        return {
-          id: actor.id,
-          stance: actor.visual.stance,
-          stanceComplete: actor.visual.stanceComplete,
-          moving: actor.movement.active !== null || actor.queue.moves.length > 0 || waypointPending,
-        };
-      }),
+      sprites: spriteWaitView(state.sprites),
       claims: state.engine.claims ?? [],
       audio: state.audio,
       events: state.events,

@@ -141,7 +141,7 @@ import {
   type Thread,
   type VmState,
 } from "./state.ts";
-import { defaultWaitPoll, describeWait } from "./waits.ts";
+import { defaultWaitPoll, describeWait, spriteWaitView } from "./waits.ts";
 import {
   compareEqual,
   compareRelational,
@@ -1388,7 +1388,7 @@ export function advanceScriptTick(
   }
   runWaitsPhase(
     state.vm,
-    { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: activeClaims },
+    { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, sprites: spriteWaitView(state.sprites), claims: activeClaims },
     poll,
     (seq, discardBefore) => {
       if (discardBefore !== undefined) claimInputBefore(state.input, discardBefore, activeClaims);
@@ -3561,6 +3561,12 @@ function dispatchResolved(
   }
 
   if (result.wait !== undefined) {
+    if (result.wait.kind === "sprite.movement" && thread.collect !== null) {
+      thread.collect.push({ sprite: result.wait.actor, until: tick, actual: true });
+      applyOut(vm, thread, frameIndex, resolved.command.spec, args, result.out ?? [], name, pos, services);
+      frame.operands.push({ value: produced !== undefined ? produced : result.value, ref: null });
+      return "continue";
+    }
     const wait = result.wait.kind === "input.key" && result.wait.parkSeq === undefined
       ? { ...result.wait, parkSeq: services.view.state?.input.nextSeq ?? 0 }
       : result.wait;

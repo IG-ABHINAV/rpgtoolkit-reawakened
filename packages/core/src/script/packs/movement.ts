@@ -91,7 +91,10 @@ function blocking(view: CommandView): boolean {
   const thread = view.state?.vm.threads.find((value) => value.id === view.thread);
   return thread?.kind === "blocking";
 }
-function waitFor(view: CommandView, flags: number): boolean { return blocking(view) || (flags & PAUSE) !== 0; }
+function waitFor(view: CommandView, flags: number): boolean {
+  const thread = view.state?.vm.threads.find((value) => value.id === view.thread);
+  return blocking(view) || thread?.collect != null || (flags & PAUSE) !== 0;
+}
 function movementResult(view: CommandView, id: string, kind: "player" | "item", steps: number, flags: number, args: readonly Arg[]): CommandResult {
   const actorValue = actor(view, id, kind);
   if (actorValue !== null && !actorValue.visible) throw new ScriptError("builtin.bad-arg", `cannot move hidden ${kind} "${id}"`);
