@@ -370,17 +370,19 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
   // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
   // else did; every other hash, tick and diagnostic is unchanged.
+  // #1221: restoring input schema 3 and removing pressedButtonSlot reproduces all ten previous hashes exactly.
+  // No corpus program has a pending slot press; the changed input schema and null field alone explain the new hashes.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "2f32ff5c2f2c23d1",
-    "sample-system-demo": "9bab3f5f1c5707c5",
-    "sample-sys-test-demo": "9bab3f5f1c5707c5",
-    "sample-win-demo": "74716f4480794887",
-    "sample-oldman-demo": "9166f736d1965256",
-    "sample-man-demo": "51dc8fa86fb9fbe8",
-    "sample-man-wander-demo": "afb0e9d840b47ce5",
-    "sample-start-basic": "ab905634b2b7d459",
-    "sample-system-basic": "9bab3f5f1c5707c5",
-    "sample-wander-basic": "3317060cd68120f5",
+    "sample-start-demo": "e221e29e022e5d8c",
+    "sample-system-demo": "6e9f793f63c6505c",
+    "sample-sys-test-demo": "6e9f793f63c6505c",
+    "sample-win-demo": "e4d462dcf4732e2e",
+    "sample-oldman-demo": "ff0c9068f95b2a49",
+    "sample-man-demo": "1de1c2a7aafa7c7f",
+    "sample-man-wander-demo": "63e3167389aa895e",
+    "sample-start-basic": "936015c782b71504",
+    "sample-system-basic": "6e9f793f63c6505c",
+    "sample-wander-basic": "fc1415caac5abe20",
   };
 
   for (const res of results) {
@@ -403,7 +405,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "3317060cd68120f5"); // re-pinned by #1231 (party schema 3, stepRemainder); was b79b37884bda3c8e (#585)
+  equal(hash1, "fc1415caac5abe20"); // #1221 input schema 4; schema 3 with no slot field reproduces 3317060cd68120f5.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

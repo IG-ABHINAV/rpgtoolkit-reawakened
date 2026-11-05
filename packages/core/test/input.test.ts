@@ -1,4 +1,4 @@
-import { deepEqual, equal } from "node:assert/strict";
+import { deepEqual, equal, notEqual } from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyInputEvent,
@@ -9,7 +9,7 @@ import {
   pruneClaimed,
   type InputView,
 } from "../src/input/index.ts";
-import { createGameState, restoreGameState, snapshot } from "../src/save/index.ts";
+import { createGameState, hashGameState, restoreGameState, snapshot } from "../src/save/index.ts";
 import { applyInputEffect } from "../src/script/packs/movement.ts";
 import { pollInputKey, pollMenuScreen } from "../src/script/waits.ts";
 
@@ -111,6 +111,10 @@ test("button slot presses survive snapshots; old input sections migrate without 
   state.input = createInputSection({ buttons: [{ id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true }] });
   applyInputEvent(state.input, { kind: "pointer", x: 5, y: 5, buttons: 1 });
   const restored = restoreGameState(snapshot(state));
+  const withoutPress = restoreGameState(snapshot(state));
+  withoutPress.input.pressedButtonSlot = null;
+  notEqual(hashGameState(withoutPress), hashGameState(state), "the pending slot changes the state hash");
+  equal(hashGameState(restored), hashGameState(state), "snapshot restore preserves the pending slot hash");
   applyInputEvent(restored.input, { kind: "pointer", x: 5, y: 5, buttons: 0 });
   deepEqual(restored.input.pendingActions, ["confirm"]);
   const raw = JSON.parse(snapshot(state));
