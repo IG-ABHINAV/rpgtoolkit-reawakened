@@ -170,6 +170,20 @@ test("canon serialises RFC 8785 literals and strings", () => {
   equal(canon("\u0000\u001f"), '"\\u0000\\u001f"');
 });
 
+test("long escaped strings keep canonical bytes and reject invalid UTF-16", () => {
+  for (const length of [126, 127, 128, 129, 4096]) {
+    for (const suffix of ["\n", "\n\t\"\\\u0000", "\u00e9\u2028", "🚀"]) {
+      const text = "x".repeat(length) + suffix;
+      equal(canon(text), JSON.stringify(text), `length ${length}, suffix ${JSON.stringify(suffix)}`);
+      equal(canon({ [text]: text }), `{${JSON.stringify(text)}:${JSON.stringify(text)}}`);
+    }
+    for (const suffix of ["\ud800", "\udc00", "\ud800x"]) {
+      throws(() => canon("x".repeat(length) + suffix), TypeError);
+      throws(() => canon({ ["x".repeat(length) + suffix]: 1 }), TypeError);
+    }
+  }
+});
+
 test("canon formats numbers per RFC 8785 Appendix B table and preserves hand-written cases", () => {
   for (const [hex, expected] of RFC8785_APPENDIX_B) {
     const val = doubleFromHex(hex);
