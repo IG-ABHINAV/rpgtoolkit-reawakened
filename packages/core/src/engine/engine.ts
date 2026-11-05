@@ -37,6 +37,7 @@ import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
 import type { HostDisplayGeometry, HostFeatures, NormalizedHostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
+import type { RegisteredAction } from "../save/sections/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
 import type { RunnerRequest } from "../ports/requests.ts";
@@ -66,7 +67,7 @@ import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection, UiActionClaim } from "../save/sections.ts";
-import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -335,7 +336,7 @@ export function createEngine(init: EngineInit): Engine {
     ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
   });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
-  state.input = createInputSection(init.input);
+  state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
@@ -408,6 +409,12 @@ export function createEngine(init: EngineInit): Engine {
   let recoveryInitialized = false;
   let recoveryResumed = false;
   const diagnostics: Diagnostic[] = [];
+  const reportedUnknownActions = new Set<string>();
+  const reportUnknownAction = (action: string): void => {
+    if (inputRegisteredActionNames(state.input).has(action) || reportedUnknownActions.has(action)) return;
+    reportedUnknownActions.add(action);
+    diagnostics.push({ code: "input.unknown-action", file: mainKey ?? "", line: 0, message: `input names unregistered action "${action}"` });
+  };
   const registrations = [...(init.phaseRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0));
   const registrationByPhase = new Map<EnginePhase, EnginePhaseRegistration[]>();
   for (const registration of registrations) {
@@ -547,6 +554,11 @@ export function createEngine(init: EngineInit): Engine {
       const location = thread === undefined ? null : threadLocation(thread);
       diagnostics.push({ code: "a11y.surface", file: location?.file ?? mainKey ?? "", line: location?.line ?? 0, message });
     });
+    if (lower === "uiend") {
+      for (const surface of state.ui.actionSurfaces) {
+        for (const item of surface.items) if (item.action !== undefined) reportUnknownAction(item.action);
+      }
+    }
     // `winGraphic` names an image; resolve and fetch it now so the window can draw it (E-55).
     if (lower === "wingraphic") primeMessageGraphic();
   });
@@ -1165,6 +1177,7 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
+      const registeredActions = state.input.registeredActions;
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1172,6 +1185,7 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
+      state.input.registeredActions = registeredActions;
       state.world = {
         ...state.world,
         movement: {
@@ -1940,6 +1954,7 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
   function resetLifecycle(nextMain?: string): void {
+    reportedUnknownActions.clear();
     discardRecoveryCandidates();
     clearStartupAnchors();
     const rng = state.rng;
@@ -1965,7 +1980,7 @@ export function createEngine(init: EngineInit): Engine {
     state.events = fresh.events;
     state.battle = fresh.battle;
     state.menu = fresh.menu;
-    state.input = createInputSection(init.input);
+    state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
     state.ui = fresh.ui;
     state.camera = createCameraSection(init.width, init.height);
     state.fx = fresh.fx;
@@ -3514,14 +3529,81 @@ export function createEngine(init: EngineInit): Engine {
     return null;
   }
 
+  function dispatchAuthorSurfaceAction(claim: UiActionClaim): void {
+    if (claim.action === null) return;
+    const source = `ui:${claim.surfaceId}/${claim.itemId}`;
+    if (!applySemanticActionEdge(state.input, claim.action, true, source)) {
+      reportUnknownAction(claim.action);
+      return;
+    }
+    applySemanticActionEdge(state.input, claim.action, false, source);
+  }
+  function routeAuthorSurfaceAction(action: string, down: boolean): void {
+    if (!down) return;
+    const surfaces = state.ui.actionSurfaces;
+    const surface = surfaces[surfaces.length - 1];
+    if (surface === undefined) return;
+    if (action === "cancel") {
+      state.ui.surfaceCancelled = true;
+      return;
+    }
+    if (action === "confirm") {
+      const item = surface.items[surface.selection];
+      if (item?.enabled) state.ui.surfaceActivated = {
+        owner: surface.owner,
+        surfaceId: surface.id,
+        itemId: item.id,
+        index: surface.selection,
+        action: null,
+      };
+      return;
+    }
+    if (action !== "up" && action !== "down" && action !== "left" && action !== "right") return;
+    const step = action === "up" || action === "left" ? -1 : 1;
+    const count = surface.items.length;
+    if (count === 0) return;
+    let index = surface.selection;
+    for (let attempt = 0; attempt < count; attempt += 1) {
+      index = (index + step + count) % count;
+      if (surface.items[index]?.enabled) {
+        state.ui.surfaceSelection[authorSurfaceSelectionKey(surface.owner, surface.id)] = index;
+        state.ui.actionSurfaces = surfaces.map((candidate) =>
+          candidate.owner === surface.owner && candidate.id === surface.id ? { ...candidate, selection: index } : candidate,
+        );
+        return;
+      }
+    }
+  }
+  function actionStateSnapshot(): Map<string, boolean> {
+    const before = new Map<string, boolean>();
+    for (const action of inputRegisteredActionNames(state.input)) before.set(action, state.input.actions[action] === true);
+    return before;
+  }
+  function routeActionStateChanges(before: ReadonlyMap<string, boolean>): void {
+    for (const action of inputRegisteredActionNames(state.input)) {
+      const down = state.input.actions[action] === true;
+      if (before.get(action) !== down) routeAuthorSurfaceAction(action, down);
+    }
+  }
   function applyRoutedInputEvent(event: InputRecord["event"]): void {
     if (event.kind === "pointer.cancel") {
-      applyInputEvent(state.input, event);
+      applyInputEvent(state.input, event, reportUnknownAction);
       state.ui.surfacePointerClaim = null;
       return;
     }
+    if (event.kind === "action") {
+      applyInputEvent(state.input, event, reportUnknownAction);
+      routeAuthorSurfaceAction(event.action, event.down);
+      return;
+    }
     if (event.kind !== "pointer") {
-      applyInputEvent(state.input, event);
+      if (event.kind === "key") {
+        const before = actionStateSnapshot();
+        applyInputEvent(state.input, event, reportUnknownAction);
+        routeActionStateChanges(before);
+      } else {
+        applyInputEvent(state.input, event, reportUnknownAction);
+      }
       return;
     }
     const previousButtons = state.input.pointer.buttons;
@@ -3535,13 +3617,14 @@ export function createEngine(init: EngineInit): Engine {
     const keys = state.input.keys.length;
     const pendingActions = state.input.pendingActions.length;
     const nextSeq = state.input.nextSeq;
-    applyInputEvent(state.input, event);
+    applyInputEvent(state.input, event, reportUnknownAction);
 
     if (state.ui.modal !== null) {
       state.input.pendingClicks.length = pendingClicks;
       return;
     }
     if (downEdge && target !== null) {
+      setPointerMovementSuppressed(state.input, true);
       state.ui.surfacePointerClaim = target;
       state.input.pendingClicks.length = pendingClicks;
       state.input.keys.length = keys;
@@ -3561,8 +3644,10 @@ export function createEngine(init: EngineInit): Engine {
       state.input.pendingActions.length = pendingActions;
       state.input.nextSeq = nextSeq;
       state.input.pressedButtonSlot = null;
+      setPointerMovementSuppressed(state.input, false);
       if (target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) {
         state.ui.surfaceActivated = pressed;
+        dispatchAuthorSurfaceAction(pressed);
       }
       return;
     }
@@ -3599,12 +3684,14 @@ export function createEngine(init: EngineInit): Engine {
           applyRoutedInputEvent(record.event);
           consumed.push(record);
         }
+        const actionsBeforeGamepad = actionStateSnapshot();
         processGamepadEvents(state.input, ({ device, connected }) => {
           queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
             device,
             type: "gamepad",
           });
         });
+        routeActionStateChanges(actionsBeforeGamepad);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
       }
@@ -4041,6 +4128,25 @@ export function createEngine(init: EngineInit): Engine {
         stateHash: hashGameState(state),
       };
     },
+    registeredActionNames() {
+      return ["up", "down", "left", "right", "confirm", "cancel", "menu", ...state.input.registeredActions.map((action) => action.name)];
+    },
+    registerGameAction(action: RegisteredAction) {
+      const registered = registerGameAction(state.input, action);
+      if (!registered) diagnostics.push({
+        code: "input.action-registration",
+        file: mainKey ?? "",
+        line: 0,
+        message: "game action registration was rejected (invalid metadata or duplicate name)",
+      });
+      return registered;
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      setPointerMovementSuppressed(state.input, suppressed);
+    },
+    reportUnknownAction(action: string) {
+      reportUnknownAction(action);
+    },
     recoveryCandidate() {
       if (recoveryCaptureRequested) {
         recoveryCaptureRequested = false;
@@ -4072,6 +4178,14 @@ export function createEngine(init: EngineInit): Engine {
     },
     hostFeatures(): NormalizedHostFeatures {
       return { ...state.features };
+    },
+    hostDisplayGeometry(): HostDisplayGeometry {
+      const { content, game, safeArea } = state.display.geometry;
+      return {
+        content: { ...content },
+        game: { ...game },
+        safeArea: { ...safeArea },
+      };
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
       return readSurfacePixels(state.surfaces, id, rev, surfaceCache);

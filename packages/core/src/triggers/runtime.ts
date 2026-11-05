@@ -194,6 +194,47 @@ function facingToward(from: SpriteActor, to: SpriteActor): Facing {
   if (dy < 0) return "NE";
   return "SE";
 }
+
+function cardinalFacingToward(from: SpriteActor, to: SpriteActor): Facing {
+  const dx = fixed(to.x) - fixed(from.x);
+  const dy = fixed(to.y) - fixed(from.y);
+  if (Math.abs(dx) >= Math.abs(dy)) return dx < 0 ? "W" : dx > 0 ? "E" : from.facing;
+  return dy < 0 ? "N" : "S";
+}
+
+function orderItemCandidates(player: SpriteActor, candidates: Candidate[]): Candidate[] {
+  return candidates.sort((left, right) => {
+    const leftActor = left.actor!;
+    const rightActor = right.actor!;
+    return frontness(player, rightActor) - frontness(player, leftActor)
+      || distanceSquared(player, leftActor) - distanceSquared(player, rightActor)
+      || leftActor.index - rightActor.index;
+  });
+}
+
+/** Select an eligible adjacent authored item hit by a released pointer tap; mutation is facing-only. */
+export function selectPointerActivationTarget(state: GameState, point: { readonly x: number; readonly y: number }): boolean {
+  const board = state.world.board ?? null;
+  const player = selectedPlayer(state);
+  if (board === null || player === null || !player.visible) return false;
+  const tap = pointFixed(point);
+  const reach = playerShape(player);
+  const candidates: Candidate[] = [];
+  for (const [index, item] of (board.items ?? []).entries()) {
+    const actor = state.sprites.items.find((value) => value.index === index);
+    if (actor === undefined || !actor.visible || item.layer !== player.layer) continue;
+    const candidate = itemCandidate(item, actor, index);
+    if (!triggerTypeMatches(candidate, "key") || state.triggers.suppressed.includes(candidate.key)
+      || state.triggers.deactivated.includes(candidate.key) || candidate.program === "" || !conditionMatches(state, candidate)
+      || !overlaps(reach, itemShape(candidate)) || !inside(tap, itemShape(candidate))) continue;
+    candidates.push(candidate);
+  }
+  const winner = orderItemCandidates(player, candidates)[0];
+  if (winner?.actor === undefined) return false;
+  const facing = cardinalFacingToward(player, winner.actor);
+  state.sprites.players = state.sprites.players.map((actor) => actor.id === player.id ? { ...actor, facing } : actor);
+  return true;
+}
 function stepDistance(player: SpriteActor): number {
   const movement = player.movement as typeof player.movement & { readonly lastStepDistance?: number };
   return movement.lastStepDistance ?? 0;
@@ -389,19 +430,11 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
   let winner: Candidate | undefined;
   if (kind === "key") {
     const itemCandidates = qualifying.filter((candidate) => candidate.source === "item");
-    itemCandidates.sort((left, right) => {
-      const leftActor = left.actor!;
-      const rightActor = right.actor!;
-      return frontness(player, rightActor) - frontness(player, leftActor) || distanceSquared(player, leftActor) - distanceSquared(player, rightActor) || leftActor.index - rightActor.index;
-    });
+    orderItemCandidates(player, itemCandidates);
     winner = itemCandidates[0] ?? qualifying.filter((candidate) => candidate.source === "region").at(-1);
   } else {
     const itemCandidates = qualifying.filter((candidate) => candidate.source === "item");
-    itemCandidates.sort((left, right) => {
-      const leftActor = left.actor!;
-      const rightActor = right.actor!;
-      return frontness(player, rightActor) - frontness(player, leftActor) || distanceSquared(player, leftActor) - distanceSquared(player, rightActor) || leftActor.index - rightActor.index;
-    });
+    orderItemCandidates(player, itemCandidates);
     winner = itemCandidates[0] ?? qualifying.filter((candidate) => candidate.source === "region").at(-1);
   }
   if (winner === undefined || hasLiveBlockingThread(state.vm)) return events;

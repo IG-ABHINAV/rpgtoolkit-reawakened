@@ -45,6 +45,10 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
     resumeRecovery() { return false; },
     recoveryStatus() { return "none"; },
     setBreakpoints(_breakpoints: readonly Breakpoint[]): void {},
+    registeredActionNames() { return []; },
+    registerGameAction() { return true; },
+    setPointerMovementSuppressed() {},
+    reportUnknownAction() {},
   };
 
   const run: Run = {
@@ -135,6 +139,10 @@ test("runLog throws naming call and cause for engine violations", () => {
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },
     recoveryStatus() { return "none"; },
+    registeredActionNames() { return []; },
+    registerGameAction() { return true; },
+    setPointerMovementSuppressed() {},
+    reportUnknownAction() {},
   });
   const failureCases: readonly {
     name: string;
@@ -281,6 +289,10 @@ test("runLog accepts non-empty requests and diagnostics and hands them to the ob
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },
     recoveryStatus() { return "none"; },
+    registeredActionNames() { return []; },
+    registerGameAction() { return true; },
+    setPointerMovementSuppressed() {},
+    reportUnknownAction() {},
     };
   };
   const seen: { call: number; tickAfter: number; requests: number; diagnostics: unknown }[] = [];

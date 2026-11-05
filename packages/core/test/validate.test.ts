@@ -14,6 +14,7 @@ test("validateInputEvent accepts one valid event of each kind", () => {
     ["key with null char", { kind: "key", name: "ENTER", code: "Enter", char: null, down: false }],
     ["pointer", { kind: "pointer", x: 10, y: -20, buttons: 0 }],
     ["pointer.cancel", { kind: "pointer.cancel" }],
+    ["semantic action", { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" }],
     ["gamepad", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 }],
     ["focus", { kind: "focus", state: "gained" }],
     ["asset with bytes", { kind: "asset", reqId: 1, bytes: new Uint8Array([1, 2]) }],
@@ -65,6 +66,7 @@ test("validateInputEvent names the path of the first failure", () => {
     ],
     ["unknown kind", { kind: "nope" }, "kind"],
     ["absent kind", {}, "kind"],
+    ["empty semantic action", { kind: "action", action: "", down: true, source: "runner.fallback" }, "action"],
     ["extra key", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0, extra: 1 }, "extra"],
     ["pointer.cancel rejects payload fields", { kind: "pointer.cancel", x: 1 }, "x"],
     [

@@ -12,9 +12,9 @@ import type { AccessibilityNode } from "./accessibility.ts";
 import type { AudioCue } from "./audio.ts";
 import type { Bytes } from "./bytes.ts";
 import type { DrawList } from "./draw.ts";
-import type { NormalizedHostFeatures } from "./host.ts";
+import type { HostDisplayGeometry, NormalizedHostFeatures } from "./host.ts";
 import type { InputRecord } from "./input.ts";
-import type { AssetKey, SurfaceId } from "./keys.ts";
+import type { RegisteredAction } from "../save/sections/input.ts";
 import type { RunnerRequest } from "./requests.ts";
 
 /**
@@ -96,11 +96,22 @@ export interface Engine {
 
   /** A pure function of current state; `alpha` is 0 in tests (AD-1). */
   drawList(alpha?: number, include?: DrawListInclude): DrawList;
+  /** Current engine and registered game action names in deterministic order. */
+  registeredActionNames(): readonly string[];
+  /** Register a game.* action during deterministic startup/runtime initialization. */
+  registerGameAction(action: RegisteredAction): boolean;
+  /** Claim or release the current pointer gesture from held-goal movement. */
+  setPointerMovementSuppressed(suppressed: boolean): void;
+  /** Report an action reference that has no runtime registration, at most once per boot. */
+  reportUnknownAction(action: string): void;
 
   /** Whether the game explicitly declared usable custom touch controls. */
   customTouchControlsDeclared(): boolean;
   /** Current normalized host capabilities, including logged changes. */
   hostFeatures(): NormalizedHostFeatures;
+
+  /** Last consumed, normalized host geometry used for display planes and pointer mapping. */
+  hostDisplayGeometry(): HostDisplayGeometry;
   /** Plain-data tree for currently published UI surfaces; hosts request it only when needed. */
   accessibilityTree(): readonly AccessibilityNode[];
   /**

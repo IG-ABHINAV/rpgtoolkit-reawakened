@@ -1,6 +1,6 @@
 /** Deterministic input owner for keyboard, pointer and normalized gamepad data. */
 import type { InputEvent, GamepadInput, KeyInput, PointerInput } from "../ports/input.ts";
-import type { InputBindings, InputButton, InputButtonSlot, InputGamepad, InputKeyState, InputSection } from "../save/sections/input.ts";
+import type { InputBindings, InputButton, InputButtonSlot, InputGamepad, InputKeyState, InputSection, RegisteredAction } from "../save/sections/input.ts";
 
 export type InputKey = InputKeyState;
 export type InputAction = string;
@@ -12,6 +12,7 @@ export type InputConfig = {
   readonly camera?: { readonly x: number; readonly y: number };
   readonly playerId?: string | null;
   readonly pathMode?: 1 | 2 | 3;
+  readonly pointerPlane?: { readonly width: number; readonly height: number };
 };
 
 const GAMEPAD_BITS: readonly string[] = ["up", "down", "left", "right", "confirm", "cancel", "menu"];
@@ -19,7 +20,7 @@ const DIRECTIONS: Readonly<Record<string, true>> = { up: true, down: true, left:
 
 export function createInputSection(config: InputConfig = {}): InputSection {
   const state: InputSection = {
-    version: 4,
+    version: 6,
     nextSeq: 1,
     keys: [],
     held: {},
@@ -35,9 +36,12 @@ export function createInputSection(config: InputConfig = {}): InputSection {
     gamepads: {},
     keyboardActions: {},
     actions: {},
+    registeredActions: [],
+    semanticActionSources: {},
     directionOrder: [],
-    pendingActions: [],
-    pendingClicks: [],
+    pointerMovementSuppressed: false,
+    pointerPlane: config.pointerPlane === undefined ? null : { ...config.pointerPlane },
+    pendingPointerUps: [],
     pendingGamepads: [],
   };
   configureInput(state, config);
@@ -57,14 +61,75 @@ export function configureInput(state: InputSection, config: InputConfig): void {
   if (config.camera !== undefined) state.camera = { x: config.camera.x, y: config.camera.y };
   if (config.playerId !== undefined) state.playerId = config.playerId;
   if (config.pathMode !== undefined) state.pathMode = config.pathMode;
+  if (config.pointerPlane !== undefined) state.pointerPlane = { ...config.pointerPlane };
+}
+/** Set whether an active semantic surface owns the current pointer gesture. */
+export function setPointerMovementSuppressed(state: InputSection, suppressed: boolean): void {
+  state.pointerMovementSuppressed = suppressed;
 }
 
 export function inputView(state: InputSection): InputView {
   return state;
 }
 
+const ENGINE_ACTIONS = new Set(["up", "down", "left", "right", "confirm", "cancel", "menu"]);
+const GAME_ACTION_NAME = /^game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/;
+
 function mappedAction(state: InputSection, event: KeyInput): string | undefined {
   return state.bindings.keys[event.code] ?? state.bindings.keys[event.name];
+}
+
+/** Register an action definition in stable startup order; invalid or duplicate names are refused. */
+export function registerGameAction(state: InputSection, action: RegisteredAction): boolean {
+  if (typeof action.name !== "string" || !GAME_ACTION_NAME.test(action.name) || typeof action.label !== "string" || action.label.trim().length === 0
+    || (action.icon !== null && typeof action.icon !== "string")
+    || (action.group !== null && typeof action.group !== "string")
+    || !Array.isArray(action.controls) || !action.controls.every((control) => typeof control === "string")
+    || typeof action.locked !== "boolean" || typeof action.hidden !== "boolean"
+    || state.registeredActions.some((registered) => registered.name === action.name)) return false;
+  state.registeredActions.push({ ...action, controls: [...action.controls] });
+  return true;
+}
+
+/** Return a fresh membership set while preserving registration order in the owning section. */
+export function registeredActionNames(state: InputSection): ReadonlySet<string> {
+  const names = new Set<string>(ENGINE_ACTIONS);
+  for (const action of state.registeredActions) names.add(action.name);
+  return names;
+}
+
+/** Apply a source-scoped semantic edge and emit compatibility behavior only on an aggregate press edge. */
+export function applySemanticActionEdge(
+  state: InputSection,
+  action: string,
+  down: boolean,
+  source: string,
+  registeredActions?: ReadonlySet<string>,
+): boolean {
+  const registered = registeredActions === undefined
+    ? ENGINE_ACTIONS.has(action) || state.registeredActions.some((entry) => entry.name === action)
+    : registeredActions.has(action);
+  if (!registered || source.length === 0) return false;
+  let claims = state.semanticActionSources[action];
+  const priorClaim = claims?.[source] === true;
+  if (priorClaim === down) return true;
+  if (claims === undefined) claims = state.semanticActionSources[action] = {};
+  const wasHeld = state.actions[action] === true;
+  if (down) claims[source] = true;
+  else {
+    delete claims[source];
+    if (Object.keys(claims).length === 0) delete state.semanticActionSources[action];
+  }
+  const isHeld = Object.values(claims).some((held) => held) || state.keyboardActions[action] === true || actionHeldFromPads(state, action);
+  state.actions[action] = isHeld;
+  if (isHeld !== wasHeld) {
+    setDirectionOrder(state, action, isHeld);
+    if (isHeld) {
+      appendKey(state, action, source, null, action);
+      state.pendingActions.push(action);
+    }
+  }
+  return true;
 }
 
 function appendKey(state: InputSection, name: string, code: string, char: string | null, action?: string): void {
@@ -100,7 +165,7 @@ function setDirectionOrder(state: InputSection, action: string, pressed: boolean
 function updateAction(state: InputSection, action: string, emitEdge: boolean, code: string): void {
   if (!boundActions(state).has(action)) return;
   const previous = state.actions[action] === true;
-  const current = state.keyboardActions[action] === true || actionHeldFromPads(state, action);
+  const current = state.keyboardActions[action] === true || actionHeldFromPads(state, action) || Object.values(state.semanticActionSources[action] ?? {}).some((held) => held);
   state.actions[action] = current;
   if (current === previous) return;
   setDirectionOrder(state, action, current);
@@ -158,6 +223,8 @@ function releaseHeld(state: InputSection): void {
   updateAllActions(state, false, "focus");
   state.pointer = { ...state.pointer, buttons: 0 };
   state.pressedButtonSlot = null;
+  state.pointerMovementSuppressed = false;
+  state.pendingPointerUps = [];
 }
 
 function slotAt(state: InputSection, x: number, y: number): InputButtonSlot | undefined {
@@ -170,8 +237,11 @@ function slotAt(state: InputSection, x: number, y: number): InputButtonSlot | un
  * phase; it adds no state, because the pointer record already holds the last position and buttons.
  */
 export function heldPointerGoal(state: InputSection): { x: number; y: number } | null {
-  if ((state.pointer.buttons & 1) === 0 || slotAt(state, state.pointer.x, state.pointer.y) !== undefined) return null;
-  return { x: state.pointer.x + state.camera.x, y: state.pointer.y + state.camera.y };
+  const { x, y, buttons } = state.pointer;
+  if (state.pointerMovementSuppressed || (buttons & 1) === 0 || slotAt(state, x, y) !== undefined) return null;
+  const plane = state.pointerPlane;
+  if (plane !== null && (x < 0 || y < 0 || x >= plane.width || y >= plane.height)) return null;
+  return { x: x + state.camera.x, y: y + state.camera.y };
 }
 
 /** The pointer record after one `pointer` event: position and buttons, then one edge per changed button bit, lowest bit first. */
@@ -196,6 +266,7 @@ function pointerAfter(previous: InputSection["pointer"], event: PointerInput): I
 function applyPointer(state: InputSection, event: PointerInput): void {
   const wasDown = (state.pointer.buttons & 1) !== 0;
   const isDown = (event.buttons & 1) !== 0;
+  const pressSlot = state.pressedButtonSlot;
   const slot = slotAt(state, event.x, event.y);
   state.pointer = pointerAfter(state.pointer, event);
   if (!wasDown && isDown) {
@@ -209,19 +280,27 @@ function applyPointer(state: InputSection, event: PointerInput): void {
       state.pressedButtonSlot = null;
     }
   }
+  if (wasDown && !isDown && pressSlot === null && !state.pointerMovementSuppressed
+    && slotAt(state, state.pointer.downX, state.pointer.downY) === undefined) {
+    state.pendingPointerUps.push({ x: event.x + state.camera.x, y: event.y + state.camera.y });
+  }
   if (isDown && slot === undefined) {
     state.pendingClicks.push({ x: event.x + state.camera.x, y: event.y + state.camera.y });
   }
 }
 
 /** Apply one raw event. Gamepad events are staged for deterministic device ordering. */
-export function applyInputEvent(state: InputSection, event: InputEvent): void {
+export function applyInputEvent(state: InputSection, event: InputEvent, onUnknownAction?: (action: string) => void): void {
   switch (event.kind) {
-    case "key": applyKey(state, event); return;
+    case "action":
+      if (!applySemanticActionEdge(state, event.action, event.down, event.source)) onUnknownAction?.(event.action);
+      return;
     case "pointer": applyPointer(state, event); return;
     case "pointer.cancel":
       state.pointer = { ...state.pointer, buttons: state.pointer.buttons & ~1 };
       state.pressedButtonSlot = null;
+      state.pointerMovementSuppressed = false;
+      state.pendingPointerUps = [];
       return;
     case "gamepad": state.pendingGamepads.push(event); return;
     case "focus":

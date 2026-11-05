@@ -342,7 +342,14 @@ function migrateTriggers(record: Record<string, unknown>, schema: Record<string,
 function migrateInput(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.input;
   if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `input` version");
-  if (version >= INPUT_SCHEMA_VERSION) return;
+  if (version >= INPUT_SCHEMA_VERSION) {
+    const input = recordAt(record.input, "input");
+    if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
+    if (typeof input.semanticActionSources !== "object" || input.semanticActionSources === null || Array.isArray(input.semanticActionSources)) input.semanticActionSources = {};
+    if (!Array.isArray(input.pendingPointerUps)) input.pendingPointerUps = [];
+    if (input.pointerPlane !== null && (typeof input.pointerPlane !== "object" || Array.isArray(input.pointerPlane))) input.pointerPlane = null;
+    return;
+  }
   const old = record.input;
   if (typeof old !== "object" || old === null || Array.isArray(old)) {
     record.input = createInputSection();
@@ -350,11 +357,21 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     return;
   }
   const oldRecord = old as Record<string, unknown>;
-  if (version === 2 || version === 3) {
-    // Schema 3 adds pointer edge counters; schema 4 adds the cancellable slot press.
-    const fresh = createInputSection().pointer;
+  if (version === 2 || version === 3 || version === 4 || version === 5) {
+    // Schema 3 adds pointer edge counters; schema 4 adds cancellable slot presses; schema 5 adds semantic actions; schema 6 adds pointer-up taps.
+    const fresh = createInputSection();
     const pointer = typeof oldRecord.pointer === "object" && oldRecord.pointer !== null && !Array.isArray(oldRecord.pointer) ? oldRecord.pointer as Record<string, unknown> : {};
-    record.input = { ...oldRecord, version: INPUT_SCHEMA_VERSION, pointer: { ...fresh, ...pointer }, pressedButtonSlot: null };
+    record.input = {
+      ...oldRecord,
+      version: INPUT_SCHEMA_VERSION,
+      pointer: { ...fresh.pointer, ...pointer },
+      pressedButtonSlot: version >= 4 ? oldRecord.pressedButtonSlot ?? null : null,
+      registeredActions: version >= 5 && Array.isArray(oldRecord.registeredActions) ? oldRecord.registeredActions : [],
+      semanticActionSources: version >= 5 && typeof oldRecord.semanticActionSources === "object" && oldRecord.semanticActionSources !== null ? oldRecord.semanticActionSources : {},
+      pointerMovementSuppressed: version >= 5 && typeof oldRecord.pointerMovementSuppressed === "boolean" ? oldRecord.pointerMovementSuppressed : false,
+      pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
+      pendingPointerUps: [],
+    };
     schema.input = INPUT_SCHEMA_VERSION;
     return;
   }

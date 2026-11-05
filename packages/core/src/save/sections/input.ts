@@ -1,6 +1,6 @@
 /** Owner: core/input (AD-10/AD-14; E-110..E-112). */
 
-export const INPUT_SCHEMA_VERSION = 4;
+export const INPUT_SCHEMA_VERSION = 6;
 
 export type InputKeyState = {
   readonly seq: number;
@@ -41,6 +41,17 @@ export type InputGamepad = {
   mask: number;
 };
 
+/** Game-owned action definition. Unknown metadata fields are retained verbatim for forward compatibility. */
+export type RegisteredAction = {
+  readonly name: string;
+  readonly label: string;
+  readonly icon: string | null;
+  readonly group: string | null;
+  readonly controls: readonly string[];
+  readonly locked: boolean;
+  readonly hidden: boolean;
+  readonly [extension: string]: unknown;
+};
 export type InputPointer = {
   x: number;
   y: number;
@@ -75,8 +86,13 @@ export type InputSection = {
   keyboardActions: { [action: string]: boolean };
   actions: { [action: string]: boolean };
   directionOrder: string[];
+  registeredActions: RegisteredAction[];
+  semanticActionSources: { [action: string]: { [source: string]: boolean } };
   pendingActions: string[];
   pendingClicks: { x: number; y: number }[];
+  pointerMovementSuppressed: boolean;
+  pointerPlane: { width: number; height: number } | null;
+  pendingPointerUps: { x: number; y: number }[];
   pendingGamepads: Array<{
     device: number;
     connected: boolean;
