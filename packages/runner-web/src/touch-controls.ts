@@ -72,7 +72,7 @@ type TouchControlHandle = {
 export function createFallbackTouchControls(
   stage: HTMLElement,
   geometry: () => TouchControlGeometry,
-  dispatch: (action: FallbackTouchAction, down: boolean) => number,
+  dispatch: (action: FallbackTouchAction, down: boolean, modalId?: number | null) => number,
 ): TouchControlHandle {
   const root = document.createElement("div");
   root.className = "fallback-touch-controls";

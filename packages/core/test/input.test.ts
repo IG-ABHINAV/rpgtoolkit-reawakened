@@ -93,17 +93,28 @@ test("registered game actions preserve order and semantic source claims emit one
   equal(actions.has("game.fireball"), true);
   equal(applySemanticActionEdge(state, "game.unknown", true, "runner.fallback", actions), false);
   deepEqual(state.keys, []);
-  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" });
-  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" });
-  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "ui:spellbar/fireball" });
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "runner.fallback", modalId: null });
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "runner.fallback", modalId: null });
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "ui:spellbar/fireball", modalId: null });
   equal(state.actions["game.fireball"], true);
   deepEqual(state.keys.map((key) => key.name), ["game.fireball"]);
   deepEqual(state.pendingActions, ["game.fireball"]);
-  applyInputEvent(state, { kind: "action", action: "game.fireball", down: false, source: "runner.fallback" });
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: false, source: "runner.fallback", modalId: null });
   equal(state.actions["game.fireball"], true, "another source still holds the action");
-  applyInputEvent(state, { kind: "action", action: "game.fireball", down: false, source: "ui:spellbar/fireball" });
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: false, source: "ui:spellbar/fireball", modalId: null });
   equal(state.actions["game.fireball"], false);
   deepEqual(state.keys.map((key) => key.seq), [1]);
+});
+test("modal-scoped actions stay outside ordinary action and compatibility queues", () => {
+  const state = createInputSection();
+  applyInputEvent(state, { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 41 });
+  applyInputEvent(state, { kind: "action", action: "confirm", down: false, source: "runner.fallback", modalId: 41 });
+  deepEqual(state.keys, []);
+  deepEqual(state.pendingActions, []);
+  deepEqual(state.actions.confirm, undefined);
+  deepEqual(state.modalActions, [{ seq: 1, action: "confirm", modalId: 41 }]);
+  pruneClaimed(state, [1]);
+  deepEqual(state.modalActions, []);
 });
 
 test("game-action keyboard bindings preserve raw Get key identity", () => {
@@ -228,11 +239,11 @@ test("registered keyboard and gamepad controls dispatch without extra key aliase
 
 test("semantic claims accept prototype-named sources and ignore unbound pad bits", () => {
   const state = createInputSection();
-  applyInputEvent(state, { kind: "action", action: "confirm", down: true, source: "__proto__" });
+  applyInputEvent(state, { kind: "action", action: "confirm", down: true, source: "__proto__", modalId: null });
   equal(state.actions.confirm, true);
   applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 16 });
   processGamepadEvents(state);
-  applyInputEvent(state, { kind: "action", action: "confirm", down: false, source: "__proto__" });
+  applyInputEvent(state, { kind: "action", action: "confirm", down: false, source: "__proto__", modalId: null });
   equal(state.actions.confirm, false);
 });
 
@@ -502,7 +513,7 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 8);
+  equal(state.input.version, 9);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);
@@ -556,7 +567,7 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   equal(migrated.nextPointerGestureId, 1);
   applyInputEvent(migrated, { kind: "pointer", x: 9, y: 8, buttons: 0 });
   deepEqual(migrated.pendingPointerUps, [{ gestureId: 0, x: 9, y: 8 }]);
-  equal(migrated.version, 8);
+  equal(migrated.version, 9);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
 });
 

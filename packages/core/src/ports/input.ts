@@ -115,6 +115,8 @@ export type ActionInput = {
   readonly action: string;
   readonly down: boolean;
   readonly source: string;
+  /** Non-null binds a modal-only action to the exact modal instance that received the press. */
+  readonly modalId: number | null;
 };
 
 /** The one published input event union (AD-14). */

@@ -1313,7 +1313,8 @@
         "kind",
         "action",
         "down",
-        "source"
+        "source",
+        "modalId"
       ],
       "properties": {
         "kind": {
@@ -1329,6 +1330,18 @@
         "source": {
           "type": "string",
           "minLength": 1
+        },
+        "modalId": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

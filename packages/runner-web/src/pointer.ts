@@ -34,8 +34,8 @@ export function attachPointerInput(
   geometry: () => HostDisplayGeometry,
   onPointer: (pointer: LogicalPointer, buttons: number) => void,
   onCancel: () => void,
-  preemptionAtFallback: (pointer: LogicalPointer) => "modal" | "author" | null,
-  onModalFallbackAction: (action: "confirm" | "cancel", down: boolean) => void,
+  preemptionAtFallback: (pointer: LogicalPointer) => number | "author" | null,
+  onModalFallbackAction: (action: "confirm" | "cancel", down: boolean, modalId: number) => void,
 ): () => void {
   let primaryPointerId: number | null = null;
   let suppressedPointerId: number | null = null;
@@ -43,10 +43,15 @@ export function attachPointerInput(
   let lastPointer: LogicalPointer = { x: 0, y: 0 };
   const runnerOwnedPointers = new Set<number>();
   const corePreemptedFallbackPointers = new Set<number>();
-  const modalFallbackPointers = new Map<number, { readonly action: "confirm" | "cancel"; readonly button: HTMLButtonElement; cancelled: boolean }>();
+  const modalFallbackPointers = new Map<number, { readonly action: "confirm" | "cancel"; readonly button: HTMLButtonElement; readonly modalId: number; cancelled: boolean }>();
   const handledCancels = new WeakSet<Event>();
 
+  const cancelModalFallback = (pointerId: number): void => {
+    const fallback = modalFallbackPointers.get(pointerId);
+    if (fallback !== undefined) fallback.cancelled = true;
+  };
   const cancelPrimary = (pointerId: number): void => {
+    cancelModalFallback(pointerId);
     if (pointerId !== primaryPointerId || suppressedPointerId === pointerId || (routedButtons & 1) === 0) return;
     onCancel();
     suppressedPointerId = pointerId;
@@ -73,11 +78,11 @@ export function attachPointerInput(
           return;
         }
         corePreemptedFallbackPointers.add(event.pointerId);
-        if (preemption === "modal" && event.target instanceof Element) {
+        if (typeof preemption === "number" && event.target instanceof Element) {
           const button = event.target.closest<HTMLButtonElement>(".fallback-touch-button");
           const action = button?.dataset.action;
           if (button !== null && (action === "confirm" || action === "cancel")) {
-            modalFallbackPointers.set(event.pointerId, { action, button, cancelled: false });
+            modalFallbackPointers.set(event.pointerId, { action, button, modalId: preemption, cancelled: false });
           }
         }
       } else if (event.pointerId !== primaryPointerId) {
@@ -141,8 +146,8 @@ export function attachPointerInput(
         modalFallbackPointers.delete(event.pointerId);
         if (!modalFallback.cancelled &&
             document.elementFromPoint(event.clientX, event.clientY)?.closest(".fallback-touch-button") === modalFallback.button) {
-          onModalFallbackAction(modalFallback.action, true);
-          onModalFallbackAction(modalFallback.action, false);
+          onModalFallbackAction(modalFallback.action, true, modalFallback.modalId);
+          onModalFallbackAction(modalFallback.action, false, modalFallback.modalId);
         }
       }
       corePreemptedFallbackPointers.delete(event.pointerId);
@@ -186,23 +191,22 @@ export function attachPointerInput(
     routedButtons &= ~1;
   };
   const onLostPointerCapture = (event: PointerEvent): void => {
-    if (runnerOwnedPointers.delete(event.pointerId)) return;
+    if (runnerOwnedPointers.has(event.pointerId)) return;
     modalFallbackPointers.delete(event.pointerId);
-    if (!corePreemptedFallbackPointers.delete(event.pointerId)) return;
-    if (primaryPointerId === event.pointerId) {
-      cancelPrimary(event.pointerId);
-      primaryPointerId = null;
-      suppressedPointerId = null;
-      routedButtons &= ~1;
-    }
+    if (!corePreemptedFallbackPointers.has(event.pointerId)) return;
+    cancelPrimary(event.pointerId);
   };
   const onWindowBlur = (): void => {
-    runnerOwnedPointers.clear();
+    // Keep runner-owned pointers reserved until physical release; otherwise a held fallback press can turn into gameplay.
     corePreemptedFallbackPointers.clear();
     modalFallbackPointers.clear();
-    if (primaryPointerId !== null && (routedButtons & 1) !== 0) onCancel();
-    primaryPointerId = null;
-    suppressedPointerId = null;
+    if (primaryPointerId !== null && ((routedButtons & 1) !== 0 || suppressedPointerId === primaryPointerId)) {
+      if ((routedButtons & 1) !== 0) onCancel();
+      suppressedPointerId = primaryPointerId;
+    } else {
+      primaryPointerId = null;
+      suppressedPointerId = null;
+    }
     routedButtons = 0;
   };
 

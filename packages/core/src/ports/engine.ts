@@ -118,7 +118,7 @@ export interface Engine {
   /** Plain-data tree for currently published UI surfaces; hosts request it only when needed. */
   accessibilityTree(): readonly AccessibilityNode[];
   /** Highest-priority core claim at a runner fallback control point, or null when no core target claims it. */
-  runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null;
+  runnerControlPointerPreemption(x: number, y: number): number | "author" | null;
   /**
    * The pixels of surface `id` at revision `rev`, or `null` when the surface
    * is unknown or `rev` is no longer available (AD-27). A presentation-only

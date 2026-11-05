@@ -3,7 +3,7 @@
 import type { DrawCommand, FontRef, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 
-export const UI_SCHEMA_VERSION = 7;
+export const UI_SCHEMA_VERSION = 8;
 export type UiTextDraw = {
   readonly x: number;
   readonly y: number;
@@ -24,6 +24,7 @@ export type UiMessageWindow = {
 };
 
 export type UiModal = {
+  readonly modalId: number;
   readonly kind: "prompt" | "msgbox";
   readonly text: string;
   readonly title: string;
@@ -125,6 +126,7 @@ export type UiSection = {
   cursorX: number;
   cursorY: number;
   modal: UiModal | null;
+  nextModalId: number;
   backgroundSurface: SurfaceId | null;
   backgroundRev: number;
   cursorMaps?: UiCursorMap[];
@@ -171,6 +173,7 @@ export function createUiSection(): UiSection {
     cursorX: 0,
     cursorY: 0,
     modal: null,
+    nextModalId: 1,
     backgroundSurface: null,
     backgroundRev: 0,
     actionSurfaces: [],

@@ -48,12 +48,13 @@ function createSchema() {
   schema.$defs.actionInput = {
     type: "object",
     additionalProperties: false,
-    required: ["kind", "action", "down", "source"],
+    required: ["kind", "action", "down", "source", "modalId"],
     properties: {
       kind: { const: "action" },
       action: { type: "string", minLength: 1 },
       down: { type: "boolean" },
       source: { type: "string", minLength: 1 },
+      modalId: { oneOf: [{ type: "integer", minimum: 1, maximum: 9007199254740991 }, { type: "null" }] },
     },
   };
   schema.$defs.inputEvent.oneOf.push({ $ref: "#/$defs/actionInput" });
@@ -71,8 +72,10 @@ function createVectors() {
     { id: "draw-nonempty-margin-plane", family: "draw", valid: true, record: { tick: 12, width: 640, height: 480, commands: [], marginCommands: [command] } },
     { id: "refuse-draw-missing-margin-plane", family: "draw", valid: false, why: "v2 requires marginCommands, even when empty", record: { tick: 12, width: 640, height: 480, commands: [] } },
     { id: "refuse-draw-v1-extra-key", family: "draw", valid: false, why: "v2 rejects unknown keys", record: { tick: 12, width: 640, height: 480, commands: [], marginCommands: [], legacy: true } },
-    { id: "input-fallback-action-down", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } } },
-    { id: "refuse-action-missing-source", family: "input", valid: false, why: "semantic action records require a source", record: { tick: 8, event: { kind: "action", action: "confirm", down: true } } },
+    { id: "input-fallback-action-down", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null } } },
+    { id: "input-modal-scoped-confirm", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 3 } } },
+    { id: "refuse-action-missing-source", family: "input", valid: false, why: "semantic action records require a source", record: { tick: 8, event: { kind: "action", action: "confirm", down: true, modalId: null } } },
+    { id: "refuse-action-missing-modal-id", family: "input", valid: false, why: "semantic action records require explicit modal scope or null", record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } } },
   );
   return {
     schema: 2,

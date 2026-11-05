@@ -361,8 +361,8 @@ test("active v2 runner-fallback action down and up replay as held, edge, and rel
     schema: 2,
     ticks: 3,
     log: [
-      { tick: 1, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } },
-      { tick: 2, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback" } },
+      { tick: 1, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null } },
+      { tick: 2, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback", modalId: null } },
     ],
   };
   const first = replay(profile, run, 1, profile.features, INITIAL_GEOMETRY, false);

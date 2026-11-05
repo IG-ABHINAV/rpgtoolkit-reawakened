@@ -85,8 +85,8 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
   const observedGeometry = createObservedHostGeometry(session.displayGeometry());
-  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean): number => {
-    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
+  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean, modalId: number | null = null): number => {
+    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback", modalId }, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
   };

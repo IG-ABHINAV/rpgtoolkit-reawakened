@@ -4,10 +4,10 @@
   "note": "V2 is the strict two-plane runner contract: every DrawList is {tick,width,height,commands,marginCommands}; both ordered arrays are required, use AD-3 commands, and participate in the draw hash. The v1 schema and vectors remain unchanged. Validate against packages/runner-harness/schema/runner-protocol-v2.schema.json.",
   "counts": {
     "draw": 16,
-    "input": 23,
+    "input": 25,
     "request": 13,
-    "valid": 37,
-    "invalid": 15
+    "valid": 38,
+    "invalid": 16
   },
   "vectors": [
     {
@@ -949,7 +949,23 @@
           "kind": "action",
           "action": "confirm",
           "down": true,
-          "source": "runner.fallback"
+          "source": "runner.fallback",
+          "modalId": null
+        }
+      }
+    },
+    {
+      "id": "input-modal-scoped-confirm",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "action",
+          "action": "confirm",
+          "down": true,
+          "source": "runner.fallback",
+          "modalId": 3
         }
       }
     },
@@ -963,7 +979,23 @@
         "event": {
           "kind": "action",
           "action": "confirm",
-          "down": true
+          "down": true,
+          "modalId": null
+        }
+      }
+    },
+    {
+      "id": "refuse-action-missing-modal-id",
+      "family": "input",
+      "valid": false,
+      "why": "semantic action records require explicit modal scope or null",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "action",
+          "action": "confirm",
+          "down": true,
+          "source": "runner.fallback"
         }
       }
     }

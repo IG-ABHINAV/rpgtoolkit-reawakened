@@ -441,13 +441,32 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     if (input.pointerPlane !== null && (typeof input.pointerPlane !== "object" || Array.isArray(input.pointerPlane))) input.pointerPlane = null;
     if (input.pointerGestureId === null && typeof input.pointer === "object" && input.pointer !== null
       && typeof (input.pointer as Record<string, unknown>).buttons === "number" && (((input.pointer as Record<string, number>).buttons ?? 0) & 1) !== 0) input.pointerGestureId = 0;
+    const modalActions = Array.isArray(input.modalActions) ? input.modalActions : [];
+    input.modalActions = modalActions;
+    for (const value of modalActions) {
+      if (typeof value !== "object" || value === null || Array.isArray(value) ||
+          !Number.isSafeInteger((value as Record<string, unknown>).seq) ||
+          !Number.isSafeInteger((value as Record<string, unknown>).modalId) ||
+          ((value as Record<string, unknown>).modalId as number) < 1 ||
+          ((value as Record<string, unknown>).action !== "confirm" && (value as Record<string, unknown>).action !== "cancel")) {
+        shapeError("the snapshot's input modalActions must contain sequenced confirm/cancel records with positive modal ids");
+      }
+    }
     rebuildInputActionIndexes(input);
+    return;
+  }
+  if (version === 8) {
+    const input = recordAt(record.input, "input");
+    input.version = INPUT_SCHEMA_VERSION;
+    if (!Array.isArray(input.modalActions)) input.modalActions = [];
+    schema.input = INPUT_SCHEMA_VERSION;
     return;
   }
   if (version === 7) {
     const input = recordAt(record.input, "input");
     input.version = INPUT_SCHEMA_VERSION;
     if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    if (!Array.isArray(input.modalActions)) input.modalActions = [];
     input.keys = normalizeKeys(input.keys);
     rebuildInputActionIndexes(input);
     schema.input = INPUT_SCHEMA_VERSION;
@@ -499,6 +518,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
       pointerMovementSuppressed: version >= 5 && typeof oldRecord.pointerMovementSuppressed === "boolean" ? oldRecord.pointerMovementSuppressed : false,
       pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
       pendingKeySequences: [],
+      modalActions: [],
       gamepads: pads,
       pointerGestureId: activeGestureId,
       pendingClicks: clicks,
@@ -558,6 +578,22 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
         });
       }
     }
+    const modal = migrated.modal;
+    const oldModalId = typeof modal === "object" && modal !== null && !Array.isArray(modal)
+      ? (modal as Record<string, unknown>).modalId
+      : undefined;
+    if (typeof modal === "object" && modal !== null && !Array.isArray(modal) &&
+        (!Number.isSafeInteger(oldModalId) || (oldModalId as number) < 1)) {
+      (modal as Record<string, unknown>).modalId = 1;
+    }
+    const currentModal = migrated.modal;
+    const modalId = typeof currentModal === "object" && currentModal !== null && !Array.isArray(currentModal)
+      ? (currentModal as Record<string, unknown>).modalId
+      : null;
+    const nextModalId = Number.isSafeInteger(migrated.nextModalId) && (migrated.nextModalId as number) >= 1
+      ? migrated.nextModalId as number
+      : 1;
+    migrated.nextModalId = typeof modalId === "number" ? Math.max(nextModalId, modalId + 1) : nextModalId;
     if (!Array.isArray(migrated.authorMarginSurfaces)) migrated.authorMarginSurfaces = [];
         for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
           const claim = migrated[key];
@@ -572,6 +608,16 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
     for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
       const claim = currentUi[key];
       if (claim !== null && (typeof claim !== "object" || Array.isArray(claim) || typeof (claim as Record<string, unknown>).cancelled !== "boolean")) shapeError(`the snapshot's UI ${key} must be null or an object with boolean \`cancelled\``);
+    }
+    if (!Number.isSafeInteger(currentUi.nextModalId) || (currentUi.nextModalId as number) < 1) {
+      shapeError("the snapshot's UI nextModalId must be a positive safe integer");
+    }
+    const currentModal = currentUi.modal;
+    if (currentModal !== null && (typeof currentModal !== "object" || Array.isArray(currentModal) ||
+        !Number.isSafeInteger((currentModal as Record<string, unknown>).modalId) ||
+        ((currentModal as Record<string, unknown>).modalId as number) < 1 ||
+        ((currentModal as Record<string, unknown>).modalId as number) >= (currentUi.nextModalId as number))) {
+      shapeError("the snapshot's UI modal must carry an identity below nextModalId");
     }
     schema.ui = UI_SCHEMA_VERSION;
 }

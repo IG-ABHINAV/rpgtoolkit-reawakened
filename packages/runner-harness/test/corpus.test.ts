@@ -372,19 +372,20 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // else did; every other hash, tick and diagnostic is unchanged.
   // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
   // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
-  // UI schema 7 adds the persisted author-claim cancellation flag; only state hashes move from this schema change.
+  // UI schema 7 adds author-claim cancellation; UI schema 8 adds deterministic modal identity; input schema 9 adds an
+  // empty modal-action queue. The schema versions enter the canonical hash even when these fields are inactive.
   // Corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "d4d5cf26ecf2280a",
-    "sample-system-demo": "1a67e8bc05aeb7e2",
-    "sample-sys-test-demo": "1a67e8bc05aeb7e2",
-    "sample-win-demo": "d0b39c89987bb522",
-    "sample-oldman-demo": "c030d5e1232a9f1d",
-    "sample-man-demo": "f66fdd92bfd77427",
-    "sample-man-wander-demo": "d1d34d7ab3691236",
-    "sample-start-basic": "f2269b2e13b97a56",
-    "sample-system-basic": "1a67e8bc05aeb7e2",
-    "sample-wander-basic": "8a16b3434ef59ef2",
+    "sample-start-demo": "ab472a9cc2fd6a0f",
+    "sample-system-demo": "e95b225597cf0b1b",
+    "sample-sys-test-demo": "e95b225597cf0b1b",
+    "sample-win-demo": "7c1f9f2d4b2c8033",
+    "sample-oldman-demo": "e761ed20cb339092",
+    "sample-man-demo": "b058d983ce45d5b8",
+    "sample-man-wander-demo": "329262f15a776987",
+    "sample-start-basic": "9d7da05a67efd093",
+    "sample-system-basic": "e95b225597cf0b1b",
+    "sample-wander-basic": "b88e4f8b789bade7",
   };
 
   for (const res of results) {
@@ -407,7 +408,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "8a16b3434ef59ef2"); // UI schema 7 persists author-claim cancellation state.
+  equal(hash1, "b88e4f8b789bade7"); // Current schema hashes include the saved modal identity and scoped-action queue versions.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

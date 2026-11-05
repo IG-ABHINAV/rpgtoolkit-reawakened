@@ -503,12 +503,52 @@ test("game saves from prior audio schema migrate to current schema with empty pr
   deepEqual(restored.state.audio.tracks, current.audio.tracks);
 });
 
-test("schema 7 input migration advances both section and root schema versions", () => {
+test("schema 7 input migration advances both section and root schema versions with an empty modal queue", () => {
   const original = createGameState({ seed: 9 });
   const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
   raw.schema.input = 7;
   raw.input.version = 7;
+  delete raw.input.modalActions;
   const restored = restoreGameState(JSON.stringify(raw));
   equal(restored.schema.input, SCHEMA_VERSIONS.input);
   equal(restored.input.version, SCHEMA_VERSIONS.input);
+  deepEqual(restored.input.modalActions, []);
+});
+
+test("schema 7 UI and schema 8 input migration assign modal identity and empty scoped-action queue", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as {
+    schema: { ui: number; input: number };
+    ui: Record<string, unknown>;
+    input: Record<string, unknown>;
+  };
+  raw.schema.ui = 7;
+  raw.ui.version = 7;
+  raw.ui.modal = {
+    kind: "msgbox",
+    text: "legacy modal",
+    title: "",
+    style: 0,
+    textColor: { r: 255, g: 255, b: 255 },
+    background: { r: 0, g: 0, b: 0 },
+    graphic: "",
+    selected: 0,
+    result: null,
+  };
+  raw.schema.input = 8;
+  raw.input.version = 8;
+  delete raw.input.modalActions;
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  equal(restored.schema.ui, SCHEMA_VERSIONS.ui);
+  equal(restored.ui.modal?.modalId, 1);
+  equal(restored.ui.nextModalId, 2);
+  equal(restored.schema.input, SCHEMA_VERSIONS.input);
+  deepEqual(restored.input.modalActions, []);
+
+  restored.ui.modal = { ...restored.ui.modal!, modalId: 7 };
+  restored.ui.nextModalId = 8;
+  const roundTripped = restoreGameState(snapshot(restored));
+  equal(roundTripped.ui.modal?.modalId, 7, "current saves preserve modal ownership identity");
+  equal(roundTripped.ui.nextModalId, 8);
 });

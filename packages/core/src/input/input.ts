@@ -1,6 +1,6 @@
 /** Deterministic input owner for keyboard, pointer and normalized gamepad data. */
 import type { InputEvent, GamepadInput, KeyInput, PointerInput } from "../ports/input.ts";
-import type { InputBindings, InputButton, InputButtonSlot, InputGamepad, InputKeyState, InputSection, RegisteredAction } from "../save/sections/input.ts";
+import { INPUT_SCHEMA_VERSION, type InputBindings, type InputButton, type InputButtonSlot, type InputGamepad, type InputKeyState, type InputSection, type RegisteredAction } from "../save/sections/input.ts";
 
 import { canon } from "../canon/canon.ts";
 import type { PlainData } from "../ports/plain-data.ts";
@@ -77,9 +77,10 @@ function updateKeyboardClaimIndex(state: InputSection, action: string, control: 
 
 export function createInputSection(config: InputConfig = {}): InputSection {
   const state: InputSection = {
-    version: 8,
+    version: INPUT_SCHEMA_VERSION,
     nextSeq: 1,
     keys: [],
+    pendingKeySequences: [],
     held: {},
     pointer: { x: 0, y: 0, buttons: 0, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 },
     focused: true,
@@ -101,8 +102,8 @@ export function createInputSection(config: InputConfig = {}): InputSection {
     keyboardActionSources: {},
     semanticActionSources: {},
     directionOrder: [],
+    modalActions: [],
     pendingActions: [],
-    pendingKeySequences: [],
     pendingClicks: [],
     pointerMovementSuppressed: false,
     pointerPlane: config.pointerPlane === undefined ? null : { ...config.pointerPlane },
@@ -475,6 +476,14 @@ export function applyInputEvent(state: InputSection, event: InputEvent, onUnknow
   switch (event.kind) {
     case "key": applyKey(state, event, onUnknownAction); return;
     case "action":
+      if (event.modalId !== null) {
+        if (event.action !== "confirm" && event.action !== "cancel") {
+          onUnknownAction?.(event.action);
+          return;
+        }
+        if (event.down) state.modalActions.push({ seq: state.nextSeq++, action: event.action, modalId: event.modalId });
+        return;
+      }
       if (!applySemanticActionEdge(state, event.action, event.down, event.source)) onUnknownAction?.(event.action);
       return;
     case "pointer": applyPointer(state, event); return;
@@ -552,16 +561,20 @@ export function takeInputActions(state: InputSection): { actions: string[]; clic
   return result;
 }
 
-/** Add every queued key older than a waiter's park floor to the shared claim set. */
+/** Add every queued key or scoped modal action older than a waiter's park floor to the shared claim set. */
 export function claimInputBefore(state: InputSection, floor: number, claims: number[]): void {
   for (const key of state.keys) {
     if (key.seq < floor && !claims.includes(key.seq)) claims.push(key.seq);
   }
+  for (const action of state.modalActions) {
+    if (action.seq < floor && !claims.includes(action.seq)) claims.push(action.seq);
+  }
 }
 
-/** Remove only claims made by the engine; an unclaimed key remains for later waiters. */
+/** Remove only claims made by the engine; an unclaimed key or scoped action remains for later waiters. */
 export function pruneClaimed(state: InputSection, claimed: readonly number[]): void {
   if (claimed.length === 0) return;
   const used = new Set(claimed);
   state.keys = state.keys.filter((key) => !used.has(key.seq));
+  state.modalActions = state.modalActions.filter((action) => !used.has(action.seq));
 }

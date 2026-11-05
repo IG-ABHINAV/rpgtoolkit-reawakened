@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 
 type TouchFixture = { readonly name: string; readonly packageBytes: Uint8Array; readonly descriptor: Record<string, unknown> };
-type TraceInput = { readonly event: { readonly kind: string; readonly action?: string; readonly down?: boolean; readonly source?: string; readonly code?: string; readonly buttons?: number } };
+type TraceInput = { readonly event: { readonly kind: string; readonly action?: string; readonly down?: boolean; readonly source?: string; readonly modalId?: number | null; readonly code?: string; readonly buttons?: number } };
 
 function packageWithStartup(name: string, startup: string): TouchFixture {
   const loaded = loadPackage({ kind: "tpk", name: "demo.tpk", bytes: new Uint8Array(readFileSync("fixtures/packages/demo.tpk")) });
@@ -188,7 +188,7 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
       const box = await confirm.boundingBox();
       if (box === null) throw new Error("Confirm fallback button has no bounds");
       await page.waitForFunction(({ screenX, screenY, expected }) => {
-        const target = window as Window & { __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null }; readonly displayGeometry?: () => { readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number } }; readonly viewSize?: () => { readonly width: number; readonly height: number } } };
+        const target = window as Window & { __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null }; readonly displayGeometry?: () => { readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number } }; readonly viewSize?: () => { readonly width: number; readonly height: number } } };
         const session = target.__session;
         const geometry = session?.displayGeometry?.();
         const size = session?.viewSize?.();
@@ -197,7 +197,8 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
         if (stage === undefined) return false;
         const x = Math.floor((screenX - stage.left - geometry.game.x) / (geometry.game.width / size.width));
         const y = Math.floor((screenY - stage.top - geometry.game.y) / (geometry.game.height / size.height));
-        return session.engine.runnerControlPointerPreemption(x, y) === expected;
+        const claim = session.engine.runnerControlPointerPreemption(x, y);
+        return expected === "author" ? claim === "author" : claim === 1;
       }, { screenX: box.x + box.width / 2, screenY: box.y + box.height / 2, expected: fixture === author ? "author" : "modal" }, { timeout: 45_000 });
       await installInputTrace(page);
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -223,22 +224,117 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
       } else {
         await page.waitForFunction((action) => {
           const target = window as Window & {
-            __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null } };
+            __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null } };
             __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[];
           };
-          return target.__session?.engine?.runnerControlPointerPreemption(0, 0) !== "modal" &&
+          return typeof (target.__session?.engine?.runnerControlPointerPreemption(0, 0)) !== "number" &&
             (target.__touchInputTrace ?? []).flatMap((entry) => entry.inputs).some((entry) =>
               entry.event.kind === "action" && entry.event.action === action && entry.event.source === "runner.fallback" && entry.event.down === false);
         }, "confirm", { timeout: 10_000 });
         const modalActions = (await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === "confirm" && entry.event.source === "runner.fallback");
         expect(modalActions.filter((entry) => entry.event.down === true)).toHaveLength(1);
         expect(modalActions.filter((entry) => entry.event.down === false)).toHaveLength(1);
-        const resumeStates = await page.evaluate(() => (window as Window & { __audioResumeStates?: string[] }).__audioResumeStates ?? []);
-        expect(resumeStates).toContain("suspended");
+        expect(modalActions.map((entry) => entry.event.modalId)).toEqual([1, 1]);
       }
     } finally {
       await context.close();
     }
+  }
+});
+test("leaving the host cancels a modal-preempted fallback press", async ({ browser }) => {
+  const modal = packageWithStartup("modal-touch-cancel.tpk", 'msgbox("Modal wins")\nend()');
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await servePackage(page, modal);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${modal.name}`);
+    const confirm = page.getByRole("button", { name: "Confirm" });
+    await confirm.waitFor({ state: "visible", timeout: 45_000 });
+    const button = await confirm.boundingBox();
+    const report = await page.locator("#report").boundingBox();
+    if (button === null || report === null) throw new Error("modal control or report area has no bounds");
+    await installInputTrace(page);
+    await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(report.x + report.width / 2, report.y + report.height / 2);
+    await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
+    await page.mouse.up();
+    await page.waitForTimeout(50);
+    expect((await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === "confirm" && entry.event.source === "runner.fallback")).toHaveLength(0);
+    const stillModal = await page.evaluate(({ buttonCenterX, buttonCenterY }) => {
+      const target = window as Window & {
+        __session?: {
+          readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null };
+          readonly displayGeometry?: () => { readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number } };
+          readonly viewSize?: () => { readonly width: number; readonly height: number };
+        };
+      };
+      const session = target.__session;
+      const geometry = session?.displayGeometry?.();
+      const size = session?.viewSize?.();
+      const stage = document.querySelector(".fallback-touch-controls")?.parentElement?.getBoundingClientRect();
+      if (session?.engine === undefined || geometry === undefined || size === undefined || stage === undefined) return false;
+      const x = Math.floor((buttonCenterX - stage.left - geometry.game.x) / (geometry.game.width / size.width));
+      const y = Math.floor((buttonCenterY - stage.top - geometry.game.y) / (geometry.game.height / size.height));
+      return typeof session.engine.runnerControlPointerPreemption(x, y) === "number";
+    }, { buttonCenterX: button.x + button.width / 2, buttonCenterY: button.y + button.height / 2 });
+    expect(stillModal).toBe(true);
+  } finally {
+    await context.close();
+  }
+});
+
+test("an A-scoped fallback release cannot dismiss modal B when Enter is queued in the same advance", async ({ browser }) => {
+  const fixture = packageWithStartup("modal-owner-race.tpk", 'first = msgbox("Modal A")\nsecond = msgbox("Modal B")\nend()');
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+    const confirm = page.getByRole("button", { name: "Confirm" });
+    await confirm.waitFor({ state: "visible", timeout: 45_000 });
+    await installInputTrace(page);
+    const box = await confirm.boundingBox();
+    if (box === null) throw new Error("Confirm fallback button has no bounds");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.waitForFunction(() => typeof (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId === "number");
+    const pointerId = await page.evaluate(() => (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId ?? -1);
+    if (pointerId < 0) throw new Error("modal fallback pointer id was not recorded");
+    await page.evaluate(({ pointerId, x, y }) => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
+      const button = document.querySelector<HTMLButtonElement>(".fallback-touch-button[data-action='confirm']");
+      if (button === null) throw new Error("Confirm fallback button disappeared");
+      button.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "mouse",
+        button: 0,
+        buttons: 0,
+        clientX: x,
+        clientY: y,
+      }));
+    }, { pointerId, x, y });
+    await page.waitForTimeout(150);
+    const proof = await page.evaluate(() => {
+      const target = window as Window & {
+        __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null } };
+        __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[];
+      };
+      const trace = target.__touchInputTrace ?? [];
+      const sameAdvance = trace.some((entry) =>
+        entry.inputs.some((input) => input.event.kind === "key" && input.event.code === "Enter" && input.event.down === true) &&
+        entry.inputs.some((input) => input.event.kind === "action" && input.event.action === "confirm" && input.event.modalId === 1 && input.event.down === true));
+      return { sameAdvance, claim: target.__session?.engine?.runnerControlPointerPreemption(0, 0) ?? null };
+    });
+    expect(proof.sameAdvance).toBe(true);
+    expect(proof.claim).toBe(2);
+    await page.mouse.up();
+  } finally {
+    await context.close();
   }
 });
 
@@ -353,11 +449,14 @@ test("fallback pointer ownership clears after blur before the next gameplay clic
     await page.mouse.down();
     await page.waitForTimeout(50);
     await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    const stage = await page.locator("#stage").boundingBox();
+    if (stage === null) throw new Error("game stage has no bounds");
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+    await page.waitForTimeout(50);
+    expect((await tracedInputs(page)).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1)).toBe(false);
     await page.mouse.move(-20, -20);
     await page.mouse.up();
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    const stage = await page.locator("#stage").boundingBox();
-    if (stage === null) throw new Error("game stage has no bounds");
     const x = stage.x + stage.width / 2;
     const y = stage.y + stage.height / 2;
     const clickTarget = await page.evaluate(({ x: clickX, y: clickY }) => {
@@ -373,6 +472,80 @@ test("fallback pointer ownership clears after blur before the next gameplay clic
     const pointerEvents = (await tracedInputs(page)).filter((entry) => entry.event.kind === "pointer");
     expect(pointerEvents.some((entry) => entry.event.buttons === 1)).toBe(true);
     expect(pointerEvents.some((entry) => entry.event.buttons === 0)).toBe(true);
+  } finally {
+    await context.close();
+  }
+});
+test("lost fallback capture keeps a held pointer away from gameplay", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    const right = page.getByRole("button", { name: "Move right" });
+    await right.waitFor({ state: "visible", timeout: 45_000 });
+    await installInputTrace(page);
+    await page.evaluate(() => {
+      const target = window as Window & { __fallbackPointerId?: number };
+      document.addEventListener("pointerdown", (event) => {
+        if ((event.target as Element).closest(".fallback-touch-button") !== null) target.__fallbackPointerId = event.pointerId;
+      }, true);
+    });
+    const button = await right.boundingBox();
+    const stage = await page.locator("#stage").boundingBox();
+    if (button === null || stage === null) throw new Error("fallback button or game stage has no bounds");
+    await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
+    await page.mouse.down();
+    await page.waitForFunction(() => typeof (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId === "number");
+    const pointerId = await page.evaluate(() => (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId ?? -1);
+    await right.evaluate((element, id) => {
+      element.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true, pointerId: id, pointerType: "mouse", button: 0, buttons: 1 }));
+    }, pointerId);
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+    await page.waitForTimeout(50);
+    expect((await tracedInputs(page)).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1)).toBe(false);
+    await page.mouse.up();
+    await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 2);
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1);
+    }, undefined, { timeout: 10_000 });
+  } finally {
+    await context.close();
+  }
+});
+
+test("blur suppresses a held gameplay pointer until physical release", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    await page.getByRole("button", { name: "Confirm" }).waitFor({ state: "visible", timeout: 45_000 });
+    await installInputTrace(page);
+    const stage = await page.locator("#stage").boundingBox();
+    if (stage === null) throw new Error("game stage has no bounds");
+    const x = stage.x + stage.width / 2;
+    const y = stage.y + stage.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1);
+    }, undefined, { timeout: 10_000 });
+    const report = await page.locator("#report").boundingBox();
+    if (report === null) throw new Error("player report has no bounds");
+    await page.mouse.move(report.x + report.width / 2, report.y + report.height / 2);
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.mouse.move(x + 8, y + 8);
+    await page.waitForTimeout(50);
+    const beforeRelease = (await tracedInputs(page)).filter((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1);
+    expect(beforeRelease).toHaveLength(1);
+    await page.mouse.up();
+    await page.mouse.click(x + 16, y + 16);
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { readonly __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs).filter((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1).length === 2;
+    }, undefined, { timeout: 10_000 });
   } finally {
     await context.close();
   }

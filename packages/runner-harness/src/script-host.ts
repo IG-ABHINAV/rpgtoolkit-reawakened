@@ -332,8 +332,8 @@ function createHost(
     accessibilityTree() {
       return uiAccessibilityTree(gameState.ui);
     },
-    runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null {
-      if (gameState.ui.modal != null) return "modal";
+    runnerControlPointerPreemption(x: number, y: number): number | "author" | null {
+      if (gameState.ui.modal != null) return gameState.ui.modal.modalId;
       return (gameState.ui.actionSurfaces ?? []).some((surface) =>
         surface.items.some((item) => item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
           x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h)) ? "author" : null;
