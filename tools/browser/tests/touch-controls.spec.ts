@@ -70,6 +70,17 @@ test("touch-capable live player exposes accessible fallback controls without shr
     for (const name of ["Move up", "Move left", "Move down", "Move right", "Confirm", "Cancel"]) {
       await expect(page.getByRole("button", { name })).toBeVisible();
     }
+    const moveRight = page.getByRole("button", { name: "Move right" });
+    await moveRight.focus();
+    const affordances = await moveRight.evaluate((button) => {
+      const style = getComputedStyle(button);
+      const bounds = button.getBoundingClientRect();
+      return { width: bounds.width, height: bounds.height, outlineWidth: style.outlineWidth, outlineStyle: style.outlineStyle };
+    });
+    expect(affordances.width).toBeGreaterThanOrEqual(44);
+    expect(affordances.height).toBeGreaterThanOrEqual(44);
+    expect(affordances.outlineWidth).toBe("3px");
+    expect(affordances.outlineStyle).toBe("solid");
     await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
 
     const before = await page.evaluate(() => ({
@@ -80,7 +91,7 @@ test("touch-capable live player exposes accessible fallback controls without shr
     if (before.player === null) throw new Error("live player position is not available");
     expect(before.logicalWidth).toBe(640);
     expect(before.logicalHeight).toBe(480);
-    await page.getByRole("button", { name: "Move right" }).tap();
+    await moveRight.tap();
     await page.waitForFunction((start) => {
       const player = window.__live?.player;
       return player !== null && player !== undefined && player.x > start.x;
@@ -101,6 +112,7 @@ test("an explicit custom touch-control declaration suppresses only the fallback 
       const session = (window as Window & { __session?: { engine: { customTouchControlsDeclared(): boolean } } }).__session;
       return session?.engine.customTouchControlsDeclared() === true;
     }, undefined, { timeout: 45_000 });
+    await expect(page.locator(".fallback-touch-controls")).toHaveCount(1);
     await expect(page.locator(".fallback-touch-controls")).toBeHidden();
   } finally {
     await context.close();
