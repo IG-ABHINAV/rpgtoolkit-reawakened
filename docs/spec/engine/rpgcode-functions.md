@@ -320,6 +320,39 @@ run("nextChapter.prg")                                         // legacy Toolkit
 <a id="e-63"></a>
 **E-63 Board preview.** `ViewBrd` renders a board, or part of one, to the screen or to a canvas without entering it.
 
+<a id="reawakened-host-capability-and-viewport-queries"></a>
+## Host capabilities & viewport geometry (Reawakened)
+
+These queries read the current normalized host state. They do not inspect the operating system or browser and never wait.
+
+| Command | Signature | Purpose | Notes |
+|---|---|---|---|
+| `hasFeature` | `int hasFeature(string name)` | Check whether a host capability is active. | Names are case-insensitive: `touch`, `keyboard`, `gamepad`, and `haptics` use their boolean values; `pointer` is active unless its type is `none`; `orientation` is active unless it is `null`. Unknown names return 0. |
+| `pointerType` | `string pointerType()` | Read the current pointer precision. | Returns `fine`, `coarse`, or `none`. |
+| `viewWidth` | `int viewWidth()` | Read the configured logical viewport width in pixels. | Physical display resizing does not change this value. |
+| `viewHeight` | `int viewHeight()` | Read the configured logical viewport height in pixels. | Physical display resizing does not change this value. |
+| `marginWidth` | `int marginWidth(string side)` | Read the display margin for a side in logical pixels. | `side` is `left`, `right`, `top`, or `bottom` (case-insensitive); horizontal and vertical distances use their respective game-to-logical scale and are floored. Invalid sides raise catchable `builtin.bad-arg`. |
+| `safeAreaInset` | `int safeAreaInset(string side)` | Read a hardware safe-area inset in logical pixels. | `side` is `top`, `right`, `bottom`, or `left` (case-insensitive); the CSS-pixel inset is divided by the corresponding game-to-logical scale and floored. Invalid sides raise catchable `builtin.bad-arg`. |
+| `displayAspect` | `float displayAspect()` | Read the physical content-window aspect ratio. | `content.width / content.height`. |
+
+`viewportResized` is queued on the `game` emitter when accepted `host.display` input changes geometry. Its `event.detail` contains `marginLeft`, `marginRight`, `marginTop`, `marginBottom`, `safeAreaTop`, `safeAreaRight`, `safeAreaBottom`, and `safeAreaLeft`, all integer logical-pixel values:
+
+```rpgcode
+on(game, "viewportResized", def(event) {
+    hud.reposition(event.detail.marginRight, event.detail.safeAreaBottom);
+});
+```
+
+Gamepad connection edges are queued on the `game` emitter as `device.connected` and `device.disconnected` in the normal events phase. Their detail has exactly `device` (the normalized controller index from 0 through 3) and `type`, which is `"gamepad"`. Repeated connected samples and disconnects for unknown or already-disconnected devices do not emit events:
+
+```rpgcode
+on(game, "device.connected", (event) => {
+    if (event.detail.type == "gamepad") {
+        activeController = event.detail.device;
+    }
+});
+```
+
 ## Players, party & sprite movement (31)
 
 | Command | Signature | Purpose | Notes |
