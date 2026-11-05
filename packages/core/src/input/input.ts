@@ -305,7 +305,7 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
       .sort((a, b) => state.actionOrder[a]! - state.actionOrder[b]!),
   ];
   if (event.down) {
-    const semanticGameBinding = mapped !== undefined && mapped.startsWith("game.") && Object.hasOwn(state.actionRegistry, mapped);
+    const semanticGameBinding = mapped !== undefined && mapped.startsWith("game.");
     const name = semanticGameBinding ? event.name : configured ?? event.name;
     appendKey(state, name, event.code, event.char, configured ?? null, ordered, null, !event.repeat && !priorRaw);
   }

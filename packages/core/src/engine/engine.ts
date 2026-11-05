@@ -337,6 +337,7 @@ export function createEngine(init: EngineInit): Engine {
   });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
   state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+  const externallyRegisteredActions: RegisteredAction[] = [];
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
@@ -1149,7 +1150,6 @@ export function createEngine(init: EngineInit): Engine {
   }
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
     const movementFallback = movementDefaults(mainFile);
-    const externallyRegisteredActions = state.input.registeredActions.slice();
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -2006,6 +2006,7 @@ export function createEngine(init: EngineInit): Engine {
     postQuitWriteFailures.length = 0;
     state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
+    for (const action of externallyRegisteredActions) registerGameAction(state.input, action);
     init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
       const found = index.byKey.get(assetKey(nextMain));
@@ -3967,6 +3968,10 @@ export function createEngine(init: EngineInit): Engine {
     },
     registerGameAction(action: RegisteredAction) {
       const registered = registerGameAction(state.input, action);
+      if (registered && !externallyRegisteredActions.some((existing) => existing.name === action.name)) {
+        const definition = state.input.registeredActions.find((existing) => existing.name === action.name);
+        if (definition !== undefined) externallyRegisteredActions.push(definition);
+      }
       if (!registered) diagnostics.push({
         code: "input.action-registration",
         file: mainKey ?? "",

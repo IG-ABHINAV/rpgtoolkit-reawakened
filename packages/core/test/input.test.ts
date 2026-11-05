@@ -116,6 +116,16 @@ test("game-action keyboard bindings preserve raw Get key identity", () => {
   equal(state.actions["game.fireball"], true);
 });
 
+test("unknown game-action keyboard bindings still deliver the raw key to scripts", () => {
+  const state = createInputSection({ bindings: { keys: { KeyF: "game.removed" } } });
+  const unknown: string[] = [];
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true }, (action) => unknown.push(action));
+  const result = pollInputKey({ tick: 0, input: inputView(state), claims: [] }, { kind: "input.key", global: true, key: null, parkSeq: 1 });
+  deepEqual(unknown, ["game.removed"]);
+  equal(result?.value, "F");
+  equal(state.actions["game.removed"], undefined);
+});
+
 test("custom legacy menu key does not diagnose an unknown game action or reopen on repeat", () => {
   const state = createInputSection({ bindings: { keys: { KeyM: "M" } } });
   const unknown: string[] = [];

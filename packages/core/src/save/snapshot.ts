@@ -378,6 +378,7 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
     if (typeof keyMap === "object" && keyMap !== null && !Array.isArray(keyMap)) Object.assign(bindings, keyMap);
   }
   const defaults: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Space: "confirm", Escape: "cancel" };
+  const keyAliases: Record<string, string> = { ENTER: "Enter", RETURN: "Enter", SPACE: "Space", " ": "Space", ESC: "Escape", ESCAPE: "Escape", UP: "ArrowUp", DOWN: "ArrowDown", LEFT: "ArrowLeft", RIGHT: "ArrowRight" };
   const aliases: Record<string, string> = { ENTER: "confirm", RETURN: "confirm", SPACE: "confirm", " ": "confirm", ESC: "cancel", ESCAPE: "cancel", UP: "up", DOWN: "down", LEFT: "left", RIGHT: "right" };
   const resolve = (value: unknown): string | null => typeof value === "string" ? aliases[value.toUpperCase()] ?? value : null;
   if (typeof input.keyboardActions === "object" && input.keyboardActions !== null && !Array.isArray(input.keyboardActions)) {
@@ -386,8 +387,10 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
       const claims: Record<string, true> = {};
       for (const [code, down] of Object.entries(heldKeys)) {
         if (down !== true) continue;
-        const resolved = resolve(bindings[code]) ?? defaults[code] ?? null;
-        if (resolved === action) Object.defineProperty(claims, `key:${code}`, { value: true, enumerable: true, configurable: true, writable: true });
+        const sourceCode = keyAliases[code] ?? code;
+        if (sourceCode !== code && heldKeys[sourceCode] === true) continue;
+        const resolved = resolve(bindings[sourceCode]) ?? defaults[sourceCode] ?? resolve(bindings[code]) ?? aliases[code] ?? null;
+        if (resolved === action) Object.defineProperty(claims, `key:${sourceCode}`, { value: true, enumerable: true, configurable: true, writable: true });
       }
       if (Object.keys(claims).length === 0) Object.defineProperty(claims, "legacy.keyboard", { value: true, enumerable: true, configurable: true, writable: true });
       Object.defineProperty(sources, action, { value: claims, enumerable: true, configurable: true, writable: true });
@@ -437,6 +440,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
     input.keys = normalizeKeys(input.keys);
     rebuildInputActionIndexes(input);
+    schema.input = INPUT_SCHEMA_VERSION;
     return;
   }
   const old = record.input;
@@ -464,9 +468,16 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
       ? Object.fromEntries(Object.entries(oldRecord.gamepads as Record<string, unknown>).map(([device, value]) => {
         if (typeof value !== "object" || value === null || Array.isArray(value)) return [device, value];
         const pad = value as Record<string, unknown>;
-        return [device, { ...pad, mask: typeof pad.mask === "number" ? legacyMask(pad.mask) : 0 }];
+        return [device, { ...pad, mask: typeof pad.mask === "number" ? version < 6 ? legacyMask(pad.mask) : pad.mask : 0 }];
       }))
       : {};
+    const hasPrimaryPointer = (((pointer.buttons as number | undefined) ?? 0) & 1) !== 0;
+    const savedGestureId = oldRecord.pointerGestureId;
+    const activeGestureId = hasPrimaryPointer
+      ? typeof savedGestureId === "number" && Number.isSafeInteger(savedGestureId) && savedGestureId >= 0 ? savedGestureId : 0
+      : null;
+    const savedNextGestureId = oldRecord.nextPointerGestureId;
+    const nextGestureId = typeof savedNextGestureId === "number" && Number.isSafeInteger(savedNextGestureId) && savedNextGestureId >= 1 ? savedNextGestureId : 1;
     const migrated: Record<string, unknown> = {
       ...oldRecord,
       version: INPUT_SCHEMA_VERSION,
@@ -479,10 +490,10 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
       pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
       pendingKeySequences: [],
       gamepads: pads,
-      pointerGestureId: ((pointer.buttons as number | undefined ?? 0) & 1) !== 0 ? 0 : null,
+      pointerGestureId: activeGestureId,
       pendingClicks: clicks,
       pendingPointerUps: pointerUps,
-      nextPointerGestureId: Math.max(1, ...clicks.map((item) => item.gestureId + 1), ...pointerUps.map((item) => item.gestureId + 1)),
+      nextPointerGestureId: Math.max(nextGestureId, activeGestureId === null ? 1 : activeGestureId + 1, ...clicks.map((item) => item.gestureId + 1), ...pointerUps.map((item) => item.gestureId + 1)),
     };
     migrated.keys = normalizeKeys(migrated.keys);
     record.input = migrated;

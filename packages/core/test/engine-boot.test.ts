@@ -1819,6 +1819,51 @@ test("a project folder's RPGCode package layers an engine command and is rebuilt
   equal(doubles.state().vm.globals.wrapped, 1, "reset rebuilt the package layer");
 });
 
+test("public game-action registrations survive same-game reset and load", () => {
+  const game = authorGame(SCRIPTED);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 20);
+  const action = {
+    name: "game.resetproof",
+    label: "Reset proof",
+    icon: null,
+    group: null,
+    controls: ["key:KeyF"],
+    locked: false,
+    hidden: false,
+  };
+  equal(engine.registerGameAction(action), true);
+  ok(engine.registeredActionNames().includes("game.resetproof"));
+
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  run(engine, game.files, 20);
+  ok(engine.registeredActionNames().includes("game.resetproof"));
+  doubles.state().inventory.gold = 1234;
+  const savedBytes = encoder.encode(snapshotGameSave(doubles.state()));
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: 'load("slot")\nend()', ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  let replies: InputRecord[] = [];
+  let loadReplyQueued = false;
+  let loadReplyApplied = false;
+  for (let guard = 0; guard < 100 && !loadReplyApplied; guard += 1) {
+    loadReplyApplied = loadReplyQueued;
+    loadReplyQueued = false;
+    const report = engine.advance(1, replies);
+    replies = [];
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "loadBlob") {
+        loadReplyQueued = true;
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: savedBytes } });
+      }
+    }
+  }
+  ok(loadReplyApplied, "the same-game load consumed its saved projection");
+  equal(doubles.state().inventory.gold, 1234, "the saved game state really loaded after reset");
+  ok(engine.registeredActionNames().includes("game.resetproof"), "loading preserves public API registrations omitted from the game-save projection");
+});
+
 test("a package startup that waits is rejected by the lifecycle clock guard", () => {
   const game = authorGame({ ...SCRIPTED, packages: ["weather"] });
   const catalogue: readonly PackageCatalogueEntry[] = [{

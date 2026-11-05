@@ -8,14 +8,24 @@
 // from packages/core. Choices the spec leaves open are tagged `PROPOSED P-n`.
 
 const DIR_ACTIONS = ["up", "down", "left", "right"];
-const BIT_ACTIONS = ["up", "down", "left", "right", "confirm", "cancel", "menu"]; // bits 0..6
+const BIT_ACTIONS = ["up", "down", "left", "right", "confirm", "cancel", "menu"]; // normalized internal action order
 const DEAD_ZONE = 250;
 
-/** Dead-zone and d-pad merge: the 7-bit action mask an event holds (rule items 1-2). */
+const PAD_BIT_ACTIONS = { 0: "confirm", 1: "cancel", 9: "menu", 12: "up", 13: "down", 14: "left", 15: "right", 17: "left", 18: "right", 19: "up", 20: "down" };
+
+function physicalPadMask(event) {
+  let mask = event.buttons & 0x1ffff;
+  if (Math.abs(event.axes.x) >= DEAD_ZONE) mask |= 1 << (event.axes.x < 0 ? 17 : 18);
+  if (Math.abs(event.axes.y) >= DEAD_ZONE) mask |= 1 << (event.axes.y < 0 ? 19 : 20);
+  return mask;
+}
+
+/** Convert physical W3C buttons and axes to the reference model's internal action mask (E-112). */
 export function padMask(event) {
-  let mask = event.buttons & 0x7f;
-  if (Math.abs(event.axes.x) >= DEAD_ZONE) mask |= event.axes.x < 0 ? 4 : 8;
-  if (Math.abs(event.axes.y) >= DEAD_ZONE) mask |= event.axes.y < 0 ? 1 : 2;
+  const physical = physicalPadMask(event);
+  const controls = [[12, 0], [13, 1], [14, 2], [15, 3], [0, 4], [1, 5], [9, 6], [19, 0], [20, 1], [17, 2], [18, 3]];
+  let mask = 0;
+  for (const [bit, action] of controls) if ((physical & (1 << bit)) !== 0) mask |= 1 << action;
   return mask;
 }
 
@@ -25,7 +35,7 @@ const INTENT = { "0,-1": "N", "1,-1": "NE", "1,0": "E", "1,1": "SE", "0,1": "S",
 export function runInput(setup, events, ticks) {
   const bound = new Set(Object.values(setup.bindings.keys));
   const keyboard = new Set(); // actions the keyboard holds
-  const pads = new Map(); // device -> { connected, mask }
+  const pads = new Map(); // device -> { connected, mask, physicalMask }
   const order = []; // direction actions in press order (PROPOSED P-12: later press wins on a blocked diagonal)
   let seq = setup.firstSeq ?? 1;
   const slots = new Map(setup.slots.map((s) => [s.id, { ...s }]));
@@ -47,6 +57,7 @@ export function runInput(setup, events, ticks) {
     const queue = [];
     const notes = [];
     for (const e of events.filter((x) => x.t === t)) {
+      let physicalOrder = [];
       const ev = e.ev;
       if (ev.kind === "key") {
         const action = setup.bindings.keys[ev.code];
@@ -58,13 +69,21 @@ export function runInput(setup, events, ticks) {
       } else if (ev.kind === "gamepad") {
         if (!Number.isInteger(ev.device) || ev.device < 0 || ev.device > 3) { notes.push(`ignored:device:${ev.device}`); continue; }
         const pad = pads.get(ev.device);
+        const previousPhysical = pad?.physicalMask ?? 0;
+        const currentPhysical = ev.connected ? physicalPadMask(ev) : 0;
+        for (let bit = 0; bit <= 20; bit += 1) {
+          if (((previousPhysical ^ currentPhysical) & (1 << bit)) === 0 || (currentPhysical & (1 << bit)) === 0) continue;
+          const action = PAD_BIT_ACTIONS[bit];
+          if (action !== undefined && bound.has(action) && !physicalOrder.includes(action)) physicalOrder.push(action);
+        }
         if (!ev.connected) {
           if (pad === undefined) { notes.push(`ignored:never-connected:${ev.device}`); continue; }
           pad.connected = false;
-          pad.mask = 0; // a disconnect releases everything that device held
+          pad.mask = 0;
+          pad.physicalMask = 0;
           notes.push(`disconnect:${ev.device}`);
-        } else if (pad === undefined) pads.set(ev.device, { connected: true, mask: padMask(ev) });
-        else { pad.connected = true; pad.mask = padMask(ev); }
+        } else if (pad === undefined) pads.set(ev.device, { connected: true, mask: padMask(ev), physicalMask: currentPhysical });
+        else { pad.connected = true; pad.mask = padMask(ev); pad.physicalMask = currentPhysical; }
       } else if (ev.kind === "pointer.cancel") {
         pointerButtons &= ~1;
         pressedButtonSlot = null;
@@ -98,9 +117,14 @@ export function runInput(setup, events, ticks) {
         notes.push(`slot:${ev.id}:${ev.enabled ? "enabled" : "disabled"}`);
         continue;
       }
-      // Edges across every source: a key-queue entry per newly held action, in ascending action-bit order.
+      // Gamepad transitions follow ascending changed physical controls; non-pad ties use the reference action order.
       const after = heldNow();
-      const pressed = [...after].filter((a) => !prev.has(a)).sort((l, r) => BIT_ACTIONS.indexOf(l) - BIT_ACTIONS.indexOf(r));
+      const pressed = [...after].filter((a) => !prev.has(a)).sort((l, r) => {
+        const li = physicalOrder.indexOf(l);
+        const ri = physicalOrder.indexOf(r);
+        if (li >= 0 || ri >= 0) return (li < 0 ? Number.MAX_SAFE_INTEGER : li) - (ri < 0 ? Number.MAX_SAFE_INTEGER : ri);
+        return BIT_ACTIONS.indexOf(l) - BIT_ACTIONS.indexOf(r);
+      });
       for (const action of pressed) { queue.push({ seq, key: action }); seq += 1; if (DIR_ACTIONS.includes(action)) order.push(action); }
       for (const action of prev) if (!after.has(action)) { const i = order.indexOf(action); if (i >= 0) order.splice(i, 1); }
       prev = after;
