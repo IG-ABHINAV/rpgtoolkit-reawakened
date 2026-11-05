@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Active boards now request and hydrate their placed item sprites, use board-level programs in preference to item-file defaults, and start item-owned multitask threads. Item-thread source handles work in movement and child programs, loading conditions accept ordinary script global names, and recovery retains the authored item identity and signed reserved field. The demo closing regression baseline now includes its authored old man on the board; the title and other games are unchanged (#1253, #1381–#1384; `docs/spec/engine/main-loop-and-startup.md#e-10`).
 - Recovery checkpoints avoid serializing the same save twice, and long escaped strings serialize faster without changing canonical bytes. This reduces work before battles and during state hashing (#1256).
 - The Android proof gives APK installation a separate two-minute deadline for slow cold emulators and reports process timeout, signal and exit details instead of silently losing them (#1208).
 - The desktop player now allows only WebAssembly compilation for its eagerly initialized SoundFont Vorbis decoder, and waits for it before starting the game. This removes the startup CSP rejection and lets compressed SoundFont samples play; JavaScript `unsafe-eval` stays blocked. The browser's separate CSP problem is tracked in #1325 (#1263; `docs/spec/engine/runners.md#csp-and-banks`).
