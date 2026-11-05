@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Held direction input now replaces the selected player's remaining script or click route at the next step boundary, including a waypoint, while the current step finishes and blocking scripts keep ownership of input. Mid-step taps are not buffered; whether 3.1 click-walking differs remains an owner decision (#1286, #1180; `docs/spec/engine/movement-and-collision.md#e-133`).
 - Browser and mobile players now treat Quit as a fresh launch: they dispose the old live session and its input/animation loops, then start a new session from the same package. Each restart resets game state, removes prior listeners and ignores stale async completions (#1273; `docs/spec/engine/main-loop-and-startup.md#e-06`).
 - The Android CI emulator now requests a 2 GiB userdata disk instead of the runner's larger default, while still requiring the real APK proof. This addresses an observed emulator-start failure on a space-constrained runner; SDK image installation can still fail if the host lacks space (#1251).
 - The fetched demo's `out.brd` return door is a **key-press** region, not a walk-on trigger. Packaged-game regressions use its real boards and scripts with authored pixel-movement main files in modes 1 and 2, walk to the outside board, approach the wall off-centre and press Enter to return without tile snapping. At `(136,176)` the player's collision base overlaps the `(83,148)`–`(140,170)` region. The fetched demo has no main file, so its original movement setting is unknown (#1274).
