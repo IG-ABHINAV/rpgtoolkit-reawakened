@@ -73,6 +73,32 @@ test("a released pointer tap faces toward the reachable item and dispatches one 
   const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
   equal(events[0]?.key, "item:0", "the confirm edge is constrained to the hit item's identity");
 });
+
+test("a contextual gameplay release requires the whole pointer gesture to stay inside Plane 1", () => {
+  const world = board([], [item(0, 100, 0, 1)]);
+  const state = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
+  state.input.pointerPlane = { width: 100, height: 100 };
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player,
+    x: 96,
+    collisionBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor,
+    activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+
+  applyInputEvent(state.input, { kind: "pointer", x: 104, y: 0, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 96, y: 0, buttons: 0 });
+  runInputPhase(state);
+  deepEqual(state.input.keys, [], "a margin-started gesture cannot activate an adjacent off-viewport item");
+  deepEqual(state.input.pendingPointerUps, []);
+
+  applyInputEvent(state.input, { kind: "pointer", x: 96, y: 0, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 96, y: 0, buttons: 0 });
+  runInputPhase(state);
+  equal(state.input.keys[0]?.target, "item:0", "a complete Plane 1 tap still activates normally");
+});
 test("a pointer activation is dispatched only to the tapped item, not the nearer eligible item", () => {
   const world = board([], [item(0, 32, 0, 1), item(1, 16, 0, 1)]);
   const actors = [itemActor(world, world.items![0]!, 0), itemActor(world, world.items![1]!, 1)];

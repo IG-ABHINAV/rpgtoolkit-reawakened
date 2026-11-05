@@ -393,7 +393,9 @@ function applyPointer(state: InputSection, event: PointerInput): void {
   }
   const plane = state.pointerPlane;
   const insidePlane = plane === null || (event.x >= 0 && event.y >= 0 && event.x < plane.width && event.y < plane.height);
-  if (wasDown && !isDown && gestureId !== null && pressSlot === null
+  const startedInsidePlane = plane === null ||
+    (previous.downX >= 0 && previous.downY >= 0 && previous.downX < plane.width && previous.downY < plane.height);
+  if (wasDown && !isDown && gestureId !== null && pressSlot === null && insidePlane && startedInsidePlane
     && !state.pointerMovementSuppressed && slot === undefined && slotAt(state, previous.downX, previous.downY) === undefined) {
     state.pendingPointerUps.push({ gestureId, x: event.x + state.camera.x, y: event.y + state.camera.y });
   } else if (wasDown && !isDown && gestureId !== null && slot !== undefined) {

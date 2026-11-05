@@ -242,8 +242,10 @@ test("a save from audio schema 1 (the empty placeholder) restores as a fresh sch
     equal(raw.schema.audio, 1, `${name} is a schema 1 save`);
     deepEqual(raw.audio, {}, `${name} carries the empty placeholder`);
     const restored = restoreGameState(fixtureText(name));
-    equal(restored.schema.audio, SCHEMA_VERSIONS.audio);
+    equal(restored.schema.audio, SCHEMA_VERSIONS.audio, `${name} applies the schema-1 audio migration`);
     deepEqual(restored.audio, createAudioSection());
+    equal(restored.schema.ui, SCHEMA_VERSIONS.ui, `${name} also applies the author UI migration`);
+    deepEqual(restored.ui.authorMarginCommands, [], `${name} receives the empty current author-margin list`);
     equal(canon(restoreGameState(snapshot(restored))), canon(restored));
   }
 });

@@ -124,6 +124,28 @@ test("ordinary pointer down and up activates an enabled button slot once", () =>
   equal(state.input.keys.filter((key) => key.action === "slot:primary").length, 1);
   equal(state.input.pendingActions.filter((action) => action === "confirm").length, 1);
 });
+test("same-tick gamepad confirm transitions activate the published author surface", () => {
+  const capture = captureState();
+  const surface: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "touch", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Confirm", "confirm", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surface]);
+  engine.advance(1, []);
+  const result = engine.advance(1, [
+    { tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } },
+    { tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 } },
+  ]);
+  equal(result.ticksRun, 1);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated?.itemId, "confirm", "the down edge is routed before the same-tick up edge");
+  equal(state.input.actions.confirm, false, "the short gamepad tap is released by the end of the input batch");
+});
 test("author surface margin hit-testing uses safe whole cells", () => {
   const capture = captureState();
   const surface: EnginePhaseRegistration = {
