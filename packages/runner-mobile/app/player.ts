@@ -197,6 +197,7 @@ function run(
   let previous = performance.now();
   let accumulator = 0;
   let pending: PendingInput[] = [];
+    const fallbackControlKeys = new Set<string>();
   let disposed = false;
   let frameId: number | null = null;
   let startPlayer = session.playerPosition();
@@ -207,15 +208,16 @@ function run(
   const savePath = "slot-1.json";
   const saveBytes = (): Uint8Array => new TextEncoder().encode(JSON.stringify({ gameId, tick: session.tick() }));
   const onKeyDown = (event: KeyboardEvent): void => {
-      if (isFallbackTouchControlTarget(event.target)) return;
+      if (isFallbackTouchControlTarget(event.target)) {
+        fallbackControlKeys.add(event.code);
+        return;
+      }
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
       pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
     };
   const onKeyUp = (event: KeyboardEvent): void => {
-      if (isFallbackTouchControlTarget(event.target)) return;
-      {
-        pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
-      };
+      if (fallbackControlKeys.delete(event.code)) return;
+      pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
     };
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state } });

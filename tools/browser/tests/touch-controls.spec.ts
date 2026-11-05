@@ -123,6 +123,20 @@ test("touch-capable live player exposes accessible fallback controls without shr
         await expect(moveRight).toHaveAttribute("aria-pressed", "true");
         await page.keyboard.up("Space");
         await expect(moveRight).toHaveAttribute("aria-pressed", "false");
+        
+            await moveRight.focus();
+            await page.keyboard.down("Space");
+            await page.locator("#report").evaluate((report) => { report.tabIndex = -1; report.focus(); });
+            await page.keyboard.up("Space");
+            await expect(moveRight).toHaveAttribute("aria-pressed", "false");
+        
+            const assistiveStart = await page.evaluate(() => window.__live?.player ?? null);
+            if (assistiveStart === null) throw new Error("live player position is not available");
+            await moveRight.dispatchEvent("click");
+            await page.waitForFunction((start) => {
+              const player = window.__live?.player;
+              return player !== null && player !== undefined && player.x > start.x;
+            }, assistiveStart, { timeout: 10_000 });
   } finally {
     await context.close();
   }

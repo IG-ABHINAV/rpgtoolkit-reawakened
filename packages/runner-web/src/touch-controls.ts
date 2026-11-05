@@ -80,6 +80,8 @@ export function createFallbackTouchControls(
   const buttons = new Map<FallbackTouchAction, HTMLButtonElement>();
   const activePointers = new Map<number, FallbackTouchAction>();
   const activeKeys = new Map<string, FallbackTouchAction>();
+    const activeClicks = new Set<FallbackTouchAction>();
+    const clickReleaseFrames = new Map<FallbackTouchAction, number>();
   const actions: readonly { readonly action: FallbackTouchAction; readonly label: string; readonly glyph: string; readonly zone: "dpad" | "actions"; readonly row: number; readonly column: number }[] = [
     { action: "up", label: "Move up", glyph: "▲", zone: "dpad", row: 0, column: 1 },
     { action: "left", label: "Move left", glyph: "◀", zone: "dpad", row: 1, column: 0 },
@@ -92,6 +94,7 @@ export function createFallbackTouchControls(
   const hasActiveSource = (action: FallbackTouchAction): boolean => {
     for (const activeAction of activePointers.values()) if (activeAction === action) return true;
     for (const activeAction of activeKeys.values()) if (activeAction === action) return true;
+        if (activeClicks.has(action)) return true;
     return false;
   };
   const press = (action: FallbackTouchAction, wasActive: boolean): void => {
@@ -110,14 +113,41 @@ export function createFallbackTouchControls(
     activePointers.delete(pointerId);
     release(action);
   };
-  const releaseAll = (): void => {
-    for (const pointerId of [...activePointers.keys()]) releasePointer(pointerId);
-    for (const [code, action] of activeKeys) {
-      activeKeys.delete(code);
+  const releaseKey = (event: KeyboardEvent): void => {
+      if (event.code !== "Enter" && event.code !== "Space") return;
+      const action = activeKeys.get(event.code);
+      if (action === undefined) return;
+      event.preventDefault();
+      activeKeys.delete(event.code);
       release(action);
-    }
-  };
+    };
+    const activateClick = (action: FallbackTouchAction): void => {
+      if (activeClicks.has(action)) return;
+      const wasActive = hasActiveSource(action);
+      activeClicks.add(action);
+      press(action, wasActive);
+      clickReleaseFrames.set(action, window.requestAnimationFrame(() => {
+        clickReleaseFrames.delete(action);
+        activeClicks.delete(action);
+        release(action);
+      }));
+    };
+    const releaseAll = (): void => {
+      for (const pointerId of [...activePointers.keys()]) releasePointer(pointerId);
+      for (const [code, action] of activeKeys) {
+        activeKeys.delete(code);
+        release(action);
+      }
+      for (const action of activeClicks) {
+        const frame = clickReleaseFrames.get(action);
+        if (frame !== undefined) window.cancelAnimationFrame(frame);
+        clickReleaseFrames.delete(action);
+        activeClicks.delete(action);
+        release(action);
+      }
+    };
   window.addEventListener("blur", releaseAll);
+    window.addEventListener("keyup", releaseKey);
   for (const entry of actions) {
     const button = document.createElement("button");
     button.type = "button";
@@ -156,19 +186,10 @@ export function createFallbackTouchControls(
         }
       }
     });
-    button.addEventListener("keyup", (event) => {
-      if (event.code === "Enter" || event.code === "Space") {
-        event.preventDefault();
-        const action = activeKeys.get(event.code);
-        if (action !== undefined) {
-          activeKeys.delete(event.code);
-          release(action);
-        }
-      }
-    });
+    button.addEventListener("keyup", releaseKey);
     button.addEventListener("click", (event) => {
-      event.preventDefault();
-    });
+          if (event.detail === 0 && !button.disabled) activateClick(entry.action);
+        });
     buttons.set(entry.action, button);
     (entry.zone === "dpad" ? pad : actionGroup).append(button);
   }
@@ -205,6 +226,7 @@ export function createFallbackTouchControls(
     close: () => {
       releaseAll();
       window.removeEventListener("blur", releaseAll);
+            window.removeEventListener("keyup", releaseKey);
       root.remove();
       style.remove();
       if (changedPosition) stage.style.position = previousPosition;

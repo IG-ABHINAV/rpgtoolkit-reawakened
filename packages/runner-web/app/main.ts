@@ -356,6 +356,7 @@ function startLiveLoop(
   let advancing = false;
   let frameId: number | null = null;
   let pending: PendingInput[] = [];
+    const fallbackControlKeys = new Set<string>();
   const stage = canvas.parentElement;
   if (stage === null) throw new Error("player: the screen has no stage for fallback touch controls");
   const viewSize = session.viewSize(),
@@ -383,15 +384,16 @@ function startLiveLoop(
       () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
     );
   const key = (event: KeyboardEvent, down: boolean): void => {
-      if (isFallbackTouchControlTarget(event.target)) return;
+      if (down && isFallbackTouchControlTarget(event.target)) {
+        fallbackControlKeys.add(event.code);
+        return;
+      }
+      if (!down && fallbackControlKeys.delete(event.code)) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
       pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
-    }
-  const onKeyDown = (event: KeyboardEvent): void => key(event, true);
-  const onKeyUp = (event: KeyboardEvent): void => {
-      if (isFallbackTouchControlTarget(event.target)) return;
-      key(event, false);
     };
+  const onKeyDown = (event: KeyboardEvent): void => key(event, true);
+  const onKeyUp = (event: KeyboardEvent): void => key(event, false);
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state } });
   };
