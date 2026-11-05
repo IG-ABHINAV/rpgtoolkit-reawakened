@@ -52,6 +52,16 @@ The state section is `state.display = { geometry: HostDisplayGeometry }`. `state
 ```
 
 `NormalizedHostFeatures` has the same six fields as `HostFeatures`, but all are required. Both event kinds are stamped with the tick at which they take effect, validated as exact AD-14 records, and included in `TickReport.consumed`. Repeated events are retained in order; applying the same complete value twice leaves the same final state. No unspecified property is inferred from OS, browser, or display APIs by core.
+### Controller transition notifications
+
+When an AD-14 `gamepad` input changes a device from disconnected to connected, or from connected to disconnected, the engine queues a script event for delivery in the ordinary events phase:
+
+| Input edge | Script event | Detail |
+|---|---|---|
+| `connected: true` for a previously disconnected device | `device.connected` | `{ device: number, type: "gamepad" }` |
+| `connected: false` for a previously connected device | `device.disconnected` | `{ device: number, type: "gamepad" }` |
+
+`device` is the normalized AD-14 controller index (0 through 3). Repeated connected samples for an already-connected device and disconnect samples for an already-disconnected or unknown device do not emit a transition event. The event contains no browser object, device name, or other host-specific identity. A runner reports the normalized `gamepad` input; it never dispatches these script events directly. Thus connection notifications are replayed from the same ordered input log as controller state.
 
 ### Geometry-derived values
 
