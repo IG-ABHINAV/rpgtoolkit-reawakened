@@ -1,61 +1,66 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import { cropTile, presentationFrame } from "../src/index.ts";
-import type { TexturePixels } from "../src/index.ts";
+import { createWebgl2Renderer } from "../src/index.ts";
+import type { DrawListV2, HostDisplayGeometry } from "@tk-reawakened/core";
 
-// The replayer's GPU work is entry 9.4's Playwright lane; what a Node test pins are the two pure decisions beside it —
-// a tileset strip cropped to one tile (a strip wider than MAX_TEXTURE_SIZE samples as black otherwise) and AD-33's
-// presentation geometry.
-
-/** A strip of four 2×1 tiles: tile n is filled with the byte n. */
-function strip(): TexturePixels {
-  const rgba = new Uint8Array(2 * 4 * 4);
-  for (let tile = 1; tile <= 4; tile += 1) {
-    for (let x = 0; x < 2; x += 1) {
-      const at = (x + (tile - 1) * 2) * 4;
-      rgba[at] = tile;
-      rgba[at + 3] = 255;
-    }
-  }
-  return { w: 8, h: 1, rgba };
+function fakeContext(): { readonly gl: WebGL2RenderingContext; readonly uploaded: () => Uint8Array | null } {
+  let next = 1;
+  let pixels: Uint8Array | null = null;
+  const canvas = { width: 0, height: 0 };
+  const methods: Record<string, (...args: unknown[]) => unknown> = {
+    createProgram: () => ({}),
+    createShader: () => ({}),
+    getShaderParameter: () => true,
+    getProgramParameter: () => true,
+    getUniformLocation: () => ({}),
+    createTexture: () => ({}),
+    texImage2D: (...args) => { pixels = args.at(-1) as Uint8Array | null; },
+  };
+  const constantNames: Record<string, true> = {
+    VERTEX_SHADER: true, FRAGMENT_SHADER: true, COMPILE_STATUS: true, LINK_STATUS: true, TEXTURE_2D: true,
+    TEXTURE_MIN_FILTER: true, TEXTURE_MAG_FILTER: true, NEAREST: true, TEXTURE_WRAP_S: true, TEXTURE_WRAP_T: true,
+    CLAMP_TO_EDGE: true, FRAMEBUFFER: true, BLEND: true, COLOR_BUFFER_BIT: true, UNPACK_ALIGNMENT: true,
+    UNPACK_FLIP_Y_WEBGL: true, RGBA8: true, RGBA: true, UNSIGNED_BYTE: true, TEXTURE0: true, TRIANGLES: true,
+  };
+  const constantValues = new Map<string, number>();
+  const gl = new Proxy({} as WebGL2RenderingContext, {
+    get: (_target, key: string) => {
+      if (key === "canvas") return canvas;
+      if (key in methods) return methods[key];
+      if (constantNames[key] === true) {
+        if (!constantValues.has(key)) constantValues.set(key, next++);
+        return constantValues.get(key);
+      }
+      return () => undefined;
+    },
+  });
+  return { gl, uploaded: () => pixels };
 }
 
-test("cropTile keeps exactly the tile it names", () => {
-  const cropped = cropTile(strip(), 2, 3);
-  equal(cropped.w, 2);
-  equal(cropped.h, 1);
-  deepEqual([...cropped.rgba], [3, 0, 0, 255, 3, 0, 0, 255]);
-});
+const geometry: HostDisplayGeometry = {
+  content: { width: 3, height: 2 },
+  game: { x: 1, y: 0, width: 2, height: 2 },
+  safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+};
 
-test("cropTile clamps a tile that runs past the strip instead of over-reading", () => {
-  const cropped = cropTile(strip(), 2, 5);
-  equal(cropped.w, 0);
-  equal(cropped.rgba.length, 0);
-});
+const list: DrawListV2 = {
+  tick: 0,
+  width: 2,
+  height: 2,
+  commands: [{ kind: "fill", rgb: { r: 20, g: 30, b: 40 } }],
+  marginCommands: [{ kind: "rect", rect: { x: -1, y: 0, w: 1, h: 2 }, rgb: { r: 50, g: 60, b: 70 }, filled: true }],
+};
 
-test("letterbox scales the logical frame by an integer factor and centres it", () => {
-  const frame = presentationFrame({ mode: "letterbox", scale: 3 }, { width: 320, height: 200 });
-  deepEqual(frame.canvas, { width: 960, height: 600 });
-  deepEqual(frame.viewport, { x: 0, y: 0, width: 960, height: 600 });
-});
-
-test("letterbox never scales by a fraction or below one", () => {
-  for (const scale of [0, -2, 1.9]) {
-    const frame = presentationFrame({ mode: "letterbox", scale }, { width: 100, height: 50 });
-    deepEqual(frame.canvas, { width: 100, height: 50 }, `scale ${scale} is one`);
-  }
-  const fallback = presentationFrame({ mode: "letterbox" }, { width: 7, height: 3 });
-  deepEqual(fallback.viewport, { x: 0, y: 0, width: 7, height: 3 });
-});
-
-test("expand shows the logical frame at 1:1 and leaves the surround black", () => {
-  const frame = presentationFrame({ mode: "expand", width: 400, height: 300 }, { width: 320, height: 200 });
-  deepEqual(frame.canvas, { width: 400, height: 300 });
-  deepEqual(frame.viewport, { x: 40, y: 50, width: 320, height: 200 });
-});
-
-test("expand never crops the logical frame when the canvas is smaller", () => {
-  const frame = presentationFrame({ mode: "expand", width: 100, height: 60 }, { width: 320, height: 200 });
-  deepEqual(frame.canvas, { width: 320, height: 200 });
-  deepEqual(frame.viewport, { x: 0, y: 0, width: 320, height: 200 });
+test("WebGL2 renderer uploads the exact reference presentation bytes for both planes", () => {
+  const { gl, uploaded } = fakeContext();
+  const renderer = createWebgl2Renderer(gl);
+  const stats = renderer.render(list, geometry, { textures: () => null });
+  equal(stats.deferred, 0);
+  equal(renderer.canvas.width, 3);
+  equal(renderer.canvas.height, 2);
+  deepEqual(uploaded(), new Uint8Array([
+    50, 60, 70, 255, 20, 30, 40, 255, 20, 30, 40, 255,
+    50, 60, 70, 255, 20, 30, 40, 255, 20, 30, 40, 255,
+  ]));
+  renderer.dispose();
 });
