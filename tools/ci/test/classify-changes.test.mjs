@@ -29,7 +29,9 @@ test("only allowlisted prose and planning paths are inert, and the reason names 
     "README.md",
     "CONTRIBUTING.md",
     "docs/guardrails.md",
+    "docs/architecture-options.md",
     "docs/adr/0001-example.md",
+    "docs/playing-the-desktop-player.md",
     "_bmad-output/initiative/ticket.md",
     ".github/ISSUE_TEMPLATE/bug_report.yml",
     ".github/ISSUE_TEMPLATE/feature.md",
@@ -55,8 +57,6 @@ test("a non-inert path forces a run and the reason names it", () => {
 test("unknown, executable, normative, fixture and workflow paths run everything", () => {
   for (const path of [
     "unknown.md/nested.md",
-    "docs/other.md",
-    "docs/README.md",
     "_bmad-output/config.yaml",
     ".github/ISSUE_TEMPLATE/execute.sh",
     ".github/pull_request_template.md",
