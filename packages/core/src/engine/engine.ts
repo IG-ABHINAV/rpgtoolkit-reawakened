@@ -3424,6 +3424,8 @@ export function createEngine(init: EngineInit): Engine {
         }
         applyInputEvent(state.input, record.event);
         consumed.push(record);
+      } else if (!state.input.focused && applyHostStateEvent(record.event)) {
+        consumed.push(record);
       } else {
         deferred.push(record);
       }

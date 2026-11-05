@@ -130,10 +130,18 @@ test("engine applies and records complete host updates on their consuming tick",
   deepEqual(blur.consumed.map((input) => input.event.kind), ["host.features", "focus"]);
   deepEqual(live.state.features, focusedFeatures);
   engine.advance(0, [{ tick: ordered.tickAfter, event: { kind: "focus", state: "gained" } }]);
+  const reverseBlur = engine.advance(0, [
+    { tick: ordered.tickAfter, event: { kind: "focus", state: "lost" } },
+    { tick: ordered.tickAfter, event: { kind: "host.features", features } },
+    { tick: ordered.tickAfter, event: { kind: "host.display", geometry } },
+  ]);
+  deepEqual(reverseBlur.consumed.map((input) => input.event.kind), ["focus", "host.features", "host.display"]);
+  deepEqual(live.state.features, features);
+  engine.advance(0, [{ tick: ordered.tickAfter, event: { kind: "focus", state: "gained" } }]);
   live.state.vm.globals["resetSentinel"] = 7;
   startThread(live.state.vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
   engine.advance(1, []);
   equal(live.state.vm.globals["resetSentinel"], undefined, "the reset actually ran");
-  deepEqual(live.state.features, focusedFeatures, "reset keeps the current host features");
+  deepEqual(live.state.features, features, "reset keeps the current host features");
   deepEqual(live.state.display.geometry, geometry, "reset keeps the current display geometry");
 });
