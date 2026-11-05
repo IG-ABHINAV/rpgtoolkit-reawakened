@@ -54,6 +54,7 @@ function loadedEngine(
   registrations: Parameters<typeof createEngine>[0]["phaseRegistrations"] = [],
   input?: Parameters<typeof createEngine>[0]["input"],
   displayGeometry?: Parameters<typeof createEngine>[0]["displayGeometry"],
+  program?: string,
 ) {
   const board = createEmptyBoard();
   const encoded = writeBoard(board);
@@ -69,10 +70,11 @@ function loadedEngine(
     phaseRegistrations: registrations,
     ...(input === undefined ? {} : { input }),
     ...(displayGeometry === undefined ? {} : { displayGeometry }),
+    ...(program === undefined ? {} : { program }),
   });
   const first = engine.advance(0, []);
   const request = first.requests[0];
-  if (request?.kind !== "asset") throw new Error("expected board asset request");
+  if (request?.kind !== "asset") throw new Error("expected test board asset request");
   const loaded = engine.advance(0, [{ tick: 0, event: { kind: "asset", reqId: request.reqId, bytes: encoded.value } }]);
   if (loaded.loading) throw new Error("expected authored board to load");
   return engine;
@@ -128,7 +130,7 @@ test("author surface margin hit-testing uses safe whole cells", () => {
     phase: "animation",
     run: (state) => {
       applyUiEffect(state, "uiBegin", [7, "touch", "surface", -4, 0, 4, 16, 1]);
-      applyUiEffect(state, "uiItem", [7, "Go", "go", null, 1, null, null, "confirm", 1]);
+      applyUiEffect(state, "uiItem", [7, "Go", "go", null, 1, null, "confirm", null, 1]);
       applyUiEffect(state, "uiEnd", [7]);
     },
   };
@@ -158,6 +160,41 @@ test("author surface margin hit-testing uses safe whole cells", () => {
   if (refused === undefined) throw new Error("expected captured game state");
   equal(refused.ui.surfaceActivated, null);
   equal(refused.input.pendingActions.filter((action) => action === "confirm").length, 0);
+});
+
+test("unknown author actions remain inert with one diagnostic", () => {
+  const capture = captureState();
+  const program = [
+    'uiBegin("combat", "surface", 0, 0, 16, 16)',
+    'uiItem("Fire", { id: "fire", action: "game.missing" })',
+    'uiItem("Ice", { id: "ice", action: "game.missing" })',
+    "uiEnd()",
+    "end()",
+    "",
+  ].join("\n");
+  const engine = loadedEngine([capture.registration], undefined, undefined, program);
+  const published = engine.advance(1, []);
+  equal(published.diagnostics.filter((diagnostic) => diagnostic.code === "input.unknown-action").length, 1);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.input.pendingActions.includes("game.missing"), false);
+  equal(state.input.keys.some((key) => key.action === "game.missing"), false);
+});
+
+test("invalid author item actions drop the surface with one A11Y refusal", () => {
+  const program = [
+    'uiBegin("broken", "surface", 0, 0, 16, 16)',
+    'uiItem("Broken", { id: "broken", action: "not-an-action" })',
+    "uiEnd()",
+    "end()",
+    "",
+  ].join("\n");
+  const engine = loadedEngine([], undefined, undefined, program);
+  const report = engine.advance(1, []);
+  equal(report.diagnostics.filter((diagnostic) => diagnostic.code === "a11y.surface").length, 1);
+  equal(engine.accessibilityTree().length, 0);
 });
 
 test("Engine touch-control query requires the explicit declaration command", () => {
