@@ -133,7 +133,7 @@ export function runLog(
           `runLog: call ${callIndex}: record tick ${rec.tick} is before window [${before}, ${endWindow})`,
         );
       }
-      fedInputs.push(upgradeV1Record(rec));
+      fedInputs.push(run.schema === 1 ? upgradeV1Record(rec as InputRecordV1) : rec as InputRecord);
       inputIndex++;
     }
 

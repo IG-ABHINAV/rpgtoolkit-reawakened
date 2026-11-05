@@ -4,13 +4,16 @@ import {
   createAssetIndex,
   createEmptyBoard,
   createEngine,
+  applyUiEffect,
+  inputPhaseRegistration,
+  processGamepadEvents,
   PACKAGE_ROOT,
   writeBoard,
   type HostDisplayGeometry,
   type InputRecord,
   type NormalizedHostFeatures,
 } from "@tk-reawakened/core";
-import { createNullAudio, runLog, type Run, type TickObservation, type TickRecord } from "../src/index.ts";
+import { createNullAudio, runLog, type ActiveRun, type TickObservation, type TickRecord } from "../src/index.ts";
 
 const INITIAL_GEOMETRY: HostDisplayGeometry = {
   content: { width: 1280, height: 720 },
@@ -34,13 +37,13 @@ const PROFILES: readonly Profile[] = [
   {
     name: "touch-only",
     features: { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: "portrait" },
-    activeInput: { kind: "pointer", x: 16, y: 16, buttons: 1 },
-    releaseInput: { kind: "pointer", x: 16, y: 16, buttons: 0 },
+    activeInput: { kind: "pointer", x: -4, y: 0, buttons: 1 },
+    releaseInput: { kind: "pointer", x: -6, y: 0, buttons: 0 },
   },
   {
     name: "gamepad-only",
     features: { touch: false, pointer: "none", keyboard: false, gamepad: true, haptics: true, orientation: "landscape" },
-    activeInput: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 500 }, buttons: 0 },
+    activeInput: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 13 },
     releaseInput: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 },
   },
   {
@@ -62,7 +65,12 @@ type InputObservation = {
   readonly actions: Readonly<Record<string, boolean>>;
   readonly pendingActions: readonly string[];
   readonly pointer: { readonly x: number; readonly y: number; readonly buttons: number; readonly downs: number; readonly ups: number };
-  readonly pendingClicks: readonly { readonly x: number; readonly y: number }[];
+  readonly pendingClicks: readonly { readonly gestureId: number; readonly x: number; readonly y: number }[];
+  readonly pendingPointerUps: readonly { readonly gestureId: number; readonly x: number; readonly y: number }[];
+  readonly authorClaimed: boolean;
+  readonly authorActivationIndex: number | null;
+  readonly customTouchControlsDeclared: boolean;
+  readonly marginCommandCount: number;
 };
 
 type Replay = {
@@ -70,18 +78,22 @@ type Replay = {
   readonly ticks: readonly TickObservation[];
   readonly observations: readonly InputObservation[];
   readonly consumed: readonly InputRecord[];
+  readonly observationsAfterInput: ReadonlyMap<number, number>;
+  readonly marginDrawCounts: readonly number[];
 };
 
 function replay(
   profile: Profile,
-  run: Run,
+  run: ActiveRun,
   batchSize: number,
   initialFeatures: NormalizedHostFeatures = profile.features,
   initialGeometry: HostDisplayGeometry = INITIAL_GEOMETRY,
+  authorHud = true,
 ): Replay {
   const encodedBoard = writeBoard(createEmptyBoard());
   if (!encodedBoard.ok) throw new Error(encodedBoard.error.message);
   const observations: InputObservation[] = [];
+  const observationsAfterInput = new Map<number, number>();
   const engine = createEngine({
     seed: 0x1354,
     assetIndex: createAssetIndex(["Boards/host-replay.brd"]),
@@ -93,24 +105,55 @@ function replay(
     features: initialFeatures,
     displayGeometry: initialGeometry,
     input: { bindings: { keys: { ArrowDown: "down" } } },
-    phaseRegistrations: [{
-      phase: "input",
-      run: (state) => {
-        observations.push({
-          tick: state.time.tick,
-          features: { ...state.features },
-          geometry: {
-            content: { ...state.display.geometry.content },
-            game: { ...state.display.geometry.game },
-            safeArea: { ...state.display.geometry.safeArea },
-          },
-          actions: { ...state.input.actions },
-          pendingActions: [...state.input.pendingActions],
-          pointer: { ...state.input.pointer },
-          pendingClicks: state.input.pendingClicks.map((click) => ({ ...click })),
-        });
+    phaseRegistrations: [
+      {
+        phase: "input",
+        rank: -1,
+        run: (state) => {
+          processGamepadEvents(state.input);
+          observations.push({
+            tick: state.time.tick,
+            features: { ...state.features },
+            geometry: {
+              content: { ...state.display.geometry.content },
+              game: { ...state.display.geometry.game },
+              safeArea: { ...state.display.geometry.safeArea },
+            },
+            actions: { ...state.input.actions },
+            pendingActions: [...state.input.pendingActions],
+            pointer: { ...state.input.pointer },
+            pendingClicks: state.input.pendingClicks.map((click) => ({ ...click })),
+            pendingPointerUps: state.input.pendingPointerUps.map((point) => ({ ...point })),
+            authorClaimed: state.ui.surfacePointerClaim !== null,
+            authorActivationIndex: state.ui.surfaceActivated?.index ?? null,
+            customTouchControlsDeclared: state.ui.customTouchControlsDeclared,
+            marginCommandCount: state.ui.authorMarginCommands.length,
+          });
+        },
       },
-    }],
+      inputPhaseRegistration(),
+      {
+        phase: "input",
+        rank: 1,
+        run: (state) => observationsAfterInput.set(state.time.tick, state.input.pendingPointerUps.length),
+      },
+      {
+        phase: "animation",
+        run: (state) => {
+          if (!authorHud || profile.name !== "touch-only") return;
+          applyUiEffect(state, "uiBegin", [7, "touch-controls", "surface", -6, 0, 4, 2, 1]);
+          applyUiEffect(state, "uiItem", [7, "Move", "move", null, 1, null, "confirm", null, 1]);
+          applyUiEffect(state, "uiEnd", [7]);
+          if (state.time.tick === 0) applyUiEffect(state, "declareCustomTouchControls", []);
+          if (state.ui.authorMarginCommands.length === 0) state.ui.authorMarginCommands.push({
+            kind: "rect",
+            rect: { x: -6, y: 0, w: 4, h: 2 },
+            rgb: { r: 255, g: 255, b: 255 },
+            filled: true,
+          });
+        },
+      },
+    ],
   });
 
   const boot = engine.advance(0, []);
@@ -121,36 +164,56 @@ function replay(
   equal(loaded.diagnostics.length, 0, "fixture board loads without diagnostics");
 
   const ticks: TickObservation[] = [];
+  const marginDrawCounts: number[] = [];
   const records = runLog(engine, run, batchSize, createNullAudio(), (report) => {
     equal(report.diagnostics.length, 0, "headless replay emits no runtime diagnostics");
-  }, (observation) => ticks.push(observation));
+  }, (observation) => {
+    ticks.push(observation);
+    marginDrawCounts.push(engine.drawList().marginCommands.length);
+  });
   const consumed = ticks.flatMap(({ consumed: recordsForTick }) => recordsForTick);
-  return { records, ticks, observations, consumed };
+  return { records, ticks, observations, consumed, observationsAfterInput, marginDrawCounts };
 }
 
-function profileRun(profile: Profile): Run {
+function profileRun(profile: Profile): ActiveRun {
   return {
-    schema: 1,
+    schema: 2,
     ticks: 4,
     log: [
-      { tick: 1, event: profile.activeInput },
-      { tick: 2, event: profile.releaseInput },
+      ...(profile.name === "touch-only" ? [] : [{ tick: 1, event: profile.activeInput }]),
       { tick: 2, event: { kind: "host.features", features: profileUpdate(profile.features) } },
-      { tick: 3, event: { kind: "host.display", geometry: UPDATED_GEOMETRY } },
+      { tick: 2, event: { kind: "host.display", geometry: UPDATED_GEOMETRY } },
+      ...(profile.name === "touch-only" ? [{ tick: 2, event: profile.activeInput }] : []),
+      { tick: 3, event: profile.releaseInput },
+      ...(profile.name === "touch-only" ? [
+        { tick: 3, event: { kind: "pointer" as const, x: 16, y: 16, buttons: 1 } },
+        { tick: 3, event: { kind: "pointer" as const, x: 16, y: 16, buttons: 0 } },
+      ] : []),
     ],
   };
 }
 
 function assertInputBehavior(profile: Profile, result: Replay): void {
-  const active = result.observations.find(({ tick }) => tick === 1);
-  const released = result.observations.find(({ tick }) => tick === 2);
+  const activeTick = profile.name === "touch-only" ? 2 : 1;
+  const active = result.observations.find(({ tick }) => tick === activeTick);
+  const released = result.observations.find(({ tick }) => tick === 3);
   if (active === undefined || released === undefined) throw new Error(`${profile.name} input phase observations were not captured`);
+
 
   if (profile.name === "touch-only") {
     equal(active.pointer.downs, 1, "touch press creates a primary-pointer down edge");
-    deepEqual(active.pendingClicks, [{ x: 16, y: 16 }], "touch press creates a gameplay click destination");
-    equal(released.pointer.ups, 1, "touch release creates a primary-pointer up edge");
-    equal(released.pointer.buttons, 0, "touch release clears the held pointer button");
+    equal(active.authorClaimed, true, "Plane 3 author surface claims the primary-pointer sequence");
+    equal(active.customTouchControlsDeclared, true, "explicit custom HUD declaration is persisted");
+    equal(active.marginCommandCount, 1, "author HUD records a Plane 3 draw command");
+    deepEqual(active.pendingClicks, [], "author-owned touch press does not leak into gameplay click input");
+    equal(released.pointer.downs, 2, "same-tick gameplay click starts its own pointer sequence");
+    equal(released.pointer.ups, 2, "author and gameplay pointer sequences both release across geometry update");
+    equal(released.pointer.buttons, 0, "touch releases clear the held pointer button");
+    equal(released.authorActivationIndex, 0, "Plane 3 release activates the same author surface item");
+    equal(released.pendingActions.includes("confirm"), true, "author activation dispatches its semantic action exactly once");
+    deepEqual(released.pendingClicks, [{ gestureId: 2, x: 16, y: 16 }], "unclaimed Plane 1 click reaches the contextual gameplay consumer");
+    equal(released.pendingPointerUps.length, 1, "unclaimed in-plane release queues a contextual activation candidate");
+    equal(result.observationsAfterInput.get(3), 0, "input phase consumes the contextual release candidate");
   } else {
     equal(active.actions.down, true, `${profile.name} drives the down gameplay action`);
     equal(active.pendingActions.includes("down"), true, `${profile.name} queues the down action edge`);
@@ -173,12 +236,14 @@ test("runner-harness headless capability profiles replay the exact consumed inpu
     deepEqual(first.observations[0]?.features, profile.features, `${profile.name} initial boot capabilities reach core state before updates`);
     deepEqual(first.observations[0]?.geometry, INITIAL_GEOMETRY, `${profile.name} initial boot geometry reaches core state before updates`);
     deepEqual(first.observations[2]?.features, profileUpdate(profile.features), `${profile.name} logged feature update takes effect at tick 2`);
-    deepEqual(first.observations[3]?.geometry, UPDATED_GEOMETRY, `${profile.name} logged geometry update takes effect at tick 3`);
+    deepEqual(first.observations[2]?.geometry, UPDATED_GEOMETRY, `${profile.name} logged geometry update takes effect on its consuming tick`);
     assertInputBehavior(profile, first);
+    deepEqual(first.marginDrawCounts, Array.from({ length: planned.ticks }, () => profile.name === "touch-only" ? 1 : 0), `${profile.name} Plane 3 presentation is captured at each tick`);
 
     const replayed = replay(profile, { ...planned, log: first.consumed }, 1);
     deepEqual(replayed.consumed, first.consumed, `${profile.name} replay consumes the first run's exact full log`);
     deepEqual(replayed.records, first.records, `${profile.name} exact-log replay reproduces every per-tick state and draw hash`);
+    deepEqual(replayed.marginDrawCounts, first.marginDrawCounts, `${profile.name} repeated replay preserves Plane 3 output`);
 
     const batched = replay(profile, { ...planned, log: first.consumed }, 2);
     deepEqual(batched.records.map(({ tick }) => tick), [2, 4], `${profile.name} batches reports on the expected tick boundaries`);
@@ -186,6 +251,11 @@ test("runner-harness headless capability profiles replay the exact consumed inpu
       batched.records.map(({ state, draw }) => ({ state, draw })),
       [first.records[1]!, first.records[3]!].map(({ state, draw }) => ({ state, draw })),
       `${profile.name} state and draw hashes are independent of two-tick advance batching`,
+    );
+    deepEqual(
+      batched.marginDrawCounts,
+      [first.marginDrawCounts[1]!, first.marginDrawCounts[3]!],
+      `${profile.name} Plane 3 drawing is stable across two-tick batching`,
     );
 
     const withoutFeatureUpdate = replay(profile, {
@@ -198,10 +268,10 @@ test("runner-harness headless capability profiles replay the exact consumed inpu
       ...planned,
       log: first.consumed.filter(({ event }) => event.kind !== "host.display"),
     }, 1);
-    equal(first.records[2]?.state, withoutGeometryUpdate.records[2]?.state, `${profile.name} geometry update does not apply early`);
-    equal(first.records[3]?.state === withoutGeometryUpdate.records[3]?.state, false, `${profile.name} geometry update is hash-significant on its consuming tick`);
+    equal(first.records[1]?.state, withoutGeometryUpdate.records[1]?.state, `${profile.name} geometry update does not apply early`);
+    equal(first.records[2]?.state === withoutGeometryUpdate.records[2]?.state, false, `${profile.name} geometry update is hash-significant on its consuming tick`);
 
-    const sameConsumedLog: Run = { ...planned, log: first.consumed };
+    const sameConsumedLog: ActiveRun = { ...planned, log: first.consumed };
     const changedInitialFeatures = { ...profile.features, haptics: !profile.features.haptics };
     const initialFeatureControl = replay(profile, sameConsumedLog, 1, changedInitialFeatures, INITIAL_GEOMETRY);
     equal(first.records[0]?.state === initialFeatureControl.records[0]?.state, false, `${profile.name} hash includes boot features before any logged update`);
@@ -209,4 +279,28 @@ test("runner-harness headless capability profiles replay the exact consumed inpu
     const initialGeometryControl = replay(profile, sameConsumedLog, 1, profile.features, changedInitialGeometry);
     equal(first.records[0]?.state === initialGeometryControl.records[0]?.state, false, `${profile.name} hash includes boot geometry before any logged update`);
   }
+});
+
+test("active v2 runner-fallback action down and up replay as held, edge, and release", () => {
+  const profile = PROFILES[0]!;
+  const run: ActiveRun = {
+    schema: 2,
+    ticks: 3,
+    log: [
+      { tick: 1, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } },
+      { tick: 2, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback" } },
+    ],
+  };
+  const first = replay(profile, run, 1, profile.features, INITIAL_GEOMETRY, false);
+  deepEqual(first.consumed, run.log, "fallback replay consumes the exact tick-stamped action log");
+  const held = first.observations.find(({ actions }) => actions.confirm === true);
+  const released = first.observations.find(({ actions }) => actions.confirm === false && actions.menu === undefined);
+  if (held === undefined || released === undefined) throw new Error("fallback action transitions were not observed");
+  equal(held.pendingActions.includes("confirm"), true, "fallback down creates one semantic action edge");
+  equal(released.actions.confirm, false, "fallback up removes the held action source");
+  equal(held.customTouchControlsDeclared, false, "fallback stays enabled without an explicit custom-control declaration");
+
+  const repeated = replay(profile, { ...run, log: first.consumed }, 1, profile.features, INITIAL_GEOMETRY, false);
+  deepEqual(repeated.consumed, first.consumed, "fallback replay reuses the exact consumed log");
+  deepEqual(repeated.records, first.records, "fallback down/up state hashes reproduce deterministically");
 });

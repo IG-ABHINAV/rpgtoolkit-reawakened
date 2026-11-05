@@ -2,6 +2,7 @@ import {
   decodeLog,
   validateInputEvent,
   type InputEventV1,
+  type InputRecord,
   type InputRecordV1,
   type PlainData,
   type PortData,
@@ -13,11 +14,20 @@ export type TickRecord = {
   readonly draw: string;
 };
 
-export type Run = {
+export type LegacyRun = {
   readonly schema: 1;
   readonly ticks: number;
   readonly log: readonly InputRecordV1[];
 };
+
+/** Active v2 replay logs carry normalized records without legacy conversion. */
+export type ActiveRun = {
+  readonly schema: 2;
+  readonly ticks: number;
+  readonly log: readonly InputRecord[];
+};
+
+export type Run = LegacyRun | ActiveRun;
 
 export type Golden = {
   readonly schema: 1;
@@ -105,7 +115,7 @@ function readEventField(decoded: PortData): unknown {
   return undefined;
 }
 
-export function parseRun(text: string): Run {
+export function parseRun(text: string): LegacyRun {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
