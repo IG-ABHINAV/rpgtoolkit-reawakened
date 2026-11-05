@@ -195,6 +195,42 @@ test("screen vector primitives crossing Plane 1 enter margin commands and render
   equal(alphaAt(0, 14), 255); // drawcircle, logical x=-1
   equal(alphaAt(0, 20), 255); // fillcircle, logical x=-1
 });
+test("author surfaces remain live through the next input frame then expire with unfinished builders", () => {
+  const capture = captureState();
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      if (state.time.tick !== 0) return;
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+      applyUiEffect(state, "uiBegin", [7, "unfinished", "menu", 0, 0, 16, 16, 1]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surfaceRegistration]);
+  engine.advance(1, []);
+  const published = capture.state();
+  if (published === undefined) throw new Error("expected captured game state");
+  equal(published.ui.actionSurfaces.length, 1);
+  equal(published.ui.surfaceBuilders.length, 0);
+
+  engine.advance(1, [
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+  ]);
+  const activated = capture.state();
+  if (activated === undefined) throw new Error("expected captured game state");
+  equal(activated.ui.surfaceActivated?.index, 0);
+  equal(activated.ui.actionSurfaces.length, 0);
+  equal(activated.ui.surfaceBuilders.length, 0);
+
+  engine.advance(1, [
+    { tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+  ]);
+  equal(activated.ui.surfaceActivated, null);
+});
+
 
 test("unknown author actions remain inert with one diagnostic", () => {
   const capture = captureState();
