@@ -249,7 +249,7 @@ function capture(engine: Engine, label: string, tick: number, stateHash: string)
   const list = engine.drawList(0, INCLUDE);
   const image = readScreen(engine);
   const surfaces = new Map<string, DecodedTexture | null>();
-  for (const command of list.commands) {
+  for (const command of [...list.commands, ...list.marginCommands]) {
     if (command.kind !== "blit" || "asset" in command.source) continue;
     const key = `${command.source.surface}:${command.source.rev}`;
     if (!surfaces.has(key)) surfaces.set(key, engine.surfacePixels(command.source.surface, command.source.rev));
@@ -258,7 +258,7 @@ function capture(engine: Engine, label: string, tick: number, stateHash: string)
     image,
     drawList: list,
     surfaces,
-    frame: { label, tick, stateHash, drawHash: hashDrawList(list), pixelHash: fnv1a64(image.rgba), commands: list.commands.length, width: image.w, height: image.h },
+    frame: { label, tick, stateHash, drawHash: hashDrawList(list), pixelHash: fnv1a64(image.rgba), commands: list.commands.length + list.marginCommands.length, width: image.w, height: image.h },
   };
 }
 

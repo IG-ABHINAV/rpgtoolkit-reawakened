@@ -13,7 +13,7 @@
  */
 
 import {
-  rasterize,
+  rasterizePresentation,
   readTrueTypeFont,
   type AssetKey,
   type DrawList,
@@ -109,8 +109,13 @@ function replay(
   const gl = canvas.getContext("webgl2", { premultipliedAlpha: false, antialias: false, alpha: true, preserveDrawingBuffer: true });
   if (gl === null) throw new Error("vectors: no WebGL2 context");
   const renderer = createWebgl2Renderer(gl);
-  const list: DrawList = { tick: 0, width, height, commands: commands as DrawList["commands"] };
-  const render = renderer.render(list, {
+  const list: DrawList = { tick: 0, width, height, commands: commands as DrawList["commands"], marginCommands: [] };
+  const geometry = {
+    content: { width, height },
+    game: { x: 0, y: 0, width, height },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const render = renderer.render(list, geometry, {
     textures: (asset) => textures.get(asset) ?? null,
     fonts: (asset) => fonts.get(asset),
   });
@@ -127,7 +132,7 @@ function replay(
     actual.set(pixels.subarray(row * stride, (row + 1) * stride), (height - 1 - row) * stride);
   }
   const assets = new Map<AssetKey, RasterAsset>([...textures, ...fonts] as [AssetKey, RasterAsset][]);
-  const reference = rasterize(list, assets, new Map());
+  const reference = rasterizePresentation(list, geometry, assets);
   if (reference.error !== null) throw new Error(`vectors: the reference refused the command: ${reference.error}`);
   return { actual, reference: reference.rgba };
 }

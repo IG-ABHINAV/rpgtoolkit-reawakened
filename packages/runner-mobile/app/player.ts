@@ -7,6 +7,7 @@
 
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
+import { createFallbackTouchControls } from "@tk-reawakened/runner-web/touch-controls";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
@@ -220,11 +221,19 @@ function run(
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const stage = canvas.parentElement;
+  if (stage === null) throw new Error("mobile player canvas has no content host");
   const stopPointerInput = attachPointerInput(
-    canvas,
+    stage,
     viewSize,
+    session.displayGeometry,
     ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
     () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+  );
+  const touchControls = createFallbackTouchControls(
+    stage,
+    session.displayGeometry,
+    (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } }),
   );
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 
@@ -246,6 +255,7 @@ function run(
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
     stopPointerInput();
+    touchControls.close();
     canvas.removeEventListener("contextmenu", onContextMenu);
     session.close();
   };
@@ -261,6 +271,7 @@ function run(
     pending = [];
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
+      touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const board = session.boardKey();

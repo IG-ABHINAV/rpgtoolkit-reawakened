@@ -175,7 +175,7 @@ test("goldenJob detects batching disagreement without throwing", () => {
         };
       },
       drawList(): DrawList {
-        return { tick: currentTick, width: 320, height: 240, commands: [] };
+        return { tick: currentTick, width: 320, height: 240, commands: [], marginCommands: [] };
       },
       surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
         return null;

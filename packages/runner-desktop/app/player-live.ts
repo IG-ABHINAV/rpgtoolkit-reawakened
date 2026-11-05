@@ -2,6 +2,7 @@ import type { InputRecord } from "@tk-reawakened/core";
 import { interactivePackage } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
+import { createFallbackTouchControls } from "@tk-reawakened/runner-web/touch-controls";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
@@ -55,10 +56,10 @@ async function start(): Promise<void> {
     onQuit: () => { void host.quit(); },
   });
   window.__session = session;
-  run(session, canvas, status, { canvas, viewport });
+  run(session, canvas, status, { canvas, viewport }, viewport);
 }
 
-function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport): void {
+function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport, stage: HTMLElement): void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
@@ -75,11 +76,18 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const pointerHost = stage;
   const stopPointerInput = attachPointerInput(
-    canvas,
+    pointerHost,
     viewSize,
+    session.displayGeometry,
     ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
     () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+  );
+  const touchControls = createFallbackTouchControls(
+    stage,
+    session.displayGeometry,
+    (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } }),
   );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
@@ -96,6 +104,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
     stopPointerInput();
+    touchControls.close();
     session.close();
   };
   window.addEventListener("pagehide", dispose, { once: true });
@@ -109,6 +118,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     pending = [];
     void session.advance(ticks, inputs).then(() => {
       if (disposed) return;
+      touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const result = { tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board: session.boardKey(), player };
