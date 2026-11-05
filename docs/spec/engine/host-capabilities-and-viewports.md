@@ -176,11 +176,14 @@ Authors access geometry to align custom UI elements, HUDs, or touch buttons:
 `marginWidth` and `safeAreaInset` accept side names case-insensitively; any other value raises the catchable `builtin.bad-arg` error. `viewWidth`, `viewHeight`, these geometry queries, and `pointerType` read the current normalized host state, including changes applied earlier in the same tick.
 
 * **Resize Events:** Each accepted `host.display` input that changes the normalized geometry queues a non-cancelable `viewportResized` event on the game emitter. The existing `events` phase delivers it in queue order; delivery is never synchronous with input application. Repeating the same geometry still appears in the consumed input log but does not queue a duplicate notification. Event `detail` contains the current integer logical-pixel values `marginLeft`, `marginRight`, `marginTop`, `marginBottom`, `safeAreaTop`, `safeAreaRight`, `safeAreaBottom`, and `safeAreaLeft`, calculated by the same rules as `marginWidth` and `safeAreaInset`:
+
   ```rpgcode
   on(game, "viewportResized", (event) => {
       hud.reposition(event.detail.marginRight, event.detail.safeAreaBottom);
   });
   ```
+
+After restoring a game snapshot, the runner MUST compare the live host geometry with the restored engine geometry and enqueue the live normalized `host.display` value before accepting any subsequent pointer record. This reapplication is required even if the runner's observation cache already contains the same live value: the snapshot may restore an older geometry while the observer itself saw no new resize. The resulting ordered input is the shared source for engine display queries, pointer mapping, and presentation rendering.
 
 <a id="touch-controls"></a>
 ## Touch control presentation: author HUD vs. runner fallback

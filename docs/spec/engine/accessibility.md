@@ -129,6 +129,8 @@ Rules:
 
 The commands are `uiBegin`, `uiItem`, `uiEnd`, `uiSelection`, `uiFocus`, `uiActivated` and `uiCancelled`, specified with their signatures in the [Reawakened additions](rpgcode-functions.md#reawakened-additions) table. They draw nothing themselves: the script keeps its own art and the engine adds the focus ring and the tree.
 
+**Frame lifetime and modal precedence.** A publication belongs to one frame. The preceding frame's committed surface remains available through the next frame's input routing and script claim reads; the surface is replaced by a newly completed `uiEnd()` or expires at that frame's end if not refreshed. An unfinished `uiBegin()` builder expires at frame end and is never published. `Engine.accessibilityTree()` and pointer hit-testing see only the currently committed frame surface. If an engine modal is active, it suppresses author focus decoration and takes precedence for pointer and action routing until dismissed.
+
 The host obtains the current plain-data accessibility nodes through `Engine.accessibilityTree()`. The query is opt-in, returns a fresh read-only tree from the committed author surfaces, and does not mutate or hash simulation state; native screen-reader presentation remains a runner responsibility.
 
 
