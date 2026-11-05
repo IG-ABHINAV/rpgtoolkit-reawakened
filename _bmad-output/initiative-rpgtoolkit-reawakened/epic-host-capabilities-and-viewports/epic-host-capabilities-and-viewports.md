@@ -32,10 +32,10 @@ specification in `docs/spec/engine/host-capabilities-and-viewports.md` is fully 
    and `displayAspect()` are exposed, and querying unknown features safely returns 0 without raising runtime errors.
 3. Mid-session hardware changes (gamepad connection/disconnection) and window resizes / phone rotations emit AD-14 events
    (`device.*` and `viewport.resized`).
-4. Games that register custom touch controls or check `hasFeature("touch")` run with zero runner chrome, with controls
-   positioned cleanly in lateral letterbox margins.
-5. Legacy Toolkit 3.1 games running on touch devices render the runner fallback virtual D-pad and action buttons outside
-   the 4:3 gameplay frame within the pillarbox margins.
+4. Games that explicitly declare or register custom touch controls run without fallback runner chrome; checking
+   `hasFeature("touch")` alone does not suppress it.
+5. Touch games without a custom-control declaration get a fallback virtual D-pad and action buttons in safe pillarbox
+   margins when they fit, and a translucent overlay on the game when they do not.
 
 ## Boundaries
 

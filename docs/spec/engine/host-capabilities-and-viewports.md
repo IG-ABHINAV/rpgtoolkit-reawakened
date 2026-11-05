@@ -11,11 +11,12 @@ author-facing APIs for responsive layouts, safe areas, and touch ergonomics.
 
 **Guard-rail invariants:**
 - **G1 & G3:** All feature flags and geometry records are plain JSON data. They are recorded in `state.display` and
-  `state.features`, hashed into the state hash, and reproducible identically during headless replays.
+  `state.features` and included in the state hash. The input log records the initial host data and subsequent changes;
+  the same game, seed and input log reproduce the same state and hash.
 - **G2:** `core` never queries the DOM, `navigator.userAgent`, or OS platform APIs. The runner computes capabilities and
   geometry and passes them into core at boot or via AD-14 inputs. **The core never learns a runner's name.**
 - **G4:** Renderers replay draw lists and do not invent game state. On-screen controls drawn by the author are ordinary
-  draw commands; runner fallback controls sit outside the logical game viewport.
+  draw commands; runner fallback controls are host presentation, outside the logical viewport when space permits.
 
 <a id="host-features"></a>
 ## The host capabilities contract (`HostFeatures`)
@@ -136,8 +137,9 @@ presentation policy**:
 
 ### Tier 1: Author-Owned Touch HUD (Preferred)
 
-If an authored game checks `hasFeature("touch")` and renders on-screen controls, or declares `touchControls: "custom"`
-in its package manifest / `.gam` file:
+**Owner ruling:** A game must explicitly declare or register its own touch controls to suppress the runner's fallback.
+Checking `hasFeature("touch")` alone does not suppress it: a query does not prove that usable controls exist.
+For example, a package may declare `touchControls: "custom"`:
 * **The runner renders zero chrome.** No virtual sticks, D-pads, or buttons are injected by the host.
 * **Margin Positioning:** Authors may place custom touch controls directly inside the Plane 3 lateral margins. This
   prevents fingers from obscuring the game canvas or text boxes on mobile devices.
@@ -147,11 +149,12 @@ in its package manifest / `.gam` file:
 
 ### Tier 2: Runner Fallback Virtual Gamepad (Legacy Compatibility)
 
-If an unpatched Toolkit 3.1 legacy game (e.g. `demo.gam`) runs on a device where `hasFeature("touch")` is true and no
-custom touch controls are registered:
+When touch is available and the game has not explicitly declared or registered custom touch controls, including for
+unpatched Toolkit 3.1 games:
 * **Automatic Minimal Gamepad:** The runner renders a clean, non-intrusive virtual D-pad on the left and primary Action
   buttons on the right.
-* **Placement Outside Gameplay:** Whenever lateral pillarbox margins exist (Plane 3), the runner docks the virtual
-  controls inside those margins, ensuring the 4:3 retro pixel art remains 100% visible and unoccluded.
+* **Placement:** When the safe pillarbox margins have sufficient room, the runner docks controls there. Otherwise it
+  places translucent controls over the gameplay viewport rather than shrinking it or leaving the player without controls
+  (owner ruling).
 * **Contextual Tap-to-Walk:** Direct pointer taps on walkable ground dispatch movement toward that coordinate, while
   tapping adjacent interactable tiles dispatches the `confirm` action.
