@@ -61,9 +61,9 @@ function itemIdFor(state: SpritesSection | undefined, arg: number | string | und
     if (byId !== undefined) return byId.id;
     const handle = Number(arg);
     if (arg.trim() !== "" && Number.isInteger(handle)) {
-      return state?.items.find((value) => value.handle === handle || value.index === handle)?.id ?? "";
+      return state?.items.find((value) => value.handle === handle || value.index === handle)?.id ?? arg;
     }
-    return "";
+    return arg;
   }
   const item = state?.items.find((value) => value.handle === arg || value.index === arg);
   return item?.id ?? "";
