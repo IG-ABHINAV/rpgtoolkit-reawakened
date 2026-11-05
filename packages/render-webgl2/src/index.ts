@@ -195,7 +195,7 @@ export function createWebgl2Renderer(gl: WebGL2RenderingContext): Webgl2Renderer
       gl.uniform1i(gpu.sampler, 0);
       gl.uniform1i(gpu.height, result.height);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
-      const count = commands.length;
+      const count = list.commands.length + list.marginCommands.length;
       return result.error === null
         ? { drawn: count, deferred: 0, deferredByKind: {}, diagnostics: [] }
         : { drawn: 0, deferred: 1, deferredByKind: { raster: 1 }, diagnostics: [result.error] };
