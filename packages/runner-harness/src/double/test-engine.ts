@@ -123,7 +123,13 @@ export function createTestEngine(): Engine {
             };
             break;
           }
+          case "pointer.cancel": {
+            state.pointer = { ...state.pointer, buttons: state.pointer.buttons & ~1 };
+            break;
+          }
           case "gamepad":
+          case "host.features":
+          case "host.display":
           case "asset":
           case "blob.loaded":
           case "blob.saved":

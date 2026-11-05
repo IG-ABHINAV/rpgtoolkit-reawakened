@@ -6,7 +6,7 @@ import type { DecodeAhead } from "../src/decode-types.ts";
 import { fetchBundled, fetchBundledFiles, fetchGame, fontProvider, distributionPackage, runScriptedFrame } from "../src/index.ts";
 import { createLoadController, type LoadModeRequest, type LoadState } from "../src/load-mode.ts";
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
-import { pointerEventToLogical } from "../src/pointer.ts";
+import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, fitCanvas, type LiveSession } from "../src/live-session.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
@@ -363,10 +363,12 @@ function startLiveLoop(
   let frameId: number | null = null;
   let pending: InputRecord[] = [];
   const viewSize = session.viewSize();
-  const pointer = (event: PointerEvent): void => {
-    const { x, y } = pointerEventToLogical(event, canvas, viewSize);
-    pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
-  };
+  const stopPointerInput = attachPointerInput(
+    canvas,
+    viewSize,
+    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
+    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+  );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
@@ -385,9 +387,6 @@ function startLiveLoop(
   window.addEventListener("blur", onBlur);
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);
-  canvas.addEventListener("pointerdown", pointer);
-  canvas.addEventListener("pointermove", pointer);
-  canvas.addEventListener("pointerup", pointer);
   canvas.addEventListener("contextmenu", onContextMenu);
   // The spinner is driven by its own timer as well as by each frame, so it appears even if the browser throttles
   // animation frames, and never from the pending `advance`, which cannot resolve while the engine waits on an asset.
@@ -402,9 +401,7 @@ function startLiveLoop(
     window.removeEventListener("blur", onBlur);
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
-    canvas.removeEventListener("pointerdown", pointer);
-    canvas.removeEventListener("pointermove", pointer);
-    canvas.removeEventListener("pointerup", pointer);
+    stopPointerInput();
     canvas.removeEventListener("contextmenu", onContextMenu);
     session.close();
   };

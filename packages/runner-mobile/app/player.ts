@@ -6,7 +6,7 @@
  */
 
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
-import { pointerEventToLogical } from "@tk-reawakened/runner-web/pointer";
+import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, fitCanvas, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
@@ -222,10 +222,12 @@ function run(
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
-  const onPointer = (event: PointerEvent): void => {
-    const { x, y } = pointerEventToLogical(event, canvas, viewSize);
-    pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
-  };
+  const stopPointerInput = attachPointerInput(
+    canvas,
+    viewSize,
+    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
+    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+  );
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 
   window.addEventListener("keydown", onKeyDown);
@@ -233,9 +235,6 @@ function run(
   window.addEventListener("blur", onBlur);
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);
-  canvas.addEventListener("pointerdown", onPointer);
-  canvas.addEventListener("pointermove", onPointer);
-  canvas.addEventListener("pointerup", onPointer);
   canvas.addEventListener("contextmenu", onContextMenu);
 
   const dispose = (): void => {
@@ -247,9 +246,7 @@ function run(
     window.removeEventListener("blur", onBlur);
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
-    canvas.removeEventListener("pointerdown", onPointer);
-    canvas.removeEventListener("pointermove", onPointer);
-    canvas.removeEventListener("pointerup", onPointer);
+    stopPointerInput();
     canvas.removeEventListener("contextmenu", onContextMenu);
     session.close();
   };

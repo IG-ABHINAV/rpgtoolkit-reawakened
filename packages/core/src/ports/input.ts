@@ -8,6 +8,7 @@
  */
 
 import type { Bytes, PortData } from "./bytes.ts";
+import type { HostDisplayGeometry, NormalizedHostFeatures } from "./host.ts";
 
 /** A key press or release (E-110). */
 export type KeyInput = {
@@ -19,6 +20,9 @@ export type KeyInput = {
   /** Host auto-repeat is deliberately not a new press edge. */
   readonly repeat?: boolean;
 };
+
+/** Cancellation of the active pointer gesture, without a release edge (E-111). */
+export type PointerCancelInput = { readonly kind: "pointer.cancel" };
 
 /** A pointer event in logical integer pixels (E-111). */
 export type PointerInput = {
@@ -44,6 +48,18 @@ export type GamepadInput = {
 export type FocusInput = {
   readonly kind: "focus";
   readonly state: "lost" | "gained";
+};
+
+/** A complete host capability update, captured as deterministic input. */
+export type HostFeaturesInput = {
+  readonly kind: "host.features";
+  readonly features: NormalizedHostFeatures;
+};
+
+/** A complete measured display geometry update, captured as deterministic input. */
+export type HostDisplayInput = {
+  readonly kind: "host.display";
+  readonly geometry: HostDisplayGeometry;
 };
 
 /** The reply to an `asset` request: the bytes, or `null` when missing. */
@@ -97,8 +113,11 @@ export type VideoEnded = {
 export type InputEvent =
   | KeyInput
   | PointerInput
+  | PointerCancelInput
   | GamepadInput
   | FocusInput
+  | HostFeaturesInput
+  | HostDisplayInput
   | AssetReply
   | BlobLoaded
   | BlobSaved

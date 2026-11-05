@@ -52,9 +52,9 @@ type Game = {
  */
 function boot(
   programs: string | readonly string[],
-  options: { readonly extra?: Readonly<Record<string, string>>; readonly fileThread?: string } = {},
+  options: { readonly extra?: Readonly<Record<string, string>>; readonly fileThread?: string; readonly startup?: string; readonly pixelMovement?: number } = {},
 ): Game {
-  const main = writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, startupPrg: "start.prg", initBoard: "start.brd" });
+  const main = writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, startupPrg: "start.prg", initBoard: "start.brd", pixelMovement: options.pixelMovement ?? 0 });
   if (!main.ok) throw new Error(main.error.message);
   const empty = createEmptyBoard();
   const board = writeBoard({ ...empty, properties: { ...empty.properties, start: { x: 32, y: 32, layer: 1 } } });
@@ -62,7 +62,7 @@ function boot(
   const files = new Map<AssetKey, Uint8Array>([
     [assetKey("main.gam"), main.value],
     [assetKey("boards/start.brd"), board.value],
-    [assetKey("prg/start.prg"), encoder.encode("end()\n")],
+    [assetKey("prg/start.prg"), encoder.encode(`${options.startup ?? "end()"}\n`)],
   ]);
   const paths = [...PATHS];
   for (const [name, text] of Object.entries(options.extra ?? {})) {
@@ -197,12 +197,73 @@ test("a game save restores through `restoreGameSave` with no diagnostic and a st
   deepEqual(reloaded.vm.globals, restored.state.vm.globals, "globals survive a second round trip");
   equal(hashGameState(reloaded), hashGameState(restored.state), "the state hash is stable across load and re-load");
 });
+test("a saved runtime movement setting survives save and load", () => {
+  const saved = capture('pixelmovement(1, 1)\nSave("slot")\nrestoredWalking = pixelmovement()\nend()');
+  const loader = boot(LOADER, { pixelMovement: 0 });
+  const result = run(loader, saved);
+  deepEqual(result.diagnostics, []);
+  const restored = loader.state();
+  ok(restored !== null);
+  equal(restored.vm.globals.restoredwalking, 1, "the resumed RPGCode command reads the restored walking setting");
+  deepEqual(restored.world.movement, { walking: 1, pushing: 1 });
+});
+
+test("each missing saved movement setting falls back independently to its associated main file", () => {
+  const original = JSON.parse(decoder.decode(capture('Save("slot")\nrestoredWalking = pixelmovement()\nend()'))) as Record<string, unknown>;
+  const world = original.world as Record<string, unknown>;
+  const movement = world.movement as Record<string, unknown>;
+  movement.walking = 0;
+  movement.pushing = 1;
+
+  const restoreWithMissing = (field: "walking" | "pushing"): GameState => {
+    const oldSave = JSON.parse(JSON.stringify(original)) as Record<string, unknown>;
+    const oldWorld = oldSave.world as Record<string, unknown>;
+    const oldMovement = oldWorld.movement as Record<string, unknown>;
+    delete oldMovement[field];
+    const loader = boot(LOADER, { pixelMovement: 1 });
+    deepEqual(run(loader, encoder.encode(JSON.stringify(oldSave))).diagnostics, []);
+    const restored = loader.state();
+    ok(restored !== null);
+    return restored;
+  };
+
+  const missingWalking = restoreWithMissing("walking");
+  deepEqual(missingWalking.world.movement, { walking: 1, pushing: 1 },
+    "walking falls back to mode 1 while the saved pushing setting remains intact");
+  equal(missingWalking.vm.globals.restoredwalking, 1, "RPGCode reads the fallback walking value");
+  const missingPushing = restoreWithMissing("pushing");
+  deepEqual(missingPushing.world.movement, { walking: 0, pushing: 0 },
+    "pushing falls back to mode 1 while the saved walking setting remains intact");
+  equal(missingPushing.vm.globals.restoredwalking, 0, "the saved false walking value remains visible to RPGCode");
+  const schemaOne = JSON.parse(JSON.stringify(original)) as Record<string, unknown>;
+  const schemaOneSchema = schemaOne.schema as Record<string, unknown>;
+  schemaOneSchema.world = 1;
+  const schemaOneWorld = schemaOne.world as Record<string, unknown>;
+  const schemaOneMovement = schemaOneWorld.movement as Record<string, unknown>;
+  delete schemaOneMovement.walking;
+  delete schemaOneMovement.pushing;
+  const oldLoader = boot(LOADER, { pixelMovement: 1 });
+  deepEqual(run(oldLoader, encoder.encode(JSON.stringify(schemaOne))).diagnostics, []);
+  const oldRestored = oldLoader.state();
+  ok(oldRestored !== null);
+  deepEqual(oldRestored.world.movement, { walking: 1, pushing: 0 },
+    "a schema-1 save with both fields absent uses mode 1 defaults");
+  equal(oldRestored.vm.globals.restoredwalking, 1, "the migrated .gam fallback is visible through RPGCode");
+});
 
 test("a loaded thread continues exactly as the unsaved thread would have", () => {
   const saved = capture(SAVER);
   const loader = boot(LOADER);
   run(loader, saved);
   equal(globals(loader.state()).counter, 2, "the saved thread resumed after Save and ran the increment once");
+});
+test("a real startup Load preserves and resumes the saved game's board thread", () => {
+  const saved = capture(SAVER);
+  const loader = boot([], { startup: 'Load("slot")\nend()' });
+  const result = run(loader, saved);
+  equal(result.loadTicks.length, 1, "startup Load received its actual blob reply");
+  equal(globals(loader.state()).counter, 2, "the saved board thread resumed after Load and ran its post-save increment");
+  deepEqual(result.diagnostics, [], "the startup Load and saved-thread continuation completed without diagnostics");
 });
 
 // --- 2. Every waiting kind the VM stores round-trips unchanged ----------------------------------

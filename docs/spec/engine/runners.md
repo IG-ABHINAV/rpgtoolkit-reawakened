@@ -40,9 +40,8 @@ sends a runner is plain data — structured-cloneable, fixed keys, absent values
 which sources and banks are installed, presentation scaling and letterboxing (AD-33), where a save physically lives
 (AD-17), and the player-facing preferences of [audio-media.md#soundfont-layers](audio-media.md#soundfont-layers).
 
-**May not:** change the meaning of a record, drop or invent a reply the core expects (AD-5, AD-14), feed device state
-into the simulation, depend on how ticks were batched (AD-1), or keep anything caches hold observable: discarding a
-cache at any moment must change no pixel, no sound and no hash (G4 rule 3).
+- **May not:** change the meaning of a record, drop or invent a reply the core expects (AD-5, AD-14), feed raw device or display observations directly into simulation, depend on how ticks were batched (AD-1), or keep anything caches hold observable: discarding a cache at any moment must change no pixel, no sound and no hash (G4 rule 3). A host observation may affect simulation only when captured as the initial host records or as the explicit, tick-stamped `host.features` / `host.display` AD-14 input in [host-capabilities-and-viewports.md#state-and-input-records](host-capabilities-and-viewports.md#state-and-input-records). Those records are hashed because script-visible; the runner's raw observation and presentation transform are not.
+- **Pointer and geometry state:** mapping a physical pointer through the displayed game rectangle is presentation work, but the resulting logical pointer input is an AD-14 input and the current normalized display geometry is deterministic state. Therefore a runner MUST use the same measured game rectangle for pointer mapping and `host.display` inputs; it MUST NOT mutate core geometry through an out-of-band setter.
 
 <a id="draw-list"></a>
 ## Draw-list replay and the presented frame
@@ -410,17 +409,21 @@ which is what "the same core build" in the capability's success check means.
 <a id="csp-and-banks"></a>
 ## CSP and the audio path
 
-The default audio path ships **SF2** banks only, so it instantiates **no WebAssembly** and the shipped CSP needs no
-`wasm-unsafe-eval` for it. `script-src 'wasm-unsafe-eval'` is allowed only in a build that can load an SF3 bank or a
-user-supplied `.sf2` that is SF3, and the page states which build it is.
+The desktop player can receive an SF3 bank, including one named `.sf2`. Its MIDI dependency eagerly initializes the
+WebAssembly Vorbis decoder even when the bundled uncompressed SF2 is used. The desktop player and measurement page
+therefore allow `wasm-unsafe-eval` in `script-src`; this permits WebAssembly compilation but not JavaScript
+`unsafe-eval`. The policy still permits scripts only from the application's own origin. The decoder supports
+compressed SoundFont samples; the interactive player waits for its initialization before starting audio, and reports
+initialization failure rather than silently playing a compressed sample before the decoder is ready.
 
-The browser lane **MUST** assert that the default path instantiates no WebAssembly, so the allowance can never widen
-silently. SF3 support itself is unverified and is not promised by this page.
+The browser player's strict policy remains unchanged by this desktop fix, and its browser lane **MUST** assert that
+the default path instantiates no WebAssembly. The current browser player does not yet meet that requirement: the same
+eager dependency initialization is blocked by its policy ([issue #1325](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1325)).
+SF3 playback on other runners is not established by the desktop result.
 
 The AudioWorklet module is loaded by `audioWorklet.addModule` from a **same-origin** URL — `/apps/audio-worklet.js` in
 the browser and `app://player/apps/audio-worklet.js` under the desktop scheme. That fetch is governed by `script-src`,
-**not** `worker-src`, so the shipped `script-src 'self'` covers it and the policy is not widened. The browser lane loads
-the module under the real CSP; the desktop smoke does the same over `app://`.
+not `worker-src`. The browser lane loads the module under the real CSP; the desktop smoke does the same over `app://`.
 
 <a id="conformance-lane"></a>
 ## Conformance: the schema and the vector kit

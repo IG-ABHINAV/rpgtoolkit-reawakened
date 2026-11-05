@@ -20,7 +20,9 @@
 
 import { canon, encodeLog } from "../canon/index.ts";
 import type { PortData } from "../ports/bytes.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import type { InputEvent } from "../ports/input.ts";
+import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 
 /** The result of validating one candidate input event. */
 export type InputEventValidation =
@@ -32,8 +34,11 @@ type UnknownRecord = { readonly [key: string]: unknown };
 const KINDS = [
   "key",
   "pointer",
+  "pointer.cancel",
   "gamepad",
   "focus",
+  "host.features",
+  "host.display",
   "asset",
   "blob.loaded",
   "blob.saved",
@@ -49,8 +54,11 @@ type EventKind = (typeof KINDS)[number];
 const KEY_SETS: { readonly [kind in EventKind]: readonly string[] } = {
   key: ["kind", "name", "code", "char", "down", "repeat"],
   pointer: ["kind", "x", "y", "buttons"],
+  "pointer.cancel": ["kind"],
   gamepad: ["kind", "device", "connected", "axes", "buttons"],
   focus: ["kind", "state"],
+  "host.features": ["kind", "features"],
+  "host.display": ["kind", "geometry"],
   asset: ["kind", "reqId", "bytes"],
   "blob.loaded": ["kind", "reqId", "bytes"],
   "blob.saved": ["kind", "reqId", "ok"],
@@ -157,6 +165,35 @@ function validateFocus(record: UnknownRecord): InputEventValidation {
   return accept(record);
 }
 
+function validateHostFeatures(record: UnknownRecord): InputEventValidation {
+  const features = record["features"];
+  if (typeof features !== "object" || features === null || Array.isArray(features)) return invalid("features", "expected an object");
+  try {
+    const normalized = normalizeHostFeatures(features as HostFeatures);
+    const keys = ["touch", "pointer", "keyboard", "gamepad", "haptics", "orientation"];
+    if (Object.keys(features).length !== keys.length || keys.some((key) => !Object.hasOwn(features, key))) {
+      return invalid("features", "expected a complete normalized host feature record");
+    }
+    if (Object.keys(normalized).some((key) => !Object.hasOwn(features, key))) {
+      return invalid("features", "expected a complete normalized host feature record");
+    }
+    return accept(record);
+  } catch (error) {
+    return invalid("features", error instanceof Error ? error.message : "invalid host features");
+  }
+}
+
+function validateHostDisplay(record: UnknownRecord): InputEventValidation {
+  const geometry = record["geometry"];
+  if (typeof geometry !== "object" || geometry === null || Array.isArray(geometry)) return invalid("geometry", "expected an object");
+  try {
+    normalizeDisplayGeometry(geometry as HostDisplayGeometry);
+    return accept(record);
+  } catch (error) {
+    return invalid("geometry", error instanceof Error ? error.message : "invalid display geometry");
+  }
+}
+
 function validateBytesReply(record: UnknownRecord): InputEventValidation {
   if (!isNonNegativeInteger(record["reqId"]))
     return invalid("reqId", "expected a non-negative integer");
@@ -240,10 +277,16 @@ export function validateInputEvent(raw: unknown): InputEventValidation {
         return validateKey(record);
       case "pointer":
         return validatePointer(record);
+      case "pointer.cancel":
+        return accept(record);
       case "gamepad":
         return validateGamepad(record);
       case "focus":
         return validateFocus(record);
+      case "host.features":
+        return validateHostFeatures(record);
+      case "host.display":
+        return validateHostDisplay(record);
       case "asset":
       case "blob.loaded":
         return validateBytesReply(record);

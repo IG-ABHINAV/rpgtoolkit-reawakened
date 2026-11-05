@@ -400,6 +400,7 @@ function makeRig(options: {
   state.party.members = [...players];
   state.party.selected = players[0] ?? null;
   state.world = {
+    ...state.world,
     board: {
       key: assetKey("boards/field.brd"),
       coordType: 0,

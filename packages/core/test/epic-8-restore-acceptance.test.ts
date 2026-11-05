@@ -302,3 +302,35 @@ test("full-engine Load refuses newer IR and restarts an older-IR saved thread", 
   equal(globals(restarted).counter, 4, "older-IR thread restarted from source over restored counter");
   equal(replay.codes.includes("restore.ir-mismatch"), false, "older thread is restarted, not refused");
 });
+
+// Full boot and a real save/load are needed to exercise the request boundary and timeline rewind.
+test("host changes before a load reply do not survive as future inputs", () => {
+  const saved = capture();
+  const game = boot('sleep(30)\nLoad("slot")\nend()\n');
+  let replies: InputRecord[] = [];
+  for (let i = 0; i < 80; i += 1) {
+    const report = game.engine.advance(1, replies);
+    replies = [];
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "loadBlob") {
+        const before = { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: null } as const;
+        const result = game.engine.advance(0, [
+          { tick: report.tickAfter, event: { kind: "host.features", features: before } },
+          { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: saved } },
+        ]);
+        deepEqual(result.consumed.map(({ event }) => event.kind), ["host.features", "blob.loaded"]);
+        ok(result.tickAfter < report.tickAfter, `the real load rewound the timeline: ${report.tickAfter} -> ${result.tickAfter}; ${JSON.stringify(result.diagnostics)}`);
+        const later = { ...before, touch: false } as const;
+        const update = game.engine.advance(1, [{ tick: result.tickAfter, event: { kind: "host.features", features: later } }]);
+        equal(update.consumed.filter(({ event }) => event.kind === "host.features").length, 1);
+        const continuation = game.engine.advance(80, []);
+        ok(continuation.tickAfter > report.tickAfter, "the continuation passed the old input tick");
+        equal(continuation.consumed.some(({ event }) => event.kind === "host.features"), false, "old host input was not replayed at its former tick");
+        return;
+      }
+    }
+  }
+  throw new Error("expected the real load request");
+});

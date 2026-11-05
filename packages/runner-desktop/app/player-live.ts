@@ -1,6 +1,7 @@
 import type { InputRecord } from "@tk-reawakened/core";
 import { interactivePackage } from "@tk-reawakened/runner-web";
-import { pointerEventToLogical } from "@tk-reawakened/runner-web/pointer";
+import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
+import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, observeViewport, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 
 type Host = {
@@ -19,6 +20,7 @@ void start().catch((error: unknown) => {
 });
 
 async function start(): Promise<void> {
+  await soundFontDecoderReady;
   const host = window.desktop;
   const canvas = document.querySelector<HTMLCanvasElement>("#screen");
   const status = document.querySelector<HTMLElement>("#live-status");
@@ -70,18 +72,17 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
-  const onPointer = (event: PointerEvent): void => {
-    const { x, y } = pointerEventToLogical(event, canvas, viewSize);
-    pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
-  };
+  const stopPointerInput = attachPointerInput(
+    canvas,
+    viewSize,
+    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
+    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+  );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);
-  canvas.addEventListener("pointerdown", onPointer);
-  canvas.addEventListener("pointermove", onPointer);
-  canvas.addEventListener("pointerup", onPointer);
   const dispose = (): void => {
     if (disposed) return;
     stopFitting();
@@ -91,9 +92,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     window.removeEventListener("blur", onBlur);
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
-    canvas.removeEventListener("pointerdown", onPointer);
-    canvas.removeEventListener("pointermove", onPointer);
-    canvas.removeEventListener("pointerup", onPointer);
+    stopPointerInput();
     session.close();
   };
   window.addEventListener("pagehide", dispose, { once: true });

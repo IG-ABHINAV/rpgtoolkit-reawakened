@@ -159,7 +159,7 @@ test("direct sprite collision freezes the stationary loser for 120 ticks", () =>
 test("active movement survives snapshot restore with equal later behavior", () => {
   const currentBoard = board();
   const left = createGameState({ seed: 7 });
-  left.world = { board: currentBoard };
+  left.world = { ...left.world, board: currentBoard };
   left.sprites = playerState(currentBoard);
   enqueueDirectionMove(left.sprites, "hero", "E", 0);
   runMovementPhase(left.sprites, currentBoard, 0);

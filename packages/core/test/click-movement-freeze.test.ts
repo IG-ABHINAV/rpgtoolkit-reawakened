@@ -52,7 +52,7 @@ function makeState(extra: { programs?: WorldProgram[]; items?: WorldItem[] } = {
     ...(extra.items === undefined ? {} : { items: extra.items }),
   } as unknown as WorldBoard;
   const state = createGameState({ seed: 1 });
-  state.world = { board };
+  state.world = { ...state.world, board };
   state.sprites = hydrateSprites({
     board,
     players: [{ id: "hero", kind: "player" as const, source: "hero.tem", x: START.x, y: START.y, layer: 1, facing: "S", controlled: true }],
@@ -223,7 +223,7 @@ test("a diversion of a click path keeps the click's mark, so it pauses with the 
 test("blocking push lets an active pointer diversion finish without restoring the click route (#1316)", () => {
   const { state, tracker } = approachingBlocker(true);
   park(state);
-  applySpriteEffect(state, "push", ["E", "hero", 0, 1], 0);
+  applySpriteEffect(state, "push", ["E", "hero", 0, 1]);
   tick(state, 0, [], tracker.run);
   ok(tracker.events.includes("diversion"), "the active pointer step encounters the blocker");
   ok(hero(state).queue.moves.every((move) => move.pointer !== true), "the active step's diversion can advance under the block");
@@ -250,9 +250,11 @@ test("a click on an on-screen button slot during a block still reaches the key q
   state.input.buttons.push({ id: "slot1", x: 190, y: 50, w: 40, h: 40, action: "confirm", enabled: true });
   park(state);
   tick(state, 0, [down(GOAL.x, GOAL.y)]);
-  ticks(state, 1, 60);
-  equal(hero(state).x, START.x);
-  ok(state.input.keys.some((key) => key.name === "confirm"), "the slot's entry is in the script's key queue");
+  equal(state.input.keys.some((key) => key.name === "confirm"), false, "pressing the slot does not activate it");
+  tick(state, 1, [up(GOAL.x, GOAL.y)]);
+  equal(state.input.keys.filter((key) => key.name === "confirm").length, 1, "release delivers exactly one entry to the script's key queue");
+  ticks(state, 2, 60);
+  equal(hero(state).x, START.x, "the slot activation does not move the player during the block");
 });
 
 test("a held button re-paths an idle player with no route, and focus loss releases it", () => {

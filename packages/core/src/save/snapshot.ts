@@ -70,9 +70,11 @@ import { AUDIO_SCHEMA_VERSION, createAudioSection } from "../audio/model.ts";
 import { createEventsSection } from "../events/model.ts";
 import { EVENT_DISPATCH_WAIT } from "../events/emitter.ts";
 import type { Diagnostic } from "../ports/engine.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection, validateBattleSection } from "../battle/model.ts";
 import { migrateMenuSections } from "../menu/migrate.ts";
 import { surfaceByteLength } from "../raster/surfaces.ts";
+import { createDisplaySection, HOST_FEATURES_SCHEMA_VERSION, DISPLAY_SCHEMA_VERSION, normalizeDisplayGeometry, normalizeHostFeatures } from "./sections/host.ts";
 /** Upgrade the old empty battle placeholder to the fighter-reference section. */
 function migrateBattle(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.battle;
@@ -199,6 +201,39 @@ function migrateEngine(record: Record<string, unknown>, schema: Record<string, u
   schema.engine = SCHEMA_VERSIONS.engine;
 }
 
+/** Add the host sections to pre-#1349 saves using the documented deterministic defaults. */
+function migrateHostSections(record: Record<string, unknown>, schema: Record<string, unknown>, logicalWidth: number, logicalHeight: number): void {
+  for (const [name, versionNow] of [["features", HOST_FEATURES_SCHEMA_VERSION], ["display", DISPLAY_SCHEMA_VERSION]] as const) {
+    let version = schema[name];
+    if (version === undefined) {
+      if (Object.hasOwn(record, name)) shapeError(`the snapshot's schema.${name} version is missing`);
+      version = 0;
+    }
+    if (typeof version !== "number" || !Number.isInteger(version) || version < 0) shapeError(`the snapshot's schema.${name} must be a non-negative whole number`);
+    if (version > versionNow) shapeError(`the snapshot's ${name} schema version ${String(version)} is newer than supported version ${versionNow}`);
+    if (version === versionNow) continue;
+    if (version !== 0) shapeError(`the snapshot's ${name} schema version ${String(version)} has no migration`);
+    record[name] = name === "features"
+      ? normalizeHostFeatures(undefined)
+      : createDisplaySection(logicalWidth, logicalHeight);
+    schema[name] = versionNow;
+  }
+}
+
+/** Upgrade old world snapshots while retaining field-by-field absence for the main-file fallback. */
+function migrateWorld(record: Record<string, unknown>, schema: Record<string, unknown>): void {
+  const version = schema.world;
+  if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `world` version");
+  if (version > SCHEMA_VERSIONS.world) shapeError(`the snapshot's world schema version ${String(version)} is newer than supported version ${SCHEMA_VERSIONS.world}`);
+  const world = recordAt(record.world, "world");
+  const movement = world.movement === undefined ? {} : recordAt(world.movement, "world.movement");
+  world.movement = {
+    walking: movement.walking === undefined ? null : movement.walking,
+    pushing: movement.pushing === undefined ? null : movement.pushing,
+  };
+  schema.world = SCHEMA_VERSIONS.world;
+}
+
 /** Migrate the old empty sprites placeholder and v2 actors to the movement-aware section. */
 function migrateSprites(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.sprites;
@@ -314,12 +349,11 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     return;
   }
   const oldRecord = old as Record<string, unknown>;
-  if (version === 2) {
-    // Schema 3 only grows the pointer record (the press and release edge counters, docs/spec/engine/display-input-audio.md
-    // #reawakened-pointer-record): every other field of a version-2 section is kept as stored.
+  if (version === 2 || version === 3) {
+    // Schema 3 adds pointer edge counters; schema 4 adds the cancellable slot press.
     const fresh = createInputSection().pointer;
     const pointer = typeof oldRecord.pointer === "object" && oldRecord.pointer !== null && !Array.isArray(oldRecord.pointer) ? oldRecord.pointer as Record<string, unknown> : {};
-    record.input = { ...oldRecord, version: INPUT_SCHEMA_VERSION, pointer: { ...fresh, ...pointer } };
+    record.input = { ...oldRecord, version: INPUT_SCHEMA_VERSION, pointer: { ...fresh, ...pointer }, pressedButtonSlot: null };
     schema.input = INPUT_SCHEMA_VERSION;
     return;
   }
@@ -932,6 +966,27 @@ function validateEngineShape(value: unknown): void {
     }
   }
 }
+function validateHostFeaturesShape(value: unknown): void {
+  const features = recordAt(value, "features");
+  try {
+    const normalized = normalizeHostFeatures(features as HostFeatures);
+    if (Object.keys(features).length !== 6 || Object.keys(normalized).some((key) => !Object.hasOwn(features, key))) {
+      shapeError("the snapshot's features must be a complete normalized record");
+    }
+  } catch {
+    shapeError("the snapshot's features record is invalid");
+  }
+}
+
+function validateDisplayShape(value: unknown): void {
+  const display = recordAt(value, "display");
+  if (Object.keys(display).length !== 1) shapeError("the snapshot's display must contain only geometry");
+  try {
+    normalizeDisplayGeometry(recordAt(display.geometry, "display.geometry") as HostDisplayGeometry);
+  } catch {
+    shapeError("the snapshot's display.geometry is invalid");
+  }
+}
 function validateShape(record: Record<string, unknown>): void {
   const schema = recordAt(record.schema, "schema");
   for (const key of Object.keys(SCHEMA_VERSIONS)) numberAt(schema[key], `schema.${key}`);
@@ -948,7 +1003,18 @@ function validateShape(record: Record<string, unknown>): void {
     if (key === "surfaces") validateSurfacesShape(record[key]);
     if (key === "actors") validateActorsShape(record[key]);
     if (key === "triggers") validateTriggersShape(record[key]);
+    if (key === "world") {
+      const movement = recordAt(record.world, "world").movement;
+      const settings = recordAt(movement, "world.movement");
+      for (const field of ["walking", "pushing"] as const) {
+        if (settings[field] === null) continue;
+        const value = numberAt(settings[field], `world.movement.${field}`);
+        if (value !== 0 && value !== 1) shapeError(`the snapshot's world.movement.${field} must be 0, 1 or null`);
+      }
+    }
     if (key === "audio") validateAudioShape(record[key]);
+    if (key === "features") validateHostFeaturesShape(record[key]);
+    if (key === "display") validateDisplayShape(record[key]);
   }
   const rng = recordAt(record.rng, "rng");
   for (const key of ["s0", "s1", "s2", "s3"]) numberAt(rng[key], `rng.${key}`);
@@ -962,6 +1028,8 @@ function validateShape(record: Record<string, unknown>): void {
 export type RestoreOptions = {
   /** Refuse an older instruction version instead of restarting the affected threads (recovery). */
   readonly requireCurrentIr?: boolean;
+  readonly logicalWidth?: number;
+  readonly logicalHeight?: number;
 };
 
 /** The whole-number form of an instruction version, or `null` when the text is not one. */
@@ -1126,6 +1194,7 @@ export function restoreGameState(
   migrateSchema(schemaValue);
   refuseNewerIr(schemaValue.ir);
   refuseNewerFrameIr(record);
+  migrateHostSections(record, schemaValue, options.logicalWidth ?? 320, options.logicalHeight ?? 240);
   const schema = schemaValue;
   migrateEvents(record, schema);
   migrateActors(record, schema as Record<string, unknown>);
@@ -1137,6 +1206,7 @@ export function restoreGameState(
       throw new ScriptError("restore.shape", `the snapshot is missing the "${key}" section`);
     }
   }
+  migrateWorld(record, schema as Record<string, unknown>);
 
   migrateVm(record, schema as Record<string, unknown>);
   migrateSprites(record, schema as Record<string, unknown>);
