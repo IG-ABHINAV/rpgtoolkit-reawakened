@@ -102,19 +102,26 @@ function referencedFonts(list: DrawListV2): Set<AssetKey> {
   collect(list.marginCommands);
   return fonts;
 }
+class RevisionSurfaceMap extends Map<SurfaceId, TexturePixels> {
+  private readonly byRevision = new Map<SurfaceId, Map<number, TexturePixels | null>>();
 
-function referencedSurfaces(list: DrawListV2): Map<SurfaceId, number> {
-  const surfaces = new Map<SurfaceId, number>();
-  const collect = (commands: readonly DrawCommand[]): void => {
-    for (const command of commands) {
-      if (command.kind === "blit" && "surface" in command.source) {
-        surfaces.set(command.source.surface, command.source.rev);
-      }
+  override get(surface: SurfaceId, revision?: number): TexturePixels | undefined {
+    if (revision === undefined) return super.get(surface);
+    return this.byRevision.get(surface)?.get(revision) ?? undefined;
+  }
+
+  hasRevision(surface: SurfaceId, revision: number): boolean {
+    return this.byRevision.get(surface)?.has(revision) ?? false;
+  }
+
+  setRevision(surface: SurfaceId, revision: number, pixels: TexturePixels | null): void {
+    let revisions = this.byRevision.get(surface);
+    if (revisions === undefined) {
+      revisions = new Map<number, TexturePixels | null>();
+      this.byRevision.set(surface, revisions);
     }
-  };
-  collect(list.commands);
-  collect(list.marginCommands);
-  return surfaces;
+    revisions.set(revision, pixels);
+  }
 }
 
 /**
@@ -170,12 +177,20 @@ export function createWebgl2Renderer(gl: WebGL2RenderingContext): Webgl2Renderer
         const font = options.fonts?.(asset) ?? options.fallbackFont;
         if (font !== undefined) assetMap.set(asset, font);
       }
-      const surfaceMap = new Map<SurfaceId, TexturePixels>();
-      for (const [id, rev] of referencedSurfaces(list)) {
-        const pixels = options.surfaces?.(id, rev) ?? null;
-        if (pixels !== null) surfaceMap.set(id, pixels);
-      }
+      const surfaceMap = new RevisionSurfaceMap();
+      const resolveSurfaces = (commands: readonly DrawCommand[]): void => {
+        for (const command of commands) {
+          if (command.kind !== "blit" || !("surface" in command.source)) continue;
+          const { surface, rev } = command.source;
+          if (!surfaceMap.hasRevision(surface, rev)) {
+            surfaceMap.setRevision(surface, rev, options.surfaces?.(surface, rev) ?? null);
+          }
+        }
+      };
+      resolveSurfaces(list.commands);
+      resolveSurfaces(list.marginCommands);
       const result = rasterizePresentation(list, geometry, assetMap, surfaceMap);
+
       if (gl.canvas.width !== result.width || gl.canvas.height !== result.height) {
         gl.canvas.width = result.width;
         gl.canvas.height = result.height;

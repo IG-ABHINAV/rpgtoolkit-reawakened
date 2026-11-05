@@ -89,6 +89,12 @@ function eligibleCell(
     cellLeft >= safeArea.left && cellTop >= safeArea.top &&
     cellRight <= content.width - safeArea.right && cellBottom <= content.height - safeArea.bottom;
 }
+function failedPresentation(error: string, geometry: HostDisplayGeometry): RasterResult {
+  const width = Math.ceil(geometry.content.width);
+  const height = Math.ceil(geometry.content.height);
+  return { width, height, rgba: new Uint8Array(width * height * 4), error };
+}
+
 
 /**
  * Replay both strict-v2 draw layers and present them into the host content rectangle.
@@ -108,7 +114,7 @@ export function rasterizePresentation(
     commands: list.commands,
     marginCommands: [],
   }, assets, surfaces);
-  if (plane1.error !== null) return plane1;
+  if (plane1.error !== null) return failedPresentation(plane1.error, geometry);
 
   const bounds = marginBounds(list, geometry);
   const marginOffset = { x: bounds.left, y: bounds.top };
@@ -119,7 +125,7 @@ export function rasterizePresentation(
     commands: list.marginCommands.map((command) => offsetCommand(command, marginOffset)),
     marginCommands: [],
   }, assets, surfaces);
-  if (margin.error !== null) return margin;
+  if (margin.error !== null) return failedPresentation(margin.error, geometry);
 
   const outWidth = Math.ceil(geometry.content.width);
   const outHeight = Math.ceil(geometry.content.height);
