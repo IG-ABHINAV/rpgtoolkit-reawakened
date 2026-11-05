@@ -3,6 +3,7 @@ import { TextEncoder } from "node:util";
 import { test } from "node:test";
 import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, rasterizePresentation, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type DrawCommand, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type RasterSurfaces, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
 import { applyUiEffect } from "../src/script/packs/ui.ts";
+import { resetUiForProgramStart } from "../src/save/sections/ui.ts";
 import { resolveManifestPlugins } from "../src/engine/boot.ts";
 import { ensureScriptScreen, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
 
@@ -445,27 +446,28 @@ test("Engine touch-control query requires the explicit declaration command", () 
   equal(engine.customTouchControlsDeclared(), true);
 });
 
-test("keyboard confirmation links the author activation claim to its input sequence", () => {
-  const capture = captureState();
-  const surface: EnginePhaseRegistration = {
-    phase: "animation",
-    run: (state) => {
-      applyUiEffect(state, "uiBegin", [7, "title", "menu", 0, 0, 16, 16, 1]);
-      applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, null, null, 1]);
-      applyUiEffect(state, "uiEnd", [7]);
-    },
-  };
-  const engine = loadedEngine([capture.registration, surface]);
-  engine.advance(1, []);
-  engine.advance(1, [{ tick: 1, event: { kind: "action", action: "confirm", down: true, source: "test" } }]);
-  const confirmed = capture.state();
-  if (confirmed === undefined) throw new Error("expected captured game state");
-  equal(confirmed.ui.surfaceActivated?.index, 0);
-  equal(confirmed.ui.surfaceActivated?.inputSeq, confirmed.input.keys.find((key) => key.action === "confirm")?.seq);
-  engine.advance(1, [{ tick: 2, event: { kind: "action", action: "confirm", down: false, source: "test" } }]);
-  const released = capture.state();
-  if (released === undefined) throw new Error("expected captured game state");
-  equal(released.ui.surfaceActivated, null);
+test("default Enter and Escape claims prevent Get from reading the same key", () => {
+  for (const key of ["Enter", "Escape"] as const) {
+    const capture = captureState();
+    const condition = key === "Enter" ? "if (uiActivated() >= 0) { answer = Get() }" : "if (uiCancelled() == 1) { answer = Get() }";
+    const engine = programEngine([
+      'uiBegin("title", "menu", 0, 0, 16, 16)',
+      'uiItem("Play")',
+      'uiEnd()',
+      'wait()',
+      condition,
+      'end()',
+    ].join("\n"), [capture.registration]);
+    engine.advance(1, []);
+    engine.advance(1, [{ tick: 1, event: { kind: "key", name: key, code: key, char: null, down: true } }]);
+    const state = capture.state();
+    if (state === undefined) throw new Error("expected captured game state");
+    const action = key === "Enter" ? "confirm" : "cancel";
+    const sequence = state.engine.claims?.[0];
+    if (sequence === undefined) throw new Error(`expected ${action} claim sequence`);
+    equal(state.engine.claims?.includes(sequence), true, `${key} author claim must consume its key sequence`);
+    equal(state.vm.globals.answer, "", `Get must not read the ${key} sequence claimed by the author surface`);
+  }
 });
 
 test("author surface release dispatches its registered action once without click leakage", () => {
@@ -500,36 +502,56 @@ test("author surface release dispatches its registered action once without click
   equal(state.input.pendingClicks.length, 0);
   equal(state.input.pendingPointerUps.length, 0);
 });
-test("author surface owns pointer movement and button slots for the full held gesture", () => {
-  const capture = captureState();
-  const surfaceRegistration: EnginePhaseRegistration = {
-    phase: "animation",
-    run: (state) => {
-      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
-      applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, "game.dash", null, 1]);
-      applyUiEffect(state, "uiEnd", [7]);
-    },
-  };
-  const engine = loadedEngine(
-    [capture.registration, surfaceRegistration],
-    { buttons: [{ id: "confirm", x: 20, y: 20, w: 8, h: 8, action: "confirm", enabled: true }] },
-  );
-  engine.advance(1, []);
-  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
-  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 25, y: 25, buttons: 1 } }]);
-  const held = capture.state();
-  if (held === undefined) throw new Error("expected captured game state");
-  equal(held.input.pointerMovementSuppressed, true);
-  equal(held.input.pendingClicks.length, 0);
-  equal(held.input.pendingActions.includes("confirm"), false);
-  equal(held.input.keys.some((key) => key.action === "confirm"), false);
-
-  engine.advance(1, [{ tick: 3, event: { kind: "pointer", x: 25, y: 25, buttons: 0 } }]);
-  const released = capture.state();
-  if (released === undefined) throw new Error("expected captured game state");
-  equal(released.input.pendingClicks.length, 0);
-  equal(released.input.pendingActions.includes("confirm"), false);
-  equal(released.ui.surfaceActivated, null);
+test("author pointer cancellation stays sticky and reset or modal release cannot strand movement suppression", () => {
+  for (const interruption of ["drag", "reset", "modal"] as const) {
+    const capture = captureState();
+    const surfaceRegistration: EnginePhaseRegistration = {
+      phase: "animation",
+      run: (state) => {
+        if (state.time.tick === 0) {
+          applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+          applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, "game.dash", null, 1]);
+          applyUiEffect(state, "uiEnd", [7]);
+        } else if (state.time.tick === 1 && interruption === "reset") {
+          resetUiForProgramStart(state.ui, () => {});
+        } else if (state.time.tick === 1 && interruption === "modal") {
+          state.ui.modal = { kind: "msgbox", text: "Notice", title: "", style: 0, textColor: { r: 255, g: 255, b: 255 }, background: { r: 0, g: 0, b: 0 }, graphic: "", selected: 0, result: null };
+        } else if (state.time.tick === 2 && interruption === "modal") {
+          state.ui.modal = null;
+        }
+      },
+    };
+    const engine = loadedEngine(
+      [capture.registration, surfaceRegistration],
+      { buttons: [{ id: "confirm", x: 20, y: 20, w: 8, h: 8, action: "confirm", enabled: true }] },
+    );
+    engine.advance(1, []);
+    engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+    if (interruption === "drag") {
+      engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 25, y: 25, buttons: 1 } }]);
+      const left = capture.state();
+      if (left === undefined) throw new Error("expected captured drag-out state");
+      equal(left.ui.surfacePointerClaim?.cancelled, true);
+      engine.advance(1, [{ tick: 3, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+      const returned = capture.state();
+      if (returned === undefined) throw new Error("expected captured drag-return state");
+      equal(returned.ui.surfacePointerClaim?.cancelled, true);
+      engine.advance(1, [{ tick: 4, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+    } else {
+      engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+    }
+    const releaseTick = interruption === "drag" ? 4 : 2;
+    const released = capture.state();
+    if (released === undefined) throw new Error("expected captured game state");
+    equal(released.input.pointerMovementSuppressed, false, `${interruption} release restores movement`);
+    equal(released.ui.surfacePointerClaim, null, `${interruption} release clears the held claim`);
+    equal(released.ui.surfaceActivated, null, `${interruption} cannot activate the interrupted surface`);
+    engine.advance(1, [{ tick: releaseTick + 1, event: { kind: "pointer", x: 21, y: 21, buttons: 1 } }]);
+    engine.advance(1, [{ tick: releaseTick + 2, event: { kind: "pointer", x: 21, y: 21, buttons: 0 } }]);
+    const clicked = capture.state();
+    if (clicked === undefined) throw new Error("expected captured gameplay click");
+    equal(clicked.input.keys.some((entry) => entry.action === "slot:confirm"), true, `${interruption} does not block the next gameplay click`);
+  }
 });
 
 

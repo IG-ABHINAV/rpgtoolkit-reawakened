@@ -559,12 +559,21 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
       }
     }
     if (!Array.isArray(migrated.authorMarginSurfaces)) migrated.authorMarginSurfaces = [];
+        for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+          const claim = migrated[key];
+          if (claim !== null && typeof claim === "object" && !Array.isArray(claim)) migrated[key] = { ...claim, cancelled: typeof (claim as Record<string, unknown>).cancelled === "boolean" ? (claim as Record<string, unknown>).cancelled : false };
+        }
     record.ui = migrated;
   } else {
     const current = old as Record<string, unknown>;
     if (!Array.isArray(current.authorMarginSurfaces)) current.authorMarginSurfaces = [];
   }
-  schema.ui = UI_SCHEMA_VERSION;
+  const currentUi = record.ui as Record<string, unknown>;
+    for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+      const claim = currentUi[key];
+      if (claim !== null && (typeof claim !== "object" || Array.isArray(claim) || typeof (claim as Record<string, unknown>).cancelled !== "boolean")) shapeError(`the snapshot's UI ${key} must be null or an object with boolean \`cancelled\``);
+    }
+    schema.ui = UI_SCHEMA_VERSION;
 }
 
 

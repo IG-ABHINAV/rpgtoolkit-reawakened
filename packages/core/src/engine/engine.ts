@@ -3589,7 +3589,7 @@ export function createEngine(init: EngineInit): Engine {
         const item = surface.items[index]!;
         if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
             x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h) {
-          return { surfaceId: surface.id, owner: surface.owner, itemId: item.id, index, action: item.action ?? null, inputSeq: null };
+          return { surfaceId: surface.id, owner: surface.owner, itemId: item.id, index, action: item.action ?? null, inputSeq: null, cancelled: false };
         }
       }
     }
@@ -3608,7 +3608,7 @@ export function createEngine(init: EngineInit): Engine {
     return state.input.nextSeq > inputSeq ? inputSeq : null;
   }
   function actionInputSequence(action: string, firstSeq: number): number | null {
-    return state.input.keys.find((key) => key.seq >= firstSeq && key.action === action)?.seq ?? null;
+    return state.input.keys.find((key) => key.seq >= firstSeq && (key.action === action || key.resolvedActions.includes(action)))?.seq ?? null;
   }
   function routeAuthorSurfaceAction(action: string, down: boolean, inputSeq: number | null = null): void {
     if (!down || state.ui.modal !== null) return;
@@ -3623,14 +3623,7 @@ export function createEngine(init: EngineInit): Engine {
     }
     if (action === "confirm") {
       const item = surface.items[surface.selection];
-      if (item?.enabled) state.ui.surfaceActivated = {
-        owner: surface.owner,
-        surfaceId: surface.id,
-        itemId: item.id,
-        index: surface.selection,
-        action: null,
-        inputSeq,
-      };
+      if (item?.enabled) state.ui.surfaceActivated = { owner: surface.owner, surfaceId: surface.id, itemId: item.id, index: surface.selection, action: null, inputSeq, cancelled: false, };
       return;
     }
     if (action !== "up" && action !== "down" && action !== "left" && action !== "right") return;
@@ -3661,11 +3654,7 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
   function applyRoutedInputEvent(event: InputRecord["event"]): void {
-    if (event.kind === "pointer.cancel") {
-      applyInputEvent(state.input, event, reportUnknownAction);
-      state.ui.surfacePointerClaim = null;
-      return;
-    }
+    if (event.kind === "pointer.cancel") { applyInputEvent(state.input, event, reportUnknownAction); state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); return; }
     if (event.kind === "action") {
       const before = actionStateSnapshot();
       const firstSeq = state.input.nextSeq;
@@ -3681,7 +3670,7 @@ export function createEngine(init: EngineInit): Engine {
         routeActionStateChanges(before, firstSeq);
       } else {
         applyInputEvent(state.input, event, reportUnknownAction);
-        if (event.kind === "focus" && event.state === "lost") state.ui.surfacePointerClaim = null;
+        if (event.kind === "focus" && event.state === "lost") { state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); }
       }
       return;
     }
@@ -3707,17 +3696,8 @@ export function createEngine(init: EngineInit): Engine {
       state.input.pendingPointerUps = pendingPointerUps;
     };
 
-    if (state.ui.modal != null) {
-      restorePendingPointerQueues();
-      return;
-    }
-    if (pressed !== null) {
-      restorePendingPointerQueues();
-      state.input.keys.length = keys;
-      state.input.pendingActions.length = pendingActions;
-      state.input.nextSeq = nextSeq;
-      state.input.pressedButtonSlot = null;
-    }
+    if (state.ui.modal != null) { restorePendingPointerQueues(); if (pressed !== null) { state.ui.surfacePointerClaim = { ...pressed, cancelled: true }; if (releaseEdge) { state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); } } return; }
+    if (pressed !== null) { const sameTarget = target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId; if (!sameTarget && !pressed.cancelled) state.ui.surfacePointerClaim = { ...pressed, cancelled: true }; restorePendingPointerQueues(); state.input.keys.length = keys; state.input.pendingActions.length = pendingActions; state.input.nextSeq = nextSeq; state.input.pressedButtonSlot = null; }
     if (downEdge && target !== null) {
       setPointerMovementSuppressed(state.input, true);
       state.ui.surfacePointerClaim = target;
@@ -3741,10 +3721,7 @@ export function createEngine(init: EngineInit): Engine {
       state.input.nextSeq = nextSeq;
       state.input.pressedButtonSlot = null;
       setPointerMovementSuppressed(state.input, false);
-      if (target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) {
-        const inputSeq = dispatchAuthorSurfaceAction(pressed);
-        state.ui.surfaceActivated = { ...pressed, inputSeq };
-      }
+      if (!pressed.cancelled && target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) { const inputSeq = dispatchAuthorSurfaceAction(pressed); state.ui.surfaceActivated = { ...pressed, inputSeq }; }
       return;
     }
     if (target !== null) {

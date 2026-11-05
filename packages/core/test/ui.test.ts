@@ -105,7 +105,7 @@ test("custom touch suppression requires an explicit persistent declaration", () 
   equal(migrated.ui.surfaceCancelledSeq, null);
   equal(migrated.ui.surfaceCancelledOwner, null);
 });
-test("UI v4 save migration preserves surface lifetime metadata and defaults Plane 3 commands", () => {
+test("legacy UI save migration preserves surface lifetime metadata and defaults Plane 3 commands", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "mwincls", []);
   state.time.tick = 7;
@@ -121,23 +121,18 @@ test("UI v4 save migration preserves surface lifetime metadata and defaults Plan
   delete old.ui.authorMarginCommands;
   delete old.ui.actionSurfaces[0]?.publishedTick;
   delete old.ui.surfaceBuilders[0]?.openedTick;
+  Object.assign(old.ui, { surfacePointerClaim: { surfaceId: "title", owner: 7, itemId: "play", index: 0, action: null, inputSeq: null } });
   const migrated = restoreGameState(JSON.stringify(old));
   equal(migrated.ui.actionSurfaces[0]?.publishedTick, 7);
   equal(migrated.ui.surfaceBuilders[0]?.openedTick, 7);
+  equal(migrated.ui.surfacePointerClaim?.cancelled, false);
   deepEqual(migrated.ui.authorMarginCommands, []);
 });
 
 test("author surface claims consume their shared input sequence once", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "mwincls", []);
-  state.ui.surfaceActivated = {
-    owner: 7,
-    surfaceId: "title",
-    itemId: "play",
-    index: 0,
-    action: null,
-    inputSeq: 41,
-  };
+  state.ui.surfaceActivated = { owner: 7, surfaceId: "title", itemId: "play", index: 0, action: null, inputSeq: 41, cancelled: false, };
   applyUiEffect(state, "uiActivated", [7]);
   deepEqual(state.engine.claims, [41]);
   equal(state.ui.surfaceActivated, null);

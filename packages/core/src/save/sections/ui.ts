@@ -3,7 +3,7 @@
 import type { DrawCommand, FontRef, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 
-export const UI_SCHEMA_VERSION = 6;
+export const UI_SCHEMA_VERSION = 7;
 export type UiTextDraw = {
   readonly x: number;
   readonly y: number;
@@ -112,14 +112,7 @@ export type UiSurfaceBuilder = {
   readonly openedTick: number;
 };
 
-export type UiActionClaim = {
-  readonly surfaceId: string;
-  readonly owner: number;
-  readonly itemId: string;
-  readonly index: number;
-  readonly action: string | null;
-  readonly inputSeq: number | null;
-};
+export type UiActionClaim = { readonly surfaceId: string; readonly owner: number; readonly itemId: string; readonly index: number; readonly action: string | null; readonly inputSeq: number | null; readonly cancelled: boolean; };
 
 export type UiSection = {
   font: FontRef;
@@ -215,5 +208,5 @@ export function resetUiForProgramStart(ui: UiSection, releaseSurface: (id: Surfa
   ui.surfaceCancelled = false;
   ui.surfaceCancelledSeq = null;
   ui.surfaceCancelledOwner = null;
-  ui.surfacePointerClaim = null;
+  if (ui.surfacePointerClaim !== null) ui.surfacePointerClaim = { ...ui.surfacePointerClaim, cancelled: true };
 }
