@@ -52,7 +52,7 @@ type Game = {
  */
 function boot(
   programs: string | readonly string[],
-  options: { readonly extra?: Readonly<Record<string, string>>; readonly fileThread?: string; readonly pixelMovement?: number } = {},
+  options: { readonly extra?: Readonly<Record<string, string>>; readonly fileThread?: string; readonly startup?: string; readonly pixelMovement?: number } = {},
 ): Game {
   const main = writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, startupPrg: "start.prg", initBoard: "start.brd", pixelMovement: options.pixelMovement ?? 0 });
   if (!main.ok) throw new Error(main.error.message);
@@ -62,7 +62,7 @@ function boot(
   const files = new Map<AssetKey, Uint8Array>([
     [assetKey("main.gam"), main.value],
     [assetKey("boards/start.brd"), board.value],
-    [assetKey("prg/start.prg"), encoder.encode("end()\n")],
+    [assetKey("prg/start.prg"), encoder.encode(`${options.startup ?? "end()"}\n`)],
   ]);
   const paths = [...PATHS];
   for (const [name, text] of Object.entries(options.extra ?? {})) {
@@ -256,6 +256,14 @@ test("a loaded thread continues exactly as the unsaved thread would have", () =>
   const loader = boot(LOADER);
   run(loader, saved);
   equal(globals(loader.state()).counter, 2, "the saved thread resumed after Save and ran the increment once");
+});
+test("a real startup Load preserves and resumes the saved game's board thread", () => {
+  const saved = capture(SAVER);
+  const loader = boot([], { startup: 'Load("slot")\nend()' });
+  const result = run(loader, saved);
+  equal(result.loadTicks.length, 1, "startup Load received its actual blob reply");
+  equal(globals(loader.state()).counter, 2, "the saved board thread resumed after Load and ran its post-save increment");
+  deepEqual(result.diagnostics, [], "the startup Load and saved-thread continuation completed without diagnostics");
 });
 
 // --- 2. Every waiting kind the VM stores round-trips unchanged ----------------------------------

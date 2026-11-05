@@ -354,9 +354,9 @@ test("send and board load reset neither the message window nor the script surfac
 });
 
 test("a thread starting and ending while the outermost program runs neither hides nor resets the message window", () => {
-  // `thread` takes inline code, not a file name. The thread runs in the first tick's slack after the
-  // main program's step budget is spent, and ends there while the main program still waits for a key.
-  const game = boot('msg = "bg"\nmwin("main")\ndummy = thread("mwin(msg)", 0)\ni = 0\nwhile (i < 2500) { i = i + 1 }\nwait()\nmwin("after")');
+  // Persistent threads may run during startup before a board exists; board-scope threads may not.
+  // The persistent thread ends while the main program still waits for a key.
+  const game = boot('msg = "bg"\nmwin("main")\ndummy = thread("mwin(msg)", 1)\ni = 0\nwhile (i < 2500) { i = i + 1 }\nwait()\nmwin("after")');
   const list = game.engine.drawList();
   const state = sync(game);
   ok(state.vm.threads.every((thread) => thread.kind === "blocking" || thread.status === "finished"), "the thread has ended");
