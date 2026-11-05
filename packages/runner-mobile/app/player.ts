@@ -8,7 +8,7 @@
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { observeHostState, type HostViewport } from "@tk-reawakened/runner-web/host-state";
+import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -91,8 +91,9 @@ async function start(): Promise<void> {
   const host = createMobileHost({ filesystem, readPackage: () => readPackage(filesystem) });
   const canvas = document.querySelector<HTMLCanvasElement>("#screen");
   const status = document.querySelector<HTMLElement>("#live-status");
-  if (canvas === null || status === null) throw new Error("mobile player page is missing its canvas or status element");
-  const hostViewport: HostViewport = { canvas, viewport: document.body };
+  const viewport = document.querySelector<HTMLElement>("#viewport");
+  if (canvas === null || status === null || viewport === null) throw new Error("mobile player page is missing its viewport, canvas, or status element");
+  const hostViewport: HostViewport = { canvas, viewport };
   const opened = await host.openPackage();
   if (opened === null) throw new Error("no package was available");
   const descriptor = await readDescriptor(filesystem, opened.name);
@@ -194,7 +195,7 @@ function run(
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
-  let pending: InputRecord[] = [];
+  let pending: PendingInput[] = [];
   let disposed = false;
   let frameId: number | null = null;
   let startPlayer = session.playerPosition();
@@ -218,7 +219,7 @@ function run(
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, () => session.tick(), (input) => pending.push(input), session.hostState ?? undefined);
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
     canvas,
     viewSize,
@@ -256,7 +257,7 @@ function run(
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
-    const inputs = pending;
+    const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;

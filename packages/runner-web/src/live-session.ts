@@ -1,5 +1,5 @@
 import type { HostDisplayGeometry, NormalizedHostFeatures } from "@tk-reawakened/core";
-import { createSafeAreaProbe, measureHostDisplay, readHostFeatures, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
+import { createSafeAreaProbe, readHostFeatures, waitForHostDisplay, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
 import { fitCanvas } from "./viewport.ts";
 export { fitCanvas } from "./viewport.ts";
 import {
@@ -209,9 +209,12 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   let displayGeometry: HostDisplayGeometry | undefined;
   if (options.hostViewport !== undefined) {
     const safeArea = createSafeAreaProbe();
-    hostFeatures = readHostFeatures();
-    displayGeometry = measureHostDisplay(options.hostViewport, viewport, safeArea.read());
-    safeArea.dispose();
+    try {
+      hostFeatures = readHostFeatures();
+      displayGeometry = await waitForHostDisplay(options.hostViewport, viewport, safeArea.read());
+    } finally {
+      safeArea.dispose();
+    }
   }
   const engine = createEngine({
     seed: plan?.seed ?? 0,

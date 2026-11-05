@@ -7,7 +7,11 @@ export type HostStateSnapshot = { readonly features: NormalizedHostFeatures; rea
 
 /** Read only host capabilities that can be reported without inferring an operating-system identity. */
 export function readHostFeatures(): NormalizedHostFeatures {
-  const nav = navigator as Navigator & { readonly maxTouchPoints?: number; readonly vibrate?: (pattern: number | readonly number[]) => boolean };
+  const nav = navigator as Navigator & {
+    readonly maxTouchPoints?: number;
+    readonly vibrate?: (pattern: number | readonly number[]) => boolean;
+    readonly keyboard?: { readonly getLayoutMap?: unknown };
+  };
   const pointerFine = window.matchMedia("(pointer: fine)").matches;
   const pointerCoarse = window.matchMedia("(pointer: coarse)").matches;
   const orientation = screen.orientation?.type ?? (window.matchMedia("(orientation: landscape)").matches ? "landscape-primary" : "portrait-primary");
@@ -15,7 +19,7 @@ export function readHostFeatures(): NormalizedHostFeatures {
   return {
     touch: (nav.maxTouchPoints ?? 0) > 0 || pointerCoarse,
     pointer: pointerFine ? "fine" : pointerCoarse ? "coarse" : "none",
-    keyboard: true,
+    keyboard: typeof nav.keyboard?.getLayoutMap === "function",
     gamepad: connectedGamepad,
     haptics: typeof nav.vibrate === "function",
     orientation: orientation.startsWith("landscape") ? "landscape" : orientation.startsWith("portrait") ? "portrait" : null,
@@ -46,13 +50,22 @@ export function createSafeAreaProbe(): { readonly read: () => HostDisplayGeometr
   };
 }
 
-/** Fit the game and measure all geometry in the same viewport-relative CSS-pixel coordinate space. */
+/** A queued input with `tick: null` is stamped only when the runner starts the next serialized advance. */
+export type PendingInput = { readonly tick: number | null; readonly event: InputRecord["event"] };
+
+/** Stamp deferred host observations when they are handed to the next serialized engine advance. */
+export function stampPendingInputs(inputs: readonly PendingInput[], tick: number): InputRecord[] {
+  return inputs.map((input) => ({ tick: input.tick ?? tick, event: input.event }));
+}
+
+/** Fit and measure only when the host has a positive content box. */
 export function measureHostDisplay(
   { canvas, viewport }: HostViewport,
   view: { readonly width: number; readonly height: number },
   safeArea: HostDisplayGeometry["safeArea"],
-): HostDisplayGeometry {
+): HostDisplayGeometry | null {
   const content = viewport.getBoundingClientRect();
+  if (!Number.isFinite(content.width) || !Number.isFinite(content.height) || content.width <= 0 || content.height <= 0) return null;
   fitCanvas(canvas, view.width, view.height, { width: content.width, height: content.height });
   const frame = canvas.getBoundingClientRect();
   return {
@@ -62,40 +75,76 @@ export function measureHostDisplay(
   };
 }
 
-/** Maintain the deterministic geometry and feature records as explicit AD-14 host inputs. */
+/** Wait for a host content box that can satisfy the positive-geometry contract. */
+export function waitForHostDisplay(
+  host: HostViewport,
+  view: { readonly width: number; readonly height: number },
+  safeArea: HostDisplayGeometry["safeArea"],
+): Promise<HostDisplayGeometry> {
+  const initial = measureHostDisplay(host, view, safeArea);
+  if (initial !== null) return Promise.resolve(initial);
+  const { promise, resolve } = Promise.withResolvers<HostDisplayGeometry>();
+  let observer: ResizeObserver | null = null;
+  const cleanup = (): void => {
+    observer?.disconnect();
+    window.removeEventListener("resize", onResize);
+    window.removeEventListener("orientationchange", onResize);
+  };
+  const onResize = (): void => {
+    const geometry = measureHostDisplay(host, view, safeArea);
+    if (geometry === null) return;
+    cleanup();
+    resolve(geometry);
+  };
+  observer = new ResizeObserver(onResize);
+  observer.observe(host.viewport);
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", onResize);
+  onResize();
+  return promise;
+}
+
+/** Maintain deterministic host-state updates as events for stamping at the runner's consuming boundary. */
 export function observeHostState(
   host: HostViewport,
   view: { readonly width: number; readonly height: number },
-  tick: () => number,
-  enqueue: (input: InputRecord) => void,
+  enqueue: (event: InputRecord["event"]) => void,
   initial?: HostStateSnapshot,
 ): () => void {
   const safeArea = createSafeAreaProbe();
-  let previousGeometry = initial?.geometry ?? measureHostDisplay(host, view, safeArea.read());
-  let previousFeatures = initial?.features ?? readHostFeatures();
-  const send = (event: InputRecord["event"]): void => enqueue({ tick: tick(), event });
+  let previousGeometry: HostDisplayGeometry | null = initial?.geometry ?? null;
+  let previousFeatures: NormalizedHostFeatures | null = initial?.features ?? null;
+  const send = (event: InputRecord["event"]): void => enqueue(event);
   const updateDisplay = (): void => {
     const next = measureHostDisplay(host, view, safeArea.read());
-    if (JSON.stringify(next) === JSON.stringify(previousGeometry)) return;
+    if (next === null) return;
+    if (previousGeometry !== null && JSON.stringify(next) === JSON.stringify(previousGeometry)) return;
     previousGeometry = next;
     send({ kind: "host.display", geometry: next });
   };
   const updateFeatures = (): void => {
     const next = readHostFeatures();
-    if (JSON.stringify(next) === JSON.stringify(previousFeatures)) return;
+    if (previousFeatures !== null && JSON.stringify(next) === JSON.stringify(previousFeatures)) return;
     previousFeatures = next;
     send({ kind: "host.features", features: next });
   };
+  const connectedGamepads = new Set(
+    Array.from(navigator.getGamepads?.() ?? [])
+      .filter((pad): pad is Gamepad => pad !== null && pad.connected && pad.index < 4)
+      .map((pad) => pad.index),
+  );
   const onResize = (): void => { updateDisplay(); updateFeatures(); };
   const onGamepadConnected = (event: GamepadEvent): void => {
     const pad = event.gamepad;
-    if (pad.index >= 4) return;
+    if (pad.index >= 4 || connectedGamepads.has(pad.index)) return;
+    connectedGamepads.add(pad.index);
     updateFeatures();
     send({ kind: "gamepad", device: pad.index, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
   };
   const onGamepadDisconnected = (event: GamepadEvent): void => {
-    if (event.gamepad.index >= 4) return;
-    send({ kind: "gamepad", device: event.gamepad.index, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+    const index = event.gamepad.index;
+    if (index >= 4 || !connectedGamepads.delete(index)) return;
+    send({ kind: "gamepad", device: index, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
     updateFeatures();
   };
   const observer = new ResizeObserver(onResize);
@@ -106,6 +155,8 @@ export function observeHostState(
   window.addEventListener("gamepaddisconnected", onGamepadDisconnected);
   const media = ["(pointer: fine)", "(pointer: coarse)", "(orientation: landscape)"].map((query) => window.matchMedia(query));
   for (const item of media) item.addEventListener("change", onResize);
+  onResize();
+  for (const device of connectedGamepads) send({ kind: "gamepad", device, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
   return () => {
     observer.disconnect();
     window.removeEventListener("resize", onResize);
@@ -116,4 +167,5 @@ export function observeHostState(
     safeArea.dispose();
   };
 }
+
 

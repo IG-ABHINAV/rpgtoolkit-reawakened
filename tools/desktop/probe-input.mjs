@@ -1,5 +1,6 @@
 // Prove one real key press reaches the live engine inside the Electron window (entry 9.16).
 //
+//   node tools/desktop/probe-input.mjs --host-metrics
 //   node tools/desktop/probe-input.mjs --package /path/to/game.tpk
 //
 // It launches the built desktop player exactly as `desktop:run` does, but with Chromium's remote debugging port open,
@@ -18,6 +19,10 @@ import { fileURLToPath } from "node:url";
 import { judgeMovement } from "./probe-judge.mjs";
 import { electronBinary } from "./electron-binary.mjs";
 import { probeDesktopCsp } from "./probe-csp.mjs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { BinaryReader, deriveGameId, derivePackageIdentity, loadPackage, readDistributionManifest, readMainFile, writeDistributionPackage, writeMainFile } from "@tk-reawakened/core";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -39,7 +44,53 @@ function freePort() {
   });
 }
 
+let temporaryPackageDirectory = null;
+
+function hostMetricsPackagePath() {
+  const source = loadPackage({ kind: "tpk", name: "demo.tpk", bytes: new Uint8Array(readFileSync(join(root, "fixtures", "packages", "demo.tpk"))) });
+  if (!source.ok) throw new Error(source.error.message);
+  const manifest = readDistributionManifest(source.value);
+  if (!manifest.ok) throw new Error(manifest.error.message);
+  const mainPath = manifest.value.main;
+  const files = source.value.files.filter((file) => file.path !== "manifest.json").map((file) => ({ path: file.path, bytes: file.bytes }));
+  const mainFile = files.find((file) => file.path === mainPath);
+  if (mainFile === undefined) throw new Error(`the demo package has no ${mainPath}`);
+  const parsed = readMainFile(new BinaryReader(mainFile.bytes, mainPath));
+  if (!parsed.ok) throw new Error(parsed.error.message);
+  const startupPath = "host-metrics.prg";
+  const startup = `on(game, "viewportResized", (event) => {
+  leftMargin = marginWidth("left")
+  if (leftMargin == event.detail.marginLeft && leftMargin == 160) {
+    send("start.brd", 128, 128, 1)
+  }
+})
+`;
+  const rewritten = writeMainFile({ ...parsed.value, startupPrg: startupPath });
+  if (!rewritten.ok) throw new Error(rewritten.error.message);
+  const tree = files.map((file) => (file.path === mainPath ? { path: file.path, bytes: rewritten.value } : file));
+  tree.push({ path: startupPath, bytes: new TextEncoder().encode(startup) });
+  const bytes = writeDistributionPackage({ files: tree, manifest: { schema: manifest.value.schema, main: mainPath, index: tree.map((file) => file.path) } });
+  if (!bytes.ok) throw new Error(bytes.error.message);
+  temporaryPackageDirectory = mkdtempSync(join(root, "fixtures", "packages", "host-metrics-"));
+  process.once("exit", () => {
+    if (temporaryPackageDirectory !== null) rmSync(temporaryPackageDirectory, { recursive: true, force: true });
+  });
+  const packageFile = join(temporaryPackageDirectory, "host-metrics.tpk");
+  writeFileSync(packageFile, bytes.value);
+  writeFileSync(`${packageFile}.json`, JSON.stringify({
+    schema: 1,
+    file: "host-metrics.tpk",
+    sha256: createHash("sha256").update(bytes.value).digest("hex"),
+    size: bytes.value.length,
+    gameId: deriveGameId(rewritten.value, derivePackageIdentity(tree)),
+    title: "Host metrics",
+    version: "1",
+  }));
+  return packageFile;
+}
+
 function packagePath() {
+  if (process.argv.includes("--host-metrics")) return hostMetricsPackagePath();
   const named = argument("--package", null);
   if (named !== null) return named;
   const out = join(root, "fixtures", "packages", "demo.tpk");
@@ -186,10 +237,11 @@ async function main() {
       if (session === undefined) throw new Error("desktop player did not publish its live session");
       const engine = session.engine;
       const advance = engine.advance.bind(engine);
-      window.__hostInputs = [];
+      window.__hostConsumed = [];
       engine.advance = (ticks, inputs) => {
-        window.__hostInputs.push(...inputs);
-        return advance(ticks, inputs);
+        const report = advance(ticks, inputs);
+        window.__hostConsumed.push(...report.consumed);
+        return report;
       };
     })()`);
     // Exercise the actual live page, including a ratio above 2.5 where rounding would choose the wrong scale.
@@ -198,10 +250,10 @@ async function main() {
       await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
       let display = null;
       for (let attempt = 0; attempt < 40 && display === null; attempt += 1) {
-        display = await evaluate(`window.__hostInputs?.filter(input => input.event.kind === "host.display" && input.event.geometry.content.width === ${width}).at(-1) ?? null`);
+        display = await evaluate(`window.__hostConsumed?.filter(input => input.event.kind === "host.display" && input.event.geometry.content.width === ${width}).at(-1) ?? null`);
         if (display === null) await sleep(50);
       }
-      if (display === null) throw new Error(`desktop resize ${width}x${height} did not enqueue host.display`);
+      if (display === null) throw new Error(`desktop resize ${width}x${height} did not consume host.display`);
       const geometry = await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
         const canvas = document.querySelector("#screen");
         const box = canvas.getBoundingClientRect();
@@ -209,7 +261,7 @@ async function main() {
         resolve({ frame: { width: canvas.width, height: canvas.height },
           box: { x: box.x, y: box.y, width: box.width, height: box.height },
           area: { x: area.x, y: area.y, width: area.width, height: area.height },
-          hostDisplay: window.__hostInputs.filter(input => input.event.kind === "host.display").at(-1)?.event.geometry ?? null });
+          hostDisplay: window.__hostConsumed.filter(input => input.event.kind === "host.display").at(-1)?.event.geometry ?? null });
       })))`);
       const { frame, box, area } = geometry;
       const ratio = Math.min(area.width / frame.width, area.height / frame.height);
@@ -231,6 +283,17 @@ async function main() {
         throw new Error(`desktop host.display geometry does not match its measured frame: ${JSON.stringify(geometry)}`);
       }
       fits.push({ ...geometry, marginLeft: Math.floor(hostDisplay.game.x / (hostDisplay.game.width / frame.width)) });
+      if (process.argv.includes("--host-metrics") && width === 960) {
+        let scriptPlayer = null;
+        for (let attempt = 0; attempt < 40 && scriptPlayer?.x !== 128; attempt += 1) {
+          scriptPlayer = await evaluate("window.__live?.player ?? null");
+          if (scriptPlayer?.x !== 128) await sleep(50);
+        }
+        if (scriptPlayer?.x !== 128 || scriptPlayer?.y !== 128) {
+          throw new Error(`desktop viewportResized script listener did not observe marginWidth(left)=160: ${JSON.stringify(scriptPlayer)}`);
+        }
+        fits[fits.length - 1].scriptPlayer = scriptPlayer;
+      }
     }
     if (fits[0].marginLeft === fits[2].marginLeft) throw new Error("desktop marginWidth did not change across viewport sizes");
     await page.send("Emulation.clearDeviceMetricsOverride");
@@ -309,6 +372,10 @@ async function main() {
   } finally {
     page.close();
     child.kill();
+    if (temporaryPackageDirectory !== null) {
+      rmSync(temporaryPackageDirectory, { recursive: true, force: true });
+      temporaryPackageDirectory = null;
+    }
   }
 }
 

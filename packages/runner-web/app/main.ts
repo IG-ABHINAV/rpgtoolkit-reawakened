@@ -8,7 +8,7 @@ import { createLoadController, type LoadModeRequest, type LoadState } from "../s
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, type LiveSession } from "../src/live-session.ts";
-import { observeHostState, type HostViewport } from "../src/host-state.ts";
+import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 
@@ -354,9 +354,9 @@ function startLiveLoop(
   let disposed = false;
   let advancing = false;
   let frameId: number | null = null;
-  let pending: InputRecord[] = [];
+  let pending: PendingInput[] = [];
   const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, () => session.tick(), (input) => pending.push(input), session.hostState ?? undefined);
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
     canvas,
     viewSize,
@@ -417,7 +417,7 @@ function startLiveLoop(
       accumulator += elapsed;
       const wholeTicks = Math.floor(accumulator / stepMs);
       accumulator -= wholeTicks * stepMs;
-      const inputs = pending;
+      const inputs = stampPendingInputs(pending, session.tick());
       pending = [];
       advancing = true;
       session.advance(wholeTicks, inputs).then(() => {

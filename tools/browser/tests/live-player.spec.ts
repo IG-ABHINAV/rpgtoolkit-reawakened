@@ -42,7 +42,7 @@ type LiveFixture = { readonly name: string; readonly packageBytes: Uint8Array; r
  * during step 7 and only the initial-character step can
  * (docs/spec/engine/main-loop-and-startup.md#reawakened-boot-sequence steps 6 and 8).
  */
-function packageWithoutStartupProgram(name: string, pixelMovement?: number): LiveFixture {
+function packageWithoutStartupProgram(name: string, pixelMovement?: number, startupProgram?: string): LiveFixture {
   const loaded = loadPackage({ kind: "tpk", name: "demo.tpk", bytes: new Uint8Array(readFileSync("fixtures/packages/demo.tpk")) });
   if (!loaded.ok) throw new Error(loaded.error.message);
   const manifest = readDistributionManifest(loaded.value);
@@ -53,9 +53,11 @@ function packageWithoutStartupProgram(name: string, pixelMovement?: number): Liv
   if (gameMain === undefined) throw new Error(`the demo package has no ${main}`);
   const parsed = readMainFile(new BinaryReader(gameMain.bytes, main));
   if (!parsed.ok) throw new Error(parsed.error.message);
-  const cleared = writeMainFile({ ...parsed.value, startupPrg: "", pixelMovement: pixelMovement ?? parsed.value.pixelMovement });
+  const startupPath = startupProgram === undefined ? "" : "host-resize.prg";
+  const cleared = writeMainFile({ ...parsed.value, startupPrg: startupPath, pixelMovement: pixelMovement ?? parsed.value.pixelMovement });
   if (!cleared.ok) throw new Error(cleared.error.message);
   const tree = files.map((file) => (file.path === main ? { path: file.path, bytes: cleared.value } : file));
+  if (startupProgram !== undefined) tree.push({ path: startupPath, bytes: new TextEncoder().encode(startupProgram) });
   const written = writeDistributionPackage({ files: tree, manifest: { schema: manifest.value.schema, main, index: tree.map((file) => file.path) } });
   if (!written.ok) throw new Error(written.error.message);
   return {
@@ -67,7 +69,7 @@ function packageWithoutStartupProgram(name: string, pixelMovement?: number): Liv
       sha256: createHash("sha256").update(written.value).digest("hex"),
       size: written.value.length,
       gameId: deriveGameId(cleared.value, derivePackageIdentity(tree)),
-      title: "Empty start-up",
+      title: startupProgram === undefined ? "Empty start-up" : "Host resize test",
       version: "1",
     },
   };
@@ -305,64 +307,168 @@ test("live demo attaches a board canvas and movement changes the player and pres
   expect(movedFrame?.frameHash).not.toBe(canvasInfo?.frameHash);
 });
 
-test("live runner resize records measured display geometry for the engine", async ({ page }) => {
-  const fixture = packageWithoutStartupProgram("host-metrics.tpk");
+test("web runner consumes resize and device transitions and dispatches normalized script events", async ({ page }) => {
+  const script = `
+viewportResizeCount = 0
+connectedCount = 0
+disconnectedCount = 0
+on(game, "viewportResized", (event) => {
+  leftMargin = marginWidth("left")
+  topInset = safeAreaInset("top")
+  rightInset = safeAreaInset("right")
+  bottomInset = safeAreaInset("bottom")
+  leftInset = safeAreaInset("left")
+  if (leftMargin == event.detail.marginLeft && leftMargin == 180
+      && topInset == event.detail.safeAreaTop && rightInset == event.detail.safeAreaRight
+      && bottomInset == event.detail.safeAreaBottom && leftInset == event.detail.safeAreaLeft) {
+    viewportResizeCount = viewportResizeCount + 1
+    send("start.brd", 128, 128, 1)
+  }
+})
+on(game, "device.connected", (event) => {
+  if (event.detail.type == "gamepad") {
+    connectedCount = connectedCount + 1
+    send("start.brd", 192, 160, 1)
+  }
+})
+on(game, "device.disconnected", (event) => {
+  if (event.detail.type == "gamepad") {
+    disconnectedCount = disconnectedCount + 1
+    send("start.brd", 224, 160, 1)
+  }
+})
+`;
+  const fixture = packageWithoutStartupProgram("host-metrics.tpk", undefined, script);
   await servePackage(page, fixture);
   await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
   await page.waitForFunction(() => window.__session !== undefined && window.__live !== undefined, undefined, { timeout: 45_000 });
   const initial = await page.evaluate(() => {
+    type Consumed = { tick: number; event: { kind: string; connected?: boolean; geometry?: { content: { width: number; height: number }; game: { x: number; y: number; width: number; height: number }; safeArea: object } } };
+    type Session = {
+      hostState: { geometry: { content: { width: number; height: number }; game: { x: number; y: number; width: number; height: number }; safeArea: object } } | null;
+      engine: object;
+      tick: () => number;
+      advance: (ticks: number, inputs?: readonly unknown[]) => Promise<unknown>;
+    };
     type Probe = Window & {
-      __session?: {
-        hostState: { readonly geometry: { readonly content: { readonly width: number; readonly height: number }; readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }; readonly safeArea: object } } | null;
-        engine: object;
-      };
-      __hostInputs?: readonly { readonly event: { readonly kind: string; readonly connected?: boolean; readonly geometry?: { readonly content: { readonly width: number; readonly height: number }; readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }; readonly safeArea: object } } }[];
+      __session?: Session;
+      __hostConsumed?: Consumed[];
+      __heldTick?: number;
+      __releaseHeldAdvance?: () => void;
     };
     const probe = window as Probe;
     const session = probe.__session;
     if (session === undefined || session.hostState === null) throw new Error("host geometry was not initialized");
-    const engine = session.engine as { advance: (ticks: number, inputs: readonly unknown[]) => unknown };
-    const advance = engine.advance.bind(engine);
+    const engine = session.engine as { advance: (ticks: number, inputs: readonly unknown[]) => { consumed: readonly Consumed[] } };
+    const advanceEngine = engine.advance.bind(engine);
     engine.advance = (ticks, inputs) => {
-      probe.__hostInputs = [...(probe.__hostInputs ?? []), ...inputs as readonly { readonly event: { readonly kind: string; readonly connected?: boolean; readonly geometry?: object } }[]] as Probe["__hostInputs"];
-      return advance(ticks, inputs);
+      const report = advanceEngine(ticks, inputs);
+      probe.__hostConsumed = [...(probe.__hostConsumed ?? []), ...report.consumed];
+      return report;
+    };
+    const advanceSession = session.advance.bind(session);
+    let holdNextAdvance = true;
+    session.advance = (ticks, inputs) => {
+      if (!holdNextAdvance) return advanceSession(ticks, inputs);
+      holdNextAdvance = false;
+      probe.__heldTick = session.tick();
+      return new Promise((resolve, reject) => {
+        probe.__releaseHeldAdvance = () => {
+          void advanceSession(ticks + 8, inputs).then(resolve, reject);
+        };
+      });
     };
     return session.hostState.geometry;
   });
-  await page.setViewportSize({ width: 1000, height: 800 });
-  await page.waitForFunction(() => (window as Window & { __hostInputs?: readonly { readonly event: { readonly kind: string } }[] }).__hostInputs?.some((input) => input.event.kind === "host.display") === true, undefined, { timeout: 10_000 });
+  await page.waitForFunction(() => (window as Window & { __releaseHeldAdvance?: () => void }).__releaseHeldAdvance !== undefined, undefined, { timeout: 15_000 });
+  const heldTick = await page.evaluate(() => (window as Window & { __heldTick?: number }).__heldTick ?? -1);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
     const event = new Event("gamepadconnected");
     Object.defineProperty(event, "gamepad", { value: { index: 0 } });
     window.dispatchEvent(event);
   });
-  await page.waitForFunction(() => (window as Window & { __hostInputs?: readonly { readonly event: { readonly kind: string; readonly connected?: boolean } }[] }).__hostInputs?.some((input) => input.event.kind === "gamepad" && input.event.connected === true) === true, undefined, { timeout: 10_000 });
+  await page.evaluate(() => (window as Window & { __releaseHeldAdvance?: () => void }).__releaseHeldAdvance?.());
+
+  await page.waitForFunction(() => {
+    const records = (window as Window & { __hostConsumed?: readonly { tick: number; event: { kind: string; connected?: boolean } }[] }).__hostConsumed;
+    return records?.some((record) => record.event.kind === "gamepad" && record.event.connected === true) === true;
+  }, undefined, { timeout: 15_000 });
+
+  await page.waitForFunction(() => {
+    const records = (window as Window & { __hostConsumed?: readonly { event: { kind: string; geometry?: { content: { width: number } } } }[] }).__hostConsumed;
+    return records?.some((record) => record.event.kind === "host.display" && record.event.geometry?.content.width === 390) === true;
+  }, undefined, { timeout: 15_000 });
+  const deferredHostTicks = await page.evaluate(() => {
+    const records = (window as Window & { __hostConsumed?: readonly { tick: number; event: { kind: string; connected?: boolean; geometry?: { content: { width: number } } } }[] }).__hostConsumed ?? [];
+    return records.filter((record) => (record.event.kind === "gamepad" && record.event.connected === true) || (record.event.kind === "host.display" && record.event.geometry?.content.width === 390)).map((record) => record.tick);
+  });
+  expect(heldTick).toBeGreaterThanOrEqual(0);
+  expect(deferredHostTicks.length).toBeGreaterThanOrEqual(2);
+  expect(deferredHostTicks.every((tick) => tick > heldTick)).toBe(true);
+  const narrow = await page.evaluate(() => {
+    const stage = document.querySelector<HTMLElement>("#stage")!;
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen")!;
+    return {
+      stageWidth: stage.getBoundingClientRect().width,
+      canvasWidth: canvas.getBoundingClientRect().width,
+      viewportWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+  expect(narrow.stageWidth).toBeLessThanOrEqual(390);
+  expect(narrow.canvasWidth).toBeLessThanOrEqual(narrow.stageWidth);
+  expect(narrow.scrollWidth).toBeLessThanOrEqual(narrow.viewportWidth);
+
+  await page.evaluate(() => { document.querySelector<HTMLElement>("#stage")!.style.display = "none"; });
+  await page.waitForTimeout(100);
+  const hidden = await page.evaluate(() => ({
+    hostDisplayCount: (window as Window & { __hostConsumed?: readonly { event: { kind: string; geometry?: { content: { width: number; height: number } } } } }).__hostConsumed?.filter((record) => record.event.kind === "host.display" && record.event.geometry?.content.width === 0).length ?? 0,
+    error: window.__live?.error,
+  }));
+  expect(hidden.hostDisplayCount).toBe(0);
+  expect(hidden.error).toBeUndefined();
+  await page.evaluate(() => { document.querySelector<HTMLElement>("#stage")!.style.display = ""; });
+
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await page.waitForFunction(() => {
+    const records = (window as Window & { __hostConsumed?: readonly { event: { kind: string; geometry?: { content: { width: number } } } }[] }).__hostConsumed;
+    return records?.some((record) => record.event.kind === "host.display" && record.event.geometry?.content.width === 1000) === true;
+  }, undefined, { timeout: 15_000 });
+  await page.waitForFunction(() => (window.__live?.player?.x ?? 0) === 128, undefined, { timeout: 15_000 });
+  const resized = await page.evaluate(() => {
+    type Probe = Window & {
+      __hostConsumed?: readonly { tick: number; event: { kind: string; geometry?: { content: { width: number; height: number }; game: { x: number; y: number; width: number; height: number }; safeArea: object } } }[];
+      viewportResizeCount?: number;
+    };
+    const probe = window as Probe;
+    const event = probe.__hostConsumed?.filter((record) => record.event.kind === "host.display" && record.event.geometry?.content.width === 1000).at(-1);
+    return { event, marginWidth: Math.floor((event?.event.geometry?.game.x ?? 0) / ((event?.event.geometry?.game.width ?? 640) / 640)), player: window.__live?.player };
+  });
+  expect(resized.event).toBeDefined();
+  expect(resized.event?.tick).toBeGreaterThan(0);
+  expect(resized.event?.event.geometry?.content.width).toBe(1000);
+  expect(resized.marginWidth).toBe(180);
+  expect(resized.player).toEqual({ x: 128, y: 128 });
+  expect(resized.event?.event.geometry?.content.width).not.toBe(initial.content.width);
+
+  await page.evaluate(() => {
+    const event = new Event("gamepadconnected");
+    Object.defineProperty(event, "gamepad", { value: { index: 0 } });
+    window.dispatchEvent(event);
+  });
+  await page.waitForFunction(() => (window.__live?.player?.x ?? 0) === 192, undefined, { timeout: 15_000 });
   await page.evaluate(() => {
     const event = new Event("gamepaddisconnected");
     Object.defineProperty(event, "gamepad", { value: { index: 0 } });
     window.dispatchEvent(event);
   });
-  await page.waitForFunction(() => (window as Window & { __hostInputs?: readonly { readonly event: { readonly kind: string; readonly connected?: boolean } }[] }).__hostInputs?.some((input) => input.event.kind === "gamepad" && input.event.connected === false) === true, undefined, { timeout: 10_000 });
-  const changed = await page.evaluate(() => {
-    const probe = window as Window & {
-      __hostInputs?: readonly { readonly event: { readonly kind: string; readonly geometry?: { readonly content: { readonly width: number; readonly height: number }; readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }; readonly safeArea: object } } }[];
-    };
-    const event = probe.__hostInputs?.filter((input) => input.event.kind === "host.display").at(-1)?.event;
-    const canvas = document.querySelector<HTMLCanvasElement>("#screen")!;
-    const stage = document.querySelector<HTMLElement>("#stage")!;
-    const frame = canvas.getBoundingClientRect();
-    const content = stage.getBoundingClientRect();
-    return {
-      geometry: event?.geometry,
-      measuredFrame: { x: frame.left - content.left, y: frame.top - content.top, width: frame.width, height: frame.height },
-      marginLeft: event?.geometry === undefined ? null : Math.floor(event.geometry.game.x / (event.geometry.game.width / 640)),
-    };
-  });
-  expect(changed.geometry).toBeDefined();
-  expect(changed.geometry?.content.width).not.toBe(initial.content.width);
-  expect(changed.geometry?.game.x).not.toBe(initial.game.x);
-  expect(changed.marginLeft).not.toBe(Math.floor(initial.game.x / (initial.game.width / 640)));
-  expect(changed.geometry?.game).toEqual(changed.measuredFrame);
+  await page.waitForFunction(() => (window.__live?.player?.x ?? 0) === 224, undefined, { timeout: 15_000 });
+  const transitions = await page.evaluate(() => (window as Window & {
+    __hostConsumed?: readonly { tick: number; event: { kind: string; connected?: boolean } }[];
+  }).__hostConsumed?.filter((record) => record.event.kind === "gamepad") ?? []);
+  expect(transitions.some((record) => record.event.connected === true && record.tick > 0)).toBe(true);
+  expect(transitions.some((record) => record.event.connected === false && record.tick > 0)).toBe(true);
 });
 
 test("an interactive package with an initial character and no start-up program reaches its board", async ({ page }) => {
