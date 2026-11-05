@@ -3393,6 +3393,18 @@ export function createEngine(init: EngineInit): Engine {
       if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
       } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
+        if (record.event.kind === "blob.loaded") {
+          // Earlier host observations belong to the old timeline, not a later tick after a load rewinds it.
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (!applyHostStateEvent(earlier.event)) {
+              at += 1;
+              continue;
+            }
+            consumed.push(earlier);
+            deferred.splice(at, 1);
+          }
+        }
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
