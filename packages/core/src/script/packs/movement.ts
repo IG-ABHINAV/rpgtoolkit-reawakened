@@ -2,6 +2,7 @@
 import type { Value } from "../../ports/value.ts";
 import type { Wait } from "../../ports/wait.ts";
 import type { InputSection } from "../../save/sections/input.ts";
+import { configureInput } from "../../input/input.ts";
 import type { GameState } from "../../save/state.ts";
 import type { SpriteActor, SpritePoint, Facing, SpritesSection } from "../../sprites/model.ts";
 import { enqueueDirectionMove, enqueueScriptDirectionMove } from "../../sprites/movement.ts";
@@ -329,12 +330,12 @@ export function applyInputEffect(state: GameState, name: string, args: readonly 
   if (name === "setbutton") {
     const [, slot, x, y, width, height] = args;
     const id = String(slot ?? "");
-    state.input.buttons = [...state.input.buttons.filter((button) => !("id" in button && button.id === id)), { id, x: numberValue(x), y: numberValue(y), w: numberValue(width), h: numberValue(height), action: id, enabled: true }];
+    configureInput(state.input, { buttons: [...state.input.buttons.filter((button) => !("id" in button && button.id === id)), { id, x: numberValue(x), y: numberValue(y), w: numberValue(width), h: numberValue(height), action: id, enabled: true }] });
     return;
   }
   if (name === "clearbuttons") {
     const slots = args.map((value) => String(value));
-    state.input.buttons = slots.length === 0 ? [] : state.input.buttons.filter((button) => !("id" in button && slots.includes(button.id)));
+    configureInput(state.input, { buttons: slots.length === 0 ? [] : state.input.buttons.filter((button) => !("id" in button && slots.includes(button.id))) });
   }
 }
 function numberValue(value: Value | undefined): number { return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : 0; }

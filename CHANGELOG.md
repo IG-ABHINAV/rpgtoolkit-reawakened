@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- On-screen button slots now activate on primary-button release over the same enabled slot, not on press; moving away, disabling the slot or losing focus cancels the press. Input saves move to schema 4 to preserve an in-flight slot press; older saves restore with none (#1221; `docs/spec/engine/display-input-audio.md#act-8`).
+  Input schema and the saved slot id are part of the state hash. The two battle save fixtures reproduce their prior bytes when those fields are normalized back to schema 3. Closing and menu acceptance recordings changed only state hashes; script, actor and audio recordings changed only hashes; the save/load baseline changed hashes and save length. No draw or event baseline changed.
 - Held direction input now replaces the selected player's remaining script or click route at the next step boundary, including a waypoint, while the current step finishes and blocking scripts keep ownership of input. Mid-step taps are not buffered; whether 3.1 click-walking differs remains an owner decision (#1286, #1180; `docs/spec/engine/movement-and-collision.md#e-133`).
 - Diagonal pixel-mode direction steps now move four pixels on each axis in one movement advance, and collision is checked at that full destination in both pixel modes (#1282; `docs/spec/engine/movement-and-collision.md#r-62`).
 - Sliding at a wall corner now chooses the same collision edge regardless of polygon winding or starting vertex; the spec defines a deterministic tie-break rather than claiming original-engine parity (#1284; `docs/spec/engine/movement-and-collision.md#r-54`).

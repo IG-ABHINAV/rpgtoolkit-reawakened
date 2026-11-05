@@ -314,12 +314,11 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     return;
   }
   const oldRecord = old as Record<string, unknown>;
-  if (version === 2) {
-    // Schema 3 only grows the pointer record (the press and release edge counters, docs/spec/engine/display-input-audio.md
-    // #reawakened-pointer-record): every other field of a version-2 section is kept as stored.
+  if (version === 2 || version === 3) {
+    // Schema 3 adds pointer edge counters; schema 4 adds the cancellable slot press.
     const fresh = createInputSection().pointer;
     const pointer = typeof oldRecord.pointer === "object" && oldRecord.pointer !== null && !Array.isArray(oldRecord.pointer) ? oldRecord.pointer as Record<string, unknown> : {};
-    record.input = { ...oldRecord, version: INPUT_SCHEMA_VERSION, pointer: { ...fresh, ...pointer } };
+    record.input = { ...oldRecord, version: INPUT_SCHEMA_VERSION, pointer: { ...fresh, ...pointer }, pressedButtonSlot: null };
     schema.input = INPUT_SCHEMA_VERSION;
     return;
   }
