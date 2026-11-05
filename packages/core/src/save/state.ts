@@ -190,7 +190,7 @@ export function createGameState(init: { seed: number; width?: number; height?: n
     input: createInputSection(),
     features: normalizeHostFeatures(init.features),
     display: { geometry: init.displayGeometry === undefined ? createDisplaySection(init.width ?? 320, init.height ?? 240).geometry : normalizeDisplayGeometry(init.displayGeometry) },
-    ui: {} as UiSection,
+    ui: createUiSection(),
     camera: {} as CameraSection,
     fx: {} as FxSection,
     audio: createAudioSection(),

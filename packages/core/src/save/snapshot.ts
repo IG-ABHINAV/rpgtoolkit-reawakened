@@ -393,7 +393,7 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
   if (typeof old !== "object" || old === null || Array.isArray(old)) {
     record.ui = createUiSection();
   } else if (version < UI_SCHEMA_VERSION) {
-    const migrated = { ...createUiSection(), ...(old as Record<string, unknown>) };
+    const migrated: Record<string, unknown> = { ...createUiSection(), ...(old as Record<string, unknown>) };
     const time = record.time;
     const savedTick = typeof time === "object" && time !== null && !Array.isArray(time) &&
       Number.isSafeInteger((time as Record<string, unknown>).tick)
@@ -401,16 +401,24 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
       : 0;
     if (version < 5) {
       if (Array.isArray(migrated.actionSurfaces)) {
-        migrated.actionSurfaces = migrated.actionSurfaces.map((surface) =>
-          typeof surface === "object" && surface !== null && !Array.isArray(surface)
-            ? { ...surface, publishedTick: Number.isSafeInteger((surface as Record<string, unknown>).publishedTick) ? (surface as Record<string, number>).publishedTick : savedTick }
-            : surface);
+        migrated.actionSurfaces = migrated.actionSurfaces.map((surface: unknown) => {
+          if (typeof surface !== "object" || surface === null || Array.isArray(surface)) return surface;
+          const publishedTick = (surface as Record<string, unknown>).publishedTick;
+          return {
+            ...surface,
+            publishedTick: Number.isSafeInteger(publishedTick) ? publishedTick : savedTick,
+          };
+        });
       }
       if (Array.isArray(migrated.surfaceBuilders)) {
-        migrated.surfaceBuilders = migrated.surfaceBuilders.map((builder) =>
-          typeof builder === "object" && builder !== null && !Array.isArray(builder)
-            ? { ...builder, openedTick: Number.isSafeInteger((builder as Record<string, unknown>).openedTick) ? (builder as Record<string, number>).openedTick : savedTick }
-            : builder);
+        migrated.surfaceBuilders = migrated.surfaceBuilders.map((builder: unknown) => {
+          if (typeof builder !== "object" || builder === null || Array.isArray(builder)) return builder;
+          const openedTick = (builder as Record<string, unknown>).openedTick;
+          return {
+            ...builder,
+            openedTick: Number.isSafeInteger(openedTick) ? openedTick : savedTick,
+          };
+        });
       }
     }
     record.ui = migrated;

@@ -84,6 +84,7 @@ test("message-window effects splice globals and use deterministic defaults", () 
 test("custom touch suppression requires an explicit persistent declaration", () => {
   const state = createGameState({ seed: 0 });
   const initialHash = hashGameState(state);
+  applyUiEffect(state, "mwincls", []);
   equal(state.ui.customTouchControlsDeclared, false);
   applyUiEffect(state, "declareCustomTouchControls", []);
   equal(state.ui.customTouchControlsDeclared, true);
@@ -103,10 +104,31 @@ test("custom touch suppression requires an explicit persistent declaration", () 
   equal(migrated.ui.surfaceCancelledSeq, null);
   equal(migrated.ui.surfaceCancelledOwner, null);
 });
+test("UI v4 save migration preserves surface lifetime metadata and defaults Plane 3 commands", () => {
+  const state = createGameState({ seed: 0 });
+  applyUiEffect(state, "mwincls", []);
+  state.time.tick = 7;
+  applyUiEffect(state, "uiBegin", [7, "title", "menu", 0, 0, 16, 16, 1]);
+  applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, null, null, 1]);
+  applyUiEffect(state, "uiEnd", [7]);
+  applyUiEffect(state, "uiBegin", [8, "builder", "surface", 0, 0, 16, 16, 1]);
+  const old = JSON.parse(snapshot(state)) as {
+    schema: { ui: number };
+    ui: { authorMarginCommands?: unknown; actionSurfaces: Record<string, unknown>[]; surfaceBuilders: Record<string, unknown>[] };
+  };
+  old.schema.ui = 4;
+  delete old.ui.authorMarginCommands;
+  delete old.ui.actionSurfaces[0]?.publishedTick;
+  delete old.ui.surfaceBuilders[0]?.openedTick;
+  const migrated = restoreGameState(JSON.stringify(old));
+  equal(migrated.ui.actionSurfaces[0]?.publishedTick, 7);
+  equal(migrated.ui.surfaceBuilders[0]?.openedTick, 7);
+  deepEqual(migrated.ui.authorMarginCommands, []);
+});
 
 test("author surface claims consume their shared input sequence once", () => {
   const state = createGameState({ seed: 0 });
-  state.engine.claims = [];
+  applyUiEffect(state, "mwincls", []);
   state.ui.surfaceActivated = {
     owner: 7,
     surfaceId: "title",

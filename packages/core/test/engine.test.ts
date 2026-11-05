@@ -168,6 +168,7 @@ test("screen vector primitives crossing Plane 1 enter the margin command layer",
     "setpixel(32, 0)",
     "end()",
   ].join("\n"));
+  engine.advance(1, []);
   const commands = engine.drawList().marginCommands;
   deepEqual(commands.map((command) => command.kind), ["line", "rect", "line"]);
   deepEqual(commands[0], {
