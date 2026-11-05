@@ -410,17 +410,18 @@ which is what "the same core build" in the capability's success check means.
 <a id="csp-and-banks"></a>
 ## CSP and the audio path
 
-The default audio path ships **SF2** banks only, so it instantiates **no WebAssembly** and the shipped CSP needs no
-`wasm-unsafe-eval` for it. `script-src 'wasm-unsafe-eval'` is allowed only in a build that can load an SF3 bank or a
-user-supplied `.sf2` that is SF3, and the page states which build it is.
+The desktop player can receive an SF3 bank, including one named `.sf2`. Its MIDI dependency eagerly initializes the
+WebAssembly Vorbis decoder even when the bundled uncompressed SF2 is used. The desktop player and measurement page
+therefore allow `wasm-unsafe-eval` in `script-src`; this permits WebAssembly compilation but not JavaScript
+`unsafe-eval`. The policy still permits scripts only from the application's own origin. The decoder supports
+compressed SoundFont samples; its initialization must not produce an unhandled rejection on startup.
 
-The browser lane **MUST** assert that the default path instantiates no WebAssembly, so the allowance can never widen
-silently. SF3 support itself is unverified and is not promised by this page.
+The browser player's strict policy remains unchanged by this desktop fix. SF3 playback on other runners is not
+established by the desktop result.
 
 The AudioWorklet module is loaded by `audioWorklet.addModule` from a **same-origin** URL — `/apps/audio-worklet.js` in
 the browser and `app://player/apps/audio-worklet.js` under the desktop scheme. That fetch is governed by `script-src`,
-**not** `worker-src`, so the shipped `script-src 'self'` covers it and the policy is not widened. The browser lane loads
-the module under the real CSP; the desktop smoke does the same over `app://`.
+not `worker-src`. The browser lane loads the module under the real CSP; the desktop smoke does the same over `app://`.
 
 <a id="conformance-lane"></a>
 ## Conformance: the schema and the vector kit
