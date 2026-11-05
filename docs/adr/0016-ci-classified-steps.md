@@ -81,10 +81,12 @@ Only these paths are inert, because they are read by people and not by any lane:
 | root-level `*.md` (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`...) | Prose for people; no job reads them |
 | `docs/guardrails.md` | The rules as prose; the checks that enforce them live in code |
 | `docs/adr/**/*.md` | Decision records |
+| `docs/**/*.md` except `docs/spec/**` | Human-facing documentation; no CI lane reads it (provenance skips `docs/`) |
 | `_bmad-output/**/*.md` | Plans and tickets; not read by any lane |
+| `_bmad/**` | Installed BMAD framework; consumed only by manual ticket tooling, never by a CI lane |
 | `.github/ISSUE_TEMPLATE/**/*.{md,yml,yaml}` | Issue forms; GitHub reads them, CI does not |
 
-It deliberately **excludes**: all of `packages/`, `tools/`, `stock/` and `golden/` (even Markdown there; fixtures and generators are inputs); `docs/spec/` (the normative spec, and `docs/spec/examples` is dump-checked by `golden`); `.github/workflows/` and `.github/pull_request_template.md`; non-Markdown files under `_bmad-output/`; every other file in `docs/`; the lockfile, `package.json`, and every root file that is not Markdown; and any path nobody has classified. The `checks` job still runs provenance over every inert change.
+It deliberately **excludes**: all of `packages/`, `tools/`, `stock/` and `golden/` (even Markdown there; fixtures and generators are inputs); `docs/spec/` (the normative spec, and `docs/spec/examples` is dump-checked by `golden`); `.github/workflows/` and `.github/pull_request_template.md`; non-Markdown files under `_bmad-output/`; non-Markdown files under `docs/`; the lockfile, `package.json`, and every root file that is not Markdown; and any path nobody has classified. The `checks` job still runs provenance over every inert change.
 
 ### Which steps defer for an inert pull request
 
@@ -101,7 +103,23 @@ Each of those jobs keeps its decision-report step, which always runs. `script-do
 
 G5 (Enforcement) and Rollout item 4 each gain one sentence stating this reading and pointing at this ADR. G5 rule 1 is unchanged: the required job still runs on every pull request.
 
-## Consequences
+## Amendment — Option B (docs-only PRs defer `checks` and `unit`)
+
+Approved by the owner (2026-11). Extends the classifier's effect: when every changed path is
+inert (i.e. documentation only), `checks` defers all of its heavy steps (typecheck, lint,
+licence, graph, fixtures, catalogue, command-docs, no-skips, make-package, mobile proof,
+desktop measure, icons, install) and keeps only `provenance` (which is a no-op for these
+paths but still runs, because G7 must see every diff), and `unit` defers entirely, so no
+shard runs and no LCOV is produced. `gate` skips the LCOV merge and coverage threshold in
+that case.
+
+The "never skip a job" rule is untouched: every job still runs and reports `DEFER`. The
+classifier's verdict is still the only thing that selects `run`. A path under `packages/`,
+`tools/`, `stock/`, `golden/`, `docs/spec/` or `.github/workflows/` forces `run`, so a
+change that merely *looks* like documentation but touches generated or workflow input
+cannot arrive as inert.
+
+### Consequences
 
 * A prose-only pull request still starts every job but skips the installs, builds, replays and emulators. The saving is runner minutes, not job count.
 * A classification mistake could hide a regression. Mitigations: a small positive list, a denylist that wins over the list, the base copy of the classifier, a full default, adversarial unit tests, the `gate` cross-check, and a printed reason a reviewer can audit.

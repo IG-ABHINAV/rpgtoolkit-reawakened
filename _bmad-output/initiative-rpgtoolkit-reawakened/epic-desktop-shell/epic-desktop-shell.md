@@ -5,6 +5,8 @@ parent: initiative-rpgtoolkit-reawakened
 covers: ["CAP-18"]
 assignee: ""
 risk: medium
+tracker_id: "#1361"
+remote: "https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1361"
 ---
 
 # Standalone editor in a desktop shell
