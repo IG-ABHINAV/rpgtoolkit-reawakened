@@ -15,6 +15,13 @@ Run the checks locally first; the commands are in the [Commands section of CONTR
 - [ ] I cited the `docs/` sections this change implements (`docs/spec/<path>#<anchor>`, or T-xx IDs), or this change implements no behaviour.
 - [ ] No guard-rail exception, **or** exception marked inline with its ADR (`guardrail-exception: Gx ADR-NNNN`).
 
+## Test evidence
+
+- [ ] For every new evidence test, I recorded the behavior-breaking perturbation, the specific failing result, and the restored passing result below. Any blocker leaves this requirement unmet.
+- [ ] Old-behavior references remain independent of the implementation under test, and any experiment that is the only proof is committed and repeatable.
+
+<!-- List each evidence test, the targeted mutation, commands and red/green outcomes. Rebuild generated or bundled code before both runs. -->
+
 ## Worktree cleanup
 
 - [ ] **Worktrees:** every worktree you created is removed (`git worktree remove`) or listed as preserved with a reason; removal only after the work is pushed and has a destination (merged PR, or an open PR named in the handoff); dirty worktrees are preserved first; unmerged branches are never deleted; the final report states each path and its outcome.

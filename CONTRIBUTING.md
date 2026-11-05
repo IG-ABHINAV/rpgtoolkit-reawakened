@@ -187,6 +187,12 @@ The first command mirrors story issues and their tracker IDs. The second creates
 5. **Golden files are a record, not a convenience.** A golden is committed output that the suite compares against (G5). `pnpm golden:record`, `pnpm closing:record`, `pnpm dump:record`, `pnpm dump:record:examples` and `pnpm fixtures:author` rewrite them; run one only on purpose, never in CI and never as a side effect, and explain every changed golden in the pull request. If a golden changes and you cannot say why the new output is correct, the code is wrong, not the golden.
 6. **Help text.** Command and help descriptions first say what the command does in plain terms for someone making a game, then describe it exactly (units, ticks, order, whether the script waits). See the working notes in [AGENTS.md](AGENTS.md).
 
+### Prove that evidence tests can fail
+
+A passing test is evidence only if it detects the behavior it claims to cover. For **each new evidence test**, name the claim and make a temporary, targeted change that removes or breaks that behavior; run that test and verify it fails for the claimed reason. Restore the change, rebuild any consumed generated or bundled code, and rerun the same test successfully. Record the mutation, commands and both outcomes in the pull request. A compile error, unrelated failure or stale build is not a successful negative proof. If a perturbation cannot be run, record the blocker and leave the evidence requirement unmet; do not claim the test proves that behavior or merge on that evidence.
+
+When a change compares old and new behavior, keep an explicit old-behavior reference independent of the new implementation and protect it from drifting with the new projection. Preserve any experiment that is the only proof as a committed, repeatable test or tool; a scratch diff or PR-body transcript alone is not durable evidence. Prefer a reachable real-path scenario to an impossible injected state, and state precisely what it does and does not prove.
+
 ## Work in a worktree
 
 Do each piece of work in its own git worktree (a second folder checked out from the same repository). Reason: several people or agents can then work at once without overwriting each other's files, and the checkout you cloned stays exactly as it was.
