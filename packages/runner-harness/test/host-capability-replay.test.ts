@@ -1,4 +1,4 @@
-import { deepEqual, equal, notEqual } from "node:assert/strict";
+import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import {
   createAssetIndex,
@@ -184,7 +184,7 @@ test("runner-harness headless capability profiles replay the exact consumed inpu
     deepEqual(batched.records.map(({ tick }) => tick), [2, 4], `${profile.name} batches reports on the expected tick boundaries`);
     deepEqual(
       batched.records.map(({ state, draw }) => ({ state, draw })),
-      [first.records[1], first.records[3]].map(({ state, draw }) => ({ state, draw })),
+      [first.records[1]!, first.records[3]!].map(({ state, draw }) => ({ state, draw })),
       `${profile.name} state and draw hashes are independent of two-tick advance batching`,
     );
 
@@ -192,19 +192,19 @@ test("runner-harness headless capability profiles replay the exact consumed inpu
       ...planned,
       log: first.consumed.filter(({ event }) => event.kind !== "host.features"),
     }, 1);
-    notEqual(first.records[1]?.state, withoutFeatureUpdate.records[1]?.state, `${profile.name} feature update is hash-significant on its consuming tick`);
+    equal(first.records[2]?.state === withoutFeatureUpdate.records[2]?.state, false, `${profile.name} feature update is hash-significant on its consuming tick`);
     const withoutGeometryUpdate = replay(profile, {
       ...planned,
       log: first.consumed.filter(({ event }) => event.kind !== "host.display"),
     }, 1);
-    notEqual(first.records[2]?.state, withoutGeometryUpdate.records[2]?.state, `${profile.name} geometry update is hash-significant on its consuming tick`);
+    equal(first.records[3]?.state === withoutGeometryUpdate.records[3]?.state, false, `${profile.name} geometry update is hash-significant on its consuming tick`);
 
     const sameConsumedLog: Run = { ...planned, log: first.consumed };
     const changedInitialFeatures = { ...profile.features, haptics: !profile.features.haptics };
     const initialFeatureControl = replay(profile, sameConsumedLog, 1, changedInitialFeatures, INITIAL_GEOMETRY);
-    notEqual(first.records[0]?.state, initialFeatureControl.records[0]?.state, `${profile.name} hash includes boot features before any logged update`);
+    equal(first.records[0]?.state === initialFeatureControl.records[0]?.state, false, `${profile.name} hash includes boot features before any logged update`);
     const changedInitialGeometry = { ...INITIAL_GEOMETRY, content: { ...INITIAL_GEOMETRY.content, width: INITIAL_GEOMETRY.content.width + 1 } };
     const initialGeometryControl = replay(profile, sameConsumedLog, 1, profile.features, changedInitialGeometry);
-    notEqual(first.records[0]?.state, initialGeometryControl.records[0]?.state, `${profile.name} hash includes boot geometry before any logged update`);
+    equal(first.records[0]?.state === initialGeometryControl.records[0]?.state, false, `${profile.name} hash includes boot geometry before any logged update`);
   }
 });
