@@ -202,6 +202,11 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
       }, { screenX: box.x + box.width / 2, screenY: box.y + box.height / 2, expected: fixture === author ? "author" : "modal" }, { timeout: 45_000 });
       await installInputTrace(page);
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      if (fixture === modal) {
+        await page.waitForFunction(() => (window as Window & { __sessionAudioContext?: AudioContext }).__sessionAudioContext?.state === "running", undefined, { timeout: 10_000 });
+        const resumeStates = await page.evaluate(() => (window as Window & { __audioResumeStates?: string[] }).__audioResumeStates ?? []);
+        expect(resumeStates).toContain("suspended");
+      }
       await page.waitForFunction(() => {
         const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
         return trace.flatMap((entry) => entry.inputs).some((input) => input.event.kind === "pointer");
