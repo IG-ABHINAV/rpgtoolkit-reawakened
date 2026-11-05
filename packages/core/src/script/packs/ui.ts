@@ -71,6 +71,9 @@ function uiCommand(
 function plainDoc(summary: string, behaviour: string, waits: BuiltinDoc["waits"] = { kind: "never", summary: "Completes in the current script turn." }): BuiltinDoc {
   return { summary, behaviour, groups: ["message-window-text-fonts-30"], waits };
 }
+function reawakenedDoc(summary: string, behaviour: string): BuiltinDoc {
+  return { ...plainDoc(summary, behaviour), groups: [DIALOGUE, REAWAKENED_ADDITIONS] };
+}
 
 /**
  * The optional canvas argument of `text` and `pixelText` (E-56): absent or the screen handle 0 keeps the screen text layer;
@@ -89,6 +92,7 @@ const textParam: ParamSpec = { name: "text", optional: false, byRef: false, vari
 const NO_ARGS: readonly ParamSpec[] = [];
 const DIALOGUE = "message-window-text-fonts-30";
 const CURSOR_GROUP = "mouse-buttons-cursor-maps-11";
+const REAWAKENED_ADDITIONS = "reawakened-additions-not-part-of-the-282-legacy-catalogue";
 const DEFAULT_ARROW = "media/cursors/tkr-arrow.png";
 const DEFAULT_HAND = "media/cursors/tkr-hand.png";
 
@@ -208,7 +212,7 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
   uiCommand("text", [{ name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, textParam, { name: "canvas", optional: true, byRef: false, variadic: false }], plainDoc("Draw text in square cells.", "Keeps a fractional 1-based cell coordinate, scales it by the font size and truncates the resulting pixel origin toward zero, so it maps to `(trunc((x - 1) × fontSize), trunc((y - 1) × fontSize))`; newlines advance one cell row, glyphs are clipped and the call does not wait. With a canvas handle the glyphs are drawn into that canvas's pixels (and so are redrawn by clearing the canvas), not onto the screen's text layer; an unknown canvas raises `surface.unknown`."), (view, args) => ({ value: null, effects: [effect([number(args, 0), number(args, 1), spliceVariables(text(args, 2), view), ...canvasTarget(view, args, 3, "text")])] })),
   uiCommand("pixelText", [{ name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, textParam, { name: "canvas", optional: true, byRef: false, variadic: false }], plainDoc("Draw text at pixel coordinates.", "Uses the supplied logical-pixel origin, the active FontRef metrics and clipping; the call does not wait. With a canvas handle the glyphs are drawn into that canvas's pixels (and so are redrawn by clearing the canvas), not onto the screen's text layer; an unknown canvas raises `surface.unknown`."), (view, args) => ({ value: null, effects: [effect([Math.trunc(number(args, 0)), Math.trunc(number(args, 1)), spliceVariables(text(args, 2), view), ...canvasTarget(view, args, 3, "pixelText")], "draw-audio-cue")] })),
   uiCommand("staticText", [{ name: "args", optional: true, byRef: false, variadic: true }], { summary: "Obsolete.", behaviour: "Raises the catchable obsolete-command error and skips the statement.", groups: [DIALOGUE], tags: ["obsolete"], waits: { kind: "never", summary: "Does not wait." } }, () => { throw new ScriptError("builtin.obsolete", '"statictext" is obsolete: the statement is skipped'); }),
-  uiCommand("declareCustomTouchControls", NO_ARGS, plainDoc("Declare that the game supplies its own touch controls.", "Sets a persistent game-state declaration used by hosts to suppress runner fallback controls. Capability queries and ordinary accessibility surfaces do not set it."), () => ({ value: null, effects: [effect()] })),
+  uiCommand("declareCustomTouchControls", NO_ARGS, reawakenedDoc("Explicitly declare usable game-owned touch controls.", "Sets a persistent game-state declaration used by hosts to suppress runner fallback controls. Capability queries and ordinary accessibility surfaces do not set it."), () => ({ value: null, effects: [effect()] })),
   uiCommand("uiBegin", [
     { name: "id", optional: false, byRef: false, variadic: false },
     { name: "role", optional: false, byRef: false, variadic: false },
@@ -216,7 +220,7 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
     { name: "y", optional: false, byRef: false, variadic: false },
     { name: "w", optional: false, byRef: false, variadic: false },
     { name: "h", optional: false, byRef: false, variadic: false },
-  ], plainDoc("Declare an interactive author surface.", "Opens a per-thread surface with logical-pixel bounds; returns 1 when accepted and 0 when malformed. Close it with uiEnd()."), (view, args) => {
+  ], reawakenedDoc("Declare a script-drawn surface so the engine navigates and describes it.", "Opens a per-thread surface with logical-pixel bounds; returns 1 when accepted and 0 when malformed. Close it with uiEnd()."), (view, args) => {
     const owner = view.thread ?? -1;
     const id = text(args, 0);
     const role = text(args, 1);
@@ -231,7 +235,7 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
   uiCommand("uiItem", [
     { name: "label", optional: false, byRef: false, variadic: false },
     { name: "options", optional: true, byRef: false, variadic: false },
-  ], plainDoc("Add a labelled item to the current author surface.", "Adds one navigable item to the calling thread's open surface. Optional dictionary fields are id, value, enabled, role, bounds and explicit semantic action."), (view, args) => {
+  ], reawakenedDoc("Append one item to the open surface.", "Adds one navigable item to the calling thread's open surface. Optional dictionary fields are id, value, enabled, role, bounds and explicit semantic action."), (view, args) => {
     const optionsValue = args[1]?.value;
     const options = itemOptions(view, optionsValue);
     const bounds = options?.bounds === undefined ? null : dictionary(view, options.bounds);
@@ -263,23 +267,23 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
     ] as PlainData[];
     return { value: null, effects: [surfaceEffect(view, argsData)] };
   }),
-  uiCommand("uiEnd", NO_ARGS, plainDoc("Publish the current author surface.", "Closes the calling thread's open surface and publishes its ordered items for navigation, accessibility and pointer hit-testing."), (view) => ({ value: null, effects: [surfaceEffect(view, [])] })),
-  uiCommand("uiSelection", [{ name: "ret", optional: true, byRef: true, variadic: false }], plainDoc("Read the focused author-surface item.", "Returns the 0-based focus index, or −1 when the calling thread has no focusable surface; writes the optional reference."), (view, args) => {
+  uiCommand("uiEnd", NO_ARGS, reawakenedDoc("Close the open surface and publish it for this frame.", "Closes the calling thread's open surface and publishes its ordered items for navigation, accessibility and pointer hit-testing."), (view) => ({ value: null, effects: [surfaceEffect(view, [])] })),
+  uiCommand("uiSelection", [{ name: "ret", optional: true, byRef: true, variadic: false }], reawakenedDoc("Read the focused item index of the open surface.", "Returns the 0-based focus index, or −1 when the calling thread has no focusable surface; writes the optional reference."), (view, args) => {
     const owner = view.thread ?? -1;
     const selected = (view.state?.ui.actionSurfaces ?? []).find((surface) => surface.owner === owner)?.selection ?? -1;
     return { value: selected, out: output(args, 0, selected), effects: [effect([], "pure")] };
   }),
-  uiCommand("uiFocus", [{ name: "index", optional: false, byRef: false, variadic: false }], plainDoc("Move focus within the author surface.", "Sets focus to an enabled item by its 0-based index; invalid and disabled indexes are ignored."), (view, args) => {
+  uiCommand("uiFocus", [{ name: "index", optional: false, byRef: false, variadic: false }], reawakenedDoc("Move the cursor to an item of the open surface.", "Sets focus to an enabled item by its 0-based index; invalid and disabled indexes are ignored."), (view, args) => {
     const index = number(args, 0);
     return { value: null, effects: Number.isSafeInteger(index) ? [surfaceEffect(view, [index])] : [effect([], "pure")] };
   }),
-  uiCommand("uiActivated", [{ name: "ret", optional: true, byRef: true, variadic: false }], plainDoc("Read this frame's author-surface activation claim.", "Returns the 0-based activated item index for this frame, or −1 otherwise, and writes the optional reference."), (view, args) => {
+  uiCommand("uiActivated", [{ name: "ret", optional: true, byRef: true, variadic: false }], reawakenedDoc("Did the focused item get confirmed on this frame?", "Returns the 0-based activated item index for this frame, or −1 otherwise, and writes the optional reference."), (view, args) => {
     const owner = view.thread ?? -1;
     const claim = view.state?.ui.surfaceActivated;
     const index = claim !== null && claim !== undefined && claim.owner === owner ? claim.index : -1;
     return { value: index, out: output(args, 0, index), effects: [surfaceEffect(view, [owner])] };
   }),
-  uiCommand("uiCancelled", NO_ARGS, plainDoc("Read this frame's author-surface cancel claim.", "Returns 1 when cancel was claimed for this author surface on this frame, otherwise 0."), (view) => {
+  uiCommand("uiCancelled", NO_ARGS, reawakenedDoc("Did `cancel` arrive on this frame for the open surface?", "Returns 1 when cancel was claimed for this author surface on this frame, otherwise 0."), (view) => {
     const owner = view.thread ?? -1;
     const claimed = view.state?.ui.surfaceCancelled === true && view.state.ui.surfaceCancelledOwner === owner;
     return { value: claimed ? 1 : 0, effects: claimed ? [surfaceEffect(view, [owner])] : [effect([], "pure")] };
