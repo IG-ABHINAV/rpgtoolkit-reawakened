@@ -129,9 +129,10 @@ function sameGeometry(left: HostDisplayGeometry, right: HostDisplayGeometry): bo
 
 /** Restore queued geometry before any pointer normalized with it, keeping unrelated input order intact. */
 function reconcilePendingGeometry(
-  engineGeometry: HostDisplayGeometry,
+  engineGeometry: HostDisplayGeometry | null,
   latest: HostDisplayGeometry,
   pending: PendingInput[],
+  appendLatest = true,
 ): boolean {
   let queuedGeometry = engineGeometry;
   for (let index = 0; index < pending.length; index += 1) {
@@ -140,7 +141,7 @@ function reconcilePendingGeometry(
       queuedGeometry = input.event.geometry;
       continue;
     }
-    if (input.event.kind !== "pointer" || input.pointerGeometry === null || sameGeometry(queuedGeometry, input.pointerGeometry)) continue;
+    if (input.event.kind !== "pointer" || input.pointerGeometry === null || (queuedGeometry !== null && sameGeometry(queuedGeometry, input.pointerGeometry))) continue;
     pending.splice(index, 0, {
       tick: null,
       event: { kind: "host.display", geometry: input.pointerGeometry },
@@ -149,10 +150,10 @@ function reconcilePendingGeometry(
     queuedGeometry = input.pointerGeometry;
     index += 1;
   }
-  if (!sameGeometry(queuedGeometry, latest)) {
+  if (appendLatest && (queuedGeometry === null || !sameGeometry(queuedGeometry, latest))) {
     pending.push({ tick: null, event: { kind: "host.display", geometry: latest }, pointerGeometry: null });
   }
-  return !sameGeometry(engineGeometry, latest);
+  return engineGeometry === null || !sameGeometry(engineGeometry, latest);
 }
 
 /** Reapply the live observation before an incoming pointer is appended. */
@@ -323,8 +324,13 @@ export function observeHostState(
   onResize();
   poll();
   const snapshotForRestore = (pending: PendingInput[] = []): readonly InputRecord["event"][] => {
-    const pendingEvents = pending.splice(0).map((input) => input.event);
     const geometry = measureHostDisplay(host, view, safeArea.read()) ?? previousGeometry;
+    if (geometry !== null) {
+      // The successful blob reply replaces the engine's geometry, which is unknown here. Re-establish each pointer's
+      // normalization geometry in the ordered reply records before moving metadata out of the host queue.
+      reconcilePendingGeometry(null, geometry, pending, false);
+    }
+    const pendingEvents = pending.splice(0).map((input) => input.event);
     const features = readHostFeatures(keyboardObserved);
     latestFeatures = features;
     previousFeatures = features;

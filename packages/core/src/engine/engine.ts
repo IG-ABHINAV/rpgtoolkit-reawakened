@@ -3776,6 +3776,30 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
 
+  function applyQueuedInputRecords(consumed: InputRecord[]): void {
+    const records = takeQueuedInputs(state.time.tick);
+    for (const record of records) {
+      if (applyHostStateEvent(record.event)) {
+        consumed.push(record);
+        continue;
+      }
+      if (record.event.kind === "asset") {
+        consumeAsset(record, consumed);
+        continue;
+      }
+      applyRoutedInputEvent(record.event);
+      consumed.push(record);
+    }
+    processGamepadEvents(state.input, ({ device, connected }) => {
+      queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
+        device,
+        type: "gamepad",
+      });
+    }, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+    });
+  }
+
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
@@ -3787,27 +3811,7 @@ export function createEngine(init: EngineInit): Engine {
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }
-        const records = takeQueuedInputs(state.time.tick);
-        for (const record of records) {
-          if (applyHostStateEvent(record.event)) {
-            consumed.push(record);
-            continue;
-          }
-          if (record.event.kind === "asset") {
-            consumeAsset(record, consumed);
-            continue;
-          }
-          applyRoutedInputEvent(record.event);
-          consumed.push(record);
-        }
-        processGamepadEvents(state.input, ({ device, connected }) => {
-          queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
-            device,
-            type: "gamepad",
-          });
-        }, (action, down, firstSeq) => {
-          routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
-        });
+        applyQueuedInputRecords(consumed);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
       }
@@ -4290,7 +4294,10 @@ export function createEngine(init: EngineInit): Engine {
       const failedAtStart = failed;
       for (const input of inputs) queuedInputs.push(input);
       const restoredOpenTick = processPreTickEvents(consumed);
-      if (restoredOpenTick) runPhase("input", consumed);
+      if (restoredOpenTick) {
+        state.engine.phase = "input";
+        applyQueuedInputRecords(consumed);
+      }
       drive();
       if (failedAtStart) consumeStoppedInputs(consumed);
       const requestedTicks = Number.isFinite(ticks) ? Math.max(0, Math.trunc(ticks)) : 0;

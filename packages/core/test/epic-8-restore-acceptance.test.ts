@@ -382,13 +382,13 @@ test("focused Load preserves mixed source edges, live capabilities, and the rest
   }
   throw new Error("expected the real load request");
 });
-test("restored open-tick continuation receives live host inputs through the input phase first", () => {
+test("restored open-tick input routing preserves saved UI results without repeating tick effects", () => {
   const source = boot("end()\n");
   run(source, null, 20);
   const sourceState = source.state();
   ok(sourceState !== null);
   const continuation = startThread(sourceState.vm, {
-    ref: { kind: "inline", text: 'if (confirmatinput == 1) {\n  confirmatresume = 1\n} else {\n  confirmatresume = 0\n}\nif (hasFeature("touch")) {\n  touchbranch = 1\n} else {\n  touchbranch = 0\n}\nend()\n', ir: IR_VERSION },
+    ref: { kind: "inline", text: 'if (confirmatinput == 1) {\n  confirmatresume = 1\n} else {\n  confirmatresume = 0\n}\nif (uiActivated() == 0) {\n  activationresume = 1\n} else {\n  activationresume = 0\n}\nif (uiCancelled() == 1) {\n  cancellationresume = 1\n} else {\n  cancellationresume = 0\n}\nif (hasFeature("touch")) {\n  touchbranch = 1\n} else {\n  touchbranch = 0\n}\nend()\n', ir: IR_VERSION },
     kind: "board",
     owner: "script",
   });
@@ -398,7 +398,16 @@ test("restored open-tick continuation receives live host inputs through the inpu
     currentThread: continuation.id,
     stepsUsed: 0,
   };
+  sourceState.ui.surfaceActivated = {
+    owner: continuation.id, surfaceId: "saved", itemId: "play", index: 0, action: "confirm", inputSeq: 41, cancelled: false,
+  };
+  sourceState.ui.surfaceCancelled = true;
+  sourceState.ui.surfaceCancelledSeq = 42;
+  sourceState.ui.surfaceCancelledOwner = continuation.id;
+  sourceState.input.nextSeq = 43;
   const saved = encoder.encode(snapshotGameSave(sourceState));
+  source.engine.advance(1, []);
+  const uninterrupted = globals(source);
   const game = boot('Load("slot")\nend()\n', undefined, (state) => {
     state.vm.globals["confirmatinput"] = state.input.actions.confirm ? 1 : 0;
   });
@@ -423,6 +432,10 @@ test("restored open-tick continuation receives live host inputs through the inpu
     deepEqual(restored.consumed.map(({ event }) => event.kind), ["blob.loaded", "host.features", "host.gamepads"]);
     equal(game.state()?.input.actions.confirm, true, "the live controller snapshot is applied before the open tick resumes");
     equal(globals(game)["confirmatresume"], 1, "the resumed script sees the input-phase observation from the live snapshot");
+    equal(globals(game)["activationresume"], uninterrupted["activationresume"], "the restored open-tick continuation matches uninterrupted saved author activation");
+    equal(globals(game)["cancellationresume"], uninterrupted["cancellationresume"], "the restored open-tick continuation matches uninterrupted saved author cancellation");
+    equal(globals(game)["activationresume"], 1);
+    equal(globals(game)["cancellationresume"], 1);
     equal(globals(game)["touchbranch"], 1, "the resumed script sees reconciled host capabilities");
     return;
   }

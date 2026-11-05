@@ -106,7 +106,7 @@ test("pointer geometry keeps the newest queued host display through an advance b
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
-test("post-restore geometry is inserted before stalled-load margin pointers without spending a tick", () => {
+test("focused restore re-establishes pointer geometry before stalled-load margin taps", () => {
   const initial = {
     content: { width: 4, height: 2 },
     game: { x: 1, y: 0, width: 2, height: 2 },
@@ -184,27 +184,41 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   }
   if (loadRequest?.kind !== "loadBlob") throw new Error("expected RPGCode load request");
 
-  // A pointer arrives while Load is waiting for bytes. The engine still reports the resized geometry at this point,
-  // so the input is correctly normalized as a Plane 3 point but has no new geometry record in the pending queue.
+  // A pointer arrives while Load is waiting for bytes and is normalized using the latest observed Plane 3 geometry.
   const observed = createObservedHostGeometry(resized);
-  const observedFeatures: HostStateObserver = {
-    poll() {},
-    currentFeatures: () => ({ ...liveFeatures }),
-    snapshotForRestore: () => [],
-    dispose() {},
-  };
-  const host = { getBoundingClientRect: () => ({ left: 0, top: 0 } as DOMRect) } as HTMLElement;
-  const logical = pointerEventToLogical({ clientX: 0, clientY: 0 } as PointerEvent, host, { width: 2, height: 2 }, observed.current());
-  deepEqual(logical, { x: -2, y: 0 });
-  const pending: PendingInput[] = [
-    { tick: loadReport.tickAfter, event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true }, pointerGeometry: null },
-    { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 1 }, pointerGeometry: resized },
-    { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 0 }, pointerGeometry: resized },
-  ];
-  const restored = engine.advance(0, [{
-    tick: loadReport.tickAfter,
-    event: { kind: "blob.loaded", reqId: loadRequest.reqId, bytes: saved },
-  }]);
+  const pending: PendingInput[] = [];
+  const pad = { index: 0, connected: true, mapping: "standard", axes: [0, 0], buttons: [] } as unknown as Gamepad;
+  const browser = makeBrowserEnvironment(() => [pad]);
+  const restoreGlobals = installGlobals(browser.globals);
+  let hostObserver: HostStateObserver | null = null;
+  let restoreEvents: readonly InputRecord["event"][] = [];
+  try {
+    hostObserver = observeHostState(makeHost(6, 2), { width: 2, height: 2 }, (event) => {
+      observed.observe(event);
+      pending.push({ tick: null, event, pointerGeometry: null });
+    });
+    pending.length = 0; // The observed resize was already consumed before the stalled Load.
+    const host = { getBoundingClientRect: () => ({ left: 0, top: 0 } as DOMRect) } as HTMLElement;
+    const logical = pointerEventToLogical({ clientX: 0, clientY: 0 } as PointerEvent, host, { width: 2, height: 2 }, observed.current());
+    deepEqual(logical, { x: -2, y: 0 });
+    pending.push(
+      { tick: loadReport.tickAfter, event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true }, pointerGeometry: null },
+      { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 1 }, pointerGeometry: resized },
+      { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 0 }, pointerGeometry: resized },
+    );
+    restoreEvents = hostObserver.snapshotForRestore(pending);
+    deepEqual(restoreEvents.map(({ kind }) => kind), [
+      "key", "host.display", "pointer", "pointer", "host.features", "host.display", "host.gamepads",
+    ], "the reply snapshot restores pointer geometry before the first margin record, not after the tap");
+    deepEqual(pending, [], "snapshotForRestore drains records only after preserving pointer geometry");
+  } finally {
+    hostObserver?.dispose();
+    restoreGlobals();
+  }
+  const restored = engine.advance(0, [
+    { tick: loadReport.tickAfter, event: { kind: "blob.loaded", reqId: loadRequest.reqId, bytes: saved } },
+    ...restoreEvents.map((event) => ({ tick: loadReport.tickAfter, event })),
+  ]);
   let readyReport = restored;
   for (let step = 0; step < 8; step += 1) {
     const assetReplies = readyReport.requests.flatMap((request) => request.kind === "asset"
@@ -216,27 +230,6 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   deepEqual(engine.hostDisplayGeometry(), initial, "Load restores the older saved display geometry");
   deepEqual(engine.hostFeatures(), { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }, "a version-1 save missing host features migrates to the documented defaults");
   equal(loadReport.tickAfter === readyReport.tickAfter, false, "the restored save tick differs from the wait/input timestamp");
-  const featureNeedsTick = reconcileObservedHostFeaturesAfterAdvance(engine.hostFeatures(), observedFeatures, pending);
-  equal(featureNeedsTick, true, "current host capabilities are queued after restoring the older feature record");
-  deepEqual(engine.hostFeatures(), { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }, "reconciliation does not silently mutate the engine");
-  const queued = reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, pending, readyReport.tickAfter);
-  equal(queued, true, "restored geometry remains queued until a budgeted tick");
-  deepEqual(pending.map(({ tick }) => tick), [null, null, null, null, null], "unconsumed numeric producer timestamps rebase only while still pending");
-  deepEqual(pending.map(({ event }) => event.kind), ["key", "host.display", "pointer", "pointer", "host.features"], "restore reconciliations preserve same-tick input order");
-
-  const resumedInputs = stampPendingInputs(pending, readyReport.tickAfter);
-  deepEqual(resumedInputs.map(({ tick }) => tick), pending.map(() => readyReport.tickAfter));
-  const resumed = engine.advance(0, resumedInputs);
-  equal(resumed.ticksRun, 0, "host state reconciliation never spends an unbudgeted simulation tick");
-  equal(resumed.tickAfter, readyReport.tickAfter, "the tick counter stays unchanged");
-  deepEqual(resumed.consumed.map(({ event }) => event.kind), ["host.display", "host.features"], "the unfocused restored engine consumes both logged host reconciliations");
-  deepEqual(engine.hostFeatures(), liveFeatures, "the logged host.features event restores the live capability record");
-  deepEqual(engine.hostDisplayGeometry(), resized);
-  const geometryForFirstDraw = engine.hostDisplayGeometry();
-  const firstFrame = rasterizePresentation(engine.drawList(), geometryForFirstDraw, new Map());
-  equal(firstFrame.error, null);
-  equal(firstFrame.width, 6, "the first post-restore frame uses live host content geometry");
-  equal(firstFrame.height, 2);
 
   const focused = engine.advance(0, [{ tick: readyReport.tickAfter, event: { kind: "focus", state: "gained" } }]);
   equal(focused.ticksRun, 0, "focus restoration remains pre-tick");
@@ -244,6 +237,15 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   const pointerTick = engine.advance(1, []);
   equal(pointerTick.ticksRun, 1, JSON.stringify(pointerTick));
   equal(activatedItem, "margin-go", "the queued Plane 3 press/release is hit-tested using the restored live geometry");
+  deepEqual(pointerTick.consumed.map(({ event }) => event.kind), [
+    "host.display", "key", "host.display", "pointer", "pointer", "host.features", "host.display", "host.gamepads",
+  ], "the focused Load path consumes restored geometry before each pointer and keeps the full current snapshot after prior edges");
+  deepEqual(engine.hostFeatures(), liveFeatures);
+  deepEqual(engine.hostDisplayGeometry(), resized);
+  const firstFrame = rasterizePresentation(engine.drawList(), engine.hostDisplayGeometry(), new Map());
+  equal(firstFrame.error, null);
+  equal(firstFrame.width, 6);
+  equal(firstFrame.height, 2);
 
 });
 
