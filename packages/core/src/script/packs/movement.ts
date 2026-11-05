@@ -397,7 +397,14 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
   if (name === "activeplayer") { const target = String(args[0] ?? ""); state.sprites.selectedPlayer = state.sprites.players.find((value) => value.id === target || String(value.index) === target)?.id ?? state.sprites.selectedPlayer; return true; }
   if (name === "push" || name === "pushitem") {
     const dirs = directions(String(args[name === "push" ? 0 : 1] ?? ""));
-    if (name === "push" && args[3] === 1) actor!.queue.moves = actor!.queue.moves.filter((move) => move.pointer !== true);
+    if (name === "push" && args[3] === 1) {
+      actor!.queue.moves = actor!.queue.moves.filter((move) => move.pointer !== true);
+      const active = actor!.movement.active;
+      if (active?.pointer === true) {
+        const { pointer: _pointer, ...continuation } = active;
+        replaceActor(state, actor!.id, { movement: { ...actor!.movement, active: continuation } });
+      }
+    }
     const distance = pixelMovement === 2 ? 8 : 32;
     for (const facing of dirs) enqueueScriptDirectionMove(state.sprites, actor!.id, facing, distance, false);
     return true;

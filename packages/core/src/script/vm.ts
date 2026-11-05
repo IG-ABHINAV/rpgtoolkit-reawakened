@@ -1116,6 +1116,10 @@ function pointerBaselineOf(pointer: NonNullable<WaitView["input"]>["pointer"]): 
 function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number | undefined, discardBefore?: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
   const wait = thread.wait;
   if (wait === null) return;
+  if (wait.kind === "movement" && view.sprites !== undefined) {
+    // Remember each completed actor independently: a forever waypoint can start another traversal before its peers finish.
+    wait.moves = wait.moves.filter((move) => move.actual !== true || view.sprites!.find((actor) => actor.id === move.sprite)?.moving === true);
+  }
   const cursorSelectionBeforePoll = wait.kind === "input.key" ? wait.cursorSelection : undefined;
   const menuContinuation = wait.kind === "menu.screen" ? wait.payload[0] : null;
   if (menuContinuation !== null && typeof menuContinuation === "object" && !Array.isArray(menuContinuation) &&

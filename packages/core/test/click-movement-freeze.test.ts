@@ -17,6 +17,7 @@ import {
   type WorldBoard,
 } from "../src/index.ts";
 import { enqueuePointPathMove } from "../src/sprites/runtime.ts";
+import { applySpriteEffect } from "../src/script/packs/movement.ts";
 import { runTriggersPhase } from "../src/triggers/runtime.ts";
 import type { WorldItem, WorldProgram } from "../src/world/model.ts";
 import { createScriptServices } from "./script-test-services.ts";
@@ -217,6 +218,19 @@ test("a diversion of a click path keeps the click's mark, so it pauses with the 
   const x = hero(state).x;
   ticks(state, 1, 120, tracker.run);
   equal(hero(state).x, x, "the diverted route takes no step while the script owns the key queue");
+});
+
+test("blocking push lets an active pointer diversion finish without restoring the click route (#1316)", () => {
+  const { state, tracker } = approachingBlocker(true);
+  park(state);
+  applySpriteEffect(state, "push", ["E", "hero", 0, 1], 0);
+  tick(state, 0, [], tracker.run);
+  ok(tracker.events.includes("diversion"), "the active pointer step encounters the blocker");
+  ok(hero(state).queue.moves.every((move) => move.pointer !== true), "the active step's diversion can advance under the block");
+  ticks(state, 1, 400, tracker.run);
+  equal(hero(state).queue.moves.length, 0);
+  equal(hero(state).movement.active, null);
+  equal(hero(state).x, 176, "the active step and the push complete, without resuming the cancelled route");
 });
 
 test("a diversion of a script's own path stays unmarked and keeps walking during a block", () => {
