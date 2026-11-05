@@ -1261,11 +1261,11 @@ export function replyToRequest(vm: VmState, reqId: number, reply: WaitReply): vo
  * of the phase. Threads started or woken during the phase take their first
  * turn next tick.
  */
-export function runThreadsPhase(vm: VmState, services: ScriptServices, budget: number): void {
+export function runThreadsPhase(vm: VmState, services: ScriptServices, budget: number, eligible?: (thread: Thread) => boolean): void {
   if (!Number.isInteger(budget) || budget < 1) {
     throw new ScriptError("vm.bad-budget", `the step budget must be a positive whole number, got ${budget}`);
   }
-  const ready = vm.threads.filter((thread) => thread.status === "ready");
+  const ready = vm.threads.filter((thread) => thread.status === "ready" && (eligible === undefined || eligible(thread)));
   ready.sort((left, right) => left.id - right.id);
   for (const thread of ready) {
     if (findBlockingThread(vm) !== null) break;
