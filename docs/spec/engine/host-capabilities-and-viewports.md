@@ -174,7 +174,7 @@ Authors access geometry to align custom UI elements, HUDs, or touch buttons:
 
 * **Resize Events:** Each accepted `host.display` input that changes the normalized geometry queues a non-cancelable `viewportResized` event on the game emitter. The existing `events` phase delivers it in queue order; delivery is never synchronous with input application. Repeating the same geometry still appears in the consumed input log but does not queue a duplicate notification. Event `detail` contains the current integer logical-pixel values `marginLeft`, `marginRight`, `marginTop`, `marginBottom`, `safeAreaTop`, `safeAreaRight`, `safeAreaBottom`, and `safeAreaLeft`, calculated by the same rules as `marginWidth` and `safeAreaInset`:
   ```rpgcode
-  on(game, "viewportResized", def(event) {
+  on(game, "viewportResized", (event) => {
       hud.reposition(event.detail.marginRight, event.detail.safeAreaBottom);
   });
   ```

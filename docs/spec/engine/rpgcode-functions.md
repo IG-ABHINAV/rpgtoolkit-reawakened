@@ -338,7 +338,7 @@ These queries read the current normalized host state. They do not inspect the op
 `viewportResized` is queued on the `game` emitter when accepted `host.display` input changes geometry. Its `event.detail` contains `marginLeft`, `marginRight`, `marginTop`, `marginBottom`, `safeAreaTop`, `safeAreaRight`, `safeAreaBottom`, and `safeAreaLeft`, all integer logical-pixel values:
 
 ```rpgcode
-on(game, "viewportResized", def(event) {
+on(game, "viewportResized", (event) => {
     hud.reposition(event.detail.marginRight, event.detail.safeAreaBottom);
 });
 ```
