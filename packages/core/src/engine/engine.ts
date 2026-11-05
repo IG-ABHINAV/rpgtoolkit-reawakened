@@ -3532,7 +3532,7 @@ export function createEngine(init: EngineInit): Engine {
 
   function dispatchAuthorSurfaceAction(claim: UiActionClaim): number | null {
     if (claim.action === null) return null;
-    const source = `ui:${claim.surfaceId}/${claim.itemId}`;
+    const source = `ui:${claim.owner}/${claim.surfaceId}/${claim.itemId}`;
     const inputSeq = state.input.nextSeq;
     if (!applySemanticActionEdge(state.input, claim.action, true, source)) {
       reportUnknownAction(claim.action);
