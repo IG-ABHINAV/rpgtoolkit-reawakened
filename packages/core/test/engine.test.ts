@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { TextEncoder } from "node:util";
 import { test } from "node:test";
-import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
+import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, rasterizePresentation, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type RasterSurfaces, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
 import { applyUiEffect } from "../src/script/packs/ui.ts";
 import { resolveManifestPlugins } from "../src/engine/boot.ts";
 import { ensureScriptScreen, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
@@ -161,28 +161,39 @@ test("author surface margin hit-testing uses safe whole cells", () => {
   equal(refused.ui.surfaceActivated, null);
   equal(refused.input.pendingActions.filter((action) => action === "confirm").length, 0);
 });
-test("screen vector primitives crossing Plane 1 enter the margin command layer", () => {
+test("screen vector primitives crossing Plane 1 enter margin commands and render at their physical margin pixels", () => {
   const capture = captureState();
-  const engine = loadedEngine([capture.registration], undefined, undefined, [
+  const geometry = {
+    content: { width: 34, height: 32 },
+    game: { x: 1, y: 0, width: 32, height: 32 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const engine = loadedEngine([capture.registration], undefined, geometry, [
     "drawline(-2, 1, 2, 1)",
     "drawrect(-1, 4, 3, 7)",
     "setpixel(32, 0)",
+    "fillrect(31, 8, 33, 10)",
+    "drawcircle(1, 14, 2)",
+    "fillcircle(1, 20, 2)",
     "threadSleep(getThreadId(), 60)",
   ].join("\n"));
   engine.advance(1, []);
   const state = capture.state();
   if (state === undefined) throw new Error("expected captured game state");
-  deepEqual(state.ui.authorMarginCommands.map((command) => command.kind), ["line", "rect", "line"]);
-  const commands = engine.drawList().marginCommands;
-  deepEqual(commands.map((command) => command.kind), ["line", "rect", "line"]);
-  deepEqual(commands[0], {
-    kind: "line",
-    x1: -2,
-    y1: 1,
-    x2: 2,
-    y2: 1,
-    rgb: { r: 255, g: 255, b: 255 },
-  });
+  deepEqual(state.ui.authorMarginCommands.map((command) => command.kind), ["line", "rect", "line", "rect", "ellipse", "ellipse"]);
+  const drawList = engine.drawList();
+  deepEqual(drawList.marginCommands, state.ui.authorMarginCommands);
+  const surfaces = new Map() as RasterSurfaces;
+  surfaces.get = (surface, revision = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+  const rendered = rasterizePresentation(drawList, geometry, new Map(), surfaces);
+  equal(rendered.error, null);
+  const alphaAt = (x: number, y: number): number => rendered.rgba[(y * rendered.width + x) * 4 + 3]!;
+  equal(alphaAt(0, 1), 255); // drawline, logical x=-1
+  equal(alphaAt(0, 5), 255); // drawrect, logical x=-1
+  equal(alphaAt(33, 0), 255); // setpixel, logical x=32
+  equal(alphaAt(33, 9), 255); // fillrect, logical x=32
+  equal(alphaAt(0, 14), 255); // drawcircle, logical x=-1
+  equal(alphaAt(0, 20), 255); // fillcircle, logical x=-1
 });
 
 test("unknown author actions remain inert with one diagnostic", () => {
