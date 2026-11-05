@@ -61,6 +61,8 @@ async function servePackage(page: Page, fixture: TouchFixture): Promise<void> {
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(fixture.descriptor) }));
 }
 
+
+
 test("touch-capable live player exposes accessible fallback controls without shrinking the game", async ({ browser }) => {
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
@@ -114,6 +116,21 @@ test("an explicit custom touch-control declaration suppresses only the fallback 
     }, undefined, { timeout: 45_000 });
     await expect(page.locator(".fallback-touch-controls")).toHaveCount(1);
     await expect(page.locator(".fallback-touch-controls")).toBeHidden();
+  } finally {
+    await context.close();
+  }
+});
+
+test("querying hasFeature touch does not suppress fallback controls", async ({ browser }) => {
+  const fixture = packageWithStartup("touch-feature-query.tpk", 'if (hasFeature("touch")) {\n}\n');
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+    await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+    const session = page.locator(".fallback-touch-controls");
+    await expect(session).toBeVisible();
   } finally {
     await context.close();
   }
