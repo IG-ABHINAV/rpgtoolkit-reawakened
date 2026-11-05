@@ -19,6 +19,7 @@
  * versions); docs/spec/formats/save-game.md#layout-minor-4 (the saved game).
  */
 
+import { UI_SCHEMA_VERSION } from "./sections/ui.ts";
 import type { AssertPlainData } from "../ports/plain-data.ts";
 import { seedRng, type RngState } from "../rng/xoshiro.ts";
 import { IR_VERSION } from "../script/program.ts";
@@ -72,7 +73,7 @@ export const SCHEMA_VERSIONS = {
   battle: BATTLE_SCHEMA_VERSION,
   menu: MENU_SCHEMA_VERSION,
   input: INPUT_SCHEMA_VERSION,
-  ui: 1,
+  ui: UI_SCHEMA_VERSION,
   camera: 1,
   fx: 1,
   audio: 2,

@@ -3,6 +3,7 @@
 import type { FontRef, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 
+export const UI_SCHEMA_VERSION = 2;
 export type UiTextDraw = {
   readonly x: number;
   readonly y: number;
@@ -72,6 +73,50 @@ export type UiButton = {
   readonly height: number;
 };
 
+export type UiSurfaceRole = "menu" | "list" | "dialog" | "surface";
+
+export type UiSurfaceBounds = {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+};
+
+export type UiActionItem = {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string | null;
+  readonly enabled: boolean;
+  readonly role: "menuitem" | "button" | "listitem" | "text";
+  readonly bounds: UiSurfaceBounds;
+  readonly action?: string;
+};
+
+export type UiActionSurface = {
+  readonly id: string;
+  readonly owner: number;
+  readonly role: UiSurfaceRole;
+  readonly bounds: UiSurfaceBounds;
+  readonly items: UiActionItem[];
+  readonly selection: number;
+};
+
+export type UiSurfaceBuilder = {
+  readonly owner: number;
+  readonly id: string;
+  readonly role: UiSurfaceRole;
+  readonly bounds: UiSurfaceBounds;
+  readonly items: UiActionItem[];
+  readonly invalid: boolean;
+};
+
+export type UiActionClaim = {
+  readonly surfaceId: string;
+  readonly itemId: string;
+  readonly index: number;
+  readonly action: string | null;
+};
+
 export type UiSection = {
   font: FontRef;
   underline: boolean;
@@ -89,6 +134,13 @@ export type UiSection = {
   cursorHand?: UiCursorHand;
   mouseCursor?: UiCursorImage | null;
   buttons?: UiButton[];
+  actionSurfaces: UiActionSurface[];
+  surfaceBuilders: UiSurfaceBuilder[];
+  surfaceSelection: { [surface: string]: number };
+  surfaceActivated: UiActionClaim | null;
+  surfaceCancelled: boolean;
+  surfacePointerClaim: UiActionClaim | null;
+  customTouchControlsDeclared: boolean;
 };
 
 const FALLBACK_FONT: FontRef = {
@@ -120,8 +172,14 @@ export function createUiSection(): UiSection {
     modal: null,
     backgroundSurface: null,
     backgroundRev: 0,
+    actionSurfaces: [],
+    surfaceBuilders: [],
+    surfaceSelection: {},
+    surfaceActivated: null,
+    surfaceCancelled: false,
+    surfacePointerClaim: null,
+    customTouchControlsDeclared: false,
   };
-}
 
 /**
  * The state change of a new outermost program start
@@ -134,5 +192,11 @@ export function resetUiForProgramStart(ui: UiSection): void {
   if (ui.message === undefined) return;
   ui.message = { ...ui.message, visible: false, text: "" };
   ui.draws = [];
+  ui.actionSurfaces = [];
+  ui.surfaceBuilders = [];
+  ui.surfaceSelection = {};
+  ui.surfaceActivated = null;
+  ui.surfaceCancelled = false;
+  ui.surfacePointerClaim = null;
   ui.modal = null;
 }

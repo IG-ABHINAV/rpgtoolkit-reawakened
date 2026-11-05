@@ -173,10 +173,22 @@ export type DrawCommand =
   | PushTargetCommand
   | PopTargetCommand;
 
-/** One frame's replay: `tick`, logical resolution and ordered commands (AD-3). */
-export type DrawList = {
+/** Strict protocol-v1 frame, retained for its immutable schema and vectors. */
+export type DrawListV1 = {
   readonly tick: number;
   readonly width: number;
   readonly height: number;
   readonly commands: DrawCommand[];
 };
+
+/** Strict protocol-v2 frame with a separate author-owned Plane 3 command layer. */
+export type DrawListV2 = {
+  readonly tick: number;
+  readonly width: number;
+  readonly height: number;
+  readonly commands: DrawCommand[];
+  readonly marginCommands: DrawCommand[];
+};
+
+/** Current runner/core draw-list contract: strict v2. */
+export type DrawList = DrawListV2;

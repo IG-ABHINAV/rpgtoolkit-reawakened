@@ -8,9 +8,11 @@
  * mid-tick.
  */
 
+import type { AccessibilityNode } from "./accessibility.ts";
 import type { AudioCue } from "./audio.ts";
 import type { Bytes } from "./bytes.ts";
 import type { DrawList } from "./draw.ts";
+import type { NormalizedHostFeatures } from "./host.ts";
 import type { InputRecord } from "./input.ts";
 import type { AssetKey, SurfaceId } from "./keys.ts";
 import type { RunnerRequest } from "./requests.ts";
@@ -95,6 +97,12 @@ export interface Engine {
   /** A pure function of current state; `alpha` is 0 in tests (AD-1). */
   drawList(alpha?: number, include?: DrawListInclude): DrawList;
 
+  /** Whether the game explicitly declared usable custom touch controls. */
+  customTouchControlsDeclared(): boolean;
+  /** Current normalized host capabilities, including logged changes. */
+  hostFeatures(): NormalizedHostFeatures;
+  /** Plain-data tree for currently published UI surfaces; hosts request it only when needed. */
+  accessibilityTree(): readonly AccessibilityNode[];
   /**
    * The pixels of surface `id` at revision `rev`, or `null` when the surface
    * is unknown or `rev` is no longer available (AD-27).

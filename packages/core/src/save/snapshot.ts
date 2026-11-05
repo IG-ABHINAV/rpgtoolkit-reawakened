@@ -66,6 +66,7 @@ import { asSpritesSection, createSpritesSection, SPRITES_SCHEMA_VERSION } from "
 import { createInputSection } from "../input/input.ts";
 import { createTriggersSection, TRIGGERS_SCHEMA_VERSION } from "../triggers/model.ts";
 import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
+import { createUiSection, UI_SCHEMA_VERSION } from "./sections/ui.ts";
 import { AUDIO_SCHEMA_VERSION, createAudioSection } from "../audio/model.ts";
 import { createEventsSection } from "../events/model.ts";
 import { EVENT_DISPATCH_WAIT } from "../events/emitter.ts";
@@ -366,6 +367,20 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
   record.input = current;
   schema.input = INPUT_SCHEMA_VERSION;
 }
+/** Add deterministic author-surface and explicit custom-touch declaration fields. */
+function migrateUi(record: Record<string, unknown>, schema: Record<string, unknown>): void {
+  const version = schema.ui;
+  if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `ui` version");
+  if (version > UI_SCHEMA_VERSION) shapeError(`the snapshot's ui schema ${version} is newer than supported schema ${UI_SCHEMA_VERSION}`);
+  const old = record.ui;
+  if (typeof old !== "object" || old === null || Array.isArray(old)) {
+    record.ui = createUiSection();
+  } else if (version < UI_SCHEMA_VERSION) {
+    record.ui = { ...createUiSection(), ...(old as Record<string, unknown>) };
+  }
+  schema.ui = UI_SCHEMA_VERSION;
+}
+
 
 /** Migrate the empty audio placeholder (schema 1) to the track-and-voice section (schema 2; docs/spec/engine/audio-media.md#audio-state). */
 function migrateAudio(record: Record<string, unknown>, schema: Record<string, unknown>): void {
@@ -1212,7 +1227,7 @@ export function restoreGameState(
   migrateSprites(record, schema as Record<string, unknown>);
   migrateInput(record, schema as Record<string, unknown>);
   migrateTriggers(record, schema as Record<string, unknown>);
-  migrateAudio(record, schema as Record<string, unknown>);
+  migrateUi(record, schema as Record<string, unknown>);
   migrateEngine(record, schema as Record<string, unknown>);
   applyIrCompatibility(record, options);
   // The loaded state now runs the current instruction version: every position is

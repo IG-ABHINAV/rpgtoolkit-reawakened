@@ -35,7 +35,7 @@ import type { AssetIndex, AssetRoot } from "../formats/resolver/model.ts";
 import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
-import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
+import type { HostDisplayGeometry, HostFeatures, NormalizedHostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
@@ -58,14 +58,14 @@ import type { AssetDecoder } from "../formats/registry/decoder.ts";
 import { BUILTIN_TRACKS, MAX_VOICES } from "../audio/model.ts";
 import type { Logger } from "../ports/logger.ts";
 import { composeBoard, type BoardBlit, type SpriteDraw, type SpriteFrame } from "../render/compose.ts";
-import { composeUi, composeUiCursor, renderNowBlit } from "../render/ui.ts";
+import { composeUi, composeUiCursor, composeUiMargins, renderNowBlit, uiAccessibilityTree } from "../render/ui.ts";
 import { emitText, layoutText, resolveFontAsset } from "../render/text.ts";
 import { applyFxDrawList, advanceFx, applyFxEffect } from "../render/fx.ts";
 import { advanceAnimations, animationBlits, decodeAnimationFrames, loadAnimation, releaseAnimationSurfaces, type DecodedAnimation } from "../render/animation.ts";
 import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
-import type { AnimationState, FxSection } from "../save/sections.ts";
+import type { AnimationState, FxSection, UiActionClaim } from "../save/sections.ts";
 import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
@@ -1482,7 +1482,7 @@ export function createEngine(init: EngineInit): Engine {
     const assets = rasterAssets(canvasTextAssets);
     const fallbackFont = assets.get(defaultFontAsset);
     if (fallbackFont !== undefined && !assets.has(font.asset)) assets.set(font.asset, fallbackFont);
-    const rendered = rasterize({ tick: state.time.tick, width, height, commands }, assets);
+    const rendered = rasterize({ tick: state.time.tick, width, height, commands, marginCommands: [] }, assets);
     if (rendered.error !== null) {
       diagnostics.push({ code: "render.failed", file: "", line: 0, message: `text: ${rendered.error}` });
       return;
@@ -3478,6 +3478,94 @@ export function createEngine(init: EngineInit): Engine {
     return false;
   }
 
+  function authorSurfaceTargetAt(x: number, y: number): UiActionClaim | null {
+    const width = init.width;
+    const height = init.height;
+    const inPlane1 = x >= 0 && y >= 0 && x < width && y < height;
+    if (!inPlane1) {
+      const geometry = state.display.geometry;
+      const scaleX = geometry.game.width / width;
+      const scaleY = geometry.game.height / height;
+      const left = geometry.game.x + x * scaleX;
+      const right = left + scaleX;
+      const top = geometry.game.y + y * scaleY;
+      const bottom = top + scaleY;
+      const safeLeft = geometry.safeArea.left;
+      const safeRight = geometry.content.width - geometry.safeArea.right;
+      const safeTop = geometry.safeArea.top;
+      const safeBottom = geometry.content.height - geometry.safeArea.bottom;
+      if (left < 0 || top < 0 || right > geometry.content.width || bottom > geometry.content.height ||
+          left < safeLeft || right > safeRight || top < safeTop || bottom > safeBottom) return null;
+    }
+    for (const surface of state.ui.actionSurfaces) {
+      for (let index = 0; index < surface.items.length; index += 1) {
+        const item = surface.items[index]!;
+        if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
+            x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h) {
+          return { surfaceId: surface.id, itemId: item.id, index, action: item.action ?? null };
+        }
+      }
+    }
+    return null;
+  }
+
+  function applyRoutedInputEvent(event: InputRecord["event"]): void {
+    if (event.kind === "pointer.cancel") {
+      applyInputEvent(state.input, event);
+      state.ui.surfacePointerClaim = null;
+      return;
+    }
+    if (event.kind !== "pointer") {
+      applyInputEvent(state.input, event);
+      return;
+    }
+    const previousButtons = state.input.pointer.buttons;
+    const wasPrimaryDown = (previousButtons & 1) !== 0;
+    const isPrimaryDown = (event.buttons & 1) !== 0;
+    const downEdge = !wasPrimaryDown && isPrimaryDown;
+    const releaseEdge = wasPrimaryDown && !isPrimaryDown;
+    const pressed = state.ui.surfacePointerClaim;
+    const target = authorSurfaceTargetAt(event.x, event.y);
+    const pendingClicks = state.input.pendingClicks.length;
+    const keys = state.input.keys.length;
+    const pendingActions = state.input.pendingActions.length;
+    const nextSeq = state.input.nextSeq;
+    applyInputEvent(state.input, event);
+
+    if (state.ui.modal !== null) return;
+    if (downEdge && target !== null) {
+      state.ui.surfacePointerClaim = target;
+      state.ui.actionSurfaces = state.ui.actionSurfaces.map((surface) =>
+        surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+      );
+      state.ui.surfaceSelection[target.surfaceId] = target.index;
+      state.input.pendingClicks.length = pendingClicks;
+      state.input.pressedButtonSlot = null;
+      return;
+    }
+    if (releaseEdge && pressed !== null) {
+      state.ui.surfacePointerClaim = null;
+      state.input.pendingClicks.length = pendingClicks;
+      state.input.keys.length = keys;
+      state.input.pendingActions.length = pendingActions;
+      state.input.nextSeq = nextSeq;
+      state.input.pressedButtonSlot = null;
+      if (target?.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) {
+        state.ui.surfaceActivated = pressed;
+      }
+      return;
+    }
+    if (target !== null) {
+      state.ui.actionSurfaces = state.ui.actionSurfaces.map((surface) =>
+        surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+      );
+      state.ui.surfaceSelection[target.surfaceId] = target.index;
+    }
+    if (isPrimaryDown && (event.x < 0 || event.y < 0 || event.x >= init.width || event.y >= init.height)) {
+      state.input.pendingClicks.length = pendingClicks;
+    }
+  }
+
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
@@ -3726,7 +3814,7 @@ export function createEngine(init: EngineInit): Engine {
       if (debug.fps !== undefined) commands.push({ kind: "text", x: 4, y: 4, text: `FPS ${Math.round(debug.fps)}`, font: state.ui.font, rgb: colour, advances: [] });
       return commands;
     };
-    const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"] };
+    const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"], marginCommands: [] as DrawList["marginCommands"] };
     const base = board === null
       ? empty
       : composeBoard({
@@ -3765,7 +3853,11 @@ export function createEngine(init: EngineInit): Engine {
       ? state.ui
       : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
     const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection, messageGraphicKey())] };
-    return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)] };
+    return {
+      ...withUi,
+      commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)],
+      marginCommands: composeUiMargins(uiForCompose, init.width, init.height),
+    };
   }
   /** A blit of one whole persistent surface, sized from its stored bitmap (E-57's script-screen layer). */
   function surfaceBlit(surfaces: GameState["surfaces"], id: SurfaceId | null): DrawCommand | null {
@@ -3959,6 +4051,15 @@ export function createEngine(init: EngineInit): Engine {
     resumeRecovery,
     drawList(alpha = 0, include: DrawListInclude = { shading: false, images: false, sprites: false }) {
       return currentDrawList(alpha, include);
+    },
+    customTouchControlsDeclared(): boolean {
+      return state.ui.customTouchControlsDeclared === true;
+    },
+    accessibilityTree() {
+      return uiAccessibilityTree(state.ui);
+    },
+    hostFeatures(): NormalizedHostFeatures {
+      return { ...state.features };
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
       return readSurfacePixels(state.surfaces, id, rev, surfaceCache);

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tk-reawakened.dev/schema/runner-protocol-v2.schema.json",
+  "title": "TK Reawakened runner boundary protocol v2",
+  "description": "Protocol v2 adds the required Plane 3 marginCommands draw-list array. Protocol-v1 input and request records and the AD-3 draw-command union are reused unchanged.",
+  "oneOf": [
+    { "$ref": "#/$defs/drawList" },
+    { "$ref": "runner-protocol-v1.schema.json#/$defs/inputRecord" },
+    { "$ref": "runner-protocol-v1.schema.json#/$defs/request" }
+  ],
+  "$defs": {
+    "drawList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tick", "width", "height", "commands", "marginCommands"],
+      "properties": {
+        "tick": { "type": "integer", "minimum": 0 },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "commands": {
+          "type": "array",
+          "items": { "$ref": "runner-protocol-v1.schema.json#/$defs/drawCommand" }
+        },
+        "marginCommands": {
+          "type": "array",
+          "items": { "$ref": "runner-protocol-v1.schema.json#/$defs/drawCommand" }
+        }
+      }
+    }
+  }
+}

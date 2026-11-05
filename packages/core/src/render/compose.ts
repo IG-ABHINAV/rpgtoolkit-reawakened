@@ -747,7 +747,7 @@ function composeBoardView(view: BoardView): DrawList {
       iso2d: blit.iso2d ?? false,
     });
   }
-  return { tick: view.tick, width: viewport.width, height: viewport.height, commands };
+  return { tick: view.tick, width: viewport.width, height: viewport.height, commands, marginCommands: [] };
 }
 
 export type BoardComposeView = Omit<BoardView, "board" | "assets"> & {
