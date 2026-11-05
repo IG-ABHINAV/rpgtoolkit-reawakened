@@ -57,7 +57,10 @@ export function attachPointerInput(
     const outside = event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom;
     const primaryNow = (event.buttons & 1) !== 0;
     const newPrimaryDown = event.type === "pointerdown" && event.button === 0 && primaryNow;
-    const chordedPrimaryMove = event.type === "pointermove" && (event.pointerType === "mouse" || event.pointerType === "pen") && primaryNow && (routedButtons & 1) === 0;
+    const chordedPrimaryMove = event.type === "pointermove" &&
+      (event.pointerType === "mouse" || event.pointerType === "pen") &&
+      primaryNow &&
+      (routedButtons & 1) === 0;
     if (primaryPointerId === null && !outside && (newPrimaryDown || chordedPrimaryMove)) {
       primaryPointerId = event.pointerId;
       suppressedPointerId = null;
@@ -82,6 +85,7 @@ export function attachPointerInput(
       }
       return;
     }
+    if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
 
     if (ownsPrimary && event.pointerId === suppressedPointerId && !primaryNow) suppressedPointerId = null;
     const buttons = event.pointerId === suppressedPointerId ? eventButtons & ~1 : eventButtons;
@@ -111,6 +115,12 @@ export function attachPointerInput(
     suppressedPointerId = null;
     routedButtons &= ~1;
   };
+  const onWindowBlur = (): void => {
+    if (primaryPointerId === null || (routedButtons & 1) === 0) return;
+    onCancel();
+    suppressedPointerId = primaryPointerId;
+    routedButtons &= ~1;
+  };
 
   canvas.addEventListener("pointerdown", route);
   canvas.addEventListener("pointermove", route);
@@ -119,6 +129,7 @@ export function attachPointerInput(
   canvas.addEventListener("pointercancel", onPointerCancel);
   window.addEventListener("pointerup", onPointerUpOutside);
   window.addEventListener("pointercancel", onPointerCancel);
+  window.addEventListener("blur", onWindowBlur);
   return (): void => {
     canvas.removeEventListener("pointerdown", route);
     canvas.removeEventListener("pointermove", route);
@@ -127,5 +138,7 @@ export function attachPointerInput(
     canvas.removeEventListener("pointercancel", onPointerCancel);
     window.removeEventListener("pointerup", onPointerUpOutside);
     window.removeEventListener("pointercancel", onPointerCancel);
+    window.removeEventListener("blur", onWindowBlur);
   };
 }
+

@@ -505,6 +505,131 @@ test("web live player cancels a departed primary pointer and suppresses it on re
     canvas.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 71, pointerType: "touch", button: 0, buttons: 0, clientX: x, clientY: y }));
   });
 });
+
+test("foreign pointer motion cannot move the owner’s active primary gesture", async ({ page }) => {
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+  await page.evaluate(() => {
+    const hostWindow = window as Window & {
+      __session?: {
+        advance: (ticks: number, inputs?: readonly { readonly tick: number; readonly event: { readonly kind: string; readonly buttons?: number } }[]) => Promise<void>;
+        capturedPointerInputs?: { readonly kind: string; readonly x?: number; readonly y?: number; readonly buttons?: number }[];
+      };
+    };
+    const session = hostWindow.__session;
+    if (session === undefined) throw new Error("live session is not exposed");
+    const advance = session.advance.bind(session);
+    session.capturedPointerInputs = [];
+    session.advance = (ticks, inputs) => {
+      session.capturedPointerInputs?.push(...(inputs ?? []).flatMap(({ event }) =>
+        event.kind === "pointer" || event.kind === "pointer.cancel" ? [event] : [],
+      ));
+      return advance(ticks, inputs);
+    };
+  });
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    const y = rect.top + rect.height / 2;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true, pointerId: 81, pointerType: "touch", button: 0, buttons: 1,
+      clientX: rect.left + rect.width * 0.25, clientY: y,
+    }));
+    canvas.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true, pointerId: 82, pointerType: "touch", button: -1, buttons: 1,
+      clientX: rect.left + rect.width * 0.75, clientY: y,
+    }));
+  });
+  await page.waitForTimeout(100);
+  const routed = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly x?: number; readonly y?: number; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(routed).toHaveLength(1);
+  expect(routed[0]?.kind).toBe("pointer");
+  expect(routed[0]?.buttons).toBe(1);
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    canvas.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true, pointerId: 81, pointerType: "touch", button: 0, buttons: 0,
+      clientX: rect.left + rect.width * 0.25, clientY: rect.top + rect.height / 2,
+    }));
+  });
+});
+
+test("blur keeps a held primary suppressed until physical release", async ({ page }) => {
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+  await page.evaluate(() => {
+    const hostWindow = window as Window & {
+      __session?: {
+        advance: (ticks: number, inputs?: readonly { readonly tick: number; readonly event: { readonly kind: string; readonly buttons?: number } }[]) => Promise<void>;
+        capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[];
+      };
+    };
+    const session = hostWindow.__session;
+    if (session === undefined) throw new Error("live session is not exposed");
+    const advance = session.advance.bind(session);
+    session.capturedPointerInputs = [];
+    session.advance = (ticks, inputs) => {
+      session.capturedPointerInputs?.push(...(inputs ?? []).flatMap(({ event }) =>
+        event.kind === "pointer" || event.kind === "pointer.cancel" ? [event] : [],
+      ));
+      return advance(ticks, inputs);
+    };
+  });
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    const init = {
+      bubbles: true, pointerId: 90, pointerType: "mouse", button: 0,
+      clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+    };
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { ...init, buttons: 1 }));
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { ...init, buttons: 0 }));
+  });
+  await page.waitForTimeout(100);
+  const beforePhysicalHold = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(beforePhysicalHold.some((event) => event.kind === "pointer.cancel")).toBe(true);
+  const box = await page.locator("#screen").boundingBox();
+  if (box === null) throw new Error("live canvas has no layout box");
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: "left" });
+  await page.waitForTimeout(100);
+  const beforeBlur = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.mouse.move(x + 1, y);
+  await page.waitForTimeout(100);
+  const afterBlurMove = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(afterBlurMove.slice(beforeBlur).some((event) => event.kind === "pointer" && ((event.buttons ?? 0) & 1) !== 0)).toBe(false);
+  await page.mouse.up({ button: "left" });
+  await page.waitForTimeout(100);
+  const beforeFreshClick = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(100);
+  const afterFreshClick = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(afterFreshClick.slice(beforeFreshClick).some((event) => event.kind === "pointer" && ((event.buttons ?? 0) & 1) !== 0)).toBe(true);
+});
 test("the live player sends title music to the Web Audio graph", async ({ page }) => {
   await page.addInitScript(() => {
     const original = AudioNode.prototype.connect;
