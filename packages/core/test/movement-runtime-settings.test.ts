@@ -12,6 +12,7 @@ import {
   createSpriteRuntime,
   inputPhaseRegistration,
   IR_VERSION,
+  enqueueDirectionMove,
   movementPhaseRegistration,
   PACKAGE_ROOT,
   startThread,
@@ -221,6 +222,34 @@ for (const [label, initialMode, walking, expectedDistance] of [
     equal(moved.x, player.x + expectedDistance);
   });
 }
+test("movement phase registration applies runtime pixel walking to glancing diagonal movement (#1298)", () => {
+  const fixture = makeFixture({ pixelMovement: 0 });
+  const state = fixture.state();
+  const board = state.world.board;
+  const player = state.sprites.players[0];
+  ok(board !== undefined && board !== null);
+  ok(player !== undefined);
+  const wall = {
+    handle: "wall",
+    attributes: 0,
+    closed: 1,
+    layer: 1,
+    type: 1,
+    points: [{ x: 66, y: 40 }, { x: 70, y: 40 }, { x: 70, y: 90 }, { x: 66, y: 90 }],
+  };
+  state.world = { ...state.world, board: { ...board, vectors: [wall] }, movement: { walking: 1, pushing: 0 } };
+  state.sprites.players[0] = { ...player, x: 48, y: 63 };
+  enqueueDirectionMove(state.sprites, player.id, "SE", 1);
+
+  movementPhaseRegistration().run(state);
+
+  const moved = state.sprites.players[0];
+  ok(moved !== undefined);
+  equal(moved.x, 48, "the wall blocks the east component");
+  equal(moved.y, 67, "pixel walking slides along the wall's south edge");
+  equal(moved.movement.active, null);
+});
+
 
 for (const [targetKind, pushing, expectedDistance] of [
   ["player", 1, 8], ["player", 0, 32], ["item", 1, 8], ["item", 0, 32],

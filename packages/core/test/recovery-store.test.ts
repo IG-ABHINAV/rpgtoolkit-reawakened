@@ -505,13 +505,14 @@ test("a game id that would escape its path scope is refused", () => {
 test("a v3 ledger checkpoint remains selectable and can be promoted with its v4 hash", () => {
   const store = new MemoryStore();
   const ledger = projectGameLedger(createGameState({ seed: 73 }));
-  const oldHash = hashGameLedgerV3(ledger);
+  // Independently computed from the v3 canonical envelope, before world.movement existed.
+  const oldHash = "596ec4f36ec70a9a";
   const currentHash = hashGameLedger(ledger);
-  const bytes = utf8Encode(JSON.stringify({ tick: 73, ledgerHash: currentHash, oldHash }));
+  const bytes = utf8Encode(JSON.stringify({ tick: 73 }));
   const validateVersions: RecoveryValidate = (candidateBytes) => {
-    const parsed = JSON.parse(utf8Decode(candidateBytes)) as { tick?: unknown; ledgerHash?: unknown; oldHash?: unknown };
-    if (typeof parsed.tick !== "number" || typeof parsed.ledgerHash !== "string" || typeof parsed.oldHash !== "string") throw new Error("candidate shape");
-    return { tick: parsed.tick, ledgerHash: parsed.ledgerHash, compatibleLedgerHashes: [parsed.oldHash] };
+    const parsed = JSON.parse(utf8Decode(candidateBytes)) as { tick?: unknown };
+    if (parsed.tick !== 73) throw new Error("candidate shape");
+    return { tick: parsed.tick, ledgerHash: hashGameLedger(ledger), compatibleLedgerHashes: [hashGameLedgerV3(ledger)] };
   };
 
   store.write(generationFile(1, "candidate.bin"), bytes);

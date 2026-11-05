@@ -2698,6 +2698,35 @@ test("serialization failure returns null and consumes the explicit checkpoint re
   delete globals.unserializable;
   equal(engine.recoveryCandidate(), null);
 });
+test("recovery defaults each missing movement setting from its associated main file after startup mutation", () => {
+  const cases = [
+    { name: "both omitted", saved: { walking: 0, pushing: 0 }, omitted: ["walking", "pushing"], expected: { walking: 1, pushing: 1 } },
+    { name: "walking present", saved: { walking: 0, pushing: 0 }, omitted: ["pushing"], expected: { walking: 0, pushing: 1 } },
+    { name: "pushing present", saved: { walking: 0, pushing: 0 }, omitted: ["walking"], expected: { walking: 1, pushing: 0 } },
+    { name: "both present", saved: { walking: 0, pushing: 0 }, omitted: [], expected: { walking: 0, pushing: 0 } },
+  ] as const;
+  for (const scenario of cases) {
+    const spec: GameSpec = {
+      ...PAUSED_RECOVERY_GAME,
+      pixelMovement: 2,
+      programs: { ...PAUSED_RECOVERY_GAME.programs, "start.prg": "end()\n" },
+    };
+    const { game, candidate } = recoveryCandidateWithDurableState(spec, [], (state) => {
+      state.world = { ...state.world, movement: scenario.saved };
+    });
+    game.files.set(assetKey("Prg/start.prg"), encoder.encode("pixelmovement(0, 0)\nstartupWalking = pixelmovement()\nend()\n"));
+    const serialized = JSON.parse(new TextDecoder().decode(candidate)) as { world: { movement: Record<string, unknown> } };
+    for (const field of scenario.omitted) delete serialized.world.movement[field];
+    const recoveryBytes = encoder.encode(JSON.stringify(serialized));
+    const doubles = makeDoubles();
+    const engine = bootEngine(game, doubles, undefined, undefined, recoveryBytes);
+    deepEqual(run(engine, game.files, 30).diagnostics, [], scenario.name);
+    equal(engine.recoveryStatus(), "paused", scenario.name);
+    equal(doubles.state().vm.globals.startupwalking, 0, "startup changes walking before recovery installs saved state");
+    deepEqual(doubles.state().world.movement, scenario.expected, scenario.name);
+  }
+});
+
 test("recovery boots startup first, stages durable state paused, and resumes entry exactly once", () => {
   const { game, candidate, savedTick } = recoveryCandidateWithDurableState();
   const doubles = makeDoubles();
