@@ -117,18 +117,20 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
-    reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    if (ticks === 0 && geometryNeedsTick) {
+      requestAnimationFrame(draw);
+      return;
+    }
     const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
-    void session.advance(ticks, inputs).then(async () => {
+    void session.advance(ticks, inputs).then(() => {
       if (disposed) return;
-      await reconcileObservedGeometryAfterAdvance(
-        session.displayGeometry(),
-        observedGeometry,
-        session.tick(),
-        (nextTicks, records) => session.advance(nextTicks, records),
-      );
-      if (disposed) return;
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending);
+      if (restoredGeometryNeedsTick) {
+        requestAnimationFrame(draw);
+        return;
+      }
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const result = { tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board: session.boardKey(), player };

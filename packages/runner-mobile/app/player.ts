@@ -270,25 +270,25 @@ function run(
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
-    reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    if (ticks === 0 && geometryNeedsTick) {
+      frameId = window.requestAnimationFrame(draw);
+      return;
+    }
     const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
-      await reconcileObservedGeometryAfterAdvance(
-        session.displayGeometry(),
-        observedGeometry,
-        session.tick(),
-        (nextTicks, records) => session.advance(nextTicks, records),
-      );
-      if (disposed || !isCurrent()) return;
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending);
+      if (restoredGeometryNeedsTick) {
+        frameId = window.requestAnimationFrame(draw);
+        return;
+      }
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const board = session.boardKey();
       if (!moved && startPlayer !== null && player !== null && (player.x !== startPlayer.x || player.y !== startPlayer.y)) moved = true;
       if (startPlayer === null) startPlayer = player;
-
-      // Prove the save path works on this host.
       const written = await host.writeBlob("saves", gameId, savePath, saveBytes());
       if (disposed || !isCurrent()) return;
       const saveLabel = `${saveBlobPresent ? "host blob present; " : ""}${written ? "written" : "write failed"}`;

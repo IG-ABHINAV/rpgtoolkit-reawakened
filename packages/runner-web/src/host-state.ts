@@ -74,26 +74,22 @@ export function reapplyObservedGeometryBeforePointer(
   engineGeometry: HostDisplayGeometry,
   observed: ObservedHostGeometry,
   pending: PendingInput[],
-): void {
+): boolean {
   const geometry = observed.current();
-  if (sameGeometry(engineGeometry, geometry)) return;
-  if (pending.some((input) => input.event.kind === "host.display" && sameGeometry(input.event.geometry, geometry))) return;
-  pending.push({ tick: null, event: { kind: "host.display", geometry } });
+  if (sameGeometry(engineGeometry, geometry)) return false;
+  if (!pending.some((input) => input.event.kind === "host.display" && sameGeometry(input.event.geometry, geometry))) {
+    pending.push({ tick: null, event: { kind: "host.display", geometry } });
+  }
+  return true;
 }
-/** Restore can replace logged host geometry during an advance; consume its live replacement on the next input tick before drawing. */
-export async function reconcileObservedGeometryAfterAdvance(
+
+/** A restore may roll geometry back; queue the fresh observation for the next budgeted input tick. */
+export function reconcileObservedGeometryAfterAdvance(
   engineGeometry: HostDisplayGeometry,
   observed: ObservedHostGeometry,
-  tick: number,
-  advance: (ticks: number, inputs: readonly InputRecord[]) => Promise<void>,
-): Promise<void> {
-  const pending: PendingInput[] = [];
-  reapplyObservedGeometryBeforePointer(engineGeometry, observed, pending);
-  const inputs = stampPendingInputs(pending, tick);
-  if (inputs.length > 0) {
-    // A zero-tick advance only admits this record; it is applied at the input phase of the next tick.
-    await advance(1, inputs);
-  }
+  pending: PendingInput[],
+): boolean {
+  return reapplyObservedGeometryBeforePointer(engineGeometry, observed, pending);
 }
 
 

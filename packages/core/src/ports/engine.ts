@@ -117,7 +117,12 @@ export interface Engine {
   accessibilityTree(): readonly AccessibilityNode[];
   /**
    * The pixels of surface `id` at revision `rev`, or `null` when the surface
-   * is unknown or `rev` is no longer available (AD-27).
+   * is unknown or `rev` is no longer available (AD-27). A presentation-only
+   * author-margin snapshot is available after the draw list that names it has
+   * been built. It does not enter saved state; a later, different snapshot
+   * replaces it, and lookups for stale revisions miss rather than aliasing new
+   * pixels. Runners that render asynchronously capture snapshot pixels before
+   * requesting a later draw list.
    */
   surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null;
   /**

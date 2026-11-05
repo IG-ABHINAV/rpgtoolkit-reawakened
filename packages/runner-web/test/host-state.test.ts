@@ -106,7 +106,7 @@ test("pointer geometry keeps the newest queued host display through an advance b
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
-test("post-restore geometry is consumed before the first rendered frame without pointer input", async () => {
+test("post-restore geometry applies without an unbudgeted tick and preserves queued key input", () => {
   const initial = {
     content: { width: 4, height: 2 },
     game: { x: 1, y: 0, width: 2, height: 2 },
@@ -118,7 +118,7 @@ test("post-restore geometry is consumed before the first rendered frame without 
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
   const savedState = createGameState({ seed: 7, width: 2, height: 2, displayGeometry: initial });
-  // Host display observations are consumed pre-tick while unfocused, matching the no-input restore case.
+  // The restored game is temporarily unfocused, so geometry applies pre-tick.
   savedState.input.focused = false;
   const saved = new TextEncoder().encode(snapshotGameSave(savedState));
   const board = writeBoard(createEmptyBoard());
@@ -165,23 +165,29 @@ test("post-restore geometry is consumed before the first rendered frame without 
     tick: loadReport.tickAfter,
     event: { kind: "blob.loaded", reqId: loadRequest.reqId, bytes: saved },
   }]);
+  let readyReport = restored;
+  for (let step = 0; step < 8; step += 1) {
+    const assetReplies = readyReport.requests.flatMap((request) => request.kind === "asset"
+      ? [{ tick: readyReport.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: files.get(request.key) ?? null } }]
+      : []);
+    if (assetReplies.length === 0) break;
+    readyReport = engine.advance(0, assetReplies);
+  }
   deepEqual(engine.hostDisplayGeometry(), initial, "Load restores the older saved display geometry");
 
   const observed = createObservedHostGeometry(resized);
-  const postRestoreTick = engine.advance(0, []).tickAfter;
-  await reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, postRestoreTick, async (ticks, inputs) => {
-    let report = engine.advance(ticks, inputs);
-    const consumed = report.consumed.map(({ event }) => event.kind);
-    for (let step = 0; step < 8 && !consumed.includes("host.display"); step += 1) {
-      const replies = report.requests.flatMap((request) => request.kind === "asset"
-        ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: files.get(request.key) ?? null } }]
-        : []);
-      if (replies.length === 0) break;
-      report = engine.advance(0, replies);
-      consumed.push(...report.consumed.map(({ event }) => event.kind));
-    }
-    deepEqual(consumed, ["host.display"], "post-restore geometry is consumed before drawing");
-  });
+  const pending: PendingInput[] = [{
+    tick: null,
+    event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true },
+  }];
+  const queued = reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, pending);
+  equal(queued, true, "restored geometry remains queued until a budgeted tick");
+  deepEqual(pending.map(({ event }) => event.kind), ["key", "host.display"], "resize follows the already queued key without discarding it");
+  deepEqual(engine.hostDisplayGeometry(), initial, "reconciliation does not mutate or advance simulation state");
+  const resumed = engine.advance(0, stampPendingInputs(pending, readyReport.tickAfter));
+  equal(resumed.ticksRun, 0, "geometry reconciliation never spends an unbudgeted simulation tick");
+  equal(resumed.tickAfter, readyReport.tickAfter, "the tick counter stays unchanged");
+  deepEqual(resumed.consumed.map(({ event }) => event.kind), ["host.display"], "unfocused pre-tick consumes geometry but leaves the key for a later tick");
   const geometryForFirstDraw = engine.hostDisplayGeometry();
   deepEqual(geometryForFirstDraw, resized);
   const firstFrame = rasterizePresentation(engine.drawList(), geometryForFirstDraw, new Map());

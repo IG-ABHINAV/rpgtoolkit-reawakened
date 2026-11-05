@@ -126,6 +126,7 @@ import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
 import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
+import { rasterizeAuthorMargin } from "../raster/raster.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
 
@@ -755,6 +756,7 @@ export function createEngine(init: EngineInit): Engine {
   state.surfaces = createSurfacesSection(init.width, init.height);
   state.camera = createCameraSection(init.width, init.height);
   const surfaceCache: SurfacePixelCache = new Map();
+  let generatedMarginPixels: { readonly id: SurfaceId; readonly rev: number; readonly pixels: SurfacePixels } | null = null;
   let frameHash: string | null = null;
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
   let frameFailure: { readonly hash: string; readonly message: string } | null = null;
@@ -3966,6 +3968,66 @@ export function createEngine(init: EngineInit): Engine {
     state.ui.modal = null;
   }
 
+  function lowerAuthorMarginCommands(commands: readonly DrawCommand[]): DrawCommand[] {
+    generatedMarginPixels = null;
+    if (commands.length === 0) return [];
+    const geometry = state.display.geometry;
+    const { content, game, safeArea } = geometry;
+    const scaleX = game.width / init.width;
+    const scaleY = game.height / init.height;
+    const emptySafeArea = content.width - safeArea.left - safeArea.right <= 0 ||
+      content.height - safeArea.top - safeArea.bottom <= 0;
+    const left = emptySafeArea ? 0 : Math.floor(Math.max(0, game.x - safeArea.left) / scaleX);
+    const right = emptySafeArea ? 0 : Math.floor(Math.max(0, content.width - safeArea.right - game.x - game.width) / scaleX);
+    const top = emptySafeArea ? 0 : Math.floor(Math.max(0, game.y - safeArea.top) / scaleY);
+    const bottom = emptySafeArea ? 0 : Math.floor(Math.max(0, content.height - safeArea.bottom - game.y - game.height) / scaleY);
+    if (left + right + top + bottom === 0) return [...commands];
+    const width = init.width + left + right;
+    const height = init.height + top + bottom;
+    const offset = { x: left, y: top };
+    const shifted = commands.map((command): DrawCommand => {
+      switch (command.kind) {
+        case "blit":
+          return { ...command, dst: { ...command.dst, x: command.dst.x + offset.x, y: command.dst.y + offset.y } };
+        case "line":
+          return { ...command, x1: command.x1 + offset.x, y1: command.y1 + offset.y, x2: command.x2 + offset.x, y2: command.y2 + offset.y };
+        case "rect":
+        case "ellipse":
+          return { ...command, rect: { ...command.rect, x: command.rect.x + offset.x, y: command.rect.y + offset.y } };
+        case "text":
+          return { ...command, x: command.x + offset.x, y: command.y + offset.y };
+        case "fill":
+        case "pushTarget":
+        case "popTarget":
+          return command;
+        default: {
+          const exhaustive: never = command;
+          return exhaustive;
+        }
+      }
+    });
+    const rendered = rasterizeAuthorMargin(
+      { tick: state.time.tick, width, height, commands: shifted, marginCommands: [] },
+      rasterAssets(),
+      surfaceTextures(state.surfaces, surfaceCache),
+    );
+    if (rendered.error !== null) return [...commands];
+    const id = state.surfaces.nextId as SurfaceId;
+    const rev = Number.parseInt(fnv1a64(`${width}x${height}:${fnv1a64(rendered.rgba)}`).slice(0, 13), 16) || 1;
+    generatedMarginPixels = { id, rev, pixels: { w: width, h: height, rgba: rendered.rgba } };
+    return [{
+      kind: "blit",
+      source: { surface: id, rev },
+      src: { x: 0, y: 0, w: width, h: height },
+      dst: { x: -left, y: -top, w: width, h: height },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: 255,
+      blend: "normal",
+      iso2d: false,
+    }];
+  }
+
   function currentDrawList(alpha = 0, include = init.include ?? { shading: false, images: false, sprites: false }): DrawList {
     const spriteInput = [...spriteDraws(state.sprites, spriteFrameFor), ...(presentation.sprites ?? [])];
     const board: WorldBoard | null = state.world.board ?? null;
@@ -4041,7 +4103,10 @@ export function createEngine(init: EngineInit): Engine {
     return {
       ...withUi,
       commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)],
-      marginCommands: composeUiMargins(uiForCompose, init.width, init.height),
+      marginCommands: [
+        ...lowerAuthorMarginCommands(uiForCompose.authorMarginCommands ?? []),
+        ...composeUiMargins(uiForCompose, init.width, init.height).slice(uiForCompose.authorMarginCommands?.length ?? 0),
+      ],
     };
   }
   /** A blit of one whole persistent surface, sized from its stored bitmap (E-57's script-screen layer). */
@@ -4292,6 +4357,10 @@ export function createEngine(init: EngineInit): Engine {
       };
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
+      if (generatedMarginPixels?.id === id && generatedMarginPixels.id === state.surfaces.nextId && generatedMarginPixels.rev === rev) {
+        const { w, h, rgba } = generatedMarginPixels.pixels;
+        return { w, h, rgba: new Uint8Array(rgba) };
+      }
       return readSurfacePixels(state.surfaces, id, rev, surfaceCache);
     },
     picturePixels(key: AssetKey): SurfacePixels | null {

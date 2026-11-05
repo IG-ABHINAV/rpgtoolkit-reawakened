@@ -17,8 +17,6 @@ import type { AssetKey, ScratchId, SurfaceId } from "../ports/keys.ts";
 
 export type RasterAsset = DecodedTexture | LegacyFont | TrueTypeFont | Uint8Array;
 export type RasterAssets = ReadonlyMap<AssetKey, RasterAsset>;
-/** Pixel compositing behavior selected by the target that owns a replay. */
-export type RasterBlendTarget = "ad3" | "screen";
 
 export type RasterSurfaces = ReadonlyMap<SurfaceId, DecodedTexture> & {
   get(surface: SurfaceId, revision?: number): DecodedTexture | undefined;
@@ -104,12 +102,14 @@ function sourceOffset(command: BlitCommand): number {
   return (command.source.tile - 1) * (command.source.asset.endsWith(".iso") ? 64 : 32);
 }
 
+type BlendTarget = "ad3" | "screen";
+
 function blend(
   target: TargetEntry,
   at: number,
   source: [number, number, number, number],
   command: BlitCommand,
-  blendTarget: RasterBlendTarget,
+  blendTarget: BlendTarget,
 ): void {
   const [sr, sg, sb, sa] = source;
   const tint = command.tint;
@@ -168,7 +168,7 @@ function drawBlit(
   command: BlitCommand,
   assets: RasterAssets,
   surfaces: RasterSurfaces,
-  blendTarget: RasterBlendTarget,
+  blendTarget: BlendTarget,
 ): string | null {
   const texture = sourceTexture(command, assets, surfaces);
   if (!texture) return "missing decoded texture or surface";
@@ -243,11 +243,11 @@ function result(root: TargetEntry, error: string | null): RasterResult {
 }
 
 /** Replay the AD-3 draw list into a fresh straight-RGBA target (AD-4). */
-export function rasterize(
+function rasterizeWithBlendTarget(
   list: DrawList,
   assets: RasterAssets,
-  surfaces: RasterSurfaces = new Map(),
-  blendTarget: RasterBlendTarget = "ad3",
+  surfaces: RasterSurfaces,
+  blendTarget: BlendTarget,
 ): RasterResult {
   if (!Number.isInteger(list.width) || !Number.isInteger(list.height) || list.width <= 0 || list.height <= 0) {
     return { width: list.width, height: list.height, rgba: new Uint8Array(), error: "invalid draw-list dimensions" };
@@ -311,4 +311,17 @@ export function rasterize(
   }
   if (targets.length !== 1) return result(root, "unclosed pushTarget");
   return result(root, null);
+}
+
+/** Replay strict AD-3 commands (both planes use the same blend arithmetic). */
+export function rasterize(list: DrawList, assets: RasterAssets, surfaces: RasterSurfaces = new Map()): RasterResult {
+  return rasterizeWithBlendTarget(list, assets, surfaces, "ad3");
+}
+
+/**
+ * Replay authored screen operations while lowering them to a captured pixel texture for an AD-3 blit.
+ * This is not a draw-list replay path: callers must replace its output with a normal AD-3 source blit.
+ */
+export function rasterizeAuthorMargin(list: DrawList, assets: RasterAssets, surfaces: RasterSurfaces): RasterResult {
+  return rasterizeWithBlendTarget(list, assets, surfaces, "screen");
 }

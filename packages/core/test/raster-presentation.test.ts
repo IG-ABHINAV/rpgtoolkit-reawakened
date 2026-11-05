@@ -40,20 +40,20 @@ test("presentation raster samples Plane 1 and safe Plane 3 at per-axis pixel cen
     0, 0, 0, 0,
   ]);
 });
-test("margin blits use screen compositing without changing ordinary AD-3 replay", () => {
+test("Plane 3 blits retain standard AD-3 blend semantics", () => {
   const background = { r: 17, g: 101, b: 203 };
   const cases = [
-    { blend: "normal" as const, alpha: 255, rgba: [255, 0, 0, 128], expected: [136, 50, 101, 255] },
-    { blend: "translucent" as const, alpha: 128, rgba: [255, 0, 0, 128], expected: [76, 75, 152, 255] },
-    { blend: "additive" as const, alpha: 127, rgba: [2, 0, 0, 255], expected: [17, 101, 203, 255] },
-    { blend: "additive" as const, alpha: 127, rgba: [255, 0, 0, 0], expected: [144, 101, 203, 255] },
+    { blend: "normal" as const, alpha: 255, rgba: [255, 0, 0, 128], expected: [136, 50, 101, 255], marginExpected: [255, 0, 0, 128] },
+    { blend: "translucent" as const, alpha: 128, rgba: [255, 0, 0, 128], expected: [76, 75, 152, 255], marginExpected: [136, 50, 101, 255] },
+    { blend: "additive" as const, alpha: 127, rgba: [2, 0, 0, 255], expected: [17, 101, 203, 255], marginExpected: [18, 101, 203, 255] },
+    { blend: "additive" as const, alpha: 127, rgba: [255, 0, 0, 0], expected: [144, 101, 203, 255], marginExpected: [17, 101, 203, 255] },
   ];
   const geometry: HostDisplayGeometry = {
     content: { width: 3, height: 1 },
     game: { x: 1, y: 0, width: 1, height: 1 },
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
-  for (const { blend, alpha, rgba, expected } of cases) {
+  for (const { blend, alpha, rgba, expected, marginExpected } of cases) {
     const texture: DecodedTexture = { w: 1, h: 1, rgba: new Uint8Array(rgba) };
     const asset = assetKey("bitmaps/partial.png");
     const surfaceState = createSurfacesSection();
@@ -92,7 +92,7 @@ test("margin blits use screen compositing without changing ordinary AD-3 replay"
       ],
     }, geometry, new Map([[asset, texture]]), new Map([[screen, reference]]));
     equal(result.error, null);
-    deepEqual([...result.rgba.slice(0, 4)], expected, `${blend} Plane 3 pixel matches screen compositing`);
+    deepEqual([...result.rgba.slice(0, 4)], marginExpected, `${blend} Plane 3 pixel follows AD-3 blend semantics`);
     deepEqual([...result.rgba.slice(4, 8)], expected, "Plane 1 remains a normal AD-3 blit of the screen's composed pixels");
   }
 });

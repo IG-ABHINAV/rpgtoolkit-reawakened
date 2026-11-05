@@ -233,8 +233,12 @@ test("screen vector primitives crossing Plane 1 enter margin commands and render
   const state = capture.state();
   if (state === undefined) throw new Error("expected captured game state");
   deepEqual(state.ui.authorMarginCommands.map((command) => command.kind), ["line", "rect", "line", "rect", "line", "rect"]);
+  const stateHashBeforeDraw = hashGameState(state);
   const drawList = engine.drawList();
-  deepEqual(drawList.marginCommands, state.ui.authorMarginCommands);
+  equal(drawList.marginCommands.length, 1, "the authored vector run lowers to one bounded AD-3 pixel blit");
+  if (drawList.marginCommands[0]?.kind !== "blit") throw new Error("expected lowered margin snapshot");
+  deepEqual(engine.drawList(), drawList, "repeating a draw-list build produces the same synthetic source identity and pixels");
+  equal(hashGameState(state), stateHashBeforeDraw, "render-only lowering does not mutate hashed simulation state");
   const surfaces = new Map() as RasterSurfaces;
   surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
   const rendered = rasterizePresentation(drawList, geometry, new Map(), surfaces);
@@ -249,6 +253,17 @@ test("screen vector primitives crossing Plane 1 enter margin commands and render
   equal(alphaAt(1, 13), 255, "the screen circle's same row is unchanged");
   equal(alphaAt(0, 19), 0, "radius-2 fill does not create a margin seam");
   equal(alphaAt(0, 20), 255); // fillcircle, logical x=-1
+  const source = drawList.marginCommands[0];
+  if (source?.kind !== "blit" || !("surface" in source.source)) throw new Error("expected generated surface reference");
+  const resizedGeometry = { ...geometry, content: { width: 35, height: 32 } };
+  engine.advance(1, [{ tick: 1, event: { kind: "host.display", geometry: resizedGeometry } }]);
+  const resizedList = engine.drawList();
+  const resizedSource = resizedList.marginCommands[0];
+  if (resizedSource?.kind !== "blit" || !("surface" in resizedSource.source)) throw new Error("expected resized generated surface reference");
+  equal(resizedSource.source.surface, source.source.surface);
+  equal(resizedSource.source.rev === source.source.rev, false, "different generated pixels receive a different revision");
+  equal(engine.surfacePixels(source.source.surface, source.source.rev), null, "an asynchronous lookup of the stale list fails closed, never resolves to newer pixels");
+  if (engine.surfacePixels(resizedSource.source.surface, resizedSource.source.rev) === null) throw new Error("expected current generated pixels");
 });
 
 test("screen-target canvas blits retain source pixels for Plane 3 rendering and respect safe-area clipping", () => {
@@ -270,11 +285,9 @@ test("screen-target canvas blits retain source pixels for Plane 3 rendering and 
   ].join("\n"));
   engine.advance(1, []);
   const drawList = engine.drawList();
-  equal(drawList.marginCommands.length, 3);
-  deepEqual(drawList.marginCommands.map((command) => command.kind), ["blit", "blit", "blit"]);
-  if (drawList.marginCommands[1]?.kind !== "blit" || drawList.marginCommands[2]?.kind !== "blit") throw new Error("expected blit commands");
-  deepEqual(drawList.marginCommands[1].key, { r: 255, g: 255, b: 255 });
-  deepEqual(drawList.marginCommands[2].src, { x: 1, y: 0, w: 1, h: 1 });
+  equal(drawList.marginCommands.length, 1);
+  const lowered = drawList.marginCommands[0];
+  if (lowered?.kind !== "blit" || !("surface" in lowered.source)) throw new Error("expected a lowered surface snapshot blit");
   const surfaces = new Map() as RasterSurfaces;
   surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
   const raster = rasterizePresentation(drawList, geometry, new Map(), surfaces);
@@ -1361,7 +1374,7 @@ test("screen-target image blits render crossing/exterior pixels and obey safe-ar
     game: { x: 1, y: 0, width: 2, height: 2 },
     safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
   };
-  const render = (x: number, safeLeft = 0, effect = "setimage") => {
+  const render = (x: number, safeLeft = 0, effect = "setimage", extraArgs = "", prefix = "") => {
     const board = authoredBoard();
     const engine = createEngine({
       seed: 19,
@@ -1372,7 +1385,7 @@ test("screen-target image blits render crossing/exterior pixels and obey safe-ar
       height: 2,
       maxTicks: 20,
       displayGeometry: { ...geometry, safeArea: { ...geometry.safeArea, left: safeLeft } },
-      program: `${effect}("pixel.bmp", ${x}, 0, 2, 1)\nthreadSleep(getThreadId(), 60)\n`,
+      program: `${prefix}${effect}("pixel.bmp", ${x}, 0, 2, 1${extraArgs})\nthreadSleep(getThreadId(), 60)\n`,
     });
     let result = engine.advance(0, []);
     let imageProvided = false;
@@ -1418,11 +1431,15 @@ test("screen-target image blits render crossing/exterior pixels and obey safe-ar
   const clipped = render(-1, 1);
   equal(clipped.raster.rgba[3], 0, "safe-area clipping suppresses the crossing image's margin pixel");
   deepEqual([...clipped.raster.rgba.slice(4, 8)], [0, 255, 0, 255]);
-  const translucent = render(-1, 0, "setimagetranslucent");
-  const translucentCommand = translucent.engine.drawList().marginCommands[0];
-  if (translucentCommand?.kind !== "blit") throw new Error("expected translucent image margin blit");
-  equal(translucentCommand.blend, "translucent");
-  deepEqual([...translucent.raster.rgba.slice(0, 4)], [128, 0, 0, 255]);
+  const translucent = render(-1, 0, "setimagetranslucent", "", "fillrect(-1, 0, 0, 1)\n");
+  const loweredTranslucent = translucent.engine.drawList().marginCommands[0];
+  if (loweredTranslucent?.kind !== "blit" || !("surface" in loweredTranslucent.source)) throw new Error("expected lowered translucent margin snapshot");
+  equal(loweredTranslucent.blend, "normal", "the exported Plane 3 command is ordinary AD-3");
+  deepEqual([...translucent.raster.rgba.slice(0, 4)], [255, 127, 127, 255]);
+  deepEqual([...translucent.raster.rgba.slice(4, 8)], [127, 255, 127, 255], "the in-game pixel retains its independent screen composition");
+  const additive = render(-1, 0, "setimageadditive", ", 50");
+  deepEqual([...additive.raster.rgba.slice(0, 4)], [127, 0, 0, 255]);
+  deepEqual([...additive.raster.rgba.slice(4, 8)], [0, 127, 0, 255], "additive author output is captured before the standard AD-3 blit");
 });
 
 test("board preview image pixels are applied after the image reply", () => {

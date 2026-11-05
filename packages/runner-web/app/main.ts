@@ -428,50 +428,47 @@ function startLiveLoop(
       accumulator += elapsed;
       const wholeTicks = Math.floor(accumulator / stepMs);
       accumulator -= wholeTicks * stepMs;
-      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
-      const inputs = stampPendingInputs(pending, session.tick());
-      pending = [];
-      advancing = true;
-      session.advance(wholeTicks, inputs).then(async () => {
-        if (disposed) return;
-        await reconcileObservedGeometryAfterAdvance(
-          session.displayGeometry(),
-          displayGeometry,
-          session.tick(),
-          (ticks, records) => session.advance(ticks, records),
-        );
-        advancing = false;
-        if (disposed) return;
-        const drawn = session.draw(accumulator / stepMs);
-        const player = session.playerPosition();
-        const state = loadState();
-        const live: LiveReport = {
-          tick: session.tick(),
-          stateHash: session.stateHash(),
-          drawHash: drawn.drawHash,
-          board: session.boardKey(),
-          player,
-          load: { mode: state.mode, storage: state.storage },
-          stalls: summary(overlay?.update() ?? false),
-          diagnostics: session.diagnostics(),
-        };
-        window.__live = live;
-        window.__report = live;
-        report.textContent = [
-          `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
-          `state ${live.stateHash}`,
-          `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
-          player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
-          `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
-          "Move: arrows or WASD; click the board to walk.",
-        ].join("\n");
-      }).catch((error: unknown) => {
-        advancing = false;
-        if (disposed) return;
-        window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };
-        report.textContent = `player: ${String(error)}`;
-        dispose();
-      });
+      const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      if (wholeTicks !== 0 || !geometryNeedsTick) {
+        const inputs = stampPendingInputs(pending, session.tick());
+        pending = [];
+        advancing = true;
+        session.advance(wholeTicks, inputs).then(() => {
+          if (disposed) return;
+          const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), displayGeometry, pending);
+          advancing = false;
+          if (disposed || restoredGeometryNeedsTick) return;
+          const drawn = session.draw(accumulator / stepMs);
+          const player = session.playerPosition();
+          const state = loadState();
+          const live: LiveReport = {
+            tick: session.tick(),
+            stateHash: session.stateHash(),
+            drawHash: drawn.drawHash,
+            board: session.boardKey(),
+            player,
+            load: { mode: state.mode, storage: state.storage },
+            stalls: summary(overlay?.update() ?? false),
+            diagnostics: session.diagnostics(),
+          };
+          window.__live = live;
+          window.__report = live;
+          report.textContent = [
+            `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
+            `state ${live.stateHash}`,
+            `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
+            player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
+            `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
+            "Move: arrows or WASD; click the board to walk.",
+          ].join("\n");
+        }).catch((error: unknown) => {
+          advancing = false;
+          if (disposed) return;
+          window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };
+          report.textContent = `player: ${String(error)}`;
+          dispose();
+        });
+      }
     } else if (window.__live !== undefined) {
       window.__live = { ...window.__live, stalls: summary(spinner) };
     }
