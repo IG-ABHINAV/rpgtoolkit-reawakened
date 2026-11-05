@@ -247,6 +247,7 @@ test("the core loss adapter uses the message and reset fallback without a game-o
 test("a game-over program that starts another battle after a loss takes an unused identifier", () => {
   const state = idleState();
   state.world = {
+    ...state.world,
     board: {
       key: assetKey("boards/test.brd"), coordType: 0, sizeX: 1, sizeY: 1, sizeL: 1, width: 1, height: 1,
       background: { r: 0, g: 0, b: 0 }, ambient: { r: 0, g: 0, b: 0 }, layers: [],

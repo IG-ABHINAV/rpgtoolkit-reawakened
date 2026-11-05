@@ -40,7 +40,8 @@ test("hydrateBoard builds plain world data and compacts empty item slots", () =>
   equal(result.value.board.items?.length, 1);
   equal(result.value.board.items?.[0]?.slot, 1);
   equal(result.value.board.rawItems?.length, 2);
-  const restored = restoreGameState(snapshot({ ...createGameState({ seed: 7 }), world: { board: result.value.board } })).world.board;
+  const state = createGameState({ seed: 7 });
+  const restored = restoreGameState(snapshot({ ...state, world: { ...state.world, board: result.value.board } })).world.board;
   if (restored === null || restored === undefined) throw new Error("expected restored board");
   deepEqual(restored, result.value.board);
   equal(canon(result.value.board as never), canon(restored as never));

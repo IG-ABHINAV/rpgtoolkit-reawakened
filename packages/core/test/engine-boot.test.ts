@@ -432,6 +432,7 @@ function pushFixture(program: string, pixelMovement: number) {
   return { game, engine, runtime, state: currentState, pressA };
 }
 
+
 for (const flags of [0, 4]) {
   test(`RPGCode push moves its explicitly named player and waits for that player (${flags}) (#1295)`, () => {
     const fixture = pushFixture(`push("E", "ally", ${flags})\ncontinued = 1\nend()`, 2);
@@ -539,6 +540,7 @@ test("a pause push waits for all earlier queued directions and its own step (#12
   equal(fixture.state().sprites.players[0]?.x, hero.x + 128);
   equal(fixture.state().vm.globals.continued, 1, "the script resumes only when the full queue is idle");
 });
+
 for (const [pixelMovement, distance] of [[0, 32], [1, 32], [2, 8]] as const) {
   for (const flags of [0, 4] as const) {
     for (const targetKind of ["player", "item"] as const) {
