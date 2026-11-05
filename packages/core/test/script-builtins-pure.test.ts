@@ -14,6 +14,7 @@ import {
   type GameState,
   type ScriptError,
 } from "../src/index.ts";
+import { actorFromSource } from "../src/sprites/model.ts";
 import { advanceOrFail } from "./script-failures.ts";
 import { createScriptServices } from "./script-test-services.ts";
 
@@ -633,7 +634,7 @@ test("E-92 virtual variables read engine state sections", () => {
   const overlay = createSurface(state.surfaces, 1, 1);
   state.surfaces.renderNow = overlay;
   const hero = addActor(state.actors, { kind: "party", source: "hero.tem", name: "Hero" });
-  state.sprites.players = [{ actorId: hero.id, x: 12, y: 34, layer: 2 } as never];
+  state.sprites.players = [actorFromSource({ id: "hero", actorId: hero.id, kind: "player", source: "hero.tem", x: 12, y: 34, layer: 2 }, null, 0, null)];
   state.party.members = [hero.id];
   state.party.selected = hero.id;
 
