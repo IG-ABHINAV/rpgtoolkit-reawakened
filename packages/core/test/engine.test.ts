@@ -53,6 +53,7 @@ test("engine queues non-asset inputs while loading and respects consuming ticks"
 function loadedEngine(
   registrations: Parameters<typeof createEngine>[0]["phaseRegistrations"] = [],
   input?: Parameters<typeof createEngine>[0]["input"],
+  displayGeometry?: Parameters<typeof createEngine>[0]["displayGeometry"],
 ) {
   const board = createEmptyBoard();
   const encoded = writeBoard(board);
@@ -67,6 +68,7 @@ function loadedEngine(
     maxTicks: 60,
     phaseRegistrations: registrations,
     ...(input === undefined ? {} : { input }),
+    ...(displayGeometry === undefined ? {} : { displayGeometry }),
   });
   const first = engine.advance(0, []);
   const request = first.requests[0];
@@ -120,6 +122,44 @@ test("ordinary pointer down and up activates an enabled button slot once", () =>
   equal(state.input.keys.filter((key) => key.action === "slot:primary").length, 1);
   equal(state.input.pendingActions.filter((action) => action === "confirm").length, 1);
 });
+test("author surface margin hit-testing uses safe whole cells", () => {
+  const capture = captureState();
+  const surface: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "touch", "surface", -4, 0, 4, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Go", "go", null, 1, null, null, "confirm", 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const geometry = {
+    content: { width: 64, height: 32 },
+    game: { x: 16, y: 0, width: 32, height: 32 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const engine = loadedEngine([capture.registration, surface], undefined, geometry);
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: -2, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: -2, y: 5, buttons: 0 } }]);
+  const activated = capture.state();
+  if (activated === undefined) throw new Error("expected captured game state");
+  equal(activated.ui.surfaceActivated?.index, 0);
+  equal(activated.input.pendingActions.filter((action) => action === "confirm").length, 1);
+
+  const clippedCapture = captureState();
+  const clipped = loadedEngine([clippedCapture.registration, surface], undefined, {
+    ...geometry,
+    safeArea: { ...geometry.safeArea, left: 16 },
+  });
+  clipped.advance(1, []);
+  clipped.advance(1, [{ tick: 1, event: { kind: "pointer", x: -2, y: 5, buttons: 1 } }]);
+  clipped.advance(1, [{ tick: 2, event: { kind: "pointer", x: -2, y: 5, buttons: 0 } }]);
+  const refused = clippedCapture.state();
+  if (refused === undefined) throw new Error("expected captured game state");
+  equal(refused.ui.surfaceActivated, null);
+  equal(refused.input.pendingActions.filter((action) => action === "confirm").length, 0);
+});
+
 test("Engine touch-control query requires the explicit declaration command", () => {
   const registration: EnginePhaseRegistration = {
     phase: "animation",
