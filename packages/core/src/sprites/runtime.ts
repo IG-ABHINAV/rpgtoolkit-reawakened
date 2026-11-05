@@ -42,8 +42,9 @@ function clonePoint(point: SpritePoint): SpritePoint {
   return { x: point.x, y: point.y };
 }
 
-function itemKey(actor: SpriteActor): string {
-  return actor.handle === null ? actor.id : `item:${actor.source}`;
+export function itemKey(actor: SpriteActor): string {
+  if (actor.handle === null) return actor.id;
+  return `item:${actor.id === actor.source ? actor.source : actor.id}`;
 }
 
 function startsItemThread(actor: SpriteActor, vm: VmState | undefined, resolver: SpriteThreadResolver | null | undefined): number | null {
@@ -313,6 +314,8 @@ export function spriteDraws(section: SpritesSection, frameSource?: SpriteFrameSo
 export type SpriteRuntime = CameraTarget & PlayerPresencePort & {
   readonly section: SpritesSection;
   readonly vm: VmState | undefined;
+  /** Attach the runtime to the engine-owned sections; reset replaces both references. */
+  bindState(section: SpritesSection, vm: VmState | undefined, resolver?: SpriteThreadResolver | null, board?: WorldBoard | null): void;
   hydrate(input: SpriteHydrationInput): SpritesSection;
   /** Prepare without mutation; a throwing commit must be reversible by rollback. */
   prepareRecovery(board: WorldBoard, sprites: SpritesSection): { commit(): void; rollback(): void };
@@ -333,14 +336,20 @@ export type SpriteRuntime = CameraTarget & PlayerPresencePort & {
 
 /** Create the section owner and its camera/start-up ports. */
 export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteRuntime {
-  const section = options.section ?? createSpritesSection();
-  const vm = options.vm;
-  const resolver = options.programRef;
+  let section = options.section ?? createSpritesSection();
+  let vm = options.vm;
+  let resolver = options.programRef;
   let itemThreadCleanup: ItemThreadCleanup | undefined;
   let board: WorldBoard | null = null;
   const runtime: SpriteRuntime = {
-    section,
-    vm,
+    get section() { return section; },
+    get vm() { return vm; },
+    bindState(nextSection, nextVm, nextResolver, nextBoard = null) {
+      section = nextSection;
+      vm = nextVm;
+      if (nextResolver !== undefined) resolver = nextResolver;
+      board = nextBoard;
+    },
     bindItemThreadCleanup(cleanup) { itemThreadCleanup = cleanup; },
     hydrate(input) {
       board = input.board;

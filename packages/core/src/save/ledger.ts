@@ -695,7 +695,7 @@ function projectRawItem(value: unknown, path: string): LedgerRawItem {
     x: ledgerNumber(item.x, `${path}.x`),
     y: ledgerNumber(item.y, `${path}.y`),
     layer: ledgerNumber(item.layer, `${path}.layer`),
-    reserved: ledgerInteger(item.reserved, `${path}.reserved`, 0),
+    reserved: ledgerInteger(item.reserved, `${path}.reserved`, -32768),
   };
 }
 

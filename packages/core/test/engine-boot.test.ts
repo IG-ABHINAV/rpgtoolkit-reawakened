@@ -979,8 +979,13 @@ test("engine services discard an item thread's open menu before hiding it", () =
     boards: { "start.brd": {} },
     programs: { "start.prg": "mainmenu()\n" },
   });
-  const vm = createVmState();
-  const runtime = createSpriteRuntime({ vm });
+  const runtime = createSpriteRuntime();
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles, stockMenuCatalogue(), undefined, undefined, runtime, stockMenuAssets);
+  deepEqual(run(engine, game.files, 20).diagnostics, []);
+  ok(doubles.state().menu.screens.length > 0, "startup opened a menu screen");
+
+  const vm = doubles.state().vm;
   runtime.section.items = [{ id: "clerk", source: "clerk", handle: null, visible: true } as never];
   const thread = startThread(vm, {
     ref: { kind: "inline", text: "mainmenu()\n", ir: IR_VERSION },
@@ -990,11 +995,6 @@ test("engine services discard an item thread's open menu before hiding it", () =
     target: "clerk",
   });
   thread.frames[0]!.menuContinuation = { menuBaseDepth: 0 };
-
-  const doubles = makeDoubles();
-  const engine = bootEngine(game, doubles, stockMenuCatalogue(), undefined, undefined, runtime, stockMenuAssets);
-  deepEqual(run(engine, game.files, 20).diagnostics, []);
-  ok(doubles.state().menu.screens.length > 0, "startup opened a menu screen");
 
   equal(runtime.hideItem("clerk"), true);
   equal(doubles.state().menu.screens.length, 0);
@@ -2125,6 +2125,8 @@ for (const pixelMovement of [1, 2]) test(`packaged demo returns through its door
   key("Enter", true); key("Enter", false); advance(5);
   key("Enter", true); key("Enter", false); advance(30);
   equal(current().world.board?.key, "boards/start.brd");
+  equal(current().sprites.items.length, 1, "the real demo board creates its placed item");
+  equal(current().sprites.items[0]?.source, "oldman.itm");
   deepEqual(position(), [213, 146]);
   deepEqual(current().sprites.players[0]?.collisionBase.points, [{ x: -15, y: -15 }, { x: 15, y: -15 }, { x: 15, y: 0 }, { x: -15, y: 0 }]);
   key("ArrowRight", true); advance(24); key("ArrowRight", false);
@@ -2145,6 +2147,91 @@ for (const pixelMovement of [1, 2]) test(`packaged demo returns through its door
   key("Enter", true); key("Enter", false); advance(10);
   equal(current().world.board?.key, "boards/start.brd");
   deepEqual(position(), [306, 306], "activation runs the real return send without snapping");
+});
+
+test("demo item activation starts the real oldman program after walking into its polygon", { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
+  const sample = sampleGame("demo");
+  if (sample === null) throw new Error("demo fixture is missing");
+  ok(sample.files.has(assetKey("item/oldman.itm")), "the fetched demo contains item/oldman.itm");
+  let latest: GameState | null = null;
+  const runtime = createSpriteRuntime();
+  const loader = { index: sample.index, root: PACKAGE_ROOT, read: (key: AssetKey) => sample.files.get(key) };
+  const engine = createEngine({
+    seed: 0, assetIndex: sample.index, assetRoot: PACKAGE_ROOT, mainFile: "main.gam", gameIdentity: "demo-oldman-activation",
+    startup: { presence: { hasPlayer: () => runtime.hasPlayer() }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    width: 640, height: 480, maxTicks: 10000, spriteRuntime: runtime,
+    input: { bindings: { keys: { Enter: "ENTER", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" } } },
+    phaseRegistrations: [
+      inputPhaseRegistration(), movementPhaseRegistration(),
+      triggerPhaseRegistration({ programRef: (name) => resolveProgram(loader, name) === undefined ? null : fileProgramRef(loader, name) }),
+      { phase: "audio", run: (state) => { latest = state; } },
+    ],
+  });
+  const current = (): GameState => {
+    if (latest === null) throw new Error("demo has not advanced");
+    return latest;
+  };
+  const key = (code: string, down: boolean): void => {
+    const name = code === "Enter" ? "ENTER" : code;
+    run(engine, sample.files, 1, [{
+      tick: current().time.tick,
+      event: { kind: "key", name, code, char: null, down },
+    }]);
+  };
+  const oldmanProgramStarted = (): boolean => current().vm.threads.some((thread) =>
+    thread.frames.some((frame) => frame.program.kind === "file" && frame.program.path.toLowerCase().endsWith("oldman.prg")));
+  run(engine, sample.files, 30);
+  key("Enter", true); key("Enter", false); run(engine, sample.files, 5);
+  key("Enter", true); key("Enter", false); run(engine, sample.files, 30);
+  equal(current().world.board?.key, "boards/start.brd");
+  const item = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
+  ok(item, "the real demo board places oldman.itm");
+  ok(item.multitaskThread !== null, "the demo item's inline wander program started");
+  const activationType = current().world.board?.items?.find((candidate) => candidate.itemFile.toLowerCase() === "oldman.itm")?.activationType;
+  ok(activationType !== undefined && ((activationType & 3) === 0 || (activationType & 3) === 2), "oldman's item activates on a step");
+  const initialItemPosition = [item.x, item.y];
+  run(engine, sample.files, 90);
+  const movedItem = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
+  ok(movedItem, "oldman remains on the board while its wander program runs");
+  ok(movedItem.x !== initialItemPosition[0] || movedItem.y !== initialItemPosition[1], "the real demo item wanders to a different position");
+  let held: string | null = null;
+  let forcedAxis: "x" | "y" | null = null;
+  let stuck = 0;
+  for (let guard = 0; guard < 500 && !oldmanProgramStarted(); guard += 1) {
+    const player = current().sprites.players[0];
+    const wanderingItem = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
+    if (player === undefined || wanderingItem === undefined) throw new Error("demo player or oldman disappeared");
+    const dx = wanderingItem.x - player.x;
+    const dy = wanderingItem.y - player.y;
+    const axis: "x" | "y" = forcedAxis ?? (Math.abs(dx) >= Math.abs(dy) ? "x" : "y");
+    const direction = axis === "x"
+      ? (dx >= 0 ? "ArrowRight" : "ArrowLeft")
+      : (dy >= 0 ? "ArrowDown" : "ArrowUp");
+    if (held !== direction) {
+      if (held !== null) key(held, false);
+      key(direction, true);
+      held = direction;
+    }
+    const before = [player.x, player.y];
+    run(engine, sample.files, 8);
+    const after = current().sprites.players[0];
+    if (after === undefined) throw new Error("demo player disappeared");
+    if (after.x === before[0] && after.y === before[1]) {
+      stuck += 1;
+      if (stuck >= 3) {
+        forcedAxis = axis === "x" ? "y" : "x";
+        stuck = 0;
+      }
+    } else {
+      stuck = 0;
+      forcedAxis = null;
+    }
+  }
+  if (held !== null) key(held, false);
+  ok(
+    oldmanProgramStarted(),
+    `walking into the moving item's activation polygon did not start oldman.prg: ${JSON.stringify({ item: current().sprites.items[0], player: current().sprites.players[0], threads: current().vm.threads.map((thread) => ({ kind: thread.kind, status: thread.status, frames: thread.frames })) })}`,
+  );
 });
 
 test("demo start region responds to the held title key on its first free-roam frame (#1176)", { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
@@ -2724,6 +2811,11 @@ test("recovery defaults each missing movement setting from its associated main f
     equal(engine.recoveryStatus(), "paused", scenario.name);
     equal(doubles.state().vm.globals.startupwalking, 0, "startup changes walking before recovery installs saved state");
     deepEqual(doubles.state().world.movement, scenario.expected, scenario.name);
+    equal(doubles.state().sprites.items[0]?.multitaskThread, null, "recovered items stay paused");
+    equal(engine.resumeRecovery(), true, scenario.name);
+    deepEqual(run(engine, game.files, 1).diagnostics, [], scenario.name);
+    deepEqual(doubles.state().world.movement, scenario.expected, "resuming item threads preserves restored movement settings");
+    equal(doubles.state().vm.globals.itemcount, 1, "the restored item-owned program runs after resume");
   }
 });
 
@@ -2792,6 +2884,27 @@ test("recovery boots startup first, stages durable state paused, and resumes ent
   equal(state.vm.globals.boardcount, 1);
   equal(state.vm.globals.itemcount, 1);
   equal(state.time.tick, savedTick + 1);
+});
+
+test("recovery resumes extensionless indexed board and entry programs as files (#1373)", () => {
+  const spec: GameSpec = {
+    ...PAUSED_RECOVERY_GAME,
+    boards: { "start.brd": { enter: "enter", threads: ["board"] } },
+    programs: {
+      ...PAUSED_RECOVERY_GAME.programs,
+      enter: "entryCount = entryCount + 1\nend()\n",
+      board: "boardCount = boardCount + 1\nend()\n",
+    },
+  };
+  const { game, candidate } = recoveryCandidateWithDurableState(spec);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles, undefined, undefined, candidate);
+  deepEqual(run(engine, game.files, 30).diagnostics, []);
+  equal(engine.recoveryStatus(), "paused");
+  equal(engine.resumeRecovery(), true);
+  deepEqual(run(engine, game.files, 3).diagnostics, []);
+  equal(doubles.state().vm.globals.entrycount, 1);
+  equal(doubles.state().vm.globals.boardcount, 1);
 });
 
 test("declining recovery by supplying no candidate follows ordinary boot", () => {
