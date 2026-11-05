@@ -34,6 +34,7 @@ import type { AssetKind } from "../formats/main-file/layout.ts";
 import type { AssetIndex, AssetRoot } from "../formats/resolver/model.ts";
 import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
+import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
 import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
@@ -43,6 +44,7 @@ import type { StartupPorts } from "../ports/startup.ts";
 import type { AssetKey, SurfaceId } from "../ports/keys.ts";
 import type { BlobKey } from "../ports/requests.ts";
 import { createGameState, type GameState, type SectionKey } from "../save/state.ts";
+import { resetUiForProgramStart } from "../save/sections/ui.ts";
 import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 import { applyMenuStateEffect, createMenuOwnerPorts } from "../menu/index.ts";
 import { createShopSessionRuntime } from "./shop-session.ts";
@@ -1117,6 +1119,7 @@ export function createEngine(init: EngineInit): Engine {
     startupServicesReady = runStartups;
     return nextServices;
   }
+  function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
