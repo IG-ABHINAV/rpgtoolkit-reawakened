@@ -454,7 +454,7 @@ test("default Enter and Escape claims prevent Get from reading the same key", ()
       'uiBegin("title", "menu", 0, 0, 16, 16)',
       'uiItem("Play")',
       'uiEnd()',
-      'wait()',
+      'sleep(1)',
       condition,
       'end()',
     ].join("\n"), [capture.registration]);
@@ -508,7 +508,7 @@ test("author pointer cancellation stays sticky and reset or modal release cannot
     const surfaceRegistration: EnginePhaseRegistration = {
       phase: "animation",
       run: (state) => {
-        if (state.time.tick === 0) {
+        if (state.time.tick === 0 || interruption === "drag") {
           applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
           applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, "game.dash", null, 1]);
           applyUiEffect(state, "uiEnd", [7]);
