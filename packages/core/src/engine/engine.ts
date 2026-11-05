@@ -67,7 +67,7 @@ import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
-import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
+import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -1202,6 +1202,7 @@ export function createEngine(init: EngineInit): Engine {
         delete state.input.semanticActionSources[action];
         state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
       }
+      rebuildKeyboardActionClaimIndex(state.input);
       state.world = {
         ...state.world,
         movement: {

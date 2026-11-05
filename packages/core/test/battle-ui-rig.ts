@@ -419,6 +419,8 @@ export type RigOptions = {
    * 20 × 15 tile bitmap, or none (the stock screen's flat fallback colour).
    */
   readonly background?: "png" | "tbm" | "none";
+  /** Instrument scanner completion in the one regression test that distinguishes fast-path from fallback scanning. */
+  readonly watchFastPathCompletion?: boolean;
 };
 
 const DEFAULT_PARTY = [
@@ -518,7 +520,7 @@ export function gameFiles(options: RigOptions = {}): { readonly files: Map<strin
   return { files, paths };
 }
 
-function catalogue(): readonly PackageCatalogueEntry[] {
+function catalogue(options: RigOptions): readonly PackageCatalogueEntry[] {
   const folder = join(repoRoot, "stock", "stock_battle");
   const manifest = JSON.parse(readFileSync(join(folder, "manifest.json"), "utf8")) as {
     readonly name: string;
@@ -527,33 +529,33 @@ function catalogue(): readonly PackageCatalogueEntry[] {
     readonly requests: PackageCatalogueEntry["requests"];
     readonly program: string;
   };
-  const source = readFileSync(join(folder, manifest.program), "utf8");
-  const fastPathReturn = "                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig";
-  const passScanner = "        if (ui.playerCount > 0) {\n            bar = ui.barScan";
-  const passEnd = "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        return 0\n    },\n    box:";
-  const refreshScan = "        size = battle.partySize(1)\n        if (size > 0) {\n            index = stockBattleUi.barScan";
-  const refreshScanEnd = "            stockBattleUi.barScan = (index + 1) % size\n        }\n        return 0\n    },\n    draw:";
-  if (!source.includes(fastPathReturn) || !source.includes(passScanner) || !source.includes(passEnd) || !source.includes(refreshScan) || !source.includes(refreshScanEnd)) {
-    throw new Error("stock battle test hook location changed");
+  let startup = readFileSync(join(folder, manifest.program), "utf8");
+  if (options.watchFastPathCompletion === true) {
+    const fastPathReturn = "                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig";
+    const passScanner = "        if (ui.playerCount > 0) {\n            bar = ui.barScan";
+    const passEnd = "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        return 0\n    },\n    box:";
+    const refreshScan = "        size = battle.partySize(1)\n        if (size > 0) {\n            index = stockBattleUi.barScan";
+    const refreshScanEnd = "            stockBattleUi.barScan = (index + 1) % size\n        }\n        return 0\n    },\n    draw:";
+    if (!startup.includes(fastPathReturn) || !startup.includes(passScanner) || !startup.includes(passEnd) || !startup.includes(refreshScan) || !startup.includes(refreshScanEnd)) {
+      throw new Error("stock battle test hook location changed");
+    }
+    startup = startup.replace(
+      passScanner,
+      "        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        if (ui.playerCount > 0) {\n            bar = ui.barScan",
+    ).replace(
+      passEnd,
+      "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        return 0\n    },\n    box:",
+    ).replace(
+      refreshScan,
+      "        size = battle.partySize(1)\n        if (size > 0) {\n            if (stockBattleUi.testFastPathWatch != 0) {\n                stockBattleUi.barScan = 3\n            }\n            index = stockBattleUi.barScan",
+    ).replace(
+      refreshScanEnd,
+      "            stockBattleUi.barScan = (index + 1) % size\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            stockBattleUi.barScan = 3\n        }\n        return 0\n    },\n    draw:",
+    ).replace(
+      fastPathReturn,
+      "                if (stockBattleUi.testFastPathWatch != 0) {\n                    stockBattleUi.testFastPathCompleted = 1\n                }\n                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig",
+    );
   }
-  const watchedPass = source.replace(
-    passScanner,
-    "        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        if (ui.playerCount > 0) {\n            bar = ui.barScan",
-  ).replace(
-    passEnd,
-    "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        return 0\n    },\n    box:",
-  );
-  const watchedScanners = watchedPass.replace(
-    refreshScan,
-    "        size = battle.partySize(1)\n        if (size > 0) {\n            if (stockBattleUi.testFastPathWatch != 0) {\n                stockBattleUi.barScan = 3\n            }\n            index = stockBattleUi.barScan",
-  ).replace(
-    refreshScanEnd,
-    "            stockBattleUi.barScan = (index + 1) % size\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            stockBattleUi.barScan = 3\n        }\n        return 0\n    },\n    draw:",
-  );
-  const startup = watchedScanners.replace(
-    fastPathReturn,
-    "                if (stockBattleUi.testFastPathWatch != 0) {\n                    stockBattleUi.testFastPathCompleted = 1\n                }\n                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig",
-  );
   return [{
     name: manifest.name,
     version: manifest.version,
@@ -617,7 +619,7 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
     height: SCREEN_HEIGHT,
     maxTicks: 100000,
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
-    packageCatalogue: catalogue(),
+    packageCatalogue: catalogue(options),
     phaseRegistrations: [{
       phase: "triggers",
       run: (state, post) => {

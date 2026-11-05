@@ -8,6 +8,7 @@ export {
   pruneClaimed,
   claimInputBefore,
   registeredActionNames,
+  rebuildKeyboardActionClaimIndex,
   registerGameAction,
   takeInputActions,
   heldPointerGoal,

@@ -130,6 +130,7 @@ test("charge refresh covers every bar scan phase and repeated charge changes", (
 });
 test("a fighter-stat fast-path redraw synchronizes an unrelated party charge bar", () => {
   const rig = bootUiRig({
+    watchFastPathCompletion: true,
     party: [
       { key: "hero", hp: 42, smp: 12 },
       { key: "mage", hp: 30, smp: 3 },
