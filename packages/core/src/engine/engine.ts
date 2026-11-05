@@ -2859,6 +2859,7 @@ export function createEngine(init: EngineInit): Engine {
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
       prepareSpriteVisuals();
+      if (!failed && pending.size === 0 && pendingBlobs.size === 0) prepareAnimations();
       if (failed || pending.size > 0 || pendingBlobs.size > 0 || state.engine.openTick !== undefined) return;
       if (pendingBoardPreviews.length > 0 && !prepareBoardPreviews()) return;
       const boot = state.engine.boot;
@@ -2923,8 +2924,13 @@ export function createEngine(init: EngineInit): Engine {
   function requestFrameAssets(animation: AnimationState): boolean {
     let waiting = false;
     for (const frame of animation.frames) {
-      if (frame.asset === null || frame.surface !== undefined || cache.has(frame.asset)) continue;
-      request(frame.asset, requestKindFor(frame.asset));
+      if (frame.asset === null || frame.surface !== undefined) continue;
+      if (cache.has(frame.asset)) {
+        if (frame.asset.toLowerCase().endsWith(".tbm") && imageTexture(frame.asset) === null) waiting = true;
+        continue;
+      }
+      const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
+      request(frame.asset, kind);
       waiting = true;
     }
     return waiting;
@@ -3441,7 +3447,12 @@ export function createEngine(init: EngineInit): Engine {
       : state.vm.threads.find((thread) => thread.status === "waiting" && thread.wait?.kind === "input.key" && thread.wait.cursorMap === cursorMap);
     const cursorSelection = waitingCursor?.wait?.kind === "input.key" ? waitingCursor.wait.cursorSelection : undefined;
     const fx = drawableFx();
-    const withFx = applyFxDrawList(base, fx);
+    const sourceSize = (frame: AnimationState["frames"][number]): { readonly w: number; readonly h: number } | null => {
+      if (frame.asset === null) return null;
+      if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) return spriteTileCellSize(frame.asset);
+      return imageTexture(frame.asset);
+    };
+    const withFx = applyFxDrawList(base, fx, sourceSize);
     // A script-screen layer is visible only while an outermost program runs (#1045).
     const activeSurface = blockingAlive();
     const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
@@ -3449,7 +3460,7 @@ export function createEngine(init: EngineInit): Engine {
     const overlay = renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
-    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
+    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true, sourceSize)] };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const uiForCompose = activeSurface
       ? state.ui
