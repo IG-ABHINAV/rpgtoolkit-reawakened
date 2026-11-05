@@ -3552,6 +3552,7 @@ export function createEngine(init: EngineInit): Engine {
     if (action === "cancel") {
       state.ui.surfaceCancelled = true;
       state.ui.surfaceCancelledSeq = inputSeq;
+      state.ui.surfaceCancelledOwner = surface.owner;
       return;
     }
     if (action === "confirm") {
@@ -3679,7 +3680,9 @@ export function createEngine(init: EngineInit): Engine {
     switch (phase) {
       case "input": {
         state.ui.surfaceActivated = null;
+        state.ui.surfaceCancelled = false;
         state.ui.surfaceCancelledSeq = null;
+        state.ui.surfaceCancelledOwner = null;
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }

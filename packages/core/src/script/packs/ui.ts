@@ -280,7 +280,7 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
   }),
   uiCommand("uiCancelled", NO_ARGS, plainDoc("Read this frame's author-surface cancel claim.", "Returns 1 when cancel was claimed for this author surface on this frame, otherwise 0."), (view) => {
     const owner = view.thread ?? -1;
-    const claimed = view.state?.ui.surfaceCancelled === true && view.state.ui.actionSurfaces.some((surface) => surface.owner === owner);
+    const claimed = view.state?.ui.surfaceCancelled === true && view.state.ui.surfaceCancelledOwner === owner;
     return { value: claimed ? 1 : 0, effects: claimed ? [surfaceEffect(view, [owner])] : [effect([], "pure")] };
   }),
   uiCommand("prompt", [{ name: "question", optional: false, byRef: false, variadic: false }, { name: "ret", optional: true, byRef: true, variadic: false }], { summary: "Ask the player for text.", behaviour: "Shows a modal prompt and yields until the UI supplies a typed value; the value is returned and written to the optional reference.", groups: [DIALOGUE], waits: { kind: "until-input", summary: "Yields until the prompt is answered." } }, (view, args) => ({ value: null, effects: [effect([spliceVariables(text(args, 0), view)])], wait: { kind: "render.msgbox", global: true, id: "prompt", payload: [spliceVariables(text(args, 0), view)], resumeRefs: args[1]?.ref === null || args[1]?.ref === undefined ? [] : [args[1].ref] } })),
@@ -435,14 +435,18 @@ export function applyUiEffect(
       }
       return;
     }
-    case "uicancelled":
+    case "uicancelled": {
+      const owner = numberArg(first);
+      if (ui.surfaceCancelledOwner !== owner) return;
       if (typeof ui.surfaceCancelledSeq === "number" && state.engine !== undefined) {
         const claims = state.engine.claims ??= [];
         if (!claims.includes(ui.surfaceCancelledSeq)) claims.push(ui.surfaceCancelledSeq);
       }
       ui.surfaceCancelled = false;
       ui.surfaceCancelledSeq = null;
+      ui.surfaceCancelledOwner = null;
       return;
+    }
     case "dialogue":
     case "mwin":
     case "show":

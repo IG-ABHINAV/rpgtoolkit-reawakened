@@ -97,8 +97,10 @@ test("custom touch suppression requires an explicit persistent declaration", () 
   const legacy = JSON.parse(saved) as { schema: { ui: number }; ui: Record<string, unknown> };
   legacy.schema.ui = 2;
   delete legacy.ui.surfaceCancelledSeq;
+  delete legacy.ui.surfaceCancelledOwner;
   const migrated = restoreGameState(JSON.stringify(legacy));
   equal(migrated.ui.surfaceCancelledSeq, null);
+  equal(migrated.ui.surfaceCancelledOwner, null);
 });
 
 test("author surface claims consume their shared input sequence once", () => {
@@ -118,10 +120,15 @@ test("author surface claims consume their shared input sequence once", () => {
 
   state.ui.surfaceCancelled = true;
   state.ui.surfaceCancelledSeq = 42;
-  applyUiEffect(state, "uiCancelled", []);
+  state.ui.surfaceCancelledOwner = 7;
+  applyUiEffect(state, "uiCancelled", [8]);
+  deepEqual(state.engine.claims, [41]);
+  equal(state.ui.surfaceCancelled, true);
+  applyUiEffect(state, "uiCancelled", [7]);
   deepEqual(state.engine.claims, [41, 42]);
   equal(state.ui.surfaceCancelled, false);
   equal(state.ui.surfaceCancelledSeq, null);
+  equal(state.ui.surfaceCancelledOwner, null);
 });
 
 test("author UI effects publish one ordered navigation surface and accessibility subtree", () => {
