@@ -1,7 +1,7 @@
 // The runtime input-event validator (AD-14, AD-5, CAP-12/CAP-13).
 //
-// One valid event of each of the 11 kinds (including the `null` forms of
-// `char` and `bytes`) is accepted and returned unchanged; every malformed
+// One valid event of each kind (including `pointer.cancel` and the `null`
+// forms of `char` and `bytes`) is accepted and returned unchanged; every malformed
 // shape is rejected with the path of the offending field; and no input,
 // however hostile, makes the validator throw.
 import { test } from "node:test";
@@ -13,6 +13,7 @@ test("validateInputEvent accepts one valid event of each kind", () => {
     ["key with char", { kind: "key", name: "A", code: "KeyA", char: "a", down: true }],
     ["key with null char", { kind: "key", name: "ENTER", code: "Enter", char: null, down: false }],
     ["pointer", { kind: "pointer", x: 10, y: -20, buttons: 0 }],
+    ["pointer.cancel", { kind: "pointer.cancel" }],
     ["gamepad", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 }],
     ["focus", { kind: "focus", state: "gained" }],
     ["asset with bytes", { kind: "asset", reqId: 1, bytes: new Uint8Array([1, 2]) }],
@@ -65,6 +66,7 @@ test("validateInputEvent names the path of the first failure", () => {
     ["unknown kind", { kind: "nope" }, "kind"],
     ["absent kind", {}, "kind"],
     ["extra key", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0, extra: 1 }, "extra"],
+    ["pointer.cancel rejects payload fields", { kind: "pointer.cancel", x: 1 }, "x"],
     [
       "missing on an asset reply",
       { kind: "asset", reqId: 1, bytes: null, missing: true },

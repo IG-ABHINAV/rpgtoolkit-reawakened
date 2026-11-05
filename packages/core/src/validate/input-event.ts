@@ -32,6 +32,7 @@ type UnknownRecord = { readonly [key: string]: unknown };
 const KINDS = [
   "key",
   "pointer",
+  "pointer.cancel",
   "gamepad",
   "focus",
   "asset",
@@ -49,6 +50,7 @@ type EventKind = (typeof KINDS)[number];
 const KEY_SETS: { readonly [kind in EventKind]: readonly string[] } = {
   key: ["kind", "name", "code", "char", "down", "repeat"],
   pointer: ["kind", "x", "y", "buttons"],
+  "pointer.cancel": ["kind"],
   gamepad: ["kind", "device", "connected", "axes", "buttons"],
   focus: ["kind", "state"],
   asset: ["kind", "reqId", "bytes"],
@@ -240,6 +242,8 @@ export function validateInputEvent(raw: unknown): InputEventValidation {
         return validateKey(record);
       case "pointer":
         return validatePointer(record);
+      case "pointer.cancel":
+        return accept(record);
       case "gamepad":
         return validateGamepad(record);
       case "focus":

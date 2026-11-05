@@ -19,13 +19,14 @@ const DIRECTIONS: Readonly<Record<string, true>> = { up: true, down: true, left:
 
 export function createInputSection(config: InputConfig = {}): InputSection {
   const state: InputSection = {
-    version: 3,
+    version: 4,
     nextSeq: 1,
     keys: [],
     held: {},
     pointer: { x: 0, y: 0, buttons: 0, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 },
     focused: true,
     buttons: [],
+    pressedButtonSlot: null,
     bindings: { keys: {} },
     allowDiagonals: config.allowDiagonals ?? false,
     camera: { x: 0, y: 0 },
@@ -46,7 +47,13 @@ export function createInputSection(config: InputConfig = {}): InputSection {
 export function configureInput(state: InputSection, config: InputConfig): void {
   if (config.bindings !== undefined) state.bindings = { keys: { ...config.bindings.keys } };
   if (config.allowDiagonals !== undefined) state.allowDiagonals = config.allowDiagonals;
-  if (config.buttons !== undefined) state.buttons = config.buttons.map((button) => ({ ...button }));
+  if (config.buttons !== undefined) {
+    state.buttons = config.buttons.map((button) => ({ ...button }));
+    if (state.pressedButtonSlot !== null) {
+      const slot = slotAt(state, state.pointer.x, state.pointer.y);
+      if (slot?.id !== state.pressedButtonSlot || !slot.enabled) state.pressedButtonSlot = null;
+    }
+  }
   if (config.camera !== undefined) state.camera = { x: config.camera.x, y: config.camera.y };
   if (config.playerId !== undefined) state.playerId = config.playerId;
   if (config.pathMode !== undefined) state.pathMode = config.pathMode;
@@ -150,6 +157,7 @@ function releaseHeld(state: InputSection): void {
   for (const action of Object.keys(state.keyboardActions)) if (state.keyboardActions[action] === true) state.keyboardActions[action] = false;
   updateAllActions(state, false, "focus");
   state.pointer = { ...state.pointer, buttons: 0 };
+  state.pressedButtonSlot = null;
 }
 
 function slotAt(state: InputSection, x: number, y: number): InputButtonSlot | undefined {
@@ -186,17 +194,24 @@ function pointerAfter(previous: InputSection["pointer"], event: PointerInput): I
 }
 
 function applyPointer(state: InputSection, event: PointerInput): void {
-  state.pointer = pointerAfter(state.pointer, event);
-  if ((event.buttons & 1) === 0) return;
+  const wasDown = (state.pointer.buttons & 1) !== 0;
+  const isDown = (event.buttons & 1) !== 0;
   const slot = slotAt(state, event.x, event.y);
-  if (slot !== undefined) {
-    if (slot.enabled) {
+  state.pointer = pointerAfter(state.pointer, event);
+  if (!wasDown && isDown) {
+    state.pressedButtonSlot = slot?.enabled === true ? slot.id : null;
+  } else if (wasDown && state.pressedButtonSlot !== null) {
+    if (slot?.id !== state.pressedButtonSlot || !slot.enabled) {
+      state.pressedButtonSlot = null;
+    } else if (!isDown) {
       appendKey(state, slot.action, `button:${slot.id}`, null, `slot:${slot.id}`);
       state.pendingActions.push(slot.action);
+      state.pressedButtonSlot = null;
     }
-    return;
   }
-  state.pendingClicks.push({ x: event.x + state.camera.x, y: event.y + state.camera.y });
+  if (isDown && slot === undefined) {
+    state.pendingClicks.push({ x: event.x + state.camera.x, y: event.y + state.camera.y });
+  }
 }
 
 /** Apply one raw event. Gamepad events are staged for deterministic device ordering. */
@@ -204,6 +219,10 @@ export function applyInputEvent(state: InputSection, event: InputEvent): void {
   switch (event.kind) {
     case "key": applyKey(state, event); return;
     case "pointer": applyPointer(state, event); return;
+    case "pointer.cancel":
+      state.pointer = { ...state.pointer, buttons: state.pointer.buttons & ~1 };
+      state.pressedButtonSlot = null;
+      return;
     case "gamepad": state.pendingGamepads.push(event); return;
     case "focus":
       state.focused = event.state === "gained";

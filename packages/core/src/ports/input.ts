@@ -20,6 +20,9 @@ export type KeyInput = {
   readonly repeat?: boolean;
 };
 
+/** Cancellation of the active pointer gesture, without a release edge (E-111). */
+export type PointerCancelInput = { readonly kind: "pointer.cancel" };
+
 /** A pointer event in logical integer pixels (E-111). */
 export type PointerInput = {
   readonly kind: "pointer";
@@ -97,6 +100,7 @@ export type VideoEnded = {
 export type InputEvent =
   | KeyInput
   | PointerInput
+  | PointerCancelInput
   | GamepadInput
   | FocusInput
   | AssetReply
