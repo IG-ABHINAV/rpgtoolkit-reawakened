@@ -218,6 +218,29 @@ test("Engine touch-control query requires the explicit declaration command", () 
   equal(engine.customTouchControlsDeclared(), true);
 });
 
+test("keyboard confirmation links the author activation claim to its input sequence", () => {
+  const capture = captureState();
+  const surface: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "title", "menu", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surface]);
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "action", action: "confirm", down: true, source: "test" } }]);
+  const confirmed = capture.state();
+  if (confirmed === undefined) throw new Error("expected captured game state");
+  equal(confirmed.ui.surfaceActivated?.index, 0);
+  equal(confirmed.ui.surfaceActivated?.inputSeq, confirmed.input.keys.find((key) => key.action === "confirm")?.seq);
+  engine.advance(1, [{ tick: 2, event: { kind: "action", action: "confirm", down: false, source: "test" } }]);
+  const released = capture.state();
+  if (released === undefined) throw new Error("expected captured game state");
+  equal(released.ui.surfaceActivated, null);
+});
+
 test("author surface release dispatches its registered action once without click leakage", () => {
   const capture = captureState();
   const surfaceRegistration: EnginePhaseRegistration = {
