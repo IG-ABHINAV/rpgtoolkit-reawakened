@@ -192,11 +192,13 @@ test("runner-harness headless capability profiles replay the exact consumed inpu
       ...planned,
       log: first.consumed.filter(({ event }) => event.kind !== "host.features"),
     }, 1);
+    equal(first.records[1]?.state, withoutFeatureUpdate.records[1]?.state, `${profile.name} feature update does not apply early`);
     equal(first.records[2]?.state === withoutFeatureUpdate.records[2]?.state, false, `${profile.name} feature update is hash-significant on its consuming tick`);
     const withoutGeometryUpdate = replay(profile, {
       ...planned,
       log: first.consumed.filter(({ event }) => event.kind !== "host.display"),
     }, 1);
+    equal(first.records[2]?.state, withoutGeometryUpdate.records[2]?.state, `${profile.name} geometry update does not apply early`);
     equal(first.records[3]?.state === withoutGeometryUpdate.records[3]?.state, false, `${profile.name} geometry update is hash-significant on its consuming tick`);
 
     const sameConsumedLog: Run = { ...planned, log: first.consumed };
