@@ -36,6 +36,7 @@ import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
 import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
+import type { InputConfig } from "../input/input.ts";
 import type { RegisteredAction } from "../save/sections/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
@@ -1167,7 +1168,11 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
-      const registeredActions = state.input.registeredActions;
+      const startupActions = {
+        registeredActions: state.input.registeredActions,
+        actionRegistry: state.input.actionRegistry,
+        controlActions: state.input.controlActions,
+      };
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1175,7 +1180,16 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
-      state.input.registeredActions = registeredActions;
+      state.input.registeredActions = startupActions.registeredActions;
+      state.input.actionRegistry = startupActions.actionRegistry;
+      state.input.controlActions = startupActions.controlActions;
+      for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.semanticActionSources)])) {
+        if (Object.hasOwn(state.input.actionRegistry, action)) continue;
+        delete state.input.actions[action];
+        delete state.input.keyboardActions[action];
+        delete state.input.semanticActionSources[action];
+        state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
+      }
       state.world = {
         ...state.world,
         movement: {

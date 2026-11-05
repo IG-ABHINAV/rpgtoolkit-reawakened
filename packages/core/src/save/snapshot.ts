@@ -337,6 +337,26 @@ function migrateTriggers(record: Record<string, unknown>, schema: Record<string,
   schema.triggers = TRIGGERS_SCHEMA_VERSION;
 }
 
+function rebuildInputActionIndexes(input: Record<string, unknown>): void {
+  const registry: Record<string, true> = Object.fromEntries(["up", "down", "left", "right", "confirm", "cancel", "menu"].map((name) => [name, true]));
+  const controls: Record<string, string[]> = {};
+  const registered = Array.isArray(input.registeredActions) ? input.registeredActions : [];
+  for (const value of registered) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+    const action = value as Record<string, unknown>;
+    if (typeof action.name !== "string" || !/^game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/.test(action.name)) continue;
+    Object.defineProperty(registry, action.name, { value: true, enumerable: true, configurable: true, writable: true });
+    if (!Array.isArray(action.controls)) continue;
+    for (const control of action.controls) {
+      if (typeof control !== "string" || !/^(?:key:[A-Za-z][A-Za-z0-9]*|pad:(?:[0-9]|1[0-6])|pad:axis[01][+-])$/.test(control)) continue;
+      if (!Object.hasOwn(controls, control)) Object.defineProperty(controls, control, { value: [], enumerable: true, configurable: true, writable: true });
+      controls[control]!.push(action.name);
+    }
+  }
+  input.actionRegistry = registry;
+  input.controlActions = controls;
+}
+
 /** Migrate the raw input section to the binding-aware schema. */
 function migrateInput(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.input;
@@ -345,8 +365,20 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     const input = recordAt(record.input, "input");
     if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
     if (typeof input.semanticActionSources !== "object" || input.semanticActionSources === null || Array.isArray(input.semanticActionSources)) input.semanticActionSources = {};
+    if (typeof input.nextPointerGestureId !== "number" || !Number.isSafeInteger(input.nextPointerGestureId) || input.nextPointerGestureId < 1) input.nextPointerGestureId = 1;
+    if (typeof input.pointerGestureId !== "number" || !Number.isSafeInteger(input.pointerGestureId)) input.pointerGestureId = null;
+    if (!Array.isArray(input.pendingClicks)) input.pendingClicks = [];
+    else input.pendingClicks = input.pendingClicks.map((value) => typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).x === "number" && typeof (value as Record<string, unknown>).y === "number"
+      ? { gestureId: typeof (value as Record<string, unknown>).gestureId === "number" ? (value as Record<string, number>).gestureId! : 0, x: (value as Record<string, number>).x!, y: (value as Record<string, number>).y! }
+      : null).filter((value) => value !== null);
     if (!Array.isArray(input.pendingPointerUps)) input.pendingPointerUps = [];
+    else input.pendingPointerUps = input.pendingPointerUps.map((value) => typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).x === "number" && typeof (value as Record<string, unknown>).y === "number"
+      ? { gestureId: typeof (value as Record<string, unknown>).gestureId === "number" ? (value as Record<string, number>).gestureId! : 0, x: (value as Record<string, number>).x!, y: (value as Record<string, number>).y! }
+      : null).filter((value) => value !== null);
     if (input.pointerPlane !== null && (typeof input.pointerPlane !== "object" || Array.isArray(input.pointerPlane))) input.pointerPlane = null;
+    if (input.pointerGestureId === null && typeof input.pointer === "object" && input.pointer !== null
+      && typeof (input.pointer as Record<string, unknown>).buttons === "number" && (((input.pointer as Record<string, number>).buttons ?? 0) & 1) !== 0) input.pointerGestureId = 0;
+    rebuildInputActionIndexes(input);
     return;
   }
   const old = record.input;
@@ -371,6 +403,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
       pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
       pendingPointerUps: [],
     };
+    rebuildInputActionIndexes(record.input as Record<string, unknown>);
     schema.input = INPUT_SCHEMA_VERSION;
     return;
   }

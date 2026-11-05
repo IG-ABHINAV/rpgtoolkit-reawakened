@@ -14,6 +14,7 @@ import {
   type SurfaceId,
   type SurfacePixels,
 } from "@tk-reawakened/core";
+type RegisteredAction = Parameters<Engine["registerGameAction"]>[0];
 
 export type TestEngineState = {
   tick: number;
@@ -55,7 +56,8 @@ export function createTestEngine(): Engine {
     cueId: 0,
     log: "",
   };
-
+  const registeredActions = new Map<string, RegisteredAction>();
+  let pointerMovementSuppressed = false;
   return {
     advance(
       ticks: number,
@@ -113,6 +115,12 @@ export function createTestEngine(): Engine {
                 state.keys.splice(index, 1);
               }
             }
+            break;
+          }
+          case "action": {
+            const index = state.keys.indexOf(event.action);
+            if (event.down && index < 0) state.keys.push(event.action);
+            else if (!event.down && index >= 0) state.keys.splice(index, 1);
             break;
           }
           case "pointer": {
@@ -224,6 +232,18 @@ export function createTestEngine(): Engine {
         commands,
       };
     },
+    registeredActionNames() {
+      return ["up", "down", "left", "right", "confirm", "cancel", "menu", ...registeredActions.keys()];
+    },
+    registerGameAction(action: RegisteredAction) {
+      if (!action.name.startsWith("game.") || registeredActions.has(action.name)) return false;
+      registeredActions.set(action.name, action);
+      return true;
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      pointerMovementSuppressed = suppressed;
+    },
+    reportUnknownAction(_action: string) {},
 
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
       return null;
