@@ -665,6 +665,52 @@ for (const [name, makeCommand] of [
     });
   }
 }
+test("blocking push cancels a suspended click route before moving (#1312)", () => {
+  const fixture = pushFixture('push("E")\ncontinued = 1\nend()', 0);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  hero.queue.moves.push({ source: "points", target: { x: hero.x + 32, y: hero.y }, facing: "E", pointer: true });
+  hero.queue.moves.push({ source: "points", target: { x: hero.x + 64, y: hero.y }, facing: "E", pointer: true });
+  deepEqual(fixture.pressA().diagnostics, []);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  equal(fixture.state().sprites.players[0]?.x, hero.x + 32);
+  equal(fixture.state().vm.globals.continued, 1);
+  ok(!fixture.state().sprites.players[0]?.queue.moves.some((move) => move.pointer === true));
+});
+
+for (const [name, command, kind] of [
+  ["push", 'push("E", 0, 4)', "player"],
+  ["playerstep", 'playerstep(0, 192, 64, 4)', "player"],
+  ["playerpath", 'playerpath(0, 4, 192, 64)', "player"],
+  ["pushitem", 'pushitem(0, "E", 4)', "item"],
+  ["itemstep", 'itemstep(0, 192, 64, 4)', "item"],
+  ["itempath", 'itempath(0, 4, 192, 64)', "item"],
+] as const) {
+  test(`${name} rejects a hidden target before queuing (#1314)`, () => {
+    const fixture = pushFixture("end()", 0);
+    deepEqual(fixture.pressA().diagnostics, []);
+    const state = fixture.state();
+    const hero = state.sprites.players[0];
+    if (hero === undefined) throw new Error("the hero was not hydrated");
+    if (kind === "player") {
+      state.sprites.players = [{ ...hero, visible: false }];
+      fixture.runtime.section.players = state.sprites.players;
+    } else {
+      const item = actorFromSource({ id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem() }, state.world.board ?? null, 0, 0);
+      state.sprites.items = [{ ...item, visible: false }];
+      fixture.runtime.section.items = state.sprites.items;
+    }
+    startThread(state.vm, { ref: { kind: "inline", text: `${command}\ncontinued = 1\nend()`, ir: IR_VERSION }, kind: "persistent", owner: "script" });
+    const result = run(fixture.engine, fixture.game.files, 1);
+    ok(result.diagnostics.some((diagnostic) => diagnostic.code === "builtin.bad-arg"));
+    const target = kind === "player" ? fixture.state().sprites.players[0] : fixture.state().sprites.items[0];
+    equal(target?.queue.moves.length, 0);
+    ok(!fixture.state().vm.threads.some((thread) => thread.wait?.kind === "sprite.movement"));
+    equal(fixture.state().vm.globals.continued, 1);
+  });
+}
+
 
 test("pushitem cannot resolve a player ID as an item (#1307)", () => {
   const fixture = pushFixture("end()", 0);

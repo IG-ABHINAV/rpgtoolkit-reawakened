@@ -94,6 +94,7 @@ function blocking(view: CommandView): boolean {
 function waitFor(view: CommandView, flags: number): boolean { return blocking(view) || (flags & PAUSE) !== 0; }
 function movementResult(view: CommandView, id: string, kind: "player" | "item", steps: number, flags: number, args: readonly Arg[]): CommandResult {
   const actorValue = actor(view, id, kind);
+  if (actorValue !== null && !actorValue.visible) throw new ScriptError("builtin.bad-arg", `cannot move hidden ${kind} "${id}"`);
   const effects: CommandEffect[] = [{ kind: "state-write", section: "sprites", args: args.map((arg) => arg.value as never) }];
   if (!waitFor(view, flags) || actorValue === null || steps === 0) return { value: null, effects };
   return { value: null, effects, wait: { kind: "sprite.movement", global: blocking(view), actor: id } };
@@ -136,7 +137,9 @@ const PUSH: BuiltinSpec = {
     const id = movementPlayerId(view, args[1]?.value);
     const flags = number(args, 2);
     const dirs = directions(string(args, 0));
-    return movementResult(view, id, "player", dirs.length, flags, args);
+    const result = movementResult(view, id, "player", dirs.length, flags, args);
+    if (!blocking(view) || dirs.length === 0) return result;
+    return { ...result, effects: [{ kind: "state-write", section: "sprites", args: [args[0]?.value ?? "", args[1]?.value ?? "", args[2]?.value ?? 0, 1] as never }] };
   },
 };
 const PUSH_ITEM: BuiltinSpec = {
@@ -391,6 +394,7 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
   if (name === "activeplayer") { const target = String(args[0] ?? ""); state.sprites.selectedPlayer = state.sprites.players.find((value) => value.id === target || String(value.index) === target)?.id ?? state.sprites.selectedPlayer; return true; }
   if (name === "push" || name === "pushitem") {
     const dirs = directions(String(args[name === "push" ? 0 : 1] ?? ""));
+    if (name === "push" && args[3] === 1) actor!.queue.moves = actor!.queue.moves.filter((move) => move.pointer !== true);
     const distance = pixelMovement === 2 ? 8 : 32;
     for (const facing of dirs) enqueueScriptDirectionMove(state.sprites, actor!.id, facing, distance, false);
     return true;
