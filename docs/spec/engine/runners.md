@@ -416,8 +416,10 @@ therefore allow `wasm-unsafe-eval` in `script-src`; this permits WebAssembly com
 `unsafe-eval`. The policy still permits scripts only from the application's own origin. The decoder supports
 compressed SoundFont samples; its initialization must not produce an unhandled rejection on startup.
 
-The browser player's strict policy remains unchanged by this desktop fix. SF3 playback on other runners is not
-established by the desktop result.
+The browser player's strict policy remains unchanged by this desktop fix, and its browser lane **MUST** assert that
+the default path instantiates no WebAssembly. The current browser player does not yet meet that requirement: the same
+eager dependency initialization is blocked by its policy ([issue #1325](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1325)).
+SF3 playback on other runners is not established by the desktop result.
 
 The AudioWorklet module is loaded by `audioWorklet.addModule` from a **same-origin** URL — `/apps/audio-worklet.js` in
 the browser and `app://player/apps/audio-worklet.js` under the desktop scheme. That fetch is governed by `script-src`,
