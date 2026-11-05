@@ -1,4 +1,4 @@
-import { deepEqual, equal, notEqual } from "node:assert/strict";
+import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyInputEvent,
@@ -113,7 +113,7 @@ test("button slot presses survive snapshots; old input sections migrate without 
   const restored = restoreGameState(snapshot(state));
   const withoutPress = restoreGameState(snapshot(state));
   withoutPress.input.pressedButtonSlot = null;
-  notEqual(hashGameState(withoutPress), hashGameState(state), "the pending slot changes the state hash");
+  equal(hashGameState(withoutPress) === hashGameState(state), false, "the pending slot changes the state hash");
   equal(hashGameState(restored), hashGameState(state), "snapshot restore preserves the pending slot hash");
   applyInputEvent(restored.input, { kind: "pointer", x: 5, y: 5, buttons: 0 });
   deepEqual(restored.input.pendingActions, ["confirm"]);
