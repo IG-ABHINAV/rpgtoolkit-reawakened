@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import { applyUiEffect, assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, hydrateBoard, initCameraForBoard, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type InputRecord } from "@tk-reawakened/core";
-import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
+import { applyUiEffect, assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, hydrateBoard, initCameraForBoard, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type InputRecord, type NormalizedHostFeatures } from "@tk-reawakened/core";
+import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedGeometryAfterAdvance, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostStateObserver, type PendingInput } from "../src/host-state.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
 
 const viewSize = { width: 640, height: 480 };
@@ -144,7 +144,13 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   applyUiEffect(savedState, "uiEnd", [7]);
   savedState.input.focused = false;
   Object.assign(savedState.time, { tick: 50 });
-  const saved = new TextEncoder().encode(snapshotGameSave(savedState));
+  const legacySave = JSON.parse(snapshotGameSave(savedState)) as { features?: unknown; schema: Record<string, unknown> };
+  delete legacySave.features;
+  delete legacySave.schema.features;
+  const saved = new TextEncoder().encode(JSON.stringify(legacySave));
+  const liveFeatures: NormalizedHostFeatures = {
+    touch: true, pointer: "coarse", keyboard: false, gamepad: true, haptics: false, orientation: "portrait",
+  };
   let activatedItem: string | null = null;
   const engine = createEngine({
     seed: 7,
@@ -155,7 +161,7 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
     width: 2,
     height: 2,
     maxTicks: 100,
-    displayGeometry: resized,
+    features: liveFeatures,
     phaseRegistrations: [{
       phase: "animation",
       run(state) {
@@ -181,6 +187,11 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   // A pointer arrives while Load is waiting for bytes. The engine still reports the resized geometry at this point,
   // so the input is correctly normalized as a Plane 3 point but has no new geometry record in the pending queue.
   const observed = createObservedHostGeometry(resized);
+  const observedFeatures: HostStateObserver = {
+    poll() {},
+    currentFeatures: () => ({ ...liveFeatures }),
+    dispose() {},
+  };
   const host = { getBoundingClientRect: () => ({ left: 0, top: 0 } as DOMRect) } as HTMLElement;
   const logical = pointerEventToLogical({ clientX: 0, clientY: 0 } as PointerEvent, host, { width: 2, height: 2 }, observed.current());
   deepEqual(logical, { x: -2, y: 0 });
@@ -202,19 +213,23 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
     readyReport = engine.advance(0, assetReplies);
   }
   deepEqual(engine.hostDisplayGeometry(), initial, "Load restores the older saved display geometry");
+  deepEqual(engine.hostFeatures(), { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }, "a version-1 save missing host features migrates to the documented defaults");
   equal(loadReport.tickAfter === readyReport.tickAfter, false, "the restored save tick differs from the wait/input timestamp");
+  const featureNeedsTick = reconcileObservedHostFeaturesAfterAdvance(engine.hostFeatures(), observedFeatures, pending);
+  equal(featureNeedsTick, true, "current host capabilities are queued after restoring the older feature record");
+  deepEqual(engine.hostFeatures(), { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }, "reconciliation does not silently mutate the engine");
   const queued = reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, pending, readyReport.tickAfter);
   equal(queued, true, "restored geometry remains queued until a budgeted tick");
-  deepEqual(pending.map(({ tick }) => tick), [null, null, null, null], "unconsumed numeric producer timestamps rebase only while still pending");
-  deepEqual(pending.map(({ event }) => event.kind), ["key", "host.display", "pointer", "pointer"], "restore geometry is inserted immediately before the pointers it qualifies, preserving key and pointer order");
-  deepEqual(engine.hostDisplayGeometry(), initial, "reconciliation does not mutate or advance simulation state");
+  deepEqual(pending.map(({ tick }) => tick), [null, null, null, null, null], "unconsumed numeric producer timestamps rebase only while still pending");
+  deepEqual(pending.map(({ event }) => event.kind), ["key", "host.display", "pointer", "pointer", "host.features"], "restore reconciliations preserve same-tick input order");
 
   const resumedInputs = stampPendingInputs(pending, readyReport.tickAfter);
   deepEqual(resumedInputs.map(({ tick }) => tick), pending.map(() => readyReport.tickAfter));
   const resumed = engine.advance(0, resumedInputs);
-  equal(resumed.ticksRun, 0, "geometry reconciliation never spends an unbudgeted simulation tick");
+  equal(resumed.ticksRun, 0, "host state reconciliation never spends an unbudgeted simulation tick");
   equal(resumed.tickAfter, readyReport.tickAfter, "the tick counter stays unchanged");
-  deepEqual(resumed.consumed.map(({ event }) => event.kind), ["host.display"], "unfocused pre-tick consumes geometry but leaves key and pointer events queued");
+  deepEqual(resumed.consumed.map(({ event }) => event.kind), ["host.display", "host.features"], "the unfocused restored engine consumes both logged host reconciliations");
+  deepEqual(engine.hostFeatures(), liveFeatures, "the logged host.features event restores the live capability record");
   deepEqual(engine.hostDisplayGeometry(), resized);
   const geometryForFirstDraw = engine.hostDisplayGeometry();
   const firstFrame = rasterizePresentation(engine.drawList(), geometryForFirstDraw, new Map());
@@ -228,6 +243,7 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   const pointerTick = engine.advance(1, []);
   equal(pointerTick.ticksRun, 1, JSON.stringify(pointerTick));
   equal(activatedItem, "margin-go", "the queued Plane 3 press/release is hit-tested using the restored live geometry");
+
 });
 
 test("zero-sized host surfaces defer geometry instead of fitting or publishing invalid dimensions", () => {
@@ -267,30 +283,104 @@ test("keyboard capability is based on observation, not the browser layout API", 
   }
 });
 
-test("boot-connected gamepads are emitted once and their later disconnect is preserved", () => {
-  const gamepad = { index: 0, connected: true } as Gamepad;
+test("live gamepad polling records normalized physical state changes and disconnects once", () => {
+  const axes = [0, 0];
+  const buttons = Array.from({ length: 17 }, () => ({ pressed: false }));
+  const gamepad = { index: 0, connected: true, mapping: "standard", axes, buttons } as unknown as Gamepad;
   let connected = true;
   const browser = makeBrowserEnvironment(() => connected ? [gamepad] : []);
   const restore = installGlobals(browser.globals);
   const host = makeHost(640, 480);
   const inputs: InputRecord[] = [];
-  let stop = (): void => {};
+  let observer: HostStateObserver | null = null;
   try {
-    stop = observeHostState(host, viewSize, (event) => inputs.push({ tick: 0, event }));
-    const startup = inputs.filter((input) => input.event.kind === "gamepad");
-    deepEqual(startup.map((input) => input.event.kind === "gamepad" && [input.event.device, input.event.connected]), [[0, true]]);
-    const duplicate = new Event("gamepadconnected");
-    Object.defineProperty(duplicate, "gamepad", { value: gamepad });
-    browser.windowTarget.dispatchEvent(duplicate);
-    equal(inputs.filter((input) => input.event.kind === "gamepad").length, 1);
+    observer = observeHostState(host, viewSize, (event) => inputs.push({ tick: 0, event }));
+    const records = (): Extract<InputRecord["event"], { kind: "gamepad" }>[] =>
+      inputs.flatMap(({ event }) => event.kind === "gamepad" ? [event] : []);
+    deepEqual(records(), [{ kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 }]);
+    axes[0] = 0.8;
+    buttons[0]!.pressed = true;
+    observer.poll();
+    observer.poll();
+    deepEqual(records(), [
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 },
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 800, y: 0 }, buttons: 1 },
+    ]);
+    axes[0] = -0.2499;
+    observer.poll();
+    axes[0] = 0.25;
+    observer.poll();
+    axes[0] = 2;
+    observer.poll();
+    deepEqual(records().slice(-3).map(({ axes: value }) => value.x), [-249, 250, 1000], "axis samples truncate toward zero and clamp to the W3C integer range");
+    axes[0] = 0;
+    buttons[0]!.pressed = false;
+    observer.poll();
     connected = false;
     const disconnected = new Event("gamepaddisconnected");
     Object.defineProperty(disconnected, "gamepad", { value: gamepad });
     browser.windowTarget.dispatchEvent(disconnected);
-    deepEqual(inputs.filter((input) => input.event.kind === "gamepad").map((input) => input.event.kind === "gamepad" && input.event.connected), [true, false]);
+    deepEqual(records(), [
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 },
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 800, y: 0 }, buttons: 1 },
+      { kind: "gamepad", device: 0, connected: true, axes: { x: -249, y: 0 }, buttons: 1 },
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 250, y: 0 }, buttons: 1 },
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 1 },
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 },
+      { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 },
+    ]);
   } finally {
-    stop();
+    observer?.dispose();
     restore();
   }
+});
+
+test("gamepad polling accepts only the standard mapping and emits devices in ascending order", () => {
+  const pad = (index: number, mapping: string, pressed = false) => ({
+    index, connected: true, mapping, axes: [0, 0],
+    buttons: Array.from({ length: 17 }, (_, button) => ({ pressed: pressed && button === 16 })),
+  }) as unknown as Gamepad;
+  const browser = makeBrowserEnvironment(() => [pad(2, "standard"), pad(1, "xinput"), pad(0, "standard", true)]);
+  const restore = installGlobals(browser.globals);
+  const host = makeHost(640, 480);
+  const inputs: InputRecord[] = [];
+  let observer: HostStateObserver | null = null;
+  try {
+    observer = observeHostState(host, viewSize, (event) => inputs.push({ tick: 0, event }));
+    deepEqual(inputs.flatMap(({ event }) => event.kind === "gamepad"
+      ? [{ device: event.device, buttons: event.buttons }]
+      : []), [
+      { device: 0, buttons: 1 << 16 },
+      { device: 2, buttons: 0 },
+    ]);
+  } finally {
+    observer?.dispose();
+    restore();
+  }
+});
+
+test("live host capabilities are reconciled after save restore as logged feature inputs", () => {
+  const current: NormalizedHostFeatures = {
+    touch: true, pointer: "coarse", keyboard: false, gamepad: true, haptics: false, orientation: "portrait",
+  };
+  const observer: HostStateObserver = {
+    poll() {},
+    currentFeatures: () => ({ ...current }),
+    dispose() {},
+  };
+  const restored: NormalizedHostFeatures = {
+    touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null,
+  };
+  const pending: PendingInput[] = [
+    { tick: 4, event: { kind: "host.features", features: { ...current, touch: false } }, pointerGeometry: null },
+  ];
+  equal(reconcileObservedHostFeaturesAfterAdvance(restored, observer, pending), true);
+  deepEqual(pending.map(({ tick, event }) => [tick, event.kind, event.kind === "host.features" ? event.features : null]), [
+    [4, "host.features", { ...current, touch: false }],
+    [null, "host.features", current],
+  ]);
+  equal(reconcileObservedHostFeaturesAfterAdvance(restored, observer, pending), true);
+  equal(pending.filter(({ event }) => event.kind === "host.features").length, 2, "do not duplicate an already queued current host record");
+  equal(reconcileObservedHostFeaturesAfterAdvance(current, observer, []), false, "equal live and engine features require no record");
 });
 

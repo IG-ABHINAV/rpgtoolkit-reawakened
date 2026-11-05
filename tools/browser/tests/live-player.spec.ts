@@ -453,6 +453,15 @@ test("live session flushes GPU surface cache after loading a same-id/revision sa
 });
 
 test("web runner consumes resize and device transitions and dispatches normalized script events", async ({ page }) => {
+  await page.addInitScript(() => {
+    let connected = false;
+    const pad = {
+      id: "host transition proof", index: 0, connected: true, mapping: "standard",
+      axes: [0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })), timestamp: 0,
+    };
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => connected ? [pad] : [] });
+    (window as Window & { __setHostTestGamepad?: (value: boolean) => void }).__setHostTestGamepad = (value) => { connected = value; };
+  });
   const script = `
 viewportResizeCount = 0
 connectedCount = 0
@@ -527,6 +536,7 @@ on(game, "device.disconnected", (event) => {
   const heldTick = await page.evaluate(() => (window as Window & { __heldTick?: number }).__heldTick ?? -1);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
+    (window as Window & { __setHostTestGamepad?: (value: boolean) => void }).__setHostTestGamepad?.(true);
     const event = new Event("gamepadconnected");
     Object.defineProperty(event, "gamepad", { value: { index: 0 } });
     window.dispatchEvent(event);
@@ -607,6 +617,7 @@ on(game, "device.disconnected", (event) => {
   expect(resized.event?.event.geometry?.content.width).not.toBe(initial.content.width);
 
   await page.evaluate(() => {
+    (window as Window & { __setHostTestGamepad?: (value: boolean) => void }).__setHostTestGamepad?.(false);
     const event = new Event("gamepaddisconnected");
     Object.defineProperty(event, "gamepad", { value: { index: 0 } });
     window.dispatchEvent(event);
@@ -622,6 +633,73 @@ on(game, "device.disconnected", (event) => {
     const records = (window as Window & { __hostConsumed?: readonly { event: { kind: string; features?: { keyboard: boolean } } }[] }).__hostConsumed ?? [];
     return records.some((record) => record.event.kind === "host.features" && record.event.features?.keyboard === true);
   }, undefined, { timeout: 15_000 });
+});
+
+test("live standard gamepad input drives the title action and gameplay movement", async ({ page }) => {
+  await page.addInitScript(() => {
+    const axes = [0, 0];
+    const buttons = Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 }));
+    const gamepad = { id: "standard input proof", index: 0, connected: true, mapping: "standard", axes, buttons, timestamp: 0 };
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => [gamepad] });
+    (window as Window & { __setGamepad?: (axisX: number, buttonA: boolean) => void }).__setGamepad = (axisX, buttonA) => {
+      axes[0] = axisX;
+      buttons[0]!.pressed = buttonA;
+      buttons[0]!.value = buttonA ? 1 : 0;
+      gamepad.timestamp += 1;
+    };
+  });
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+  await page.evaluate(() => {
+    type Consumed = { tick: number; event: { kind: string; connected?: boolean; axes?: { x: number; y: number }; buttons?: number } };
+    type Probe = Window & {
+      __session?: { engine: { advance: (ticks: number, inputs: readonly unknown[]) => { consumed: readonly Consumed[] } } };
+      __gamepadConsumed?: Consumed[];
+    };
+    const probe = window as Probe;
+    const engine = probe.__session?.engine;
+    if (engine === undefined) throw new Error("live engine was not initialized");
+    const advance = engine.advance.bind(engine);
+    engine.advance = (ticks, inputs) => {
+      const report = advance(ticks, inputs);
+      probe.__gamepadConsumed = [...(probe.__gamepadConsumed ?? []), ...report.consumed.filter(({ event }) => event.kind === "gamepad")];
+      return report;
+    };
+  });
+
+  for (let index = 0; index < 3; index += 1) {
+    const tickBefore = await page.evaluate(() => window.__live?.tick ?? 0);
+    await page.evaluate(() => (window as Window & { __setGamepad?: (axisX: number, buttonA: boolean) => void }).__setGamepad?.(0, true));
+    await page.waitForFunction((tick) =>
+      (window as Window & { __gamepadConsumed?: readonly { tick: number; event: { buttons?: number } }[] }).__gamepadConsumed?.some((input) => input.tick >= tick && input.event.buttons === 1) === true,
+    tickBefore, { timeout: 15_000 });
+    await page.evaluate(() => (window as Window & { __setGamepad?: (axisX: number, buttonA: boolean) => void }).__setGamepad?.(0, false));
+    await page.waitForFunction((tick) => (window.__live?.tick ?? 0) > tick + 1, tickBefore, { timeout: 15_000 });
+  }
+  await page.waitForFunction(() => window.__live?.board !== null && window.__live?.board !== undefined, undefined, { timeout: 45_000 });
+  const initial = await page.evaluate(() => window.__live as LiveReport);
+  expect(initial.player).not.toBeNull();
+  if (initial.player === null) throw new Error("live player did not reach gameplay");
+
+  const beforeMovement = await page.evaluate(() => window.__live?.tick ?? 0);
+  await page.evaluate(() => (window as Window & { __setGamepad?: (axisX: number, buttonA: boolean) => void }).__setGamepad?.(1, false));
+  await page.waitForFunction(({ x, y }) => {
+    const player = window.__live?.player;
+    return player !== null && player !== undefined && player.x >= x + 32 && player.y === y;
+  }, initial.player, { timeout: 15_000 });
+  await page.evaluate(() => (window as Window & { __setGamepad?: (axisX: number, buttonA: boolean) => void }).__setGamepad?.(0, false));
+  await page.waitForFunction((tick) =>
+    (window as Window & { __gamepadConsumed?: readonly { tick: number; event: { axes?: { x: number } } }[] }).__gamepadConsumed?.some((input) => input.tick > tick && input.event.axes?.x === 1000) === true,
+  beforeMovement, { timeout: 15_000 });
+  const result = await page.evaluate(() => ({
+    live: window.__live as LiveReport,
+    inputs: (window as Window & { __gamepadConsumed?: readonly { tick: number; event: { connected?: boolean; axes?: { x: number }; buttons?: number } }[] }).__gamepadConsumed ?? [],
+  }));
+  expect(result.live.error).toBeUndefined();
+  expect(result.live.player?.x).toBeGreaterThanOrEqual(initial.player.x + 32);
+  expect(result.inputs.some(({ event }) => event.buttons === 1)).toBe(true);
+  expect(result.inputs.some(({ event }) => event.axes?.x === 1000)).toBe(true);
+  expect(result.inputs.every(({ tick }) => tick >= 0)).toBe(true);
 });
 
 test("an interactive package with an initial character and no start-up program reaches its board", async ({ page }) => {

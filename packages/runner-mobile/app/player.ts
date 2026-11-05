@@ -9,7 +9,7 @@ import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web"
 import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "@tk-reawakened/runner-web/touch-controls";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -234,7 +234,7 @@ function run(
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
   const observedGeometry = createObservedHostGeometry(session.displayGeometry());
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+  const hostObserver = observeHostState(hostViewport, viewSize, (event) => {
     observedGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
@@ -270,7 +270,7 @@ function run(
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
-    stopObservingHost();
+    hostObserver.dispose();
     if (frameId !== null) window.cancelAnimationFrame(frameId);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
@@ -286,6 +286,7 @@ function run(
   const draw = (now: number): void => {
     frameId = null;
     if (disposed || !isCurrent()) return;
+    hostObserver.poll();
     touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     accumulator += Math.max(0, now - previous);
     previous = now;
@@ -297,12 +298,13 @@ function run(
       return;
     }
     const inputs = stampPendingInputs(pending, session.tick());
-          const submittedActionSequence = fallbackActionSequence;
+    const submittedActionSequence = fallbackActionSequence;
     pending = [];
     const tickBeforeAdvance = session.tick();
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
       if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
+      reconcileObservedHostFeaturesAfterAdvance(session.engine.hostFeatures(), hostObserver, pending);
       const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
       if (restoredGeometryNeedsTick) {
         frameId = window.requestAnimationFrame(draw);
