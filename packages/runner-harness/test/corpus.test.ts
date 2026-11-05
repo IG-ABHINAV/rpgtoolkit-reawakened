@@ -370,17 +370,18 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
   // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
   // else did; every other hash, tick and diagnostic is unchanged.
+  // #1349: normalized host capability and geometry sections are part of each state hash.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "2f32ff5c2f2c23d1",
-    "sample-system-demo": "9bab3f5f1c5707c5",
-    "sample-sys-test-demo": "9bab3f5f1c5707c5",
-    "sample-win-demo": "74716f4480794887",
-    "sample-oldman-demo": "9166f736d1965256",
-    "sample-man-demo": "51dc8fa86fb9fbe8",
-    "sample-man-wander-demo": "afb0e9d840b47ce5",
-    "sample-start-basic": "ab905634b2b7d459",
-    "sample-system-basic": "9bab3f5f1c5707c5",
-    "sample-wander-basic": "3317060cd68120f5",
+    "sample-start-demo": "548db59c3ce54dcf",
+    "sample-system-demo": "39c8f0459743e88f",
+    "sample-sys-test-demo": "39c8f0459743e88f",
+    "sample-win-demo": "550f2a9f82202775",
+    "sample-oldman-demo": "8ac725bf5bf9dbac",
+    "sample-man-demo": "ad004701538378ea",
+    "sample-man-wander-demo": "cd728c65aa767395",
+    "sample-start-basic": "4715cb41306e5593",
+    "sample-system-basic": "39c8f0459743e88f",
+    "sample-wander-basic": "0507dad674c05ec9",
   };
 
   for (const res of results) {
@@ -403,7 +404,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "3317060cd68120f5"); // re-pinned by #1231 (party schema 3, stepRemainder); was b79b37884bda3c8e (#585)
+  equal(hash1, "0507dad674c05ec9"); // #1349: host state is included in the state hash
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);
