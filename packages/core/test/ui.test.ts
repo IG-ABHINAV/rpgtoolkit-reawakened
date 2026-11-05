@@ -5,6 +5,7 @@ import {
   assetKey,
   colourSurface,
   composeUi,
+  composeUiMargins,
   uiAccessibilityTree,
   createGameState,
   createScriptServices,
@@ -129,6 +130,16 @@ test("author surface claims consume their shared input sequence once", () => {
   equal(state.ui.surfaceCancelled, false);
   equal(state.ui.surfaceCancelledSeq, null);
   equal(state.ui.surfaceCancelledOwner, null);
+});
+
+test("author text crossing Plane 1 is emitted in the margin command layer", () => {
+  const outside = createGameState({ seed: 0 });
+  applyUiEffect(outside, "pixeltext", [-4, 4, "Go", 0]);
+  ok(composeUiMargins(outside.ui, 32, 32).some((command) => command.kind === "text"));
+
+  const inside = createGameState({ seed: 0 });
+  applyUiEffect(inside, "pixeltext", [4, 4, "Go", 0]);
+  equal(composeUiMargins(inside.ui, 32, 32).length, 0);
 });
 
 test("author UI effects publish one ordered navigation surface and accessibility subtree", () => {
