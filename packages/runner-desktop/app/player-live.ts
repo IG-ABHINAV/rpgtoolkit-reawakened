@@ -2,7 +2,8 @@ import type { InputRecord } from "@tk-reawakened/core";
 import { interactivePackage } from "@tk-reawakened/runner-web";
 import { pointerEventToLogical } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
-import { createLiveSession, observeViewport, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { observeHostState, type HostViewport } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -11,7 +12,7 @@ type Host = {
   listBlobs(area: "saves" | "files", gameId: string): Promise<string[]>;
   quit(): Promise<boolean>;
 };
-declare global { interface Window { desktop?: Host; __live?: { tick: number; stateHash: string; drawHash: string; board: string | null; player: { x: number; y: number } | null; error?: string } } }
+declare global { interface Window { desktop?: Host; __live?: { tick: number; stateHash: string; drawHash: string; board: string | null; player: { x: number; y: number } | null; error?: string }; __session?: LiveSession } }
 
 void start().catch((error: unknown) => {
   const status = document.querySelector<HTMLElement>("#live-status");
@@ -45,6 +46,7 @@ async function start(): Promise<void> {
     files,
     bundled,
     gl,
+    hostViewport: { canvas, viewport },
     blobs: {
       read: (area, gameId, path) => host.readBlob(area, gameId, path),
       write: (area, gameId, path, bytes) => host.writeBlob(area, gameId, path, bytes),
@@ -52,11 +54,11 @@ async function start(): Promise<void> {
     },
     onQuit: () => { void host.quit(); },
   });
-  const stopFitting = observeViewport(canvas, viewport, session.viewSize());
-  run(session, canvas, status, stopFitting);
+  window.__session = session;
+  run(session, canvas, status, { canvas, viewport });
 }
 
-function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, stopFitting: () => void): void {
+function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport): void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
@@ -72,6 +74,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
+  const stopObservingHost = observeHostState(hostViewport, viewSize, () => session.tick(), (input) => pending.push(input), session.hostState ?? undefined);
   const onPointer = (event: PointerEvent): void => {
     const { x, y } = pointerEventToLogical(event, canvas, viewSize);
     pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
@@ -86,8 +89,8 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   canvas.addEventListener("pointerup", onPointer);
   const dispose = (): void => {
     if (disposed) return;
-    stopFitting();
     disposed = true;
+    stopObservingHost();
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onBlur);

@@ -7,7 +7,8 @@ import { fetchBundled, fetchBundledFiles, fetchGame, fontProvider, distributionP
 import { createLoadController, type LoadModeRequest, type LoadState } from "../src/load-mode.ts";
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
-import { createLiveSession, fitCanvas, type LiveSession } from "../src/live-session.ts";
+import { createLiveSession, type LiveSession } from "../src/live-session.ts";
+import { observeHostState, type HostViewport } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 
@@ -210,6 +211,9 @@ async function bootInteractive(
   report: HTMLPreElement,
   params: URLSearchParams,
 ): Promise<void> {
+  const stage = document.querySelector<HTMLElement>("#stage");
+  if (stage === null) throw new Error("player: the page is missing its viewport stage");
+  const hostViewport: HostViewport = { canvas: screen, viewport: stage };
   const pack = params.get("package");
   if (pack === null) throw new Error("interactive play requires a distribution package in ?package=");
   const { controller, source, bundled } = await loadPackage(params, report, pack);
@@ -222,7 +226,6 @@ async function bootInteractive(
   let generation = 0;
   let activeSession: LiveSession | null = null;
   let disposeLoop: (() => void) | null = null;
-  let fit: (() => void) | null = null;
 
   const pagehide = (): void => {
     if (stopped) return;
@@ -234,7 +237,6 @@ async function bootInteractive(
     activeSession = null;
     if (cleanup !== null) cleanup();
     else session?.close();
-    if (fit !== null) window.removeEventListener("resize", fit);
     decode.dispose();
   };
   window.addEventListener("pagehide", pagehide, { once: true });
@@ -251,6 +253,7 @@ async function bootInteractive(
         source,
         bundled,
         gl: context,
+        hostViewport,
         clock,
         ...(blobs === null ? {} : { blobs }),
         decode: decode.create,
@@ -278,18 +281,7 @@ async function bootInteractive(
         return;
       }
       if (spinner !== null) overlay = createStallOverlay({ element: spinner, state: created.loadState, clock });
-      const view = created.viewSize();
-      if (fit === null) {
-        fit = (): void => {
-          fitCanvas(screen, view.width, view.height, {
-            width: window.innerWidth,
-            height: Math.max(80, window.innerHeight - report.offsetHeight - 24),
-          });
-        };
-        window.addEventListener("resize", fit);
-      }
-      fit();
-      disposeLoop = startLiveLoop(created, screen, report, overlay, controller.state);
+      disposeLoop = startLiveLoop(created, screen, report, overlay, controller.state, hostViewport);
     } catch (error) {
       if (stopped || sessionGeneration !== generation) return;
       activeSession?.close();
@@ -354,6 +346,7 @@ function startLiveLoop(
   report: HTMLPreElement,
   overlay: StallOverlay | null,
   loadState: () => LoadState,
+  hostViewport: HostViewport,
 ): () => void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
@@ -363,6 +356,7 @@ function startLiveLoop(
   let frameId: number | null = null;
   let pending: InputRecord[] = [];
   const viewSize = session.viewSize();
+  const stopObservingHost = observeHostState(hostViewport, viewSize, () => session.tick(), (input) => pending.push(input), session.hostState ?? undefined);
   const pointer = (event: PointerEvent): void => {
     const { x, y } = pointerEventToLogical(event, canvas, viewSize);
     pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
@@ -395,6 +389,7 @@ function startLiveLoop(
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
+    stopObservingHost();
     if (frameId !== null) window.cancelAnimationFrame(frameId);
     if (spinnerTimer !== null) window.clearInterval(spinnerTimer);
     window.removeEventListener("keydown", onKeyDown);

@@ -181,17 +181,35 @@ async function main() {
     if (opened === null) throw new Error("the live page published no status");
     if (opened.error !== undefined) throw new Error(String(opened.error));
 
+    await evaluate(`(() => {
+      const session = window.__session;
+      if (session === undefined) throw new Error("desktop player did not publish its live session");
+      const engine = session.engine;
+      const advance = engine.advance.bind(engine);
+      window.__hostInputs = [];
+      engine.advance = (ticks, inputs) => {
+        window.__hostInputs.push(...inputs);
+        return advance(ticks, inputs);
+      };
+    })()`);
     // Exercise the actual live page, including a ratio above 2.5 where rounding would choose the wrong scale.
     const fits = [];
     for (const [width, height] of [[480, 360], [960, 720], [1900, 1600]]) {
       await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+      let display = null;
+      for (let attempt = 0; attempt < 40 && display === null; attempt += 1) {
+        display = await evaluate(`window.__hostInputs?.filter(input => input.event.kind === "host.display" && input.event.geometry.content.width === ${width}).at(-1) ?? null`);
+        if (display === null) await sleep(50);
+      }
+      if (display === null) throw new Error(`desktop resize ${width}x${height} did not enqueue host.display`);
       const geometry = await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
         const canvas = document.querySelector("#screen");
         const box = canvas.getBoundingClientRect();
         const area = document.querySelector("#viewport").getBoundingClientRect();
         resolve({ frame: { width: canvas.width, height: canvas.height },
           box: { x: box.x, y: box.y, width: box.width, height: box.height },
-          area: { x: area.x, y: area.y, width: area.width, height: area.height } });
+          area: { x: area.x, y: area.y, width: area.width, height: area.height },
+          hostDisplay: window.__hostInputs.filter(input => input.event.kind === "host.display").at(-1)?.event.geometry ?? null });
       })))`);
       const { frame, box, area } = geometry;
       const ratio = Math.min(area.width / frame.width, area.height / frame.height);
@@ -202,8 +220,19 @@ async function main() {
         || Math.abs(box.y - (area.y + (area.height - box.height) / 2)) > 0.05) {
         throw new Error(`desktop frame is not fitted and centred: ${JSON.stringify(geometry)}`);
       }
-      fits.push(geometry);
+      const hostDisplay = geometry.hostDisplay;
+      if (hostDisplay === null
+        || Math.abs(hostDisplay.content.width - area.width) > 0.05
+        || Math.abs(hostDisplay.content.height - area.height) > 0.05
+        || Math.abs(hostDisplay.game.x - (box.x - area.x)) > 0.05
+        || Math.abs(hostDisplay.game.y - (box.y - area.y)) > 0.05
+        || Math.abs(hostDisplay.game.width - box.width) > 0.05
+        || Math.abs(hostDisplay.game.height - box.height) > 0.05) {
+        throw new Error(`desktop host.display geometry does not match its measured frame: ${JSON.stringify(geometry)}`);
+      }
+      fits.push({ ...geometry, marginLeft: Math.floor(hostDisplay.game.x / (hostDisplay.game.width / frame.width)) });
     }
+    if (fits[0].marginLeft === fits[2].marginLeft) throw new Error("desktop marginWidth did not change across viewport sizes");
     await page.send("Emulation.clearDeviceMetricsOverride");
 
     for (let attempt = 0; attempt < 8; attempt += 1) {

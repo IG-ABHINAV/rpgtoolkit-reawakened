@@ -7,7 +7,8 @@
 
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
 import { pointerEventToLogical } from "@tk-reawakened/runner-web/pointer";
-import { createLiveSession, fitCanvas, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { observeHostState, type HostViewport } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -91,6 +92,7 @@ async function start(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>("#screen");
   const status = document.querySelector<HTMLElement>("#live-status");
   if (canvas === null || status === null) throw new Error("mobile player page is missing its canvas or status element");
+  const hostViewport: HostViewport = { canvas, viewport: document.body };
   const opened = await host.openPackage();
   if (opened === null) throw new Error("no package was available");
   const descriptor = await readDescriptor(filesystem, opened.name);
@@ -108,7 +110,6 @@ async function start(): Promise<void> {
   let generation = 0;
   let activeSession: LiveSession | null = null;
   let disposeRun: (() => void) | null = null;
-  let fit: (() => void) | null = null;
   const pagehide = (): void => {
     if (stopped) return;
     stopped = true;
@@ -119,7 +120,6 @@ async function start(): Promise<void> {
     activeSession = null;
     if (cleanup !== null) cleanup();
     else session?.close();
-    if (fit !== null) window.removeEventListener("resize", fit);
   };
   window.addEventListener("pagehide", pagehide, { once: true });
 
@@ -149,6 +149,7 @@ async function start(): Promise<void> {
         files: pkg.files,
         bundled,
         gl,
+        hostViewport,
         blobs: {
           read: (area, gameId, path) => host.readBlob(area, gameId, path),
           write: (area, gameId, path, bytes) => host.writeBlob(area, gameId, path, bytes),
@@ -173,13 +174,7 @@ async function start(): Promise<void> {
         restart(sessionGeneration, session);
         return;
       }
-      const view = session.viewSize();
-      if (fit === null) {
-        fit = (): void => fitCanvas(canvas, view.width, view.height, { width: window.innerWidth, height: Math.max(80, window.innerHeight - 80) });
-        window.addEventListener("resize", fit);
-      }
-      fit();
-      disposeRun = run(session, canvas, status, host, () => !stopped && sessionGeneration === generation && activeSession === session);
+      disposeRun = run(session, canvas, status, host, () => !stopped && sessionGeneration === generation && activeSession === session, hostViewport);
     } catch (error) {
       if (!stopped && sessionGeneration === generation) fail(String(error));
     }
@@ -194,6 +189,7 @@ function run(
   status: HTMLElement,
   host: ReturnType<typeof createMobileHost>,
   isCurrent: () => boolean,
+  hostViewport: HostViewport,
 ): () => void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
@@ -222,6 +218,7 @@ function run(
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
+  const stopObservingHost = observeHostState(hostViewport, viewSize, () => session.tick(), (input) => pending.push(input), session.hostState ?? undefined);
   const onPointer = (event: PointerEvent): void => {
     const { x, y } = pointerEventToLogical(event, canvas, viewSize);
     pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
@@ -241,6 +238,7 @@ function run(
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
+    stopObservingHost();
     if (frameId !== null) window.cancelAnimationFrame(frameId);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);

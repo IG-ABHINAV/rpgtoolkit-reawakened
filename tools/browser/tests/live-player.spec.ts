@@ -305,7 +305,68 @@ test("live demo attaches a board canvas and movement changes the player and pres
   expect(movedFrame?.frameHash).not.toBe(canvasInfo?.frameHash);
 });
 
+test("live runner resize records measured display geometry for the engine", async ({ page }) => {
+  const fixture = packageWithoutStartupProgram("host-metrics.tpk");
+  await servePackage(page, fixture);
+  await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+  await page.waitForFunction(() => window.__session !== undefined && window.__live !== undefined, undefined, { timeout: 45_000 });
+  const initial = await page.evaluate(() => {
+    type Probe = Window & {
+      __session?: {
+        hostState: { readonly geometry: { readonly content: { readonly width: number; readonly height: number }; readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }; readonly safeArea: object } } | null;
+        engine: object;
+      };
+      __hostInputs?: readonly { readonly event: { readonly kind: string; readonly connected?: boolean; readonly geometry?: { readonly content: { readonly width: number; readonly height: number }; readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }; readonly safeArea: object } } }[];
+    };
+    const probe = window as Probe;
+    const session = probe.__session;
+    if (session === undefined || session.hostState === null) throw new Error("host geometry was not initialized");
+    const engine = session.engine as { advance: (ticks: number, inputs: readonly unknown[]) => unknown };
+    const advance = engine.advance.bind(engine);
+    engine.advance = (ticks, inputs) => {
+      probe.__hostInputs = [...(probe.__hostInputs ?? []), ...inputs as readonly { readonly event: { readonly kind: string; readonly connected?: boolean; readonly geometry?: object } }[]] as Probe["__hostInputs"];
+      return advance(ticks, inputs);
+    };
+    return session.hostState.geometry;
+  });
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await page.waitForFunction(() => (window as Window & { __hostInputs?: readonly { readonly event: { readonly kind: string } }[] }).__hostInputs?.some((input) => input.event.kind === "host.display") === true, undefined, { timeout: 10_000 });
+  await page.evaluate(() => {
+    const event = new Event("gamepadconnected");
+    Object.defineProperty(event, "gamepad", { value: { index: 0 } });
+    window.dispatchEvent(event);
+  });
+  await page.waitForFunction(() => (window as Window & { __hostInputs?: readonly { readonly event: { readonly kind: string; readonly connected?: boolean } }[] }).__hostInputs?.some((input) => input.event.kind === "gamepad" && input.event.connected === true) === true, undefined, { timeout: 10_000 });
+  await page.evaluate(() => {
+    const event = new Event("gamepaddisconnected");
+    Object.defineProperty(event, "gamepad", { value: { index: 0 } });
+    window.dispatchEvent(event);
+  });
+  await page.waitForFunction(() => (window as Window & { __hostInputs?: readonly { readonly event: { readonly kind: string; readonly connected?: boolean } }[] }).__hostInputs?.some((input) => input.event.kind === "gamepad" && input.event.connected === false) === true, undefined, { timeout: 10_000 });
+  const changed = await page.evaluate(() => {
+    const probe = window as Window & {
+      __hostInputs?: readonly { readonly event: { readonly kind: string; readonly geometry?: { readonly content: { readonly width: number; readonly height: number }; readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }; readonly safeArea: object } } }[];
+    };
+    const event = probe.__hostInputs?.filter((input) => input.event.kind === "host.display").at(-1)?.event;
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen")!;
+    const stage = document.querySelector<HTMLElement>("#stage")!;
+    const frame = canvas.getBoundingClientRect();
+    const content = stage.getBoundingClientRect();
+    return {
+      geometry: event?.geometry,
+      measuredFrame: { x: frame.left - content.left, y: frame.top - content.top, width: frame.width, height: frame.height },
+      marginLeft: event?.geometry === undefined ? null : Math.floor(event.geometry.game.x / (event.geometry.game.width / 640)),
+    };
+  });
+  expect(changed.geometry).toBeDefined();
+  expect(changed.geometry?.content.width).not.toBe(initial.content.width);
+  expect(changed.geometry?.game.x).not.toBe(initial.game.x);
+  expect(changed.marginLeft).not.toBe(Math.floor(initial.game.x / (initial.game.width / 640)));
+  expect(changed.geometry?.game).toEqual(changed.measuredFrame);
+});
+
 test("an interactive package with an initial character and no start-up program reaches its board", async ({ page }) => {
+
   const fixture = packageWithoutStartupProgram("empty-startup.tpk");
   await servePackage(page, fixture);
   await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
