@@ -8,7 +8,7 @@
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -219,13 +219,17 @@ function run(
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const observedGeometry = createObservedHostGeometry(session.displayGeometry());
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+    observedGeometry.observe(event);
+    pending.push({ tick: null, event });
+  }, session.hostState ?? undefined);
   const stage = canvas.parentElement;
   if (stage === null) throw new Error("mobile player canvas has no content host");
   const stopPointerInput = attachPointerInput(
     stage,
     viewSize,
-    session.displayGeometry,
+    observedGeometry.current,
     ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
     () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
   );

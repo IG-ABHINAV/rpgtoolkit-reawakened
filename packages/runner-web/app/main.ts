@@ -8,7 +8,7 @@ import { createLoadController, type LoadModeRequest, type LoadState } from "../s
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, type LiveSession } from "../src/live-session.ts";
-import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 
@@ -355,12 +355,15 @@ function startLiveLoop(
   let advancing = false;
   let frameId: number | null = null;
   let pending: PendingInput[] = [];
-  const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const displayGeometry = createObservedHostGeometry(session.displayGeometry());
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+    displayGeometry.observe(event);
+    pending.push({ tick: null, event });
+  }, session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
     hostViewport.viewport,
     viewSize,
-    session.displayGeometry,
+    displayGeometry.current,
     ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
     () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
   );

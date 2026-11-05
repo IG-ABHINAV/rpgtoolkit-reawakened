@@ -1,7 +1,8 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import type { InputRecord } from "@tk-reawakened/core";
-import { createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
+import { pointerEventToLogical } from "../src/pointer.ts";
 
 const viewSize = { width: 640, height: 480 };
 
@@ -80,6 +81,30 @@ test("deferred host records are stamped at the consuming advance boundary", () =
   const event: InputRecord["event"] = { kind: "host.features", features: { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: "portrait" } };
   const pending: PendingInput[] = [{ tick: null, event }, { tick: 4, event }];
   deepEqual(stampPendingInputs(pending, 19), [{ tick: 19, event }, { tick: 4, event }]);
+});
+
+test("pointer geometry keeps the newest queued host display through an advance boundary", () => {
+  const initial = {
+    content: { width: 640, height: 480 },
+    game: { x: 0, y: 0, width: 640, height: 480 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const resized = {
+    content: { width: 800, height: 600 },
+    game: { x: 80, y: 60, width: 640, height: 480 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const observed = createObservedHostGeometry(initial);
+  const pending: InputRecord["event"][] = [];
+  const event: InputRecord["event"] = { kind: "host.display", geometry: resized };
+  observed.observe(event);
+  pending.push(event);
+  const host = { getBoundingClientRect: () => ({ left: 0, top: 0 } as DOMRect) } as HTMLElement;
+  const pointer = { clientX: 200, clientY: 100 } as PointerEvent;
+  deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
+  pending.length = 0; // The event has been handed to advance; the engine may not have consumed it yet.
+  deepEqual(observed.current(), resized);
+  deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
 
 test("zero-sized host surfaces defer geometry instead of fitting or publishing invalid dimensions", () => {
