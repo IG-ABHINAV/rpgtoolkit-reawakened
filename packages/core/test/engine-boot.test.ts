@@ -586,6 +586,136 @@ for (const [pixelMovement, distance] of [[0, 32], [1, 8], [2, 8]] as const) {
     }
   }
 }
+for (const [label, command] of [
+  ["playerpath numeric-string", 'playerpath("1", 4, 192, 64)'],
+  ["playerstep numeric-string", 'playerstep("1", 192, 64, 4)'],
+  ["playerpath stable id", 'playerpath("ally", 4, 192, 64)'],
+  ["playerstep stable id", 'playerstep("ally", 192, 64, 4)'],
+] as const) {
+  test(`${label} waits on the same nonselected player it moves (#1306)`, () => {
+    const fixture = pushFixture("end()", 0);
+    deepEqual(fixture.pressA().diagnostics, []);
+    const state = fixture.state();
+    const hero = state.sprites.players[0];
+    if (hero === undefined) throw new Error("the hero was not hydrated");
+    const ally = {
+      ...hero,
+      id: "ally",
+      index: 1,
+      x: 160,
+      queue: { moves: [], waypoint: null },
+      movement: { ...hero.movement, active: null, waitTicks: 0 },
+      state: "waiting" as const,
+    };
+    state.sprites.players = [hero, ally];
+    fixture.runtime.section.players = [hero, ally];
+    startThread(state.vm, {
+      ref: { kind: "inline", text: `${command}\ncontinued = 1\nend()`, ir: IR_VERSION },
+      kind: "persistent",
+      owner: "script",
+    });
+
+    deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+    const queued = fixture.state();
+    const wait = queued.vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+    equal(wait?.kind, "sprite.movement");
+    if (wait?.kind === "sprite.movement") equal(wait.actor, ally.id);
+    equal(queued.vm.globals.continued, undefined, "the nonblocking pause waits for the target ally");
+    equal(queued.sprites.players[0]?.x, hero.x, "the selected hero is not moved");
+    equal(queued.sprites.players[1]?.movement.active?.target.x ?? queued.sprites.players[1]?.queue.moves[0]?.target.x, 192);
+
+    deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+    const settled = fixture.state();
+    equal(settled.sprites.players[1]?.x, 192);
+    equal(settled.vm.globals.continued, 1);
+  });
+}
+
+test("push cannot resolve a board item ID as a player (#1307)", () => {
+  const fixture = pushFixture("end()", 0);
+  deepEqual(fixture.pressA().diagnostics, []);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  const item = actorFromSource({
+    id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+  }, state.world.board ?? null, 0, 0);
+  state.sprites.items = [item];
+  fixture.runtime.section.items = [item];
+  startThread(state.vm, {
+    ref: { kind: "inline", text: 'push("E", "item:0", 4)\ncontinued = 1\nend()', ir: IR_VERSION },
+    kind: "persistent",
+    owner: "script",
+  });
+
+  deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+  const queued = fixture.state();
+  const wait = queued.vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+  equal(wait?.kind, "sprite.movement");
+  if (wait?.kind === "sprite.movement") equal(wait.actor, hero.id);
+  equal(queued.sprites.items[0]?.movement.active, null, "the board item is not targeted");
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  const settled = fixture.state();
+  equal(settled.sprites.players[0]?.x, hero.x + 32, "an unresolved player handle retains selected-player fallback");
+  equal(settled.sprites.items[0]?.x, 160);
+  equal(settled.vm.globals.continued, 1);
+});
+
+test("pushitem cannot resolve a player ID as an item (#1307)", () => {
+  const fixture = pushFixture("end()", 0);
+  deepEqual(fixture.pressA().diagnostics, []);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  const item = actorFromSource({
+    id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+  }, state.world.board ?? null, 0, 0);
+  state.sprites.items = [item];
+  fixture.runtime.section.items = [item];
+  state.vm.globals.target = hero.id;
+  startThread(state.vm, {
+    ref: { kind: "inline", text: 'pushitem(target, "E", 4)\ncontinued = 1\nend()', ir: IR_VERSION },
+    kind: "persistent",
+    owner: "script",
+  });
+
+  deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+  const settled = fixture.state();
+  equal(settled.sprites.players[0]?.x, hero.x, "an item command cannot move the player");
+  equal(settled.sprites.items[0]?.x, 160, "an unknown item handle is a no-op");
+  equal(settled.vm.globals.continued, 1);
+});
+
+test("player and item numeric handle 0 resolve to their own movement queues (#1307)", () => {
+  const fixture = pushFixture('push("E", "0", 4)\npushitem("0", "E", 4)\ncontinued = 1\nend()', 0);
+  deepEqual(fixture.pressA().diagnostics, []);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  const item = actorFromSource({
+    id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+  }, state.world.board ?? null, 0, 0);
+  state.sprites.items = [item];
+  fixture.runtime.section.items = [item];
+  startThread(state.vm, {
+    ref: { kind: "inline", text: 'push("E", "0", 4)\npushitem("0", "E", 4)\ncontinued = 1\nend()', ir: IR_VERSION },
+    kind: "persistent",
+    owner: "script",
+  });
+
+  deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+  const firstWait = fixture.state().vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+  equal(firstWait?.kind, "sprite.movement");
+  if (firstWait?.kind === "sprite.movement") equal(firstWait.actor, hero.id);
+  equal(fixture.state().sprites.items[0]?.x, 160);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  const settled = fixture.state();
+  equal(settled.sprites.players[0]?.x, hero.x + 32);
+  equal(settled.sprites.items[0]?.x, 192);
+  equal(settled.vm.globals.continued, 1);
+});
+
 
 for (const [targetKind, command] of [
   ["player", 'push("E, ", 0, 4)'],
@@ -695,34 +825,54 @@ test("a paused push waits through a pending finite waypoint without waking betwe
   equal(fixture.state().vm.globals.continued, 1);
 });
 
-for (const flags of [0, 4] as const) {
-  test(`nonblocking push respects pause flag ${flags} (#1305)`, () => {
-    const fixture = pushFixture("end()", 0);
-    deepEqual(fixture.pressA().diagnostics, []);
-    const state = fixture.state();
-    const hero = state.sprites.players[0];
-    if (hero === undefined) throw new Error("the hero was not hydrated");
-    startThread(state.vm, {
-      ref: { kind: "inline", text: `push("E", 0, ${flags})\ncontinued = 1\nend()`, ir: IR_VERSION },
-      kind: "persistent",
-      owner: "script",
+
+
+for (const targetKind of ["player", "item"] as const) {
+  for (const flags of [0, 4] as const) {
+    test(`nonblocking ${targetKind} push respects pause flag ${flags} (#1305)`, () => {
+      const fixture = pushFixture("end()", 0);
+      deepEqual(fixture.pressA().diagnostics, []);
+      const state = fixture.state();
+      const hero = state.sprites.players[0];
+      if (hero === undefined) throw new Error("the hero was not hydrated");
+      let targetId = hero.id;
+      let startX = hero.x;
+      if (targetKind === "item") {
+        const item = actorFromSource({
+          id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+        }, state.world.board ?? null, 0, 0);
+        state.sprites.items = [item];
+        fixture.runtime.section.items = [item];
+        targetId = item.id;
+        startX = item.x;
+      }
+      const command = targetKind === "player" ? `push("E", 0, ${flags})` : `pushitem(0, "E", ${flags})`;
+      startThread(state.vm, {
+        ref: { kind: "inline", text: `${command}\ncontinued = 1\nend()`, ir: IR_VERSION },
+        kind: "persistent",
+        owner: "script",
+      });
+
+      deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+      const afterPush = fixture.state();
+      const target = targetKind === "player" ? afterPush.sprites.players[0] : afterPush.sprites.items[0];
+      if (flags === 0) {
+        equal(afterPush.vm.globals.continued, 1, "a nonblocking call without the pause flag returns immediately");
+        ok(target !== undefined && (target.movement.active !== null || target.queue.moves.length !== 0), "movement is still in progress");
+      } else {
+        equal(afterPush.vm.globals.continued, undefined, "the pause flag parks the nonblocking thread");
+        const wait = afterPush.vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+        equal(wait?.kind, "sprite.movement");
+        if (wait?.kind === "sprite.movement") equal(wait.actor, targetId);
+        deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+        const settled = fixture.state();
+        const finalTarget = targetKind === "player" ? settled.sprites.players[0] : settled.sprites.items[0];
+        equal(finalTarget?.x, startX + 32);
+        equal(settled.vm.globals.continued, 1);
+      }
     });
-
-    deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
-    const afterPush = fixture.state();
-    if (flags === 0) {
-      equal(afterPush.vm.globals.continued, 1, "a nonblocking call without the pause flag returns immediately");
-      ok(afterPush.sprites.players[0]?.movement.active !== null || afterPush.sprites.players[0]?.queue.moves.length !== 0, "movement is still in progress");
-    } else {
-      equal(afterPush.vm.globals.continued, undefined, "the pause flag parks the nonblocking thread");
-      ok(afterPush.vm.threads.some((thread) => thread.wait?.kind === "sprite.movement"));
-      deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
-      equal(fixture.state().sprites.players[0]?.x, hero.x + 32);
-      equal(fixture.state().vm.globals.continued, 1);
-    }
-  });
+  }
 }
-
 
 test("a scripted game boots from start.prg to its first board with the ruled effects and state", () => {
   const game = authorGame(SCRIPTED);

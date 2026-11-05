@@ -37,9 +37,11 @@ function output(args: readonly Arg[], index: number, value: Value): readonly (re
   return args[index]?.ref === null || args[index] === undefined ? [] : [[index, value]];
 }
 function sprites(view: CommandView) { return view.state?.sprites; }
-function actor(view: CommandView, id: string): SpriteActor | null {
+function actor(view: CommandView, id: string, kind: "player" | "item"): SpriteActor | null {
   const state = view.state?.sprites;
-  return state?.players.find((value) => value.id === id) ?? state?.items.find((value) => value.id === id) ?? null;
+  return kind === "player"
+    ? state?.players.find((value) => value.id === id) ?? null
+    : state?.items.find((value) => value.id === id) ?? null;
 }
 function playerIdFor(state: SpritesSection | undefined, arg: number | string | undefined): string {
   const fallback = state?.selectedPlayer ?? state?.players[0]?.id ?? "";
@@ -49,9 +51,9 @@ function playerIdFor(state: SpritesSection | undefined, arg: number | string | u
   if (byId !== undefined) return byId.id;
   const index = typeof arg === "number" ? arg : Number(arg);
   if (Number.isInteger(index) && (typeof arg === "number" || arg.trim() !== "")) {
-    return state?.players.find((value) => value.index === index)?.id ?? state?.players[index]?.id ?? (typeof arg === "string" ? arg : fallback);
+    return state?.players.find((value) => value.index === index)?.id ?? state?.players[index]?.id ?? fallback;
   }
-  return typeof arg === "string" ? arg : fallback;
+  return fallback;
 }
 function itemIdFor(state: SpritesSection | undefined, arg: number | string | undefined): string {
   if (typeof arg === "string") {
@@ -59,9 +61,9 @@ function itemIdFor(state: SpritesSection | undefined, arg: number | string | und
     if (byId !== undefined) return byId.id;
     const handle = Number(arg);
     if (arg.trim() !== "" && Number.isInteger(handle)) {
-      return state?.items.find((value) => value.handle === handle || value.index === handle)?.id ?? arg;
+      return state?.items.find((value) => value.handle === handle || value.index === handle)?.id ?? "";
     }
-    return arg;
+    return "";
   }
   const item = state?.items.find((value) => value.handle === arg || value.index === arg);
   return item?.id ?? "";
@@ -77,8 +79,8 @@ function blocking(view: CommandView): boolean {
   return thread?.kind === "blocking";
 }
 function waitFor(view: CommandView, flags: number): boolean { return blocking(view) || (flags & PAUSE) !== 0; }
-function movementResult(view: CommandView, id: string, steps: number, flags: number, args: readonly Arg[]): CommandResult {
-  const actorValue = actor(view, id);
+function movementResult(view: CommandView, id: string, kind: "player" | "item", steps: number, flags: number, args: readonly Arg[]): CommandResult {
+  const actorValue = actor(view, id, kind);
   const effects: CommandEffect[] = [{ kind: "state-write", section: "sprites", args: args.map((arg) => arg.value as never) }];
   if (!waitFor(view, flags) || actorValue === null || steps === 0) return { value: null, effects };
   return { value: null, effects, wait: { kind: "sprite.movement", global: blocking(view), actor: id } };
@@ -105,9 +107,9 @@ function vector(view: CommandView, id: string): WorldVector | null {
 }
 function moveEffect(_name: string, args: readonly Arg[]): CommandEffect { return { kind: "state-write", section: "sprites", args: args.map((arg) => arg.value as never) }; }
 
-function stanceResult(view: CommandView, id: string, stance: string, args: readonly Arg[]): CommandResult {
+function stanceResult(view: CommandView, id: string, kind: "player" | "item", stance: string, args: readonly Arg[]): CommandResult {
   const effects: CommandEffect[] = [moveEffect("stance", args)];
-  if (actor(view, id) === null) return { value: null, effects };
+  if (actor(view, id, kind) === null) return { value: null, effects };
   return {
     value: null,
     effects,
@@ -121,7 +123,7 @@ const PUSH: BuiltinSpec = {
     const id = playerId(view, args[1]?.value as number | string ?? "");
     const flags = number(args, 2);
     const dirs = directions(string(args, 0));
-    return movementResult(view, id, dirs.length, flags, args);
+    return movementResult(view, id, "player", dirs.length, flags, args);
   },
 };
 const PUSH_ITEM: BuiltinSpec = {
@@ -131,29 +133,30 @@ const PUSH_ITEM: BuiltinSpec = {
     const id = itemId(view, args[0]?.value as number | string ?? "");
     const flags = number(args, 2);
     const dirs = directions(string(args, 1));
-    return movementResult(view, id, dirs.length, flags, args);
+    return movementResult(view, id, "item", dirs.length, flags, args);
   },
 };
 const PLAYER_STEP: BuiltinSpec = {
   name: "playerstep", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }],
   doc: docs("Move a player to a board point.", "Finds a deterministic route to x,y, queues it, and waits only for a blocking thread or the pause flag."),
-  call: (view, args) => { const id = playerId(view, number(args, 0)); const flags = number(args, 3); const value = actor(view, id); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, path?.points.length ?? 0, flags, args); },
+  call: (view, args) => { const id = playerId(view, args[0]?.value as number | string ?? ""); const flags = number(args, 3); const value = actor(view, id, "player"); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, "player", path?.points.length ?? 0, flags, args); },
 };
 const ITEM_STEP: BuiltinSpec = {
   name: "itemstep", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }],
   doc: docs("Move an item to a board point.", "Finds a deterministic route to x,y, queues it, and waits only for a blocking thread or the pause flag."),
-  call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const flags = number(args, 3); const value = actor(view, id); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, path?.points.length ?? 0, flags, args); },
+  call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const flags = number(args, 3); const value = actor(view, id, "item"); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, "item", path?.points.length ?? 0, flags, args); },
 };
 function pathCommand(name: "playerpath" | "itempath"): BuiltinSpec {
   return { name, aliases: [], params: movementParams(), doc: docs("Queue a player or item path.", "Queues explicit points, a deterministic path-find route, or a copied/live-linked waypoint vector. The pause flag or a blocking program waits for completion."), call: (view, args) => {
-    const flags = number(args, 1); const id = name === "playerpath" ? playerId(view, number(args, 0)) : itemId(view, args[0]?.value as number | string ?? ""); const value = actor(view, id); const board = view.state?.world.board; let points = pointsFromArgs(args, 2);
+    const kind = name === "playerpath" ? "player" : "item";
+    const flags = number(args, 1); const id = kind === "player" ? playerId(view, args[0]?.value as number | string ?? "") : itemId(view, args[0]?.value as number | string ?? ""); const value = actor(view, id, kind); const board = view.state?.world.board; let points = pointsFromArgs(args, 2);
     if ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0) { const source = vector(view, string(args, 2)); points = source?.points ?? []; }
     else if ((flags & PATHFIND) !== 0 && value !== null && board !== undefined && board !== null && points.length > 0) points = findPath(board, view.state?.sprites ?? null, value, points[0]!, 1).points;
-    return movementResult(view, id, points.length, flags, args);
+    return movementResult(view, id, kind, points.length, flags, args);
   } };
 }
-const PLAYER_LOCATION: BuiltinSpec = { name: "playerlocation", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }, { name: "layer", optional: false, byRef: true, variadic: false }], doc: docs("Read a player's location.", "Returns the player's current pixel x,y and one-based layer immediately through by-reference outputs."), call: (view, args) => { const value = actor(view, playerId(view, number(args, 0))); return { value: value?.x ?? 0, out: [...output(args, 1, value?.x ?? 0), ...output(args, 2, value?.y ?? 0), ...output(args, 3, (value?.layer ?? 0) + 1)] }; } };
-const ITEM_LOCATION: BuiltinSpec = { ...PLAYER_LOCATION, name: "itemlocation", doc: docs("Read an item's location.", "Returns the item's current pixel x,y and one-based layer immediately through by-reference outputs."), call: (view, args) => { const value = actor(view, itemId(view, args[0]?.value as number | string ?? "")); return { value: value?.x ?? 0, out: [...output(args, 1, value?.x ?? 0), ...output(args, 2, value?.y ?? 0), ...output(args, 3, (value?.layer ?? 0) + 1)] }; } };
+const PLAYER_LOCATION: BuiltinSpec = { name: "playerlocation", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }, { name: "layer", optional: false, byRef: true, variadic: false }], doc: docs("Read a player's location.", "Returns the player's current pixel x,y and one-based layer immediately through by-reference outputs."), call: (view, args) => { const value = actor(view, playerId(view, args[0]?.value as number | string ?? ""), "player"); return { value: value?.x ?? 0, out: [...output(args, 1, value?.x ?? 0), ...output(args, 2, value?.y ?? 0), ...output(args, 3, (value?.layer ?? 0) + 1)] }; } };
+const ITEM_LOCATION: BuiltinSpec = { ...PLAYER_LOCATION, name: "itemlocation", doc: docs("Read an item's location.", "Returns the item's current pixel x,y and one-based layer immediately through by-reference outputs."), call: (view, args) => { const value = actor(view, itemId(view, args[0]?.value as number | string ?? ""), "item"); return { value: value?.x ?? 0, out: [...output(args, 1, value?.x ?? 0), ...output(args, 2, value?.y ?? 0), ...output(args, 3, (value?.layer ?? 0) + 1)] }; } };
 const ACTIVE_PLAYER: BuiltinSpec = { name: "activeplayer", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }], doc: docs("Select the active party member.", "Resolves the supplied stable player handle and commits the selected actor id through the party owner."), call: (view, args) => {
   const party = view.state?.party;
   const raw = args[0]?.value;
@@ -242,13 +245,10 @@ function partyAssetContinuation(name: "__party_addplayer_asset" | "__party_newpl
 };
 }
 const ADD_PLAYER_ASSET = partyAssetContinuation("__party_addplayer_asset");
-const NEW_PLAYER_ASSET = partyAssetContinuation("__party_newplyr_asset");
-const PLAYER_DIRECTION: BuiltinSpec = { name: "playerdirection", aliases: [], params: movementParams(), doc: docs("Read or set a player's facing.", "Returns the current facing index, or emits an effect to set it when a direction is supplied."), call: (view, args) => { const value = actor(view, playerId(view, number(args, 0))); if (args.length < 2) return { value: value === null ? 0 : DIRECTIONS.indexOf(value.facing) }; return { value: null, effects: [moveEffect("playerdirection", args)] }; } };
-const PLAYER_SPEED: BuiltinSpec = { name: "playerspeed", aliases: [], params: movementParams(), doc: docs("Set a player's walking speed.", "Emits an effect changing the selected player's deterministic step delay."), call: (_view, args) => ({ value: null, effects: [moveEffect("playerspeed", args)] }) };
-const ITEM_DIRECTION: BuiltinSpec = { ...PLAYER_DIRECTION, name: "itemdirection", doc: docs("Get or set an item's facing.", "Returns the current facing index, or emits an effect to set it when a direction is supplied."), call: (view, args) => { const value = actor(view, itemId(view, args[0]?.value as number | string ?? "")); if (args.length < 2) return { value: value === null ? 0 : DIRECTIONS.indexOf(value.facing) }; return { value: null, effects: [moveEffect("itemdirection", args)] }; } };
-const ITEM_SPEED: BuiltinSpec = { ...PLAYER_SPEED, name: "itemspeed", doc: docs("Set an item's walking speed.", "Emits an effect changing the item's deterministic step delay."), call: (_view, args) => ({ value: null, effects: [moveEffect("itemspeed", args)] }) };
-const PLAYER_GET_PATH: BuiltinSpec = { name: "playergetpath", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "index", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }], doc: docs("Read one queued player path point.", "Returns whether the point exists and writes its pixel coordinates to x and y."), call: (view, args) => { const point = actor(view, playerId(view, number(args, 0)))?.queue.moves[number(args, 1)]?.target; return { value: point === undefined ? 0 : 1, out: [...output(args, 2, point?.x ?? 0), ...output(args, 3, point?.y ?? 0)] }; } };
-const ITEM_GET_PATH: BuiltinSpec = { ...PLAYER_GET_PATH, name: "itemgetpath", doc: docs("Read one queued item path point.", "Returns whether the point exists and writes its pixel coordinates to x and y."), call: (view, args) => { const point = actor(view, itemId(view, args[0]?.value as number | string ?? ""))?.queue.moves[number(args, 1)]?.target; return { value: point === undefined ? 0 : 1, out: [...output(args, 2, point?.x ?? 0), ...output(args, 3, point?.y ?? 0)] }; } };
+const PLAYER_DIRECTION: BuiltinSpec = { name: "playerdirection", aliases: [], params: movementParams(), doc: docs("Read or set a player's facing.", "Returns the current facing index, or emits an effect to set it when a direction is supplied."), call: (view, args) => { const value = actor(view, playerId(view, args[0]?.value as number | string ?? ""), "player"); if (args.length < 2) return { value: value === null ? 0 : DIRECTIONS.indexOf(value.facing) }; return { value: null, effects: [moveEffect("playerdirection", args)] }; } };
+const ITEM_DIRECTION: BuiltinSpec = { ...PLAYER_DIRECTION, name: "itemdirection", doc: docs("Get or set an item's facing.", "Returns the current facing index, or emits an effect to set it when a direction is supplied."), call: (view, args) => { const value = actor(view, itemId(view, args[0]?.value as number | string ?? ""), "item"); if (args.length < 2) return { value: value === null ? 0 : DIRECTIONS.indexOf(value.facing) }; return { value: null, effects: [moveEffect("itemdirection", args)] }; } };
+const PLAYER_GET_PATH: BuiltinSpec = { name: "playergetpath", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "index", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }], doc: docs("Read one queued player path point.", "Returns whether the point exists and writes its pixel coordinates to x and y."), call: (view, args) => { const point = actor(view, playerId(view, args[0]?.value as number | string ?? ""), "player")?.queue.moves[number(args, 1)]?.target; return { value: point === undefined ? 0 : 1, out: [...output(args, 2, point?.x ?? 0), ...output(args, 3, point?.y ?? 0)] }; } };
+const ITEM_GET_PATH: BuiltinSpec = { ...PLAYER_GET_PATH, name: "itemgetpath", doc: docs("Read one queued item path point.", "Returns whether the point exists and writes its pixel coordinates to x and y."), call: (view, args) => { const point = actor(view, itemId(view, args[0]?.value as number | string ?? ""), "item")?.queue.moves[number(args, 1)]?.target; return { value: point === undefined ? 0 : 1, out: [...output(args, 2, point?.x ?? 0), ...output(args, 3, point?.y ?? 0)] }; } };
 const WANDER: BuiltinSpec = { name: "wander", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "restrict", optional: true, byRef: false, variadic: false }], doc: docs("Take a deterministic random step.", "Draws one direction from the injected seedable RNG and emits a one-step item movement effect."), call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const draw = view.rng.nextUint32(); const dir = DIRECTIONS[draw % DIRECTIONS.length] ?? "S"; return { value: null, effects: [moveEffect("wander", [{ value: id, ref: null }, { value: dir, ref: null }, ...args])] }; } };
 const WAIT: BuiltinSpec = { name: "wait", aliases: [], params: [{ name: "dest", optional: true, byRef: true, variadic: false }], doc: docs("Wait for a key press.", "Parks the script until the lowest unclaimed key in the input queue is available, then returns it and optionally writes it by reference.", { kind: "until-input", summary: "Waits for a key press." }), call: (_view, args) => ({ value: null, wait: { kind: "input.key", global: true, key: null, resumeRefs: args.flatMap((arg) => arg.ref === null ? [] : [arg.ref]) } as Wait }) };
 const POINTER_FIELDS = ["x", "y", "buttons", "downs", "ups"] as const;
@@ -287,9 +287,8 @@ const SET_BUTTON: BuiltinSpec = { name: "setbutton", aliases: [], params: [{ nam
 const CHECK_BUTTON: BuiltinSpec = { name: "checkbutton", aliases: [], params: [{ name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }], doc: docs("Check whether a button was clicked.", "Returns 1 when the pixel is inside an enabled button slot, otherwise 0; it does not wait."), call: (view, args) => { const input = view.state?.input; const x = number(args, 0); const y = number(args, 1); return { value: input?.buttons.some((button) => "id" in button && button.enabled && x >= button.x && x < button.x + button.w && y >= button.y && y < button.y + button.h) ? 1 : 0 }; } };
 const CLEAR_BUTTONS: BuiltinSpec = { name: "clearbuttons", aliases: [], params: [{ name: "slots", optional: true, byRef: false, variadic: true }], doc: docs("Clear clickable buttons.", "Removes every button, or only the numeric slots supplied, immediately and without waiting."), call: (_view, args) => ({ value: null, effects: [{ kind: "state-write", section: "input", args: args.map((arg) => arg.value as never) }] }) };
 const MOUSE_MOVE: BuiltinSpec = { name: "mousemove", aliases: [], params: [{ name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }], doc: docs("Read the pointer position.", "Returns the current window-relative pointer x and y through by-reference outputs without waiting."), call: (view, args) => ({ value: null, out: [...output(args, 0, view.state?.input.pointer.x ?? 0), ...output(args, 1, view.state?.input.pointer.y ?? 0)] }) };
-const MOUSE_CLICK: BuiltinSpec = { name: "mouseclick", aliases: [], params: [{ name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }, { name: "noWait", optional: true, byRef: false, variadic: false }], doc: docs("Wait for or read a pointer click.", "Writes the current pointer position immediately when noWait is true; otherwise parks until a click is available.", { kind: "until-event", summary: "Waits for a pointer click." }), call: (view, args) => { const pointer = view.state?.input.pointer; if (number(args, 2) !== 0 && pointer !== undefined) return { value: null, out: [...output(args, 0, pointer.x), ...output(args, 1, pointer.y)] }; return { value: null, wait: { kind: "input.mouse", global: true, id: "mouseclick", payload: [], resumeRefs: args.flatMap((arg) => arg.ref === null ? [] : [arg.ref]) } }; } };
-const PLAYER_STANCE: BuiltinSpec = { name: "playerstance", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "stance", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }], doc: docs("Play a player's stance animation.", "Starts the named stance through the sprite animation owner, then waits for that owner to report completion."), call: (view, args) => stanceResult(view, playerId(view, args[0]?.value as number | string ?? ""), string(args, 1), args) };
-const ITEM_STANCE: BuiltinSpec = { ...PLAYER_STANCE, name: "itemstance", doc: docs("Play an item's stance animation.", "Starts the named item stance through the sprite animation owner, then waits for that owner to report completion."), call: (view, args) => stanceResult(view, itemId(view, args[0]?.value as number | string ?? ""), string(args, 1), args) };
+const PLAYER_STANCE: BuiltinSpec = { name: "playerstance", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "stance", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }], doc: docs("Play a player's stance animation.", "Starts the named stance through the sprite animation owner, then waits for that owner to report completion."), call: (view, args) => stanceResult(view, playerId(view, args[0]?.value as number | string ?? ""), "player", string(args, 1), args) };
+const ITEM_STANCE: BuiltinSpec = { ...PLAYER_STANCE, name: "itemstance", doc: docs("Play an item's stance animation.", "Starts the named item stance through the sprite animation owner, then waits for that owner to report completion."), call: (view, args) => stanceResult(view, itemId(view, args[0]?.value as number | string ?? ""), "item", string(args, 1), args) };
 
 export const MOVEMENT_COMMANDS: readonly BuiltinSpec[] = [PUSH, PUSH_ITEM, PLAYER_STEP, ITEM_STEP, pathCommand("playerpath"), pathCommand("itempath"), PLAYER_LOCATION, ITEM_LOCATION, ACTIVE_PLAYER, ADD_PLAYER, REMOVE_PLAYER, RESTORE_PLAYER, DESTROY_PLAYER, NEW_PLAYER, ADD_PLAYER_ASSET, NEW_PLAYER_ASSET, PLAYER_DIRECTION, ITEM_DIRECTION, PLAYER_SPEED, ITEM_SPEED, PLAYER_GET_PATH, ITEM_GET_PATH, WANDER, WAIT, WAIT_INPUT, GET, CLEAR_BUFFER, SET_BUTTON, CHECK_BUTTON, CLEAR_BUTTONS, MOUSE_MOVE, MOUSE_CLICK, PLAYER_STANCE, ITEM_STANCE];
 
@@ -320,7 +319,7 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
   const idArg = name === "push" ? args[1] : args[0];
   const selected = state.sprites.selectedPlayer ?? state.sprites.players[0]?.id ?? "";
   const playerCommand = name === "push" || name === "playerstep" || name === "playerpath" || name === "playerdirection" || name === "playerspeed" || name === "playerstance";
-  const itemCommand = name === "pushitem" || name === "itemstep" || name === "itempath" || name === "itemdirection" || name === "itemspeed" || name === "itemstance";
+  const itemCommand = name === "pushitem" || name === "itemstep" || name === "itempath" || name === "itemdirection" || name === "itemspeed" || name === "itemstance" || name === "wander";
   const numericOrStringId = typeof idArg === "number" || typeof idArg === "string" ? idArg : undefined;
   const playerId = playerCommand ? playerIdFor(state.sprites, numericOrStringId) : selected;
   const id = itemCommand ? itemIdFor(state.sprites, numericOrStringId) : playerCommand ? playerId : String(idArg ?? "");
@@ -366,8 +365,12 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
     state.sprites.players = state.sprites.players.map((value) => value.id === player.id ? { ...value, source: graphic.source, visual: graphic.visual } : value);
     return true;
   }
-  const actor = [...state.sprites.players, ...state.sprites.items].find((value) => value.id === id || String(value.handle) === id);
-  if (actor === undefined && name !== "activeplayer") return false;
+  const actor = playerCommand
+    ? state.sprites.players.find((value) => value.id === id)
+    : itemCommand
+      ? state.sprites.items.find((value) => value.id === id)
+      : [...state.sprites.players, ...state.sprites.items].find((value) => value.id === id || String(value.handle) === id);
+  if (actor === undefined && name !== "activeplayer") return playerCommand || itemCommand;
   if (name === "activeplayer") { const target = String(args[0] ?? ""); state.sprites.selectedPlayer = state.sprites.players.find((value) => value.id === target || String(value.index) === target)?.id ?? state.sprites.selectedPlayer; return true; }
   if (name === "push" || name === "pushitem") {
     const dirs = directions(String(args[name === "push" ? 0 : 1] ?? ""));
