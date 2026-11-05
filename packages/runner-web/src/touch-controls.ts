@@ -9,6 +9,7 @@ export type TouchControlGeometry = {
 const CONTROL_SIZE = 48;
 const CONTROL_GAP = 8;
 const D_PAD_WIDTH = CONTROL_SIZE * 3 + CONTROL_GAP * 2;
+const D_PAD_HEIGHT = CONTROL_SIZE * 2 + CONTROL_GAP;
 const ACTION_WIDTH = CONTROL_SIZE * 2 + CONTROL_GAP;
 const MARGIN_CLEARANCE = 8;
 
@@ -95,6 +96,7 @@ export function createFallbackTouchControls(
     button.style.gridRow = String(entry.row + 1);
     button.style.gridColumn = String(entry.column + 1);
     button.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
       if (!button.disabled && event.button === 0) {
         event.preventDefault();
         button.setPointerCapture(event.pointerId);
@@ -103,8 +105,15 @@ export function createFallbackTouchControls(
         dispatch(entry.action, true);
       }
     });
-    button.addEventListener("pointerup", (event) => release(event.pointerId));
-    button.addEventListener("pointercancel", (event) => release(event.pointerId));
+    button.addEventListener("pointermove", (event) => event.stopPropagation());
+    button.addEventListener("pointerup", (event) => {
+      event.stopPropagation();
+      release(event.pointerId);
+    });
+    button.addEventListener("pointercancel", (event) => {
+      event.stopPropagation();
+      release(event.pointerId);
+    });
     button.addEventListener("lostpointercapture", (event) => release(event.pointerId));
     button.addEventListener("click", (event) => {
       // Native keyboard activation has detail 0; pointer activation already emitted its press/release edges.
