@@ -162,20 +162,33 @@ function setDirectionOrder(state: InputSection, action: string, pressed: boolean
   else state.directionOrder = state.directionOrder.filter((value) => value !== action);
 }
 
-function updateAction(state: InputSection, action: string, emitEdge: boolean, code: string): void {
+function updateAction(
+  state: InputSection,
+  action: string,
+  emitEdge: boolean,
+  code: string,
+  onTransition?: (action: string, down: boolean, firstSeq: number) => void,
+): void {
   if (!boundActions(state).has(action)) return;
   const previous = state.actions[action] === true;
   const current = state.keyboardActions[action] === true || actionHeldFromPads(state, action) || Object.values(state.semanticActionSources[action] ?? {}).some((held) => held);
-  state.actions[action] = current;
   if (current === previous) return;
+  const firstSeq = state.nextSeq;
+  state.actions[action] = current;
   setDirectionOrder(state, action, current);
   if (current && emitEdge) {
     appendKey(state, action, code, null, action);
     state.pendingActions.push(action);
   }
+  onTransition?.(action, current, firstSeq);
 }
 
-function updateAllActions(state: InputSection, emitEdges: boolean, code: string): void {
+function updateAllActions(
+  state: InputSection,
+  emitEdges: boolean,
+  code: string,
+  onTransition?: (action: string, down: boolean, firstSeq: number) => void,
+): void {
   const actions = new Set(Object.values(state.bindings.keys));
   for (const action of GAMEPAD_BITS) if (boundActions(state).has(action)) actions.add(action);
   const ordered = [...actions].sort((left, right) => {
@@ -186,7 +199,7 @@ function updateAllActions(state: InputSection, emitEdges: boolean, code: string)
     if (rightBit >= 0) return 1;
     return left < right ? -1 : left > right ? 1 : 0;
   });
-  for (const action of ordered) updateAction(state, action, emitEdges, code);
+  for (const action of ordered) updateAction(state, action, emitEdges, code, onTransition);
 }
 
 function applyKey(state: InputSection, event: KeyInput): void {
@@ -327,6 +340,7 @@ export function applyInputEvent(state: InputSection, event: InputEvent, onUnknow
 export function processGamepadEvents(
   state: InputSection,
   onConnectionTransition?: (event: { readonly device: number; readonly connected: boolean }) => void,
+  onActionTransition?: (action: string, down: boolean, firstSeq: number) => void,
 ): void {
   const events = state.pendingGamepads.map((event, index) => ({ event, index })).sort((left, right) => left.event.device - right.event.device || left.index - right.index);
   state.pendingGamepads = [];
@@ -338,7 +352,7 @@ export function processGamepadEvents(
       prior.connected = false;
       prior.mask = 0;
       onConnectionTransition?.({ device: event.device, connected: false });
-      updateAllActions(state, true, `gamepad:${event.device}`);
+      updateAllActions(state, true, `gamepad:${event.device}`, onActionTransition);
       continue;
     }
     if (!Number.isInteger(event.axes.x) || !Number.isInteger(event.axes.y)) continue;
@@ -348,7 +362,7 @@ export function processGamepadEvents(
     prior.mask = maskForGamepad(event);
     state.gamepads[String(event.device)] = prior;
     if (newlyConnected) onConnectionTransition?.({ device: event.device, connected: true });
-    updateAllActions(state, true, `gamepad:${event.device}`);
+    updateAllActions(state, true, `gamepad:${event.device}`, onActionTransition);
   }
 }
 
