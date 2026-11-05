@@ -106,6 +106,48 @@ test("button slots activate once on release over the pressed target and cancel o
   equal(state.keys.length, 1);
 });
 
+test("pointer cancellation clears only the primary bit and pending slot without a release edge", () => {
+  const game = createGameState({ seed: 7 });
+  game.input = createInputSection({
+    bindings: { keys: { ArrowUp: "up" } },
+    buttons: [{ id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true }],
+  });
+  applyInputEvent(game.input, { kind: "key", name: "UP", code: "ArrowUp", char: null, down: true });
+  applyInputEvent(game.input, { kind: "pointer", x: 5, y: 5, buttons: 3 });
+  const beforeCancel = {
+    pointer: { ...game.input.pointer },
+    keys: [...game.input.keys],
+    pendingActions: [...game.input.pendingActions],
+    pendingClicks: [...game.input.pendingClicks],
+  };
+  equal(game.input.pressedButtonSlot, "ok");
+
+  applyInputEvent(game.input, { kind: "pointer.cancel" });
+  deepEqual(game.input.pointer, { ...beforeCancel.pointer, buttons: 2 });
+  equal(game.input.pointer.ups, beforeCancel.pointer.ups, "cancel is not a pointer-up edge");
+  equal(game.input.pressedButtonSlot, null);
+  deepEqual(game.input.keys, beforeCancel.keys);
+  deepEqual(game.input.pendingActions, beforeCancel.pendingActions);
+  deepEqual(game.input.pendingClicks, beforeCancel.pendingClicks);
+  equal(game.input.held.ArrowUp, true, "keyboard controls remain held");
+  equal(game.input.actions.up, true);
+
+  const restored = restoreGameState(snapshot(game));
+  deepEqual(restored.input, game.input, "save/restore preserves the cancelled gesture and remaining button bits");
+  applyInputEvent(restored.input, { kind: "pointer", x: 5, y: 5, buttons: 2 });
+  deepEqual(restored.input.pendingActions, beforeCancel.pendingActions);
+  deepEqual(restored.input.keys, beforeCancel.keys);
+});
+
+test("pointer cancellation emits no click request", () => {
+  const state = createInputSection({ camera: { x: 100, y: 200 } });
+  applyInputEvent(state, { kind: "pointer", x: 30, y: 40, buttons: 1 });
+  const clicks = [...state.pendingClicks];
+  applyInputEvent(state, { kind: "pointer.cancel" });
+  deepEqual(state.pendingClicks, clicks);
+  deepEqual(state.pointer.buttons, 0);
+});
+
 test("button slot presses survive snapshots; old input sections migrate without a press", () => {
   const state = createGameState({ seed: 7 });
   state.input = createInputSection({ buttons: [{ id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true }] });

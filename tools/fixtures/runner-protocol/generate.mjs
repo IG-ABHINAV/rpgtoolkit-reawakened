@@ -47,10 +47,11 @@ const vectors = [
     record: list({ kind: "pushTarget", scratch: 2 }, { kind: "fill", rgb }, { kind: "popTarget" }) },
   { id: "draw-empty-frame", family: "draw", valid: true, record: list() },
 
-  // --- input record: one valid record per event of the eleven (AD-14) ----------
+  // --- input record: one valid record per event kind (AD-14) ----------------
   { id: "input-key", family: "input", valid: true, record: input({ kind: "key", name: "ENTER", code: "Enter", char: "\n", down: true }) },
   { id: "input-key-null-char", family: "input", valid: true, record: input({ kind: "key", name: "LEFT", code: "ArrowLeft", char: null, down: false }) },
   { id: "input-pointer", family: "input", valid: true, record: input({ kind: "pointer", x: 320, y: 240, buttons: 1 }) },
+  { id: "input-pointer-cancel", family: "input", valid: true, record: input({ kind: "pointer.cancel" }) },
   { id: "input-gamepad", family: "input", valid: true,
     record: input({ kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: -1 }, buttons: 4 }) },
   { id: "input-focus", family: "input", valid: true, record: input({ kind: "focus", state: "lost" }) },

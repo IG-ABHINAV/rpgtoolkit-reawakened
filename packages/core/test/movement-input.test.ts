@@ -23,7 +23,8 @@ function fixture(): Fixture {
 
 function eventOf(raw: Record<string, unknown>): InputEvent | null {
   if (raw.kind === "key") return { kind: "key", name: String(raw.code), code: String(raw.code), char: null, down: raw.down === true, ...(raw.repeat === true ? { repeat: true } : {}) };
-  if (raw.kind === "pointer") return { kind: "pointer", x: Number(raw.x), y: Number(raw.y), buttons: 1 };
+  if (raw.kind === "pointer") return { kind: "pointer", x: Number(raw.x), y: Number(raw.y), buttons: Number(raw.buttons ?? (raw.phase === "up" ? 0 : 1)) };
+  if (raw.kind === "pointer.cancel") return { kind: "pointer.cancel" };
   if (raw.kind === "gamepad") return raw as unknown as InputEvent;
   return null;
 }

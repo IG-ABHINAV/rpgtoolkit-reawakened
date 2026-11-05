@@ -39,6 +39,7 @@ import type {
   PausedState,
   PlayVideoRequest,
   PointerInput,
+  PointerCancelInput,
   PopTargetCommand,
   PushTargetCommand,
   QuitRequest,
@@ -130,6 +131,7 @@ export function checkInputEventExhaustive(kind: InputEvent["kind"]): void {
   switch (kind) {
     case "key":
     case "pointer":
+    case "pointer.cancel":
     case "gamepad":
     case "focus":
     case "asset":
@@ -421,6 +423,10 @@ export const pinPointerInput: PointerInput = {
   x: 10,
   y: 20,
   buttons: 1,
+};
+
+export const pinPointerCancelInput: PointerCancelInput = {
+  kind: "pointer.cancel",
 };
 
 export const pinGamepadInput: GamepadInput = {

@@ -260,10 +260,16 @@ test("input-replay-button-slots: bindings, dead zone, edges, merge, slots and cl
   deepEqual(rowAt(dc, 6).held, []);
   const ptr = theCase(sc, "pointer-click-to-move-and-button-slots");
   deepEqual(rowAt(ptr, 1).click, { logical: [100, 100], board: [260, 196], via: "pathfind" });
-  equal(rowAt(ptr, 2).slot, "attack");
-  equal(rowAt(ptr, 4).click.logical[0], 80); // one past the slot edge
-  deepEqual(rowAt(ptr, 5).notes, ["slot-disabled:menu"]);
-  deepEqual(rowAt(theCase(sc, "gamepad-only-named-actions"), 1).held, ["confirm"]); // the unbound menu bit is ignored
+  equal(rowAt(ptr, 2).queue, undefined, "slot press alone does not activate");
+  deepEqual(rowAt(ptr, 4).queue, [{ seq: 1, key: "confirm", via: "slot:attack" }]);
+  equal(rowAt(ptr, 5).click.logical[0], 80); // one past the slot edge
+  deepEqual(rowAt(ptr, 6).notes, ["slot-disabled:menu"]);
+  deepEqual(rowAt(ptr, 7).notes, ["slot:menu:enabled"]);
+  deepEqual(rowAt(ptr, 8).queue, [{ seq: 2, key: "menu", via: "slot:menu" }]);
+  const canceled = theCase(sc, "pointer-cancel-clears-slot-gesture");
+  equal(rowAt(canceled, 2).queue, undefined, "cancel is not a slot release");
+  deepEqual(rowAt(canceled, 4).click, { logical: [30, 30], board: [130, 230], via: "pathfind" });
+  equal(rowAt(canceled, 5).click, undefined, "cancel creates no click destination");
 });
 
 test("movement-waits: the wait is polled in the waits phase, one tick after completion", () => {

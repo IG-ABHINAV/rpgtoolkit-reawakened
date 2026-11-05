@@ -219,6 +219,10 @@ export function applyInputEvent(state: InputSection, event: InputEvent): void {
   switch (event.kind) {
     case "key": applyKey(state, event); return;
     case "pointer": applyPointer(state, event); return;
+    case "pointer.cancel":
+      state.pointer = { ...state.pointer, buttons: state.pointer.buttons & ~1 };
+      state.pressedButtonSlot = null;
+      return;
     case "gamepad": state.pendingGamepads.push(event); return;
     case "focus":
       state.focused = event.state === "gained";
