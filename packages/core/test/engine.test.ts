@@ -149,11 +149,11 @@ test("author surface margin hit-testing uses safe whole cells", () => {
   const clippedCapture = captureState();
   const clipped = loadedEngine([clippedCapture.registration, surface], undefined, {
     ...geometry,
-    safeArea: { ...geometry.safeArea, left: 16 },
+    safeArea: { ...geometry.safeArea, left: 14 },
   });
   clipped.advance(1, []);
   clipped.advance(1, [{ tick: 1, event: { kind: "pointer", x: -2, y: 5, buttons: 1 } }]);
-  clipped.advance(1, [{ tick: 2, event: { kind: "pointer", x: -2, y: 5, buttons: 0 } }]);
+  clipped.advance(1, [{ tick: 2, event: { kind: "pointer", x: -3, y: 5, buttons: 0 } }]);
   const refused = clippedCapture.state();
   if (refused === undefined) throw new Error("expected captured game state");
   equal(refused.ui.surfaceActivated, null);

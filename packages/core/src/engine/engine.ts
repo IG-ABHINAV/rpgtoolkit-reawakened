@@ -3614,6 +3614,7 @@ export function createEngine(init: EngineInit): Engine {
         routeActionStateChanges(before, firstSeq);
       } else {
         applyInputEvent(state.input, event, reportUnknownAction);
+        if (event.kind === "focus" && event.state === "lost") state.ui.surfacePointerClaim = null;
       }
       return;
     }
