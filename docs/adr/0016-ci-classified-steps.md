@@ -103,7 +103,23 @@ Each of those jobs keeps its decision-report step, which always runs. `script-do
 
 G5 (Enforcement) and Rollout item 4 each gain one sentence stating this reading and pointing at this ADR. G5 rule 1 is unchanged: the required job still runs on every pull request.
 
-## Consequences
+## Amendment — Option B (docs-only PRs defer `checks` and `unit`)
+
+Approved by the owner (2026-11). Extends the classifier's effect: when every changed path is
+inert (i.e. documentation only), `checks` defers all of its heavy steps (typecheck, lint,
+licence, graph, fixtures, catalogue, command-docs, no-skips, make-package, mobile proof,
+desktop measure, icons, install) and keeps only `provenance` (which is a no-op for these
+paths but still runs, because G7 must see every diff), and `unit` defers entirely, so no
+shard runs and no LCOV is produced. `gate` skips the LCOV merge and coverage threshold in
+that case.
+
+The "never skip a job" rule is untouched: every job still runs and reports `DEFER`. The
+classifier's verdict is still the only thing that selects `run`. A path under `packages/`,
+`tools/`, `stock/`, `golden/`, `docs/spec/` or `.github/workflows/` forces `run`, so a
+change that merely *looks* like documentation but touches generated or workflow input
+cannot arrive as inert.
+
+### Consequences
 
 * A prose-only pull request still starts every job but skips the installs, builds, replays and emulators. The saving is runner minutes, not job count.
 * A classification mistake could hide a regression. Mitigations: a small positive list, a denylist that wins over the list, the base copy of the classifier, a full default, adversarial unit tests, the `gate` cross-check, and a printed reason a reviewer can audit.

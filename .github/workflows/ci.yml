@@ -94,8 +94,25 @@ jobs:
         if: ${{ !cancelled() }}
         run: node --test tools/ci/test/classify-changes.test.mjs
   checks:
+    needs: [changes]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     steps:
+      - name: CI classifier decision
+        shell: bash
+        env:
+          JOB: checks
+          CHANGES: ${{ needs.changes.result }}
+          FULL: ${{ needs.changes.outputs.full }}
+          REASON: ${{ needs.changes.outputs.reason }}
+        run: |
+          if [ "$CHANGES" = success ] && [ "$FULL" = false ]; then
+            echo "CI classifier [$JOB]: DEFER - heavy steps skipped; provenance still runs; $REASON"
+          elif [ "$CHANGES" != success ]; then
+            echo "CI classifier [$JOB]: RUN - changes job result was '$CHANGES' (${REASON:-no classifier verdict})"
+          else
+            echo "CI classifier [$JOB]: RUN - ${REASON:-full: no classifier verdict, treated as full}"
+          fi
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
@@ -103,31 +120,54 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm bmad:tickets:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       # `typecheck` starts with `tsc -b`, so subsequent checks reuse the built output.
       - run: pnpm typecheck
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm lint
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm audit --prod
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm licence:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm licence
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm provenance:test
       - run: pnpm provenance
       - run: pnpm graph:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm graph
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm fixtures:fetch
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm corpus:measure --check
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm fixtures:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm catalogue:check
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       # Command metadata is checked after the TypeScript build; docs remain outside VM state.
       - run: pnpm command-docs:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: node tools/command-docs/check.mjs
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm no-skips:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm make-package:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: node tools/no-skips/run.mjs --verify-groups
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm mobile:proof:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm desktop:measure:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm icons:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
   unit:
+    needs: [changes]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -150,6 +190,21 @@ jobs:
           - lsp
           - script-spec
     steps:
+      - name: CI classifier decision
+        shell: bash
+        env:
+          JOB: unit
+          CHANGES: ${{ needs.changes.result }}
+          FULL: ${{ needs.changes.outputs.full }}
+          REASON: ${{ needs.changes.outputs.reason }}
+        run: |
+          if [ "$CHANGES" = success ] && [ "$FULL" = false ]; then
+            echo "CI classifier [$JOB]: DEFER - heavy steps skipped; $REASON"
+          elif [ "$CHANGES" != success ]; then
+            echo "CI classifier [$JOB]: RUN - changes job result was '$CHANGES' (${REASON:-no classifier verdict})"
+          else
+            echo "CI classifier [$JOB]: RUN - ${REASON:-full: no classifier verdict, treated as full}"
+          fi
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
@@ -157,16 +212,27 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - uses: actions/cache@v6
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         with:
           path: fixtures/legacy
           key: legacy-games-${{ hashFiles('tools/fixtures/sources.json') }}
       - run: pnpm fixtures:fetch
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm build
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       # Every shard runs once with legacy fixtures present, under the no-skips guard
       # and with V8 coverage enabled. `gate` merges the shard LCOV files and checks
       # the repository-wide line and branch thresholds.
       - run: node tools/no-skips/run.mjs --group ${{ matrix.group }} --lcov coverage/lcov-${{ matrix.group }}.info
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+      - uses: actions/upload-artifact@v6
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+        with:
+          name: lcov-${{ matrix.group }}
+          path: coverage/lcov-${{ matrix.group }}.info
+          if-no-files-found: error
       - uses: actions/upload-artifact@v6
         with:
           name: lcov-${{ matrix.group }}
@@ -598,15 +664,20 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
+      - name: Coverage merge (skipped for inert changes)
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+        run: echo "merging shard LCOV reports"
       - uses: actions/download-artifact@v8
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         with:
           pattern: lcov-*
           path: coverage/shards
           merge-multiple: true
       - run: node tools/no-skips/run.mjs --merge-lcov coverage/lcov.info coverage/shards/lcov-*.info
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: node-test-coverage
           path: coverage/lcov.info
-          if-no-files-found: error
+          if-no-files-found: ignore

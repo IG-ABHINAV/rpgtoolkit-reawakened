@@ -71,11 +71,15 @@ Regardless of CI, reduce the paperwork for a docs PR:
 - Keep ticket-ledger sync (`tools/migrate-tickets-to-github.py`) out of the docs PR flow:
   it is a maintainer action, not a contributor gate.
 
-## Recommendation
+## Status
 
-Do Option A now (done). If the owner wants Option B, it is a one-ADR amendment plus a
-classifier/gate change with tests; it is the only way to get docs PRs to "next to nothing"
-on CI time. Option C is independent and low-risk; do it alongside.
+Option A, B and C are now implemented (see the commit that added this note):
+
+- **A** — classifier treats all non-spec `docs/**/*.md` and the whole `_bmad/` tree as inert.
+- **B** — `checks` keeps only `provenance` and `unit` defers entirely for inert (documentation-only)
+  PRs; `gate` skips the LCOV merge and coverage threshold. ADR 0016 amended accordingly.
+- **C** — PR template carries a documentation-only note; CONTRIBUTING states the lighter check
+  set for docs PRs.
 
 ## Open question
 
