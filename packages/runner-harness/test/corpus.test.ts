@@ -370,19 +370,18 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
   // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
   // else did; every other hash, tick and diagnostic is unchanged.
-  // #1221: restoring input schema 3 and removing pressedButtonSlot reproduces all ten previous hashes exactly.
-  // No corpus program has a pending slot press; the changed input schema and null field alone explain the new hashes.
+  // Input schema 4 and world schema 2 are both included in these state hashes.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "e221e29e022e5d8c",
-    "sample-system-demo": "6e9f793f63c6505c",
-    "sample-sys-test-demo": "6e9f793f63c6505c",
-    "sample-win-demo": "e4d462dcf4732e2e",
-    "sample-oldman-demo": "ff0c9068f95b2a49",
-    "sample-man-demo": "1de1c2a7aafa7c7f",
-    "sample-man-wander-demo": "63e3167389aa895e",
-    "sample-start-basic": "936015c782b71504",
-    "sample-system-basic": "6e9f793f63c6505c",
-    "sample-wander-basic": "fc1415caac5abe20",
+    "sample-start-demo": "85c76ee30f89fd53",
+    "sample-system-demo": "98d90e254cb3912f",
+    "sample-sys-test-demo": "98d90e254cb3912f",
+    "sample-win-demo": "16d71f8c2fa3a03d",
+    "sample-oldman-demo": "26a0a33595858fdc",
+    "sample-man-demo": "48e29294fb797656",
+    "sample-man-wander-demo": "26d97e2de252547d",
+    "sample-start-basic": "9440586fa443a37f",
+    "sample-system-basic": "98d90e254cb3912f",
+    "sample-wander-basic": "2732642e4a2b0f5f",
   };
 
   for (const res of results) {
@@ -405,7 +404,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "fc1415caac5abe20"); // #1221 input schema 4; schema 3 with no slot field reproduces 3317060cd68120f5.
+  equal(hash1, "2732642e4a2b0f5f"); // Input schema 4 and world schema 2.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

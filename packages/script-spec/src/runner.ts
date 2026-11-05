@@ -125,6 +125,7 @@ type IsolatedRun = {
 function runIsolated(source: string, onlyCase: number, seed: number, collect = false, loader?: ProgramLoader): IsolatedRun {
   const state: GameState = createGameState({ seed });
   state.world = {
+    ...state.world,
     board: {
       key: assetKey("boards/spec-fixture.brd"), coordType: 0,
       sizeX: 1, sizeY: 1, sizeL: 1, width: 32, height: 32,

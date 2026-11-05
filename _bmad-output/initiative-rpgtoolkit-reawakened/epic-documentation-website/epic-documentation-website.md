@@ -5,6 +5,8 @@ parent: initiative-rpgtoolkit-reawakened
 covers: ["CAP-19"]
 assignee: ""
 risk: medium
+tracker_id: "#1362"
+remote: "https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1362"
 ---
 
 # Documentation and public website: install, make, import, debug, package and share games

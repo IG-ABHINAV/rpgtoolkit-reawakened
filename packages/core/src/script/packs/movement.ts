@@ -339,7 +339,7 @@ export function applyInputEffect(state: GameState, name: string, args: readonly 
   }
 }
 function numberValue(value: Value | undefined): number { return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : 0; }
-export function applySpriteEffect(state: GameState, name: string, args: readonly Value[], pixelMovement = 0): boolean {
+export function applySpriteEffect(state: GameState, name: string, args: readonly Value[]): boolean {
   const idArg = name === "push" ? args[1] : args[0];
   const selected = state.sprites.selectedPlayer ?? state.sprites.players[0]?.id ?? "";
   const playerCommand = name === "push" || name === "playerstep" || name === "playerpath" || name === "playerdirection" || name === "playerspeed" || name === "playerstance";
@@ -406,7 +406,7 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
         replaceActor(state, actor!.id, { movement: { ...actor!.movement, active: continuation } });
       }
     }
-    const distance = pixelMovement === 2 ? 8 : 32;
+    const distance = state.world.movement.pushing === 1 ? 8 : 32;
     for (const facing of dirs) enqueueScriptDirectionMove(state.sprites, actor!.id, facing, distance, false);
     return true;
   }

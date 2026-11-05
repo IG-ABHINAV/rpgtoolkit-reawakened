@@ -68,7 +68,7 @@ function setup(caseData: FixtureCase, seed: number): { state: GameState; board: 
   const sprites = hydrateSprites({ board, players: caseData.setup.players.map((player) => ({ ...player, kind: "player" as const, source: `${player.id}.tem` })) });
   sprites.players = sprites.players.map((actor, index) => ({ ...actor, speed: caseData.setup.players[index]!.speed }));
   const state = createGameState({ seed });
-  state.world = { board };
+  state.world = { ...state.world, board };
   state.sprites = sprites;
   const enemies: MainFileEnemy[] = (caseData.setup.encounterTable ?? []).map((enemy) => ({ enemyFile: enemy.enemy, skillLevel: enemy.skill }));
   return {
@@ -124,7 +124,7 @@ test("demo NPC battle fixture runs movement, triggers, and random boundary witho
   const source = fixtureCase.setup.boards[fixtureCase.setup.board]!;
   const board = makeBoard(fixtureCase.setup.board, { ...source, gameSpeed: 0 });
   const state = createGameState({ seed: 0x511 });
-  state.world = { board };
+  state.world = { ...state.world, board };
   state.sprites = hydrateSprites({ board, players: fixtureCase.setup.players.map((player) => ({ ...player, kind: "player" as const, source: `${player.id}.tem` })) });
   const posted: string[] = [];
   for (let tick = 0; tick < fixtureCase.ticks; tick += 1) {
@@ -158,7 +158,7 @@ test("random handoff draw order and snapshot restore are deterministic", () => {
   runRandomEncounterPhase(right.state, right.config, (_section, effect) => rightEffects.push(rightBus.postEffect("battle", effect)));
   deepEqual(leftEffects, rightEffects);
   equal(leftBus.pendingCount("battle"), rightBus.pendingCount("battle"));
-  left.state.world = { board: {
+  left.state.world = { ...left.state.world, board: {
     key: left.board.key, coordType: 0, sizeX: left.board.sizeX, sizeY: left.board.sizeY, sizeL: 2,
     width: left.board.width, height: left.board.height, layers: [], vectors: [], programs: [], items: [], allowBattles: 1,
   } as unknown as WorldBoard };

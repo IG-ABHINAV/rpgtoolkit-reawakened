@@ -193,7 +193,7 @@ const REAL_PACK_COMMANDS = new Set([
   // movement and input pack
   "push", "pushitem", "playerstep", "itemstep", "playerpath", "itempath", "playerlocation", "itemlocation",
   "playergetpath", "itemgetpath", "activeplayer", "removeplayer", "destroyplayer", "playerdirection", "itemdirection", "playerspeed",
-  "itemspeed", "playerstance", "itemstance", "wander", "wait", "get", "clearbuffer", "setbutton", "checkbutton", "clearbuttons", "mousemove", "mouseclick",
+  "itemspeed", "playerstance", "itemstance", "wander", "wait", "get", "clearbuffer", "setbutton", "checkbutton", "clearbuttons", "mousemove", "mouseclick", "pixelmovement",
   // battle pack
   "hp", "givehp", "gethp", "maxhp", "getmaxhp", "smp", "givesmp", "getsmp", "maxsmp", "getmaxsmp",
   "fp", "givefp", "getfp", "dp", "getdp", "applystatus", "removestatus", "giveexp",

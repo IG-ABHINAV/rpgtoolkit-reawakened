@@ -7,6 +7,7 @@ import type { CommandEffect, CommandResult, PluginDefinition } from "../plugin.t
 import { applyWorldEffect } from "../../world/effects.ts";
 import { applyCameraEffect } from "../../world/camera.ts";
 import { MOVEMENT_COMMANDS, applyInputEffect, applySpriteEffect } from "./movement.ts";
+import { resolvePixelMovement } from "../../world/movement-settings.ts";
 
 function numberArg(args: readonly Arg[], index: number, fallback = 0): number {
   const value = args[index]?.value;
@@ -243,9 +244,32 @@ const LIFECYCLE_COMMANDS: readonly BuiltinSpec[] = [
   noArgs("start", [{ name: "file", optional: false, byRef: false, variadic: false }]),
   noArgs("godos", [{ name: "command", optional: false, byRef: false, variadic: false }]),
 ];
+const PIXEL_MOVEMENT: BuiltinSpec = {
+  name: "pixelmovement",
+  aliases: [],
+  params: [{ name: "settings", optional: true, byRef: false, variadic: true }],
+  doc: {
+    summary: "Choose whether walking and scripted pushes use pixel steps.",
+    behaviour: "Returns the current walking setting as 1 or 0 when called without arguments. A one- or two-argument setter returns the new walking setting immediately. One argument sets walking; two set walking and pushing independently, except tile walking forces 32-pixel pushes. Numeric zero is false and other numbers are true; a string is false only when exactly \"off\" ignoring case. More than two arguments change nothing. Settings apply immediately without cancelling or rebuilding queued movement.",
+    groups: ["players-party-sprite-movement-31"],
+    waits: { kind: "never", summary: "Does not wait." },
+    tags: ["legacy"],
+  },
+  call: (view, args) => {
+    const current = view.state?.world.movement ?? { walking: 0, pushing: 0 };
+    const updated = resolvePixelMovement(current, args.map((arg) => arg.value));
+    return {
+      value: (updated ?? current).walking === 1 ? 1 : 0,
+      effects: updated === null
+        ? []
+        : [{ kind: "state-write", section: "world", args: args.map((arg) => arg.value as never) }],
+    };
+  },
+};
+
 
 const WORLD_COMMANDS: readonly BuiltinSpec[] = [
-  GET_NAME, PUT, LAYER_PUT, tileGetter("getboardtile", "boardgettile"), TILE_TYPE_GET, TILE_TYPE,
+  GET_NAME, PUT, LAYER_PUT, tileGetter("getboardtile", "boardgettile"), TILE_TYPE_GET, TILE_TYPE, PIXEL_MOVEMENT,
   noArgs("animatedtiles", [{ name: "list", optional: true, byRef: true, variadic: false }]),
   noArgs("parallax", [{ name: "setting", optional: false, byRef: false, variadic: false }]), AMBIENT,
   GET_VECTOR, SET_VECTOR, GET_VECTOR_POINT, SET_VECTOR_POINT, GET_PROGRAM, SET_PROGRAM, GET_PROGRAM_POINT, SET_PROGRAM_POINT, PRG,

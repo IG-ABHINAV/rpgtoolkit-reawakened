@@ -152,6 +152,8 @@ export type { EnginePhase };
 export type EnginePhaseRegistration = {
   readonly phase: EnginePhase;
   readonly rank?: number;
+  /** Legacy main-file movement mode used as the scene default when no main file exists. */
+  readonly pixelMovement?: number;
   readonly run: (state: GameState, postEffect?: (section: SectionKey, effect: PostEffect) => void) => void;
 };
 
@@ -326,6 +328,12 @@ export function createEngine(init: EngineInit): Engine {
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
   let mainFile: MainFile | null = null;
+  let scenePixelMovement = 0;
+  function movementDefaults(main: MainFile | null): { walking: number; pushing: number } {
+    const mode = main?.pixelMovement ?? scenePixelMovement;
+    return { walking: mode === 1 || mode === 2 ? 1 : 0, pushing: mode === 2 ? 1 : 0 };
+  }
+
   let sceneBoardKey: AssetKey | null = null;
   let loader: ProgramLoader | null = null;
   let initialCharacterKey: AssetKey | null = null;
@@ -347,6 +355,7 @@ export function createEngine(init: EngineInit): Engine {
   const decodedBundled = new Map<AssetKey, RasterAsset | null>();
   const canvasTextAssets = new Map<AssetKey, RasterAsset>();
   const pending = new Map<number, RequestEntry>();
+  const pendingTileBitmapAnimations = new Set<number>();
   const pendingBlobs = new Map<number, PendingBlobRequest>();
   const pendingImageEffects: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
   const pendingBoardPreviews: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
@@ -390,6 +399,10 @@ export function createEngine(init: EngineInit): Engine {
     list.push(registration);
     registrationByPhase.set(registration.phase, list);
   }
+  scenePixelMovement = registrations.find((registration) => registration.phase === "movement" && registration.pixelMovement !== undefined)?.pixelMovement
+    ?? registrations.find((registration) => registration.phase === "input" && registration.pixelMovement !== undefined)?.pixelMovement
+    ?? 0;
+  if (init.mainFile === undefined) state.world = { ...state.world, movement: movementDefaults(null) };
   const bus = new EffectBus(state, (diagnostic) => diagnostics.push(diagnostic));
 
   const shopSession = createShopSessionRuntime(() => state.vm.threads);
@@ -597,7 +610,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
-    applySpriteEffect(state, effect.name, values, mainFile?.pixelMovement ?? 0);
+    applySpriteEffect(state, effect.name, values);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
@@ -1109,6 +1122,7 @@ export function createEngine(init: EngineInit): Engine {
     return nextServices;
   }
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
+    const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -1129,6 +1143,13 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
+      state.world = {
+        ...state.world,
+        movement: {
+          walking: state.world.movement.walking ?? movementFallback.walking,
+          pushing: state.world.movement.pushing ?? movementFallback.pushing,
+        },
+      };
       // A save may carry a bare section; the restored continuation must still render, so the engine completes
       // the surface section it owns, exactly as it does at creation (never inventing game data).
       if (Object.keys(state.surfaces).length === 0) state.surfaces = createSurfacesSection(init.width, init.height);
@@ -1150,6 +1171,7 @@ export function createEngine(init: EngineInit): Engine {
       frameHash = null;
       frameFailure = null;
       refreshFrame(true);
+      pendingTileBitmapAnimations.clear();
     } catch (error) {
       Object.assign(state, previous);
       services = previousServices;
@@ -1876,7 +1898,7 @@ export function createEngine(init: EngineInit): Engine {
       resetLifecycle();
       return;
     }
-    if (effect.name === "mainFile" && typeof second === "string") {
+    if ((effect.name === "mainfile" || effect.name === "mainFile") && typeof second === "string") {
       resetLifecycle(second);
       return;
     }
@@ -1890,8 +1912,12 @@ export function createEngine(init: EngineInit): Engine {
     clearStartupAnchors();
     const rng = state.rng;
     const time = state.time;
+    if (nextMain !== undefined) {
+      initialCharacterKey = null;
+      initialCharacterResolved = true;
+    }
     const fresh = createGameState({ seed: 0 });
-    state.world = fresh.world;
+    state.world = { ...fresh.world, movement: movementDefaults(mainFile) };
     state.sprites = fresh.sprites;
     state.actors = fresh.actors;
     state.party = fresh.party;
@@ -1910,6 +1936,7 @@ export function createEngine(init: EngineInit): Engine {
     state.time = time;
     shopSession.reset();
     pending.clear();
+    pendingTileBitmapAnimations.clear();
     pendingImageEffects.length = 0;
     pendingBoardPreviews.length = 0;
     queuedInputs.length = 0;
@@ -2191,7 +2218,7 @@ export function createEngine(init: EngineInit): Engine {
     }
     registerEmitter(state.vm, state.events, boardEmitterKey(board.key));
     clearPathfindingCache();
-    state.world = { board };
+    state.world = { ...state.world, board };
     resetTriggersSection(state.triggers);
     state.triggers.boardKey = board.key;
     // Keep the boot poll pending through any blocking board-enter program.
@@ -2388,6 +2415,7 @@ export function createEngine(init: EngineInit): Engine {
         return false;
       }
       mainFile = parsed.value;
+      state.world = { ...state.world, movement: movementDefaults(mainFile) };
       if (root.kind === "game") root = { kind: "game", projectPath: mainFile.projectPath };
       refreshGameId();
       for (const key of [...privateFontKeys(index, root), ...programKeys(index, root)]) request(key, key.endsWith(".ttf") ? "font" : "program");
@@ -2498,7 +2526,7 @@ export function createEngine(init: EngineInit): Engine {
       const cloneDiagnostics: Diagnostic[] = [];
       const staged = restoreGameState(snapshot(state), cloneDiagnostics);
       if (cloneDiagnostics.length > 0) throw new Error(cloneDiagnostics.map((entry) => entry.message).join("; "));
-      applyRecoveryLedger(staged, ledger, recoveryListenerHandles(candidate.recoveryAssets));
+      applyRecoveryLedger(staged, ledger, movementDefaults(mainFile), recoveryListenerHandles(candidate.recoveryAssets));
       recoveryLaunch = { candidate, ledger, staged, boardKey: assetKey(ledger.world.board.value.key) };
       return true;
     } catch (error) {
@@ -2845,7 +2873,7 @@ export function createEngine(init: EngineInit): Engine {
     if (loaded === "pending" || loaded === null) return false;
     registerEmitter(state.vm, state.events, boardEmitterKey(loaded.key));
     clearPathfindingCache();
-    state.world = { board: loaded };
+    state.world = { ...state.world, board: loaded };
     state.camera = initCameraForBoard(state.camera, loaded, init.cameraTarget);
     postPrefetch(loaded);
     boardLifecycle("entered", loaded, state.sprites.players[0]);
@@ -2859,6 +2887,8 @@ export function createEngine(init: EngineInit): Engine {
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
       prepareSpriteVisuals();
+      // Keep ordinary image animations on the animation phase clock; only composed tile bitmaps need pre-tick dependency completion.
+      if (!failed && pending.size === 0 && pendingBlobs.size === 0) prepareAnimations(true);
       if (failed || pending.size > 0 || pendingBlobs.size > 0 || state.engine.openTick !== undefined) return;
       if (pendingBoardPreviews.length > 0 && !prepareBoardPreviews()) return;
       const boot = state.engine.boot;
@@ -2923,8 +2953,15 @@ export function createEngine(init: EngineInit): Engine {
   function requestFrameAssets(animation: AnimationState): boolean {
     let waiting = false;
     for (const frame of animation.frames) {
-      if (frame.asset === null || frame.surface !== undefined || cache.has(frame.asset)) continue;
-      request(frame.asset, requestKindFor(frame.asset));
+      if (frame.asset === null || frame.surface !== undefined) continue;
+      const isTileBitmap = frame.asset.toLowerCase().endsWith(".tbm");
+      if (isTileBitmap) pendingTileBitmapAnimations.add(animation.id);
+      if (cache.has(frame.asset)) {
+        if (isTileBitmap && imageTexture(frame.asset) === null) waiting = true;
+        continue;
+      }
+      const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
+      request(frame.asset, kind);
       waiting = true;
     }
     return waiting;
@@ -2945,13 +2982,18 @@ export function createEngine(init: EngineInit): Engine {
     const ready = animations.filter((animation) => animation.frames.every((frame) => frame.asset === null || frame.surface !== undefined || cache.has(frame.asset)));
     return { ...state.fx, animations: ready };
   }
-  function prepareAnimations(): void {
+  function prepareAnimations(tileBitmapsOnly = false): void {
     const animations = (state.fx as Partial<FxSection>).animations ?? [];
     for (const animation of animations) {
-      if (animation.loaded || animation.finished) continue;
+      if (tileBitmapsOnly && !pendingTileBitmapAnimations.has(animation.id)) continue;
+      if (animation.loaded || animation.finished) {
+        pendingTileBitmapAnimations.delete(animation.id);
+        continue;
+      }
       const key = animation.asset ?? resolveAnimationFile(animation.file);
       if (key === null) {
         animation.finished = true;
+        pendingTileBitmapAnimations.delete(animation.id);
         diagnostics.push({ code: "asset.missing", file: animation.file, line: 0, message: `animation "${animation.file}" is not in the asset index` });
         continue;
       }
@@ -2963,17 +3005,19 @@ export function createEngine(init: EngineInit): Engine {
       }
       if (!loadAnimation(state, animation, bytes, resolveAnimationImage)) {
         animation.finished = true;
+        pendingTileBitmapAnimations.delete(animation.id);
         diagnostics.push({ code: "asset.invalid", file: key, line: 0, message: `cannot decode animation "${animation.file}"` });
         continue;
       }
       // A frame's picture is a separate asset. The animation starts playing, and its frame clock starts, only once every
-      // picture is in the cache, so the first drawn frame is never a missing texture and the frames are on the same
-      // ticks on every run.
+      // picture is in the cache; the tile-bitmap path can finish from drive after every composed dependency arrives.
       const waiting = requestFrameAssets(animation);
       if (waiting) {
         releaseAnimationSurfaces(state, animation);
         animation.loaded = false;
         animation.frames = [];
+      } else {
+        pendingTileBitmapAnimations.delete(animation.id);
       }
     }
   }
@@ -3441,7 +3485,12 @@ export function createEngine(init: EngineInit): Engine {
       : state.vm.threads.find((thread) => thread.status === "waiting" && thread.wait?.kind === "input.key" && thread.wait.cursorMap === cursorMap);
     const cursorSelection = waitingCursor?.wait?.kind === "input.key" ? waitingCursor.wait.cursorSelection : undefined;
     const fx = drawableFx();
-    const withFx = applyFxDrawList(base, fx);
+    const sourceSize = (frame: AnimationState["frames"][number]): { readonly w: number; readonly h: number } | null => {
+      if (frame.asset === null) return null;
+      if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) return spriteTileCellSize(frame.asset);
+      return imageTexture(frame.asset);
+    };
+    const withFx = applyFxDrawList(base, fx, sourceSize);
     // A script-screen layer is visible only while an outermost program runs (#1045).
     const activeSurface = blockingAlive();
     const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
@@ -3449,7 +3498,7 @@ export function createEngine(init: EngineInit): Engine {
     const overlay = renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
-    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
+    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true, sourceSize)] };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const uiForCompose = activeSurface
       ? state.ui
