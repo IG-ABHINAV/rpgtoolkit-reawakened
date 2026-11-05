@@ -57,7 +57,7 @@ function packageWithoutStartupProgram(name: string, pixelMovement?: number, star
   const cleared = writeMainFile({ ...parsed.value, startupPrg: startupPath, pixelMovement: pixelMovement ?? parsed.value.pixelMovement });
   if (!cleared.ok) throw new Error(cleared.error.message);
   const tree = files.map((file) => (file.path === main ? { path: file.path, bytes: cleared.value } : file));
-  if (startupProgram !== undefined) tree.push({ path: startupPath, bytes: new TextEncoder().encode(startupProgram) });
+  if (startupProgram !== undefined) tree.push({ path: `Prg/${startupPath}`, bytes: new TextEncoder().encode(startupProgram) });
   const written = writeDistributionPackage({ files: tree, manifest: { schema: manifest.value.schema, main, index: tree.map((file) => file.path) } });
   if (!written.ok) throw new Error(written.error.message);
   return {
@@ -318,9 +318,7 @@ on(game, "viewportResized", (event) => {
   rightInset = safeAreaInset("right")
   bottomInset = safeAreaInset("bottom")
   leftInset = safeAreaInset("left")
-  if (leftMargin == event.detail.marginLeft && leftMargin == 180
-      && topInset == event.detail.safeAreaTop && rightInset == event.detail.safeAreaRight
-      && bottomInset == event.detail.safeAreaBottom && leftInset == event.detail.safeAreaLeft) {
+  if (leftMargin == event.detail.marginLeft && leftMargin == 180 && topInset == event.detail.safeAreaTop && rightInset == event.detail.safeAreaRight && bottomInset == event.detail.safeAreaBottom && leftInset == event.detail.safeAreaLeft) {
     viewportResizeCount = viewportResizeCount + 1
     send("start.brd", 128, 128, 1)
   }
@@ -406,6 +404,7 @@ on(game, "device.disconnected", (event) => {
   expect(heldTick).toBeGreaterThanOrEqual(0);
   expect(deferredHostTicks.length).toBeGreaterThanOrEqual(2);
   expect(deferredHostTicks.every((tick) => tick > heldTick)).toBe(true);
+  await page.waitForFunction(() => (window.__live?.player?.x ?? 0) === 192, undefined, { timeout: 15_000 });
   const narrow = await page.evaluate(() => {
     const stage = document.querySelector<HTMLElement>("#stage")!;
     const canvas = document.querySelector<HTMLCanvasElement>("#screen")!;
@@ -419,11 +418,21 @@ on(game, "device.disconnected", (event) => {
   expect(narrow.stageWidth).toBeLessThanOrEqual(390);
   expect(narrow.canvasWidth).toBeLessThanOrEqual(narrow.stageWidth);
   expect(narrow.scrollWidth).toBeLessThanOrEqual(narrow.viewportWidth);
+  const longReport = await page.evaluate(() => {
+    const report = document.querySelector<HTMLElement>("#report")!;
+    const previous = report.textContent;
+    report.textContent = "x".repeat(90);
+    const measured = { stage: document.querySelector<HTMLElement>("#stage")!.getBoundingClientRect().width, scroll: document.documentElement.scrollWidth };
+    report.textContent = previous;
+    return measured;
+  });
+  expect(longReport.stage).toBeLessThanOrEqual(390);
+  expect(longReport.scroll).toBeLessThanOrEqual(390);
 
   await page.evaluate(() => { document.querySelector<HTMLElement>("#stage")!.style.display = "none"; });
   await page.waitForTimeout(100);
   const hidden = await page.evaluate(() => ({
-    hostDisplayCount: (window as Window & { __hostConsumed?: readonly { event: { kind: string; geometry?: { content: { width: number; height: number } } } } }).__hostConsumed?.filter((record) => record.event.kind === "host.display" && record.event.geometry?.content.width === 0).length ?? 0,
+    hostDisplayCount: (window as Window & { __hostConsumed?: readonly { event: { kind: string; geometry?: { content: { width: number; height: number } } } }[] }).__hostConsumed?.filter((record) => record.event.kind === "host.display" && record.event.geometry?.content.width === 0).length ?? 0,
     error: window.__live?.error,
   }));
   expect(hidden.hostDisplayCount).toBe(0);
@@ -453,12 +462,6 @@ on(game, "device.disconnected", (event) => {
   expect(resized.event?.event.geometry?.content.width).not.toBe(initial.content.width);
 
   await page.evaluate(() => {
-    const event = new Event("gamepadconnected");
-    Object.defineProperty(event, "gamepad", { value: { index: 0 } });
-    window.dispatchEvent(event);
-  });
-  await page.waitForFunction(() => (window.__live?.player?.x ?? 0) === 192, undefined, { timeout: 15_000 });
-  await page.evaluate(() => {
     const event = new Event("gamepaddisconnected");
     Object.defineProperty(event, "gamepad", { value: { index: 0 } });
     window.dispatchEvent(event);
@@ -469,6 +472,11 @@ on(game, "device.disconnected", (event) => {
   }).__hostConsumed?.filter((record) => record.event.kind === "gamepad") ?? []);
   expect(transitions.some((record) => record.event.connected === true && record.tick > 0)).toBe(true);
   expect(transitions.some((record) => record.event.connected === false && record.tick > 0)).toBe(true);
+  await page.keyboard.press("Shift");
+  await page.waitForFunction(() => {
+    const records = (window as Window & { __hostConsumed?: readonly { event: { kind: string; features?: { keyboard: boolean } } }[] }).__hostConsumed ?? [];
+    return records.some((record) => record.event.kind === "host.features" && record.event.features?.keyboard === true);
+  }, undefined, { timeout: 15_000 });
 });
 
 test("an interactive package with an initial character and no start-up program reaches its board", async ({ page }) => {

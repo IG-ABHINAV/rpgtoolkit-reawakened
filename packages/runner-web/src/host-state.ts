@@ -6,11 +6,10 @@ export type HostViewport = { readonly canvas: HTMLCanvasElement; readonly viewpo
 export type HostStateSnapshot = { readonly features: NormalizedHostFeatures; readonly geometry: HostDisplayGeometry };
 
 /** Read only host capabilities that can be reported without inferring an operating-system identity. */
-export function readHostFeatures(): NormalizedHostFeatures {
+export function readHostFeatures(keyboardObserved = false): NormalizedHostFeatures {
   const nav = navigator as Navigator & {
     readonly maxTouchPoints?: number;
     readonly vibrate?: (pattern: number | readonly number[]) => boolean;
-    readonly keyboard?: { readonly getLayoutMap?: unknown };
   };
   const pointerFine = window.matchMedia("(pointer: fine)").matches;
   const pointerCoarse = window.matchMedia("(pointer: coarse)").matches;
@@ -19,7 +18,7 @@ export function readHostFeatures(): NormalizedHostFeatures {
   return {
     touch: (nav.maxTouchPoints ?? 0) > 0 || pointerCoarse,
     pointer: pointerFine ? "fine" : pointerCoarse ? "coarse" : "none",
-    keyboard: typeof nav.keyboard?.getLayoutMap === "function",
+    keyboard: keyboardObserved,
     gamepad: connectedGamepad,
     haptics: typeof nav.vibrate === "function",
     orientation: orientation.startsWith("landscape") ? "landscape" : orientation.startsWith("portrait") ? "portrait" : null,
@@ -115,6 +114,7 @@ export function observeHostState(
   let previousGeometry: HostDisplayGeometry | null = initial?.geometry ?? null;
   let previousFeatures: NormalizedHostFeatures | null = initial?.features ?? null;
   const send = (event: InputRecord["event"]): void => enqueue(event);
+  let keyboardObserved = false;
   const updateDisplay = (): void => {
     const next = measureHostDisplay(host, view, safeArea.read());
     if (next === null) return;
@@ -123,7 +123,7 @@ export function observeHostState(
     send({ kind: "host.display", geometry: next });
   };
   const updateFeatures = (): void => {
-    const next = readHostFeatures();
+    const next = readHostFeatures(keyboardObserved);
     if (previousFeatures !== null && JSON.stringify(next) === JSON.stringify(previousFeatures)) return;
     previousFeatures = next;
     send({ kind: "host.features", features: next });
@@ -134,6 +134,11 @@ export function observeHostState(
       .map((pad) => pad.index),
   );
   const onResize = (): void => { updateDisplay(); updateFeatures(); };
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (keyboardObserved || !event.isTrusted || event.code === "" || event.code === "Unidentified" || event.key === "Unidentified") return;
+    keyboardObserved = true;
+    updateFeatures();
+  };
   const onGamepadConnected = (event: GamepadEvent): void => {
     const pad = event.gamepad;
     if (pad.index >= 4 || connectedGamepads.has(pad.index)) return;
@@ -149,6 +154,7 @@ export function observeHostState(
   };
   const observer = new ResizeObserver(onResize);
   observer.observe(host.viewport);
+  window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("resize", onResize);
   window.addEventListener("orientationchange", onResize);
   window.addEventListener("gamepadconnected", onGamepadConnected);
@@ -162,6 +168,7 @@ export function observeHostState(
     window.removeEventListener("resize", onResize);
     window.removeEventListener("orientationchange", onResize);
     window.removeEventListener("gamepadconnected", onGamepadConnected);
+    window.removeEventListener("keydown", onKeyDown, true);
     window.removeEventListener("gamepaddisconnected", onGamepadDisconnected);
     for (const item of media) item.removeEventListener("change", onResize);
     safeArea.dispose();

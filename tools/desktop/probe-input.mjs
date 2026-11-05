@@ -68,7 +68,7 @@ function hostMetricsPackagePath() {
   const rewritten = writeMainFile({ ...parsed.value, startupPrg: startupPath });
   if (!rewritten.ok) throw new Error(rewritten.error.message);
   const tree = files.map((file) => (file.path === mainPath ? { path: file.path, bytes: rewritten.value } : file));
-  tree.push({ path: startupPath, bytes: new TextEncoder().encode(startup) });
+  tree.push({ path: `Prg/${startupPath}`, bytes: new TextEncoder().encode(startup) });
   const bytes = writeDistributionPackage({ files: tree, manifest: { schema: manifest.value.schema, main: mainPath, index: tree.map((file) => file.path) } });
   if (!bytes.ok) throw new Error(bytes.error.message);
   temporaryPackageDirectory = mkdtempSync(join(root, "fixtures", "packages", "host-metrics-"));
@@ -297,6 +297,10 @@ async function main() {
     }
     if (fits[0].marginLeft === fits[2].marginLeft) throw new Error("desktop marginWidth did not change across viewport sizes");
     await page.send("Emulation.clearDeviceMetricsOverride");
+    if (process.argv.includes("--host-metrics")) {
+      console.log(JSON.stringify({ package: pkg, opened: { tick: opened.tick, player: opened.player ?? null }, fits }, null, 2));
+      return;
+    }
 
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const live = await status();

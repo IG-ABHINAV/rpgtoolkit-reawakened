@@ -63,10 +63,10 @@ function makeBrowserEnvironment(
 }
 
 function makeHost(width: number, height: number): { readonly canvas: HTMLCanvasElement; readonly viewport: HTMLElement } {
+  const style = { width: "", height: "" };
   const canvas = {
-    style: { width: "", height: "" },
+    style,
     getBoundingClientRect() {
-      const style = this.style as { width: string; height: string };
       return { left: (width - Number.parseFloat(style.width)) / 2, top: (height - Number.parseFloat(style.height)) / 2, width: Number.parseFloat(style.width), height: Number.parseFloat(style.height) };
     },
   } as unknown as HTMLCanvasElement;
@@ -107,13 +107,13 @@ test("safe-area probe reads all env insets and removes its hidden probe element"
   }
 });
 
-test("a touch-capable host without the keyboard API does not claim keyboard capability", () => {
-  const browser = makeBrowserEnvironment(() => []);
+test("keyboard capability is based on observation, not the browser layout API", () => {
+  const browser = makeBrowserEnvironment(() => [], { getLayoutMap: async () => ({}) });
   const restore = installGlobals(browser.globals);
   try {
-    const features = readHostFeatures();
-    equal(features.touch, true);
-    equal(features.keyboard, false);
+    equal(readHostFeatures().touch, true);
+    equal(readHostFeatures().keyboard, false);
+    equal(readHostFeatures(true).keyboard, true);
   } finally {
     restore();
   }
