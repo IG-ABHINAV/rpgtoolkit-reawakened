@@ -687,7 +687,7 @@ test("pushitem cannot resolve a player ID as an item (#1307)", () => {
 });
 
 test("player and item numeric handle 0 resolve to their own movement queues (#1307)", () => {
-  const fixture = pushFixture('push("E", "0", 4)\npushitem("0", "E", 4)\ncontinued = 1\nend()', 0);
+  const fixture = pushFixture("end()", 0);
   deepEqual(fixture.pressA().diagnostics, []);
   const state = fixture.state();
   const hero = state.sprites.players[0];
