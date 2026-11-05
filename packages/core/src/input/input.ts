@@ -299,10 +299,14 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
   }
   const unknown = [...gameSet].filter((action) => action.startsWith("game.") && !Object.hasOwn(state.actionRegistry, action));
   for (const action of unknown) onUnknownAction?.(action);
+  const heldClaims = event.down ? [] : Object.keys(state.keyboardActionSources)
+    .filter((action) => Object.hasOwn(state.actionRegistry, action) && state.keyboardActionSources[action]?.[control] === true);
   const ordered = [
-    ...[...ENGINE_ACTIONS].filter((action) => candidates.includes(action)),
-    ...[...gameSet].filter((action) => Object.hasOwn(state.actionRegistry, action))
-      .sort((a, b) => state.actionOrder[a]! - state.actionOrder[b]!),
+    ...[...ENGINE_ACTIONS].filter((action) => candidates.includes(action) || heldClaims.includes(action)),
+    ...[...new Set([
+      ...[...gameSet].filter((action) => Object.hasOwn(state.actionRegistry, action)),
+      ...heldClaims.filter((action) => !ENGINE_ACTIONS.has(action)),
+    ])].sort((a, b) => state.actionOrder[a]! - state.actionOrder[b]!),
   ];
   if (event.down) {
     const semanticGameBinding = mapped !== undefined && mapped.startsWith("game.");

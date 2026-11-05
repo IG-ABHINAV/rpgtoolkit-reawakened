@@ -129,18 +129,25 @@ test("charge refresh covers every bar scan phase and repeated charge changes", (
   }
 });
 test("a fighter-stat fast-path redraw synchronizes an unrelated party charge bar", () => {
-  const rig = ready("idle");
+  const rig = ready("command");
+  rig.until(() => ui(rig)["barscan"] === 1 && ui(rig)["controlsig"] === ui(rig)["nextcontrolsig"], 120);
+  equal(ui(rig)["on"], 1);
   const state = rig.state();
-  const fighter = state.battle!.parties[1][0]!;
-  fighter.charge = 60;
-  ui(rig)["barscan"] = 1; // Keep the normal one-bar scanner away from index 0 for this tick.
+  const fighter = state.battle!.parties[1][2]!;
   const enemy = actor(rig, "slime.ene");
-  enemy.stats.hp -= 1; // Changes the scene signature and takes the actual partial-render fast path.
-  const chargeRegion = { x1: 500, y1: 356, x2: 611, y2: 369 };
+  const oldSceneSignature = ui(rig)["staticsig"];
+  const chargeRegion = chargeBox;
   const before = regionHash(rig, chargeRegion);
-  rig.tick(1);
-  const expected = Math.floor(fighter.charge * 100 / 75);
-  equal((ui(rig)["bars"] as Record<string, number>)["0"], expected);
+  const previousFill = (ui(rig)["bars"] as Record<string, number>)["2"];
+  fighter.charge = 60;
+  enemy.stats.hp = 0; // Defeating a fighter takes refresh's defeated-scene partial-render path.
+  rig.until(() => ui(rig)["staticsig"] !== oldSceneSignature, 8);
+  equal(ui(rig)["staticsig"] === oldSceneSignature, false, "the scene-signature change takes the fast path");
+  ok(ui(rig)["barscan"] !== 2, "the ordinary scanner has not reached the changed bar");
+  const currentFighter = rig.state().battle!.parties[1][2]!;
+  const expected = Math.floor(currentFighter.charge * 100 / 75);
+  equal((ui(rig)["bars"] as Record<string, number>)["2"], expected);
+  ok(expected !== previousFill, "the fighter charge changed during the tick");
   ok(regionHash(rig, chargeRegion) !== before, "the unrelated party bar reaches pixels before the fast path returns");
   deepEqual(rig.diagnostics, []);
 });

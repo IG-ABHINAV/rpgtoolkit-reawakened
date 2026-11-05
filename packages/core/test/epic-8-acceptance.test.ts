@@ -57,6 +57,7 @@ function readGolden(): AcceptanceGolden | null {
 //   #1231 - the party section gained `stepRemainder` and its version number (party schema 3);
 //   #1224 - the stock menu source moved its page indicator to a separate line from its caller-supplied title.
 //   #1241 - the focused-row hand marker changes the menu's draw and state hashes; event records remain unchanged.
+//   #1410 - normalized input's registry and held-source claims now participate in the state hash.
 function recordCheckpoint(checkpoints: GoldenCheckpoint[], id: string, session: Session, events: EventView[]): void {
   const state = session.state();
   const stateHash = hashGameState(state);

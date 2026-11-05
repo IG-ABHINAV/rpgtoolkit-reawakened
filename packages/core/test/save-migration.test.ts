@@ -378,13 +378,13 @@ test("input migration reconciles legacy held claims and advances past queued poi
   processGamepadEvents(restored.input);
   equal(restored.input.actions.right, false, "disconnect releases migrated physical gamepad state");
 });
-test("schema 4 letter-name bindings migrate to the physical key claim released by the host", () => {
+test("schema 4 letter-name bindings release a restored physical claim across keyboard layouts", () => {
   const original = createGameState({ seed: 9 });
   const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
   raw.schema.input = 4;
   raw.input.version = 4;
-  raw.input.held = { D: true, KeyD: true };
-  raw.input.bindings = { keys: { D: "right" } };
+  raw.input.held = { A: true, KeyA: true };
+  raw.input.bindings = { keys: { A: "right" } };
   raw.input.keyboardActions = { right: true };
   raw.input.actions = { right: true };
   delete raw.input.registeredActions;
@@ -396,10 +396,34 @@ test("schema 4 letter-name bindings migrate to the physical key claim released b
   delete raw.input.actionPadMasks;
 
   const restored = restoreGameState(JSON.stringify(raw));
-  deepEqual(restored.input.keyboardActionSources.right, { "key:KeyD": true });
-  applyInputEvent(restored.input, { kind: "key", name: "D", code: "KeyD", char: "d", down: false });
+  deepEqual(restored.input.keyboardActionSources.right, { "key:KeyA": true });
+  applyInputEvent(restored.input, { kind: "key", name: "Q", code: "KeyA", char: "q", down: false });
   equal(restored.input.keyboardActions.right, false);
-  equal(restored.input.actions.right, false, "the physical key-up clears the migrated legacy-name binding");
+  equal(restored.input.actions.right, false, "the physical code clears its restored claim even when the logical key name changed");
+});
+
+test("schema 4 numeric binding restores the saved Numpad key, not a guessed Digit key", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 4;
+  raw.input.version = 4;
+  raw.input.held = { "1": true, Numpad1: true };
+  raw.input.bindings = { keys: { "1": "right" } };
+  raw.input.keyboardActions = { right: true };
+  raw.input.actions = { right: true };
+  delete raw.input.registeredActions;
+  delete raw.input.keyboardActionSources;
+  delete raw.input.semanticActionSources;
+  delete raw.input.actionRegistry;
+  delete raw.input.actionOrder;
+  delete raw.input.controlActions;
+  delete raw.input.actionPadMasks;
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  deepEqual(restored.input.keyboardActionSources.right, { "key:Numpad1": true });
+  applyInputEvent(restored.input, { kind: "key", name: "1", code: "Numpad1", char: "1", down: false });
+  equal(restored.input.keyboardActions.right, false);
+  equal(restored.input.actions.right, false, "the numpad key-up releases the migrated claim");
 });
 
 
