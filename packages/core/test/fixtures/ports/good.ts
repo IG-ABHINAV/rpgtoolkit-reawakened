@@ -602,6 +602,10 @@ export const conformingEngine: Engine = {
   drawList(_alpha?: number): DrawList {
     return pinDrawList;
   },
+  registeredActionNames() { return []; },
+  registerGameAction() { return true; },
+  setPointerMovementSuppressed() {},
+  reportUnknownAction() {},
   surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
     return pinSurfacePixels;
   },
@@ -630,4 +634,8 @@ export function testConformingEngineCall(engine: Engine): void {
   const _pixels: SurfacePixels | null = engine.surfacePixels(0 as SurfaceId, 1);
   engine.recoveryCandidate();
   engine.setBreakpoints([]);
+  engine.registeredActionNames();
+  engine.registerGameAction({ name: "game.fixture", label: "Fixture", icon: null, group: null, controls: [], locked: false, hidden: false });
+  engine.setPointerMovementSuppressed(true);
+  engine.reportUnknownAction("game.missing");
 }
