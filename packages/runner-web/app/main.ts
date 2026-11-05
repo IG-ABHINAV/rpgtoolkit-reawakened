@@ -11,7 +11,7 @@ import { createLiveSession, type LiveSession } from "../src/live-session.ts";
 import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
-import { createFallbackTouchControls, isFallbackTouchControlTarget } from "../src/touch-controls.ts";
+import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "../src/touch-controls.ts";
 
 type LiveReport = {
   tick: number;
@@ -384,12 +384,7 @@ function startLiveLoop(
     },
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
-    if (down && isFallbackTouchControlTarget(event.target)) {
-      fallbackControlKeys.add(event.code);
-      return;
-    }
-    if (fallbackControlKeys.delete(event.code)) return;
-    if (down && fallbackControlKeys.has(event.code)) return;
+    if (shouldSuppressGameplayKey(event.code, event.repeat, down, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };

@@ -85,15 +85,30 @@ test("touch-capable live player exposes accessible fallback controls without shr
     expect(affordances.outlineWidth).toBe("3px");
     expect(affordances.outlineStyle).toBe("solid");
     await page.locator("#screen").focus();
-        const overlayBounds = await page.locator(".fallback-touch-pad").evaluate((pad) => {
-          const canvas = document.querySelector("#screen");
-          if (canvas === null) throw new Error("player canvas is missing");
-          const padBounds = pad.getBoundingClientRect();
-          const gameBounds = canvas.getBoundingClientRect();
-          return { padTop: padBounds.top, padBottom: padBounds.bottom, gameTop: gameBounds.top, gameBottom: gameBounds.bottom };
-        });
-        expect(overlayBounds.padTop).toBeGreaterThanOrEqual(overlayBounds.gameTop);
-        expect(overlayBounds.padBottom).toBeLessThanOrEqual(overlayBounds.gameBottom);
+    const overlayBounds = await page.locator(".fallback-touch-pad").evaluate((pad) => {
+      const live = (window as Window & { __session?: { displayGeometry: () => { game: { x: number; y: number; width: number; height: number } } } }).__session;
+      if (live === undefined) throw new Error("live display geometry is not available");
+      const padBounds = pad.getBoundingClientRect();
+      const game = live.displayGeometry().game;
+      return { padTop: padBounds.top, padBottom: padBounds.bottom, gameTop: game.y, gameBottom: game.y + game.height };
+    });
+    expect(overlayBounds.padTop).toBeGreaterThanOrEqual(overlayBounds.gameTop);
+    expect(overlayBounds.padBottom).toBeLessThanOrEqual(overlayBounds.gameBottom);
+    await page.setViewportSize({ width: 932, height: 430 });
+    await page.waitForTimeout(100);
+    const landscapeBounds = await page.locator(".fallback-touch-pad").evaluate((pad) => {
+      const live = (window as Window & { __session?: { displayGeometry: () => { game: { x: number; y: number; width: number; height: number } } } }).__session;
+      if (live === undefined) throw new Error("live display geometry is not available");
+      const game = live.displayGeometry().game;
+      const padBounds = pad.getBoundingClientRect();
+      const actionBounds = document.querySelector(".fallback-touch-actions")?.getBoundingClientRect();
+      if (actionBounds === undefined) throw new Error("fallback action buttons are missing");
+      return { docked: document.querySelector(".fallback-touch-controls")?.classList.contains("fallback-touch-docked") ?? false, padRight: padBounds.right, actionLeft: actionBounds.left, gameLeft: game.x, gameRight: game.x + game.width };
+    });
+    expect(landscapeBounds.docked).toBe(true);
+    expect(landscapeBounds.padRight).toBeLessThanOrEqual(landscapeBounds.gameLeft);
+    expect(landscapeBounds.actionLeft).toBeGreaterThanOrEqual(landscapeBounds.gameRight);
+    await page.waitForTimeout(100);
     await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
     await page.evaluate(() => {
       const probeWindow = window as Window & { __touchTrace?: unknown[]; __session?: { engine: { advance: (...args: unknown[]) => unknown } } };
@@ -170,20 +185,72 @@ test("touch-capable live player exposes accessible fallback controls without shr
         await page.keyboard.up("Space");
         await expect(moveRight).toHaveAttribute("aria-pressed", "false");
         
-            await moveRight.focus();
-            await page.keyboard.down("Space");
-            await page.locator("#report").evaluate((report) => { report.tabIndex = -1; report.focus(); });
-            await page.keyboard.up("Space");
-            await expect(moveRight).toHaveAttribute("aria-pressed", "false");
-        
-            const assistiveStart = await page.evaluate(() => window.__live?.player ?? null);
-            if (assistiveStart === null) throw new Error("live player position is not available");
-            await moveRight.dispatchEvent("click");
-            await expect(moveRight).toHaveAttribute("aria-pressed", "false");
-            await page.waitForFunction((start) => {
-              const player = window.__live?.player;
-              return player !== null && player !== undefined && player.x > start.x;
-            }, assistiveStart, { timeout: 10_000 });
+    await page.getByRole("button", { name: "Move left" }).dispatchEvent("click");
+    await expect(moveRight).toHaveAttribute("aria-pressed", "false");
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[]; consumed?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      return trace.some((entry) => entry.inputs?.some((input) => input.event.kind === "action" && input.event.action === "left" && input.event.down && input.event.source === "runner.fallback"))
+        && trace.some((entry) => entry.consumed?.some((input) => input.event.kind === "action" && input.event.action === "left" && input.event.down && input.event.source === "runner.fallback"));
+    }, undefined, { timeout: 10_000 });
+    await page.locator("#screen").focus();
+    await page.keyboard.down("ArrowRight");
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; code?: string; down?: boolean } }[] }[] }).__touchTrace ?? [];
+      return trace.some((entry) => entry.inputs?.some((input) => input.event.kind === "key" && input.event.code === "ArrowRight" && input.event.down === true));
+    }, undefined, { timeout: 10_000 });
+    await moveRight.focus();
+    await page.keyboard.up("ArrowRight");
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; code?: string; down?: boolean } }[] }[] }).__touchTrace ?? [];
+      return trace.some((entry) => entry.inputs?.some((input) => input.event.kind === "key" && input.event.code === "ArrowRight" && input.event.down === false));
+    }, undefined, { timeout: 10_000 });
+
+    const spaceTick = await page.evaluate(() => window.__live?.tick ?? 0);
+    await moveRight.focus();
+    await page.keyboard.down("Space");
+    await page.locator("#screen").focus();
+    await page.evaluate(() => {
+      document.querySelector("#screen")?.dispatchEvent(new KeyboardEvent("keydown", { key: " ", code: "Space", repeat: true, bubbles: true }));
+    });
+    await page.keyboard.up("Space");
+    await page.waitForFunction((tick) => window.__live !== undefined && window.__live.tick > tick, spaceTick, { timeout: 10_000 });
+    const leakedSpaceEvents = await page.evaluate(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; code?: string } }[] }[] }).__touchTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs ?? []).filter((input) => input.event.kind === "key" && input.event.code === "Space").length;
+    });
+    expect(leakedSpaceEvents).toBe(0);
+
+    await page.evaluate(() => {
+      const button = document.querySelector<HTMLButtonElement>('[aria-label="Move right"]');
+      if (button === null) throw new Error("fallback Move right button is missing");
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+    });
+    await expect(moveRight).toHaveAttribute("aria-pressed", "false");
+    const doubleTapEdges = await page.evaluate(() => {
+      const trace = (window as Window & { __touchTrace?: readonly { inputs?: readonly { event: { kind: string; action?: string; down?: boolean; source?: string } }[] }[] }).__touchTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs ?? [])
+        .filter((input) => input.event.kind === "action" && input.event.action === "right" && input.event.source === "runner.fallback")
+        .map((input) => input.event.down);
+    });
+    expect(doubleTapEdges.some((_, index) => doubleTapEdges.slice(index, index + 3).join(",") === "true,false,true")).toBe(true);
+    await expect(moveRight).toHaveAttribute("aria-pressed", "false");
+
+    const settledTick = await page.evaluate(() => window.__live?.tick ?? 0);
+    await page.waitForFunction((tick) => window.__live !== undefined && window.__live.tick >= tick + 30, settledTick, { timeout: 10_000 });
+    const beforeCancelledHold = await page.evaluate(() => ({ player: window.__live?.player ?? null, tick: window.__live?.tick ?? 0 }));
+    if (beforeCancelledHold.player === null) throw new Error("live player position is not available");
+    await page.evaluate(() => {
+      const button = document.querySelector<HTMLButtonElement>('[aria-label="Move up"]');
+      if (button === null) throw new Error("fallback Move up button is missing");
+      Object.defineProperty(button, "setPointerCapture", { value: () => undefined });
+      button.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 902, pointerType: "touch", button: 0 }));
+      window.dispatchEvent(new Event("blur"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await page.waitForFunction((tick) => window.__live !== undefined && window.__live.tick >= tick + 30, beforeCancelledHold.tick, { timeout: 10_000 });
+    const afterCancelledHold = await page.evaluate(() => window.__live?.player ?? null);
+    expect(afterCancelledHold).toEqual(beforeCancelledHold.player);
   } finally {
     await context.close();
   }

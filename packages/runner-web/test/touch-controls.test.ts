@@ -1,6 +1,6 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
-import { fallbackTouchLayout, type TouchControlGeometry } from "../src/touch-controls.ts";
+import { fallbackTouchLayout, shouldSuppressGameplayKey, type TouchControlGeometry } from "../src/touch-controls.ts";
 
 const geometry = (overrides: Partial<TouchControlGeometry> = {}): TouchControlGeometry => ({
   content: { width: 1600, height: 900 },
@@ -56,4 +56,17 @@ test("portrait overlay anchors controls inside the safe game rectangle", () => {
   const padTop = padBottom - 104;
   ok(padTop >= measured.game.y, "the D-pad begins inside the game rectangle");
   ok(padBottom <= measured.game.y + measured.game.height, "the D-pad ends inside the game rectangle");
+});
+
+test("gameplay key ownership survives focus transfer and never consumes repeats", () => {
+  const owned = new Set<string>();
+  equal(shouldSuppressGameplayKey("ArrowRight", false, true, false, owned), false, "a gameplay-owned press reaches the engine");
+  equal(shouldSuppressGameplayKey("ArrowRight", false, false, true, owned), false, "its release reaches the engine after focus moves");
+
+  equal(shouldSuppressGameplayKey("Space", false, true, true, owned), true, "a fresh fallback press is isolated");
+  equal(shouldSuppressGameplayKey("Space", true, true, false, owned), true, "repeat stays with the original fallback owner");
+  equal(owned.has("Space"), true);
+  equal(shouldSuppressGameplayKey("Space", false, false, false, owned), true, "release stays isolated after moving away");
+  equal(owned.has("Space"), false);
+  equal(shouldSuppressGameplayKey("Space", false, false, false, owned), false, "an unrelated release is not consumed");
 });

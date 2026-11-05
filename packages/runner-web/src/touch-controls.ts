@@ -17,6 +17,22 @@ export function isFallbackTouchControlTarget(target: EventTarget | null): boolea
   return target instanceof Element && target.closest(".fallback-touch-controls") !== null;
 }
 
+export function shouldSuppressGameplayKey(
+  code: string,
+  repeat: boolean,
+  down: boolean,
+  fallbackTarget: boolean,
+  ownedKeys: Set<string>,
+): boolean {
+  if (ownedKeys.has(code)) {
+    if (!down) ownedKeys.delete(code);
+    return true;
+  }
+  if (!down || repeat || !fallbackTarget) return false;
+  ownedKeys.add(code);
+  return true;
+}
+
 export function fallbackTouchLayout(geometry: TouchControlGeometry): { readonly docked: boolean; readonly left: number; readonly right: number; readonly bottom: number } {
   const leftSpace = geometry.game.x - geometry.safeArea.left;
   const rightSpace = geometry.content.width - geometry.game.x - geometry.game.width - geometry.safeArea.right;
@@ -78,7 +94,6 @@ export function createFallbackTouchControls(
   const buttons = new Map<FallbackTouchAction, HTMLButtonElement>();
   const activePointers = new Map<number, FallbackTouchAction>();
   const activeKeys = new Map<string, FallbackTouchAction>();
-  const activeClicks = new Map<FallbackTouchAction, number>();
   const pressSequences = new Map<FallbackTouchAction, number>();
   const pendingReleases = new Map<FallbackTouchAction, number>();
   let acknowledgedSequence = 0;
@@ -94,12 +109,12 @@ export function createFallbackTouchControls(
   const hasActiveSource = (action: FallbackTouchAction): boolean => {
     for (const activeAction of activePointers.values()) if (activeAction === action) return true;
     for (const activeAction of activeKeys.values()) if (activeAction === action) return true;
-    return activeClicks.has(action);
+    return false;
   };
   const press = (action: FallbackTouchAction, wasActive: boolean): void => {
     buttons.get(action)?.setAttribute("aria-pressed", "true");
     if (!wasActive) {
-      pendingReleases.delete(action);
+      if (pendingReleases.delete(action)) dispatch(action, false);
       pressSequences.set(action, dispatch(action, true));
     }
   };
@@ -130,22 +145,23 @@ export function createFallbackTouchControls(
     release(action);
   };
   const activateClick = (action: FallbackTouchAction): void => {
-      if (activeClicks.has(action) || hasActiveSource(action)) return;
-      const submittedAt = dispatch(action, true);
-      pressSequences.set(action, submittedAt);
-      activeClicks.set(action, submittedAt);
-      buttons.get(action)?.setAttribute("aria-pressed", "true");
-    };
+    if (hasActiveSource(action)) return;
+    press(action, false);
+    release(action);
+  };
+  const forceReleaseAll = (): void => {
+    const actions = new Set(pressSequences.keys());
+    activePointers.clear();
+    activeKeys.clear();
+    pendingReleases.clear();
+    for (const action of actions) {
+      pressSequences.delete(action);
+      buttons.get(action)?.setAttribute("aria-pressed", "false");
+      dispatch(action, false);
+    }
+  };
   const releaseAll = (): void => {
-    for (const pointerId of [...activePointers.keys()]) releasePointer(pointerId);
-    for (const [code, action] of activeKeys) {
-      activeKeys.delete(code);
-      release(action);
-    }
-    for (const action of activeClicks.keys()) {
-      activeClicks.delete(action);
-      release(action);
-    }
+    forceReleaseAll();
   };
   const position = (): void => {
     const measured = geometry();
@@ -203,11 +219,6 @@ export function createFallbackTouchControls(
     element: root,
     acknowledgeSubmittedBatch: (sequence) => {
       acknowledgedSequence = Math.max(acknowledgedSequence, sequence);
-      for (const [action, submittedAt] of activeClicks) {
-        if (submittedAt > sequence) continue;
-        activeClicks.delete(action);
-        release(action);
-      }
       for (const [action, submittedAt] of pendingReleases) {
         if (submittedAt > sequence || hasActiveSource(action)) continue;
         pendingReleases.delete(action);

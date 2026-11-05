@@ -6,7 +6,7 @@
  */
 
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
-import { createFallbackTouchControls, isFallbackTouchControlTarget } from "@tk-reawakened/runner-web/touch-controls";
+import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "@tk-reawakened/runner-web/touch-controls";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
@@ -215,15 +215,12 @@ function run(
   const savePath = "slot-1.json";
   const saveBytes = (): Uint8Array => new TextEncoder().encode(JSON.stringify({ gameId, tick: session.tick() }));
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (isFallbackTouchControlTarget(event.target)) {
-      fallbackControlKeys.add(event.code);
-      return;
-    }
+    if (shouldSuppressGameplayKey(event.code, event.repeat, true, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
   const onKeyUp = (event: KeyboardEvent): void => {
-    if (fallbackControlKeys.delete(event.code) || isFallbackTouchControlTarget(event.target)) return;
+    if (shouldSuppressGameplayKey(event.code, event.repeat, false, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false }, pointerGeometry: null });
   };
   const focus = (state: "lost" | "gained"): void => {
