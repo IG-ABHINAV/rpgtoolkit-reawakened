@@ -506,6 +506,9 @@ export class World {
     const c = a.cur;
     const dx = c.tx - a.x;
     const dy = c.ty - a.y;
+    if ((this.board.pixelMovement ?? 0) > 0 && c.src === "dir" && Math.abs(dx) <= ADVANCE && Math.abs(dy) <= ADVANCE) {
+      return { nx: c.tx, ny: c.ty, reach: true };
+    }
     const dist = Math.floor(Math.sqrt(dx * dx + dy * dy));
     if (dist <= ADVANCE) return { nx: c.tx, ny: c.ty, reach: true };
     return { nx: a.x + Math.trunc((dx * ADVANCE) / dist), ny: a.y + Math.trunc((dy * ADVANCE) / dist), reach: false };

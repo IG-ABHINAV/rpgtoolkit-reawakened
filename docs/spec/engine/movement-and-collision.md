@@ -121,8 +121,6 @@ Because the step is short, pixel movement is sensitive to the **step granularity
 2. The two pixel modes walk alike; the main-file value governs the size of **scripted** direction pushes only (E-23), which the original already did.
 3. This fixes the step length only. The cadence of advances stays R-50's, and the movement phase sizes a direction step this way (`packages/core/src/sprites/movement.ts:500-508`).
 
-**Implementation gap ([#1282](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1282)).** The current diagonal pixel step reaches the 4-by-4 target over two advances, not one: its first advance is approximately 2.828 px on each axis. The target size is implemented, but the one-advance timing and collision sampling above are not.
-
 Evidence: E-23, E-136's legacy fact (the original's keyboard step is frame-rate derived and mode-independent), and R-50's 4 px advance. **Rejected alternatives:** 8 px for mode 1 and 1 px for mode 2 (echoes the scripted push sizes, but invents a difference the original does not have between the modes and makes a pixel-mode step take several advances or a fraction of one), and 1 px for both (finest sampling, but four times the movement phases and no counterpart in the original's step range at ordinary frame rates). Consumers: entries 5.2, 5.4.
 
 <a id="e-137"></a>
