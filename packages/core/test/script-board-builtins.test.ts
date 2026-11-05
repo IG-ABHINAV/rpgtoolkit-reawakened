@@ -23,7 +23,7 @@ function board(): BoardFixture {
 
 function stateWithBoard(): GameState {
   const state = createGameState({ seed: 12 });
-  state.world = { board: board() };
+  state.world = { ...state.world, board: board() };
   return state;
 }
 

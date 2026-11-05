@@ -52,7 +52,7 @@ function makeState(extra: { programs?: WorldProgram[]; items?: WorldItem[] } = {
     ...(extra.items === undefined ? {} : { items: extra.items }),
   } as unknown as WorldBoard;
   const state = createGameState({ seed: 1 });
-  state.world = { board };
+  state.world = { ...state.world, board };
   state.sprites = hydrateSprites({
     board,
     players: [{ id: "hero", kind: "player" as const, source: "hero.tem", x: START.x, y: START.y, layer: 1, facing: "S", controlled: true }],
@@ -223,7 +223,7 @@ test("a diversion of a click path keeps the click's mark, so it pauses with the 
 test("blocking push lets an active pointer diversion finish without restoring the click route (#1316)", () => {
   const { state, tracker } = approachingBlocker(true);
   park(state);
-  applySpriteEffect(state, "push", ["E", "hero", 0, 1], 0);
+  applySpriteEffect(state, "push", ["E", "hero", 0, 1]);
   tick(state, 0, [], tracker.run);
   ok(tracker.events.includes("diversion"), "the active pointer step encounters the blocker");
   ok(hero(state).queue.moves.every((move) => move.pointer !== true), "the active step's diversion can advance under the block");
