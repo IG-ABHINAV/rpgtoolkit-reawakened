@@ -37,6 +37,7 @@ import {
   startProgram,
   STEP_BUDGET,
   verifyRestoredHandles,
+  uiAccessibilityTree,
   type Breakpoint,
   applyInputEvent,
   registerGameAction as registerInputGameAction,
@@ -311,6 +312,23 @@ function createHost(
       gameState.input.pointerMovementSuppressed = suppressed;
     },
     reportUnknownAction,
+    customTouchControlsDeclared() {
+      return gameState.ui.customTouchControlsDeclared === true;
+    },
+    hostFeatures() {
+      return { ...gameState.features };
+    },
+    hostDisplayGeometry() {
+      const { content, game, safeArea } = gameState.display.geometry;
+      return {
+        content: { ...content },
+        game: { ...game },
+        safeArea: { ...safeArea },
+      };
+    },
+    accessibilityTree() {
+      return uiAccessibilityTree(gameState.ui);
+    },
     drawList(_alpha?: number): DrawList {
       return { tick: gameState.time.tick, width: 320, height: 240, commands: [], marginCommands: [] };
     },

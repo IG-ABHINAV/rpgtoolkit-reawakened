@@ -162,13 +162,17 @@ test("author surface margin hit-testing uses safe whole cells", () => {
   equal(refused.input.pendingActions.filter((action) => action === "confirm").length, 0);
 });
 test("screen vector primitives crossing Plane 1 enter the margin command layer", () => {
-  const engine = loadedEngine([], undefined, undefined, [
+  const capture = captureState();
+  const engine = loadedEngine([capture.registration], undefined, undefined, [
     "drawline(-2, 1, 2, 1)",
     "drawrect(-1, 4, 3, 7)",
     "setpixel(32, 0)",
-    "end()",
+    "threadSleep(getThreadId(), 60)",
   ].join("\n"));
   engine.advance(1, []);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  deepEqual(state.ui.authorMarginCommands.map((command) => command.kind), ["line", "rect", "line"]);
   const commands = engine.drawList().marginCommands;
   deepEqual(commands.map((command) => command.kind), ["line", "rect", "line"]);
   deepEqual(commands[0], {

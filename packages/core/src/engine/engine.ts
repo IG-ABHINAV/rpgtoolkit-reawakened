@@ -66,10 +66,9 @@ import { advanceAnimations, animationBlits, decodeAnimationFrames, loadAnimation
 import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
-import type { AnimationState, FxSection, UiActionClaim } from "../save/sections.ts";
-import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
-import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
+import type { UiActionClaim } from "../save/sections/ui.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -3533,8 +3532,9 @@ export function createEngine(init: EngineInit): Engine {
       if (left < 0 || top < 0 || right > geometry.content.width || bottom > geometry.content.height ||
           left < safeLeft || right > safeRight || top < safeTop || bottom > safeBottom) return null;
     }
-    for (let surfaceIndex = state.ui.actionSurfaces.length - 1; surfaceIndex >= 0; surfaceIndex -= 1) {
-      const surface = state.ui.actionSurfaces[surfaceIndex]!;
+    const surfaces = state.ui.actionSurfaces ?? [];
+    for (let surfaceIndex = surfaces.length - 1; surfaceIndex >= 0; surfaceIndex -= 1) {
+      const surface = surfaces[surfaceIndex]!;
       for (let index = 0; index < surface.items.length; index += 1) {
         const item = surface.items[index]!;
         if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
@@ -3562,7 +3562,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function routeAuthorSurfaceAction(action: string, down: boolean, inputSeq: number | null = null): void {
     if (!down) return;
-    const surfaces = state.ui.actionSurfaces;
+    const surfaces = state.ui.actionSurfaces ?? [];
     const surface = surfaces[surfaces.length - 1];
     if (surface === undefined) return;
     if (action === "cancel") {
@@ -3640,33 +3640,36 @@ export function createEngine(init: EngineInit): Engine {
     const isPrimaryDown = (event.buttons & 1) !== 0;
     const downEdge = !wasPrimaryDown && isPrimaryDown;
     const releaseEdge = wasPrimaryDown && !isPrimaryDown;
-    const pressed = state.ui.surfacePointerClaim;
+    const pressed = state.ui.surfacePointerClaim ?? null;
     const target = authorSurfaceTargetAt(event.x, event.y);
-    const pendingClicks = state.input.pendingClicks.length;
-    const pendingPointerUps = state.input.pendingPointerUps.length;
+    const pendingClicks = state.input.pendingClicks;
+    const pendingClickCount = pendingClicks.length;
+    const pendingPointerUps = state.input.pendingPointerUps;
+    const pendingPointerUpCount = pendingPointerUps.length;
     const keys = state.input.keys.length;
     const pendingActions = state.input.pendingActions.length;
     const nextSeq = state.input.nextSeq;
     applyInputEvent(state.input, event, reportUnknownAction);
+    const restorePendingPointerQueues = (): void => {
+      pendingClicks.length = pendingClickCount;
+      pendingPointerUps.length = pendingPointerUpCount;
+      state.input.pendingClicks = pendingClicks;
+      state.input.pendingPointerUps = pendingPointerUps;
+    };
 
-    if (state.ui.modal !== null) {
-      state.input.pendingClicks.length = pendingClicks;
-      state.input.pendingPointerUps.length = pendingPointerUps;
+    if (state.ui.modal != null) {
+      restorePendingPointerQueues();
       return;
-    }
-    if (pressed !== null) {
-      state.input.pendingClicks.length = pendingClicks;
-      state.input.pendingPointerUps.length = pendingPointerUps;
     }
     if (downEdge && target !== null) {
       setPointerMovementSuppressed(state.input, true);
       state.ui.surfacePointerClaim = target;
-      state.input.pendingClicks.length = pendingClicks;
-      state.input.pendingPointerUps.length = pendingPointerUps;
+      restorePendingPointerQueues();
       state.input.keys.length = keys;
       state.input.pendingActions.length = pendingActions;
       state.input.nextSeq = nextSeq;
-      state.ui.actionSurfaces = state.ui.actionSurfaces.map((surface) =>
+      const surfaces = state.ui.actionSurfaces ?? [];
+      state.ui.actionSurfaces = surfaces.map((surface) =>
         surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
       );
       state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
@@ -3675,8 +3678,7 @@ export function createEngine(init: EngineInit): Engine {
     }
     if (releaseEdge && pressed !== null) {
       state.ui.surfacePointerClaim = null;
-      state.input.pendingClicks.length = pendingClicks;
-      state.input.pendingPointerUps.length = pendingPointerUps;
+      restorePendingPointerQueues();
       state.input.keys.length = keys;
       state.input.pendingActions.length = pendingActions;
       state.input.nextSeq = nextSeq;
@@ -3689,14 +3691,14 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     if (target !== null) {
-      state.ui.actionSurfaces = state.ui.actionSurfaces.map((surface) =>
+      const surfaces = state.ui.actionSurfaces ?? [];
+      state.ui.actionSurfaces = surfaces.map((surface) =>
         surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
       );
       state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
     }
     if (event.x < 0 || event.y < 0 || event.x >= init.width || event.y >= init.height) {
-      state.input.pendingClicks.length = pendingClicks;
-      state.input.pendingPointerUps.length = pendingPointerUps;
+      restorePendingPointerQueues();
     }
   }
 
