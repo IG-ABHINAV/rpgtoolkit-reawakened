@@ -355,6 +355,9 @@ run("nextChapter.prg")                                         // legacy Toolkit
 | `playerpath` | `void playerpath(variant handle, int flags, int x1, int y1, ... , int xn, yn)` | Give a player one or more destinations. Points, path-find mode, and waypoint copy/link mode are queued deterministically; pause or blocking waits through a finite path, or through the first traversal of a forever waypoint. |  |
 | `playergetpath` | `int playergetpath(variant handle)` | Inspect a queued player destination. The indexed pixel point is returned through x/y references. |  |
 | `playerdirection` | `int playerdirection(variant handle)` | Read or set which way a player faces. The facing is one of the eight deterministic directions. |  |
+
+**Reawakened rule — movement player handles (OWNER; #1308).** `push`, `playerstep`, and `playerpath` must not move an unrelated player when a handle is wrong. An omitted or empty handle selects the default player. An explicitly supplied unknown, stale, or wrong-type handle raises catchable `builtin.bad-arg` before queuing movement or a wait; numeric and numeric-string handles resolve within players, not items. A numeric handle that exists in both actor types selects the player for these commands.
+
 ## Items, inventory, shop & gold (28)
 
 | Command | Signature | Purpose | Notes |
