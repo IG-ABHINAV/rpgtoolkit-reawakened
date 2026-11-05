@@ -4,7 +4,7 @@ import type { Wait } from "../../ports/wait.ts";
 import type { InputSection } from "../../save/sections/input.ts";
 import type { GameState } from "../../save/state.ts";
 import type { SpriteActor, SpritePoint, Facing } from "../../sprites/model.ts";
-import { enqueueDirectionMove, enqueueScriptDirectionMove, movementCadence } from "../../sprites/movement.ts";
+import { enqueueDirectionMove, enqueueScriptDirectionMove } from "../../sprites/movement.ts";
 import { enqueueMove, enqueuePathMove, enqueuePointPathMove, setWaypoint } from "../../sprites/runtime.ts";
 import type { Character } from "../../formats/actor/index.ts";
 import { actorFromSource } from "../../sprites/model.ts";
@@ -58,26 +58,11 @@ function blocking(view: CommandView): boolean {
   return thread?.kind === "blocking";
 }
 function waitFor(view: CommandView, flags: number): boolean { return blocking(view) || (flags & PAUSE) !== 0; }
-function pointsDuration(value: SpriteActor, points: readonly SpritePoint[]): number {
-  let x = value.x;
-  let y = value.y;
-  const cadence = movementCadence(value, 0);
-  let ticks = 0;
-  for (const point of points) {
-    const distance = Math.sqrt((point.x - x) * (point.x - x) + (point.y - y) * (point.y - y));
-    ticks += Math.max(1, Math.ceil(distance / 4)) * cadence;
-    x = point.x;
-    y = point.y;
-  }
-  return Math.max(1, ticks);
-}
-function movementResult(view: CommandView, name: string, id: string, points: readonly SpritePoint[], flags: number, args: readonly Arg[]): CommandResult {
-  const tick = view.clock.tick();
+function movementResult(view: CommandView, id: string, steps: number, flags: number, args: readonly Arg[]): CommandResult {
   const actorValue = actor(view, id);
   const effects: CommandEffect[] = [{ kind: "state-write", section: "sprites", args: args.map((arg) => arg.value as never) }];
-  if (!waitFor(view, flags) || actorValue === null || points.length === 0) return { value: null, effects };
-  effects.push({ kind: "vm.control", args: ["move", id, tick + pointsDuration(actorValue, points)] });
-  return { value: null, effects };
+  if (!waitFor(view, flags) || actorValue === null || steps === 0) return { value: null, effects };
+  return { value: null, effects, wait: { kind: "sprite.movement", global: blocking(view), actor: id } };
 }
 function docs(summary: string, behaviour: string, waits: BuiltinDoc["waits"] = { kind: "never", summary: "Does not wait." }): BuiltinDoc {
   return { summary, behaviour, groups: ["players-party-sprite-movement-31", "mouse-buttons-cursor-maps-11"], tags: ["legacy"], waits };
@@ -109,53 +94,40 @@ function stanceResult(view: CommandView, id: string, stance: string, args: reado
 }
 const PUSH: BuiltinSpec = {
   name: "push", aliases: [], params: movementParams(),
-  doc: docs("Move the selected player in one or more directions.", "Queues each comma-separated direction as a 32-pixel step in tile mode or an 8-pixel step in pixel modes. A blocking program or the pause flag waits until all queued steps finish; other threads continue.", { kind: "until-event", summary: "Waits for the queued movement to finish." }),
+  doc: docs("Move the selected player or the player named by the optional handle.", "Queues each comma-separated direction as a 32-pixel step in tile mode or an 8-pixel step in pixel modes. A blocking program or the pause flag waits until that player's movement queue is idle; other threads continue.", { kind: "until-event", summary: "Waits for the player's queued movement to finish." }),
   call: (view, args) => {
-    const id = playerId(view, string(args, 1, ""));
+    const id = playerId(view, args[1]?.value as number | string ?? "");
     const flags = number(args, 2);
     const dirs = string(args, 0).split(",").filter((value) => value.trim() !== "").map(direction);
-    const value = actor(view, id);
-    const points: SpritePoint[] = [];
-    let x = value?.x ?? 0; let y = value?.y ?? 0;
-    const distance = (view.pixelMovement ?? 0) === 0 ? 32 : 8;
-    const vectors: Record<Facing, [number, number]> = { N: [0, -distance], NE: [distance, -distance], E: [distance, 0], SE: [distance, distance], S: [0, distance], SW: [-distance, distance], W: [-distance, 0], NW: [-distance, -distance] };
-    for (const dir of dirs) { const delta = vectors[dir]; x += delta[0]; y += delta[1]; points.push({ x, y }); }
-    return movementResult(view, "push", id, points, flags, args);
+    return movementResult(view, id, dirs.length, flags, args);
   },
 };
 const PUSH_ITEM: BuiltinSpec = {
   name: "pushitem", aliases: [], params: movementParams(),
-  doc: docs("Move an item in one or more directions.", "Queues each comma-separated direction as a 32-pixel step in tile mode or an 8-pixel step in pixel modes. The caller waits when the flags request pause or the caller is blocking."),
+  doc: docs("Move an item in one or more directions.", "Queues each comma-separated direction as a 32-pixel step in tile mode or an 8-pixel step in pixel modes. A blocking program or the pause flag waits until that item's movement queue is idle."),
   call: (view, args) => {
     const id = itemId(view, args[0]?.value as number | string ?? "");
     const flags = number(args, 2);
     const dirs = string(args, 1).split(",").filter((value) => value.trim() !== "").map(direction);
-    const value = actor(view, id);
-    const points: SpritePoint[] = [];
-    let x = value?.x ?? 0;
-    let y = value?.y ?? 0;
-    const distance = (view.pixelMovement ?? 0) === 0 ? 32 : 8;
-    const vectors: Record<Facing, [number, number]> = { N: [0, -distance], NE: [distance, -distance], E: [distance, 0], SE: [distance, distance], S: [0, distance], SW: [-distance, distance], W: [-distance, 0], NW: [-distance, -distance] };
-    for (const dir of dirs) { const delta = vectors[dir]; x += delta[0]; y += delta[1]; points.push({ x, y }); }
-    return movementResult(view, "pushitem", id, points, flags, args);
+    return movementResult(view, id, dirs.length, flags, args);
   },
 };
 const PLAYER_STEP: BuiltinSpec = {
   name: "playerstep", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }],
   doc: docs("Move a player to a board point.", "Finds a deterministic route to x,y, queues it, and waits only for a blocking thread or the pause flag."),
-  call: (view, args) => { const id = playerId(view, number(args, 0)); const flags = number(args, 3); const value = actor(view, id); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, "playerstep", id, path?.points ?? [], flags, args); },
+  call: (view, args) => { const id = playerId(view, number(args, 0)); const flags = number(args, 3); const value = actor(view, id); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, path?.points.length ?? 0, flags, args); },
 };
 const ITEM_STEP: BuiltinSpec = {
   name: "itemstep", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }],
   doc: docs("Move an item to a board point.", "Finds a deterministic route to x,y, queues it, and waits only for a blocking thread or the pause flag."),
-  call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const flags = number(args, 3); const value = actor(view, id); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, "itemstep", id, path?.points ?? [], flags, args); },
+  call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const flags = number(args, 3); const value = actor(view, id); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, path?.points.length ?? 0, flags, args); },
 };
 function pathCommand(name: "playerpath" | "itempath"): BuiltinSpec {
   return { name, aliases: [], params: movementParams(), doc: docs("Queue a player or item path.", "Queues explicit points, a deterministic path-find route, or a copied/live-linked waypoint vector. The pause flag or a blocking program waits for completion."), call: (view, args) => {
     const flags = number(args, 1); const id = name === "playerpath" ? playerId(view, number(args, 0)) : itemId(view, args[0]?.value as number | string ?? ""); const value = actor(view, id); const board = view.state?.world.board; let points = pointsFromArgs(args, 2);
     if ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0) { const source = vector(view, string(args, 2)); points = source?.points ?? []; }
     else if ((flags & PATHFIND) !== 0 && value !== null && board !== undefined && board !== null && points.length > 0) points = findPath(board, view.state?.sprites ?? null, value, points[0]!, 1).points;
-    return movementResult(view, name, id, points, flags, args);
+    return movementResult(view, id, points.length, flags, args);
   } };
 }
 const PLAYER_LOCATION: BuiltinSpec = { name: "playerlocation", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }, { name: "layer", optional: false, byRef: true, variadic: false }], doc: docs("Read a player's location.", "Returns the player's current pixel x,y and one-based layer immediately through by-reference outputs."), call: (view, args) => { const value = actor(view, playerId(view, number(args, 0))); return { value: value?.x ?? 0, out: [...output(args, 1, value?.x ?? 0), ...output(args, 2, value?.y ?? 0), ...output(args, 3, (value?.layer ?? 0) + 1)] }; } };
@@ -324,13 +296,13 @@ export function applyInputEffect(state: GameState, name: string, args: readonly 
 function numberValue(value: Value | undefined): number { return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : 0; }
 
 export function applySpriteEffect(state: GameState, name: string, args: readonly Value[], pixelMovement = 0): boolean {
-  const idArg = args[0];
+  const idArg = name === "push" ? args[1] : args[0];
   const selected = state.sprites.selectedPlayer ?? state.sprites.players[0]?.id ?? "";
-  const playerCommand = name === "playerstep" || name === "playerpath" || name === "playerdirection" || name === "playerspeed" || name === "playerstance";
+  const playerCommand = name === "push" || name === "playerstep" || name === "playerpath" || name === "playerdirection" || name === "playerspeed" || name === "playerstance";
   const playerId = playerCommand
     ? state.sprites.players.find((value) => value.id === String(idArg) || String(value.index) === String(idArg))?.id ?? selected
     : selected;
-  const id = name === "push" ? selected : playerCommand ? playerId : String(idArg ?? "");
+  const id = playerCommand ? playerId : String(idArg ?? "");
   if (name === "__party_addplayer_asset") {
     const file = String(args[0] ?? "");
     const character = args[1] as unknown as Character;

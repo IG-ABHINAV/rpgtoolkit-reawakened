@@ -2887,6 +2887,7 @@ export function createEngine(init: EngineInit): Engine {
         id: actor.id,
         stance: actor.visual.stance,
         stanceComplete: actor.visual.stanceComplete,
+        moving: actor.movement.active !== null || actor.queue.moves.length > 0,
       })),
       claims: state.engine.claims ?? [],
       audio: state.audio,

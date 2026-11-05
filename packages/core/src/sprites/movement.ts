@@ -521,7 +521,7 @@ function enqueueDirectionDistanceMove(section: SpritesSection, id: string, facin
   const vector = directionVector(facing);
   return updateActor(section, id, (value) => {
     const previous = value.queue.moves[value.queue.moves.length - 1];
-    const origin = !clear && previous !== undefined ? previous.target : { x: value.x, y: value.y };
+    const origin = !clear && previous !== undefined ? previous.target : !clear ? value.movement.active?.target ?? value : value;
     return {
       ...value,
       state: value.visible ? "moving" : value.state,

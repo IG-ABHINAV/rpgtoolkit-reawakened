@@ -151,6 +151,13 @@ export function pollMovement(view: WaitView, wait: Wait): WaitResult | null {
   }
   return DONE;
 }
+/** `sprite.movement`: resolve only when the actor has no active or queued move. */
+export function pollSpriteMovement(view: WaitView, wait: Wait): WaitResult | null {
+  if (wait.kind !== "sprite.movement") return null;
+  const actor = view.sprites?.find((value) => value.id === wait.actor);
+  return actor === undefined || !actor.moving ? DONE : null;
+}
+
 
 /** `sprite.stance`: resolve only from the animation owner completion result. */
 export function pollStance(view: WaitView, wait: Wait): WaitResult | null {
@@ -295,6 +302,7 @@ export const WAIT_KIND_RESOLVERS: readonly WaitKindResolver[] = [
   { kind: "sleep", poll: pollSleep },
   { kind: "input.key", poll: pollInputKey },
   { kind: "movement", poll: pollMovement },
+  { kind: "sprite.movement", poll: pollSpriteMovement },
   { kind: "sprite.stance", poll: pollStance },
   { kind: "request", poll: pollRequest },
   { kind: "blob", poll: pollRequest },
@@ -333,6 +341,8 @@ export function describeWait(wait: Wait): string {
       return "input.key";
     case "movement":
       return `movement(${wait.moves.length} move(s))`;
+    case "sprite.movement":
+      return `sprite.movement(${wait.actor})`;
     case "sprite.stance":
       return `sprite.stance(${wait.actor})`;
     case "request":
