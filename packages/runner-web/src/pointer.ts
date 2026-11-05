@@ -5,6 +5,7 @@
  */
 
 import type { HostDisplayGeometry } from "@tk-reawakened/core";
+import { isFallbackTouchControlTarget } from "./touch-controls.ts";
 
 export type LogicalPointer = { readonly x: number; readonly y: number };
 
@@ -46,6 +47,7 @@ export function attachPointerInput(
     routedButtons &= ~1;
   };
   const route = (event: PointerEvent): void => {
+    if (isFallbackTouchControlTarget(event.target)) return;
     const rect = host.getBoundingClientRect();
     const outside = event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom;
     const primaryNow = (event.buttons & 1) !== 0;
