@@ -35,7 +35,7 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
       };
     },
     drawList(_alpha?: number): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
       return null;
@@ -125,7 +125,7 @@ test("runLog throws naming call and cause for engine violations", () => {
       return modifyReport(base);
     },
     drawList(): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(): SurfacePixels | null {
       return null;
@@ -271,7 +271,7 @@ test("runLog accepts non-empty requests and diagnostics and hands them to the ob
       };
     },
     drawList(): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(): SurfacePixels | null {
       return null;

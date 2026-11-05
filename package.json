@@ -37,7 +37,7 @@
     "icons:test": "node --test tools/icons/test/icons.test.mjs",
     "no-skips:test": "node --test tools/no-skips/test/no-skips.test.mjs",
     "audio-protocol:check": "node tools/fixtures/audio-protocol/generate.mjs --check",
-    "runner-protocol:check": "node tools/fixtures/runner-protocol/generate.mjs --check",
+    "runner-protocol:check": "node tools/fixtures/runner-protocol/generate.mjs --check && node tools/fixtures/runner-protocol/generate-v2.mjs --check",
     "browser:build": "node tools/browser/build.mjs",
     "browser:serve": "node tools/browser/serve.mjs --port 4173",
     "browser:test": "node tools/browser/build.mjs && playwright test",

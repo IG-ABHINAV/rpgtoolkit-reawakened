@@ -1,4 +1,4 @@
-import type { HostDisplayGeometry, NormalizedHostFeatures } from "@tk-reawakened/core";
+import type { NormalizedHostFeatures } from "@tk-reawakened/core";
 import { createSafeAreaProbe, readHostFeatures, waitForHostDisplay, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
 import { fitCanvas } from "./viewport.ts";
 export { fitCanvas } from "./viewport.ts";
@@ -27,6 +27,8 @@ import {
   type DrawList,
   type Engine,
   type GameState,
+  type HostDisplayGeometry,
+  type HostFeatures,
   type InputRecord,
   type RunnerRequest,
   type SurfaceId,
@@ -55,6 +57,8 @@ export type LiveSession = {
   readonly stateHash: () => string;
   readonly viewSize: () => { readonly width: number; readonly height: number };
   readonly hostState: HostStateSnapshot | null;
+  /** Current measured Plane 2 content, Plane 1 presentation rectangle, and physical safe-area insets. */
+  readonly displayGeometry: () => HostDisplayGeometry;
   readonly draw: (alpha: number) => { readonly drawHash: string; readonly commands: number; readonly render: RenderStats };
   readonly playerPosition: () => { readonly x: number; readonly y: number } | null;
   /** The board the session is on, or `null` before board entry — the signal a host needs to tell "booting" from "playing". */
@@ -129,6 +133,68 @@ export function observeViewport(
   const observer = new ResizeObserver(fit);
   observer.observe(viewport);
   return () => observer.disconnect();
+}
+let safeAreaProbe: HTMLDivElement | null = null;
+
+function safeAreaInsets(): HostDisplayGeometry["safeArea"] {
+  if (safeAreaProbe === null) {
+    safeAreaProbe = document.createElement("div");
+    safeAreaProbe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left)";
+    document.body.append(safeAreaProbe);
+  }
+  const style = getComputedStyle(safeAreaProbe);
+  const safeArea = {
+    top: Number.parseFloat(style.paddingTop) || 0,
+    right: Number.parseFloat(style.paddingRight) || 0,
+    bottom: Number.parseFloat(style.paddingBottom) || 0,
+    left: Number.parseFloat(style.paddingLeft) || 0,
+  };
+  return safeArea;
+}
+
+/** Measure the content-relative game rectangle used by rendering, pointer mapping and logged host geometry. */
+function measureDisplayGeometry(canvas: HTMLCanvasElement, view: { readonly width: number; readonly height: number }): HostDisplayGeometry {
+  const contentElement = canvas.parentElement;
+  const contentRect = contentElement?.getBoundingClientRect() ?? canvas.getBoundingClientRect();
+  const gameRect = canvas.getBoundingClientRect();
+  const content = {
+    width: contentRect.width > 0 ? contentRect.width : view.width,
+    height: contentRect.height > 0 ? contentRect.height : view.height,
+  };
+  const game = {
+    x: Math.max(0, gameRect.left - contentRect.left),
+    y: Math.max(0, gameRect.top - contentRect.top),
+    width: gameRect.width > 0 ? Math.min(gameRect.width, content.width) : view.width,
+    height: gameRect.height > 0 ? Math.min(gameRect.height, content.height) : view.height,
+  };
+  return {
+    content,
+    game: {
+      ...game,
+      x: Math.min(game.x, content.width - game.width),
+      y: Math.min(game.y, content.height - game.height),
+    },
+    safeArea: safeAreaInsets(),
+  };
+}
+
+function detectHostFeatures(): HostFeatures {
+  const touch = navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches;
+  const pointer = matchMedia("(pointer: fine)").matches ? "fine" : touch ? "coarse" : "none";
+  const gamepad = navigator.getGamepads?.().some((pad) => pad?.connected) ?? false;
+  const orientation = screen.orientation?.type.startsWith("portrait") === true
+    ? "portrait"
+    : screen.orientation?.type.startsWith("landscape") === true
+      ? "landscape"
+      : window.innerWidth >= window.innerHeight ? "landscape" : "portrait";
+  return { touch, pointer, keyboard: false, gamepad, haptics: typeof navigator.vibrate === "function", orientation };
+}
+
+function sameGeometry(a: HostDisplayGeometry, b: HostDisplayGeometry): boolean {
+  return a.content.width === b.content.width && a.content.height === b.content.height
+    && a.game.x === b.game.x && a.game.y === b.game.y && a.game.width === b.game.width && a.game.height === b.game.height
+    && a.safeArea.top === b.safeArea.top && a.safeArea.right === b.safeArea.right
+    && a.safeArea.bottom === b.safeArea.bottom && a.safeArea.left === b.safeArea.left;
 }
 
 /** Persistent engine and host request pump shared by browser and desktop players. */
@@ -216,20 +282,21 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       safeArea.dispose();
     }
   }
+  const initialGeometry = displayGeometry ?? measureDisplayGeometry(options.gl.canvas as HTMLCanvasElement, viewport);
   const engine = createEngine({
     seed: plan?.seed ?? 0,
     assetIndex: index,
     assetRoot: PACKAGE_ROOT,
     mainFile,
     gameIdentity,
-    ...(hostFeatures === undefined ? {} : { features: hostFeatures }),
-    ...(displayGeometry === undefined ? {} : { displayGeometry }),
     startup: {
       presence: { hasPlayer: () => spriteRuntime === undefined ? hasPlayer : spriteRuntime.hasPlayer() },
       savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
     },
     width: viewport.width,
     height: viewport.height,
+    features: detectHostFeatures(),
+    displayGeometry: initialGeometry,
     maxTicks: plan?.maxTicks ?? Number.MAX_SAFE_INTEGER,
     include: { shading: true, images: true, sprites: true },
     bundled,
@@ -264,7 +331,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       { section: "audio", applier: () => undefined },
     ],
   });
-  const renderer = createWebgl2Renderer(options.gl, { mode: "letterbox", scale: 1 });
+  const renderer = createWebgl2Renderer(options.gl);
 
   const textures = liveTextureProvider(
     (key) => assets.peek(key) ?? bundled.get(key) ?? null,
@@ -275,6 +342,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   const fonts = fontProvider(options.bundled);
   let currentTick = 0;
   let currentStateHash = "";
+  let lastReportedGeometry = initialGeometry;
   const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
   let closed = false;
   let quitNotified = false;
@@ -420,7 +488,18 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     if (!closed) throw new Error("runner-web: live engine request loop did not settle");
   };
   const queue = (ticks: number, inputs: readonly InputRecord[] = []): Promise<void> => {
-    processing = processing.then(() => pump(ticks, inputs));
+    let queuedInputs = [...inputs];
+    const explicitGeometry = queuedInputs.find((input) => input.event.kind === "host.display");
+    if (explicitGeometry?.event.kind === "host.display") {
+      lastReportedGeometry = explicitGeometry.event.geometry;
+    } else {
+      const geometry = measureDisplayGeometry(options.gl.canvas as HTMLCanvasElement, viewport);
+      if (!sameGeometry(geometry, lastReportedGeometry)) {
+        queuedInputs.unshift({ tick: currentTick, event: { kind: "host.display", geometry } });
+        lastReportedGeometry = geometry;
+      }
+    }
+    processing = processing.then(() => pump(ticks, queuedInputs));
     return processing;
   };
   void queue(0);
@@ -436,6 +515,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     stateHash: () => currentStateHash,
     viewSize: () => ({ width: viewport.width, height: viewport.height }),
     hostState: hostFeatures === undefined || displayGeometry === undefined ? null : { features: hostFeatures, geometry: displayGeometry },
+    displayGeometry: () => measureDisplayGeometry(options.gl.canvas as HTMLCanvasElement, viewport),
     boardKey: () => latest?.world.board?.key ?? null,
     playerPosition: () => {
       const actor = latest?.sprites.players.find((player) => player.id === latest?.sprites.selectedPlayer)
@@ -446,7 +526,8 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     async advance(ticks, inputs = []) { await queue(ticks, inputs); },
     draw(alpha) {
       const list: DrawList = engine.drawList(alpha, { shading: true, images: true, sprites: true });
-      const render = renderer.render(list, {
+      const geometry = measureDisplayGeometry(options.gl.canvas as HTMLCanvasElement, viewport);
+      const render = renderer.render(list, geometry, {
         textures,
         surfaces: (id: SurfaceId, rev: number) => {
           const pixels = engine.surfacePixels(id, rev);
@@ -455,7 +536,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
         fonts: (asset: AssetKey) => fonts.get(asset),
         ...(fonts.get(DEFAULT_FONT_ASSET) === undefined ? {} : { fallbackFont: fonts.get(DEFAULT_FONT_ASSET) }),
       });
-      return { drawHash: hashDrawList(list), commands: list.commands.length, render };
+      return { drawHash: hashDrawList(list), commands: list.commands.length + list.marginCommands.length, render };
     },
   };
 }

@@ -286,7 +286,7 @@ function createHost(
     },
 
     drawList(_alpha?: number): DrawList {
-      return { tick: gameState.time.tick, width: 320, height: 240, commands: [] };
+      return { tick: gameState.time.tick, width: 320, height: 240, commands: [], marginCommands: [] };
     },
 
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
