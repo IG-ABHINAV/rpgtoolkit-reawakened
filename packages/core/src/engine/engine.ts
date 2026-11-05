@@ -338,6 +338,13 @@ export function createEngine(init: EngineInit): Engine {
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
   state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
   const externallyRegisteredActions: RegisteredAction[] = [];
+  function replayExternallyRegisteredActions(): void {
+    const registered = new Set(state.input.registeredActions.map((action) => action.name));
+    for (const action of externallyRegisteredActions) {
+      if (registered.has(action.name)) continue;
+      if (registerGameAction(state.input, action)) registered.add(action.name);
+    }
+  }
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
@@ -1144,6 +1151,7 @@ export function createEngine(init: EngineInit): Engine {
       } finally {
         nextServices.setPackageStartup(false);
       }
+      replayExternallyRegisteredActions();
     }
     startupServicesReady = runStartups;
     return nextServices;
@@ -1169,7 +1177,8 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
-      const startupActions = state.input.registeredActions.slice();
+      const externalNames = new Set(externallyRegisteredActions.map((action) => action.name));
+      const startupActions = state.input.registeredActions.filter((action) => !externalNames.has(action.name));
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1178,7 +1187,7 @@ export function createEngine(init: EngineInit): Engine {
 
       Object.assign(state, candidate);
       const actionRegistry = createInputSection();
-      for (const action of [...startupActions, ...externallyRegisteredActions]) registerGameAction(actionRegistry, action);
+      for (const action of startupActions) registerGameAction(actionRegistry, action);
       state.input.registeredActions = actionRegistry.registeredActions;
       state.input.actionRegistry = actionRegistry.actionRegistry;
       state.input.controlActions = actionRegistry.controlActions;
@@ -1210,6 +1219,7 @@ export function createEngine(init: EngineInit): Engine {
       pluginLayers = restoredLayers;
       const restoredServices = makeServices(activePlugins, loader ?? undefined, false, restoredLayers);
       runPackageStartup(state, restoredServices, [], activePlugins, restoredServices.listenersBeforePackageStartup);
+      replayExternallyRegisteredActions();
       compileRestoredPrograms(state.vm, restoredServices);
       verifyRestoredHandles(state.vm, restoredServices, state.events);
       services = restoredServices;
@@ -2006,7 +2016,6 @@ export function createEngine(init: EngineInit): Engine {
     postQuitWriteFailures.length = 0;
     state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
-    for (const action of externallyRegisteredActions) registerGameAction(state.input, action);
     init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
       const found = index.byKey.get(assetKey(nextMain));

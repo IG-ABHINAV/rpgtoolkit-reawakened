@@ -246,15 +246,20 @@ test("input-replay-button-slots: bindings, dead zone, edges, merge, slots and cl
   equal(padMask({ axes: { x: 250, y: -1000 }, buttons: 1 }), 8 | 1 | 16);
   const kb = theCase(sc, "keyboard-diagonal-and-repeat");
   equal(rowAt(kb, 2).intent, "NE");
-  deepEqual(kb.expect.flatMap((r) => (r.queue ?? []).map((q) => q.seq)), [1, 2, 3]);
-  equal(rowAt(kb, 3).queue, undefined); // auto-repeat appends nothing
+  deepEqual(kb.expect.flatMap((r) => (r.queue ?? []).map((q) => q.seq)), [1, 2, 3, 4, 5]);
+  deepEqual(rowAt(kb, 3).queue, [{ seq: 3, key: "right" }], "auto-repeat keeps one raw compatibility key but adds no action edge");
+  deepEqual(rowAt(kb, 4).queue, [{ seq: 4, key: "KeyQ" }], "an unbound physical key remains in the legacy queue");
+  deepEqual(rowAt(kb, 5).held, ["up", "right", "confirm", "menu"], "Enter's defaults include both confirm and the legacy menu action");
   equal(rowAt(theCase(sc, "diagonals-disabled-last-press-wins"), 2).intent, "E");
   const gp = theCase(sc, "gamepad-dead-zone-edges-and-merge");
   equal(rowAt(gp, 1).held.length, 0); // 249 is inside the dead zone
   deepEqual(rowAt(gp, 2).held, ["right"]); // 250 is active
   deepEqual(rowAt(gp, 3).queue.map((q) => q.key), ["confirm", "up"]); // ascending physical changed-control order
-  equal(rowAt(gp, 4).queue, undefined); // a keyboard key on an action a pad already holds adds no entry
+  deepEqual(rowAt(gp, 4).queue, [{ seq: 4, key: "right" }], "a keyboard press still queues raw compatibility input while a pad holds right");
   deepEqual(rowAt(gp, 5).held, ["right"]);
+  const gamepadOnly = theCase(sc, "gamepad-only-named-actions");
+  deepEqual(rowAt(gamepadOnly, 1).held, ["confirm", "menu"]);
+  deepEqual(rowAt(gamepadOnly, 1).queue.map((q) => q.key), ["confirm", "menu"]);
   const dc = theCase(sc, "gamepad-disconnect-and-unknown-devices");
   deepEqual(rowAt(dc, 5).held, ["right"]); // device 1 still holds it
   deepEqual(rowAt(dc, 6).held, []);

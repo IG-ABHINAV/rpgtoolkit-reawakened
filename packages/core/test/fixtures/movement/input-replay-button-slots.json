@@ -44,11 +44,11 @@
         {"t":0,"held":[],"intent":null,"slots":["attack","back"]},
         {"t":1,"held":["up"],"intent":"N","queue":[{"seq":1,"key":"up"}],"slots":["attack","back"]},
         {"t":2,"held":["up","right"],"intent":"NE","queue":[{"seq":2,"key":"right"}],"slots":["attack","back"]},
-        {"t":3,"held":["up","right"],"intent":"NE","notes":["ignored:repeat:ArrowRight"],"slots":["attack","back"]},
-        {"t":4,"held":["up","right"],"intent":"NE","notes":["ignored:unbound:KeyQ"],"slots":["attack","back"]},
-        {"t":5,"held":["up","right","confirm"],"intent":"NE","queue":[{"seq":3,"key":"confirm"}],"slots":["attack","back"]},
-        {"t":6,"held":["right","confirm"],"intent":"E","slots":["attack","back"]},
-        {"t":7,"held":["confirm"],"intent":null,"slots":["attack","back"]},
+        {"t":3,"held":["up","right"],"intent":"NE","queue":[{"seq":3,"key":"right"}],"slots":["attack","back"]},
+        {"t":4,"held":["up","right"],"intent":"NE","queue":[{"seq":4,"key":"KeyQ"}],"notes":["ignored:unbound:KeyQ"],"slots":["attack","back"]},
+        {"t":5,"held":["up","right","confirm","menu"],"intent":"NE","queue":[{"seq":5,"key":"confirm"}],"slots":["attack","back"]},
+        {"t":6,"held":["right","confirm","menu"],"intent":"E","slots":["attack","back"]},
+        {"t":7,"held":["confirm","menu"],"intent":null,"slots":["attack","back"]},
         {"t":8,"held":[],"intent":null,"slots":["attack","back"]},
         {"t":9,"held":[],"intent":null,"slots":["attack","back"]}
       ]
@@ -115,11 +115,11 @@
         {"t":1,"held":[],"intent":null,"slots":["attack","back"]},
         {"t":2,"held":["right"],"intent":"E","queue":[{"seq":1,"key":"right"}],"slots":["attack","back"]},
         {"t":3,"held":["up","right","confirm"],"intent":"NE","queue":[{"seq":2,"key":"confirm"},{"seq":3,"key":"up"}],"slots":["attack","back"]},
-        {"t":4,"held":["up","right","confirm"],"intent":"NE","slots":["attack","back"]},
+        {"t":4,"held":["up","right","confirm"],"intent":"NE","queue":[{"seq":4,"key":"right"}],"slots":["attack","back"]},
         {"t":5,"held":["right"],"intent":"E","slots":["attack","back"]},
         {"t":6,"held":[],"intent":null,"slots":["attack","back"]},
-        {"t":7,"held":[],"intent":null,"slots":["attack","back"]},
-        {"t":8,"held":[],"intent":null,"slots":["attack","back"]}
+        {"t":7,"held":["menu"],"intent":null,"queue":[{"seq":5,"key":"menu"}],"slots":["attack","back"]},
+        {"t":8,"held":["menu"],"intent":null,"slots":["attack","back"]}
       ]
     },
     {
@@ -227,7 +227,7 @@
     },
     {
       "name": "gamepad-only-named-actions",
-      "note": "A gamepad adds nothing the bindings do not name: with no menu binding, the menu control is ignored.",
+      "note": "A gamepad exposes semantic defaults independent of keyboard bindings: button 0 confirms and Start opens the menu.",
       "setup": {
         "bindings": {"keys":{"Enter":"confirm"}},
         "slots": [
@@ -244,8 +244,8 @@
       "ticks": 3,
       "expect": [
         {"t":0,"held":[],"intent":null,"slots":["attack","back"]},
-        {"t":1,"held":["confirm"],"intent":null,"queue":[{"seq":1,"key":"confirm"}],"slots":["attack","back"]},
-        {"t":2,"held":["confirm"],"intent":null,"slots":["attack","back"]}
+        {"t":1,"held":["confirm","menu"],"intent":null,"queue":[{"seq":1,"key":"confirm"},{"seq":2,"key":"menu"}],"slots":["attack","back"]},
+        {"t":2,"held":["confirm","menu"],"intent":null,"slots":["attack","back"]}
       ]
     }
   ]

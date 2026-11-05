@@ -145,6 +145,14 @@ test("keyboard bindings retain independent physical claims for one game action",
   applyInputEvent(state, { kind: "key", name: "G", code: "KeyG", char: "g", down: false });
   equal(state.actions["game.dash"], false);
 });
+test("letter-name bindings release their physical-code action claim", () => {
+  const state = createInputSection({ bindings: { keys: { D: "right" } } });
+  applyInputEvent(state, { kind: "key", name: "D", code: "KeyD", char: "d", down: true });
+  equal(state.keyboardActionSources.right?.["key:KeyD"], true);
+  equal(state.keyboardActionSources.right?.["key:D"], undefined);
+  applyInputEvent(state, { kind: "key", name: "D", code: "KeyD", char: "d", down: false });
+  equal(state.actions.right, false, "the physical KeyD release clears the action even when its legacy binding is named D");
+});
 test("mapped and physically bound game actions retain registry order on a shared control", () => {
   const state = createInputSection({ bindings: { keys: { KeyF: "game.first" } } });
   const definition = (name: string, controls: string[]) => ({ name, label: name, icon: null, group: null, controls, locked: false, hidden: false });
