@@ -440,8 +440,7 @@ A runner proves itself by replaying vectors, not by sharing types. Two artefacts
   replaying them.
 
 <a id="drift-check"></a>
-The schema, the kit and the TypeScript types cannot drift from one another: **`pnpm runner-protocol:check`** fails when
-any one of them changes alone. It runs, in this order, and reports every problem it finds:
+The historical v1 schema and vector kit remain fixed together; the active core input union also serves v2 and is wider. **`pnpm runner-protocol:check`** checks the historical contract without treating v2-only records as v1 changes. It runs, in this order, and reports every problem it finds:
 
 1. **The kit is reproducible.** It regenerates the vectors and fails if the committed `vectors.json` differs.
 2. **The schema is well formed.** Every `$ref` resolves, every `$defs` entry is reachable from the three roots
@@ -450,13 +449,14 @@ any one of them changes alone. It runs, in this order, and reports every problem
    cannot weaken the schema.
 3. **The schema and the kit agree.** Every vector's verdict matches what the schema returns: a valid record is accepted
    and a refusal is refused. A kit that holds no valid record for some kind the schema lists fails.
-4. **The schema and the TypeScript types agree.** The check reads `DrawList`, `InputRecord` and `RunnerRequest` from
+4. **The schema and historical TypeScript types agree.** The check reads `DrawList`, `InputRecordV1` and `RunnerRequest` from
    `packages/core/src/ports/` with the TypeScript compiler and compares each with its schema definition in the JSON
    projection, recursively: the keys a record carries, which are required (every key but `repeat`, AD-14), literal and
    enum values, `null`, arrays, records and nested objects, with a `Uint8Array` leaf as a base64 string. It names the
-   path of every difference, so a type change with no schema change, or the reverse, fails. Numeric bounds, string
-   patterns and lengths exist only in the schema (TypeScript has no integer type), and the refusals in the kit hold
-   them.
+   path of every difference, so a historical type change with no schema change, or the reverse, fails. Numeric bounds,
+   string patterns and lengths exist only in the schema (TypeScript has no integer type), and the refusals in the kit
+   hold them. The active core `InputRecord` includes semantic `action` events for v2; it is intentionally excluded from
+   this v1 drift check.
 
 `packages/core` also fails its own type check when a request kind is missing from `HOST_REQUEST_KINDS`, so a request
 kind cannot be added to the wire without being declarable by a package. The same check, plus perturbation tests that

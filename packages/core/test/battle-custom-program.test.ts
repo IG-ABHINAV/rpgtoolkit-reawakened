@@ -330,8 +330,8 @@ test("custom fight seed and mid-battle save restore preserve state and drawing",
   equal(drawHash, hashDrawList(drawListFor(repeated.state)));
   equal(stateHash === hashState(differentSeed.state), false);
   equal(drawHash === hashDrawList(drawListFor(differentSeed.state)), false);
-  equal(stateHash, "c77efdff1b908987"); // Input schema 4, world schema 2 and host state enter the hash.
-  equal(drawHash, "3fa17af6365a9ba5");
+  equal(stateHash, "7418cdd8bf1ab6e8"); // The registered action registry/source claims are part of the input state hash.
+  equal(drawHash, "480086a70fb486bb"); // DrawList v2 includes the explicit marginCommands layer.
 
   const restoredState = restoreGameState(snapshot(first.state));
   const restoredRig: Rig = {

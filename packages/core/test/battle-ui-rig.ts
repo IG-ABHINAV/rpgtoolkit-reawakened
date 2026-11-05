@@ -419,6 +419,8 @@ export type RigOptions = {
    * 20 × 15 tile bitmap, or none (the stock screen's flat fallback colour).
    */
   readonly background?: "png" | "tbm" | "none";
+  /** Instrument scanner completion in the one regression test that distinguishes fast-path from fallback scanning. */
+  readonly watchFastPathCompletion?: boolean;
 };
 
 const DEFAULT_PARTY = [
@@ -518,7 +520,7 @@ export function gameFiles(options: RigOptions = {}): { readonly files: Map<strin
   return { files, paths };
 }
 
-function catalogue(): readonly PackageCatalogueEntry[] {
+function catalogue(options: RigOptions): readonly PackageCatalogueEntry[] {
   const folder = join(repoRoot, "stock", "stock_battle");
   const manifest = JSON.parse(readFileSync(join(folder, "manifest.json"), "utf8")) as {
     readonly name: string;
@@ -527,13 +529,40 @@ function catalogue(): readonly PackageCatalogueEntry[] {
     readonly requests: PackageCatalogueEntry["requests"];
     readonly program: string;
   };
+  let startup = readFileSync(join(folder, manifest.program), "utf8");
+  if (options.watchFastPathCompletion === true) {
+    const fastPathReturn = "                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig";
+    const passScanner = "        if (ui.playerCount > 0) {\n            bar = ui.barScan";
+    const passEnd = "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        return 0\n    },\n    box:";
+    const refreshScan = "        size = battle.partySize(1)\n        if (size > 0) {\n            index = stockBattleUi.barScan";
+    const refreshScanEnd = "            stockBattleUi.barScan = (index + 1) % size\n        }\n        return 0\n    },\n    draw:";
+    if (!startup.includes(fastPathReturn) || !startup.includes(passScanner) || !startup.includes(passEnd) || !startup.includes(refreshScan) || !startup.includes(refreshScanEnd)) {
+      throw new Error("stock battle test hook location changed");
+    }
+    startup = startup.replace(
+      passScanner,
+      "        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        if (ui.playerCount > 0) {\n            bar = ui.barScan",
+    ).replace(
+      passEnd,
+      "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        return 0\n    },\n    box:",
+    ).replace(
+      refreshScan,
+      "        size = battle.partySize(1)\n        if (size > 0) {\n            if (stockBattleUi.testFastPathWatch != 0) {\n                stockBattleUi.barScan = 3\n            }\n            index = stockBattleUi.barScan",
+    ).replace(
+      refreshScanEnd,
+      "            stockBattleUi.barScan = (index + 1) % size\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            stockBattleUi.barScan = 3\n        }\n        return 0\n    },\n    draw:",
+    ).replace(
+      fastPathReturn,
+      "                if (stockBattleUi.testFastPathWatch != 0) {\n                    stockBattleUi.testFastPathCompleted = 1\n                }\n                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig",
+    );
+  }
   return [{
     name: manifest.name,
     version: manifest.version,
     namespace: manifest.namespace,
     requests: manifest.requests,
     definition: { id: manifest.name, version: manifest.version, commands: [] },
-    startup: { kind: "inline", text: readFileSync(join(folder, manifest.program), "utf8"), ir: IR_VERSION, dialect: "tk3" },
+    startup: { kind: "inline", text: startup, ir: IR_VERSION, dialect: "tk3" },
   }];
 }
 
@@ -549,7 +578,8 @@ export type UiRig = {
   state(): GameState;
   /** The UI's own dictionary (`stockBattleUi`) as plain data, or null before the screen exists. */
   ui(): Record<string, unknown> | null;
-  /** The value of a dictionary member of the UI by dotted path. */
+  /** Mutate live state in the next triggers phase, before stock battle's render/refresh phase. */
+  mutateNextTick(mutate: (state: GameState) => void): void;
   tick(count?: number): void;
   /** Press one key (down, then up on the next tick) and run `ticks` ticks. */
   press(name: string, ticks?: number): void;
@@ -575,6 +605,7 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
   });
   const stock = options.inventory ?? [{ source: "item/potion.itm", handle: "Potion", quantity: 3 }, { source: "item/ether.itm", handle: "Ether", quantity: 1 }, { source: "item/key.itm", handle: "Brass Key", quantity: 1 }, ...gems];
   let latest: GameState | null = null;
+  let nextTickMutation: ((state: GameState) => void) | null = null;
   let seeded = false;
   const font = new Uint8Array(readFileSync(join(repoRoot, "media", "fonts", "tkr-8x8.fnt")));
   const engine = createEngine({
@@ -588,11 +619,16 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
     height: SCREEN_HEIGHT,
     maxTicks: 100000,
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
-    packageCatalogue: catalogue(),
+    packageCatalogue: catalogue(options),
     phaseRegistrations: [{
       phase: "triggers",
       run: (state, post) => {
         latest = state;
+        if (nextTickMutation !== null) {
+          const mutate = nextTickMutation;
+          nextTickMutation = null;
+          mutate(state);
+        }
         if (seeded || post === undefined || state.vm.globals.ready !== 1 || state.world.board === null || state.world.board === undefined) return;
         seeded = true;
         const ids: number[] = [];
@@ -669,6 +705,10 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
       if (latest === null) return null;
       const value = read(latest.vm.globals.stockbattleui);
       return typeof value === "object" && value !== null ? value as Record<string, unknown> : null;
+    },
+    mutateNextTick(mutate) {
+      if (nextTickMutation !== null) throw new Error("a live-state mutation is already queued");
+      nextTickMutation = mutate;
     },
     tick(count = 1) {
       for (let remaining = count; remaining > 0;) {

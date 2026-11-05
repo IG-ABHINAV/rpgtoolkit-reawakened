@@ -12,6 +12,7 @@ import { check as checkV2 } from "../runner-protocol/generate-v2.mjs";
 const schemaPath = "packages/runner-harness/schema/runner-protocol-v2.schema.json";
 const drawPath = "packages/core/src/ports/draw.ts";
 const requestsPath = "packages/core/src/ports/requests.ts";
+const inputPath = "packages/core/src/ports/input.ts";
 const vectorsPath = "tools/fixtures/runner-protocol/vectors-v2.json";
 
 const loadSchema = () => JSON.parse(readFileSync(schemaPath, "utf8"));
@@ -88,4 +89,12 @@ test("vector-only change that breaks reproducibility is caught", async () => {
     committedVectors: readFileSync(vectorsPath, "utf8"),
   });
   ok(problems.some((problem) => problem.includes("differs")));
+});
+test("v2 action drift uses the active v2 input union while v1 stays historical", async () => {
+  const problems = await checkV2({
+    schema: loadSchema(),
+    vectors: loadVectors(),
+    sources: { [inputPath]: (text) => text.replace("  | ActionInput\n", "") },
+  });
+  ok(problems.some((problem) => problem.includes("InputRecord.event: the schema allows object")));
 });

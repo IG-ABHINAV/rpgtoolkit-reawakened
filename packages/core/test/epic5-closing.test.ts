@@ -199,7 +199,7 @@ test("Epic 5 demo NPC replays keep state and draw hashes across batching, restor
 test("Epic 5 reset and phase seams are section-owned and ordered", () => {
   const state = createGameState({ seed: 17 });
   state.input = createInputSection({ buttons: [{ id: "confirm", x: 0, y: 0, w: 8, h: 8, action: "confirm", enabled: true }] });
-  state.input.keys.push({ seq: 1, name: "A", code: "KeyA", char: "a" });
+  state.input.keys.push({ seq: 1, name: "A", code: "KeyA", char: "a", action: null, resolvedActions: [] });
   state.sprites.players.push({} as never);
   state.triggers.fired["stale"] = true;
   const order: string[] = [];

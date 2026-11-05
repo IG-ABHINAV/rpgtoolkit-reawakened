@@ -415,7 +415,7 @@ export function pointer(session: Session, x: number, y: number, buttons: number)
   return session.pump((current) => current.time.tick > tick, undefined, 20, [{ tick, event: { kind: "pointer", x, y, buttons } }]);
 }
 
-/** Deliver one gamepad report (the action bitmask: up 1, down 2, left 4, right 8, confirm 16, cancel 32, menu 64). */
+/** Deliver one gamepad report using E-112 physical W3C button bits (d-pad 12–15, confirm 0, cancel 1, menu 9). */
 export function pad(session: Session, buttons: number): GameState {
   const tick = session.state().time.tick;
   return session.pump((current) => current.time.tick > tick, undefined, 20, [{ tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons } }]);

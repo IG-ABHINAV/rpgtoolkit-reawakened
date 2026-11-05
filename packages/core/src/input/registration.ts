@@ -89,6 +89,8 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
     applySemanticActionEdge(state.input, "confirm", false, "pointer.canvas");
     state.input.pendingClicks = state.input.pendingClicks.filter((click) => click.gestureId !== point.gestureId);
   }
+  const currentKeySequences = new Set(state.input.pendingKeySequences);
+  const currentKeys = state.input.keys.filter((key) => currentKeySequences.has(key.seq));
   const { actions, clicks } = takeInputActions(state.input);
   const id = selectedPlayer(state);
   const board = state.world.board ?? null;
@@ -97,9 +99,8 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement, #reawakened-click-movement-freeze).
   let directionBlocked = scriptOwnsInput(state.vm);
   const configured = options.menuKey;
-  const lastConfiguredEdge = configured === undefined ? undefined : [...state.input.keys].reverse().find((key) => key.action === configured.action);
-  if (!directionBlocked && state.battle === null && (actions.includes("menu") ||
-      (configured !== undefined && actions.includes(configured.action) && lastConfiguredEdge?.code === configured.code))) {
+  const configuredMenuPress = configured !== undefined && currentKeys.some((key) => key.code === configured.code && key.action === configured.action);
+  if (!directionBlocked && state.battle === null && (actions.includes("menu") || configuredMenuPress)) {
     // A menu opened by this very press owns input from now on, so a direction pressed on the same tick queues no step
     // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement: a blocking script freezes movement).
     if ((options.openMenu ?? openMainMenu)(state)) directionBlocked = true;

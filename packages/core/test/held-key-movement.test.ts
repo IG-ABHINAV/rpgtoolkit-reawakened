@@ -279,7 +279,7 @@ test("a held gamepad direction resumes only after a blocking wait ends", () => {
   const state = makeState();
   const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()" });
   runThreadsPhase(state.vm, createScriptServices(state), 100);
-  tick(state, 0, [{ kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 8 }]);
+  tick(state, 0, [{ kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 15 }]);
   equal(state.input.actions.right, true, "the gamepad continues to hold its action");
   equal(state.sprites.players[0]!.movement.active, null, "the wait prevents a gamepad step");
   killThread(state.vm, thread.id);
@@ -479,7 +479,7 @@ test("a held key's host auto-repeat after the refocus does not resume the walk",
 test("a direction a gamepad holds survives a focus loss: no step while unfocused, walking resumes with focus", () => {
   const state = makeState();
   const start = state.sprites.players[0]!.x;
-  const padRight: InputEv = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 8 };
+  const padRight: InputEv = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 15 };
 
   tick(state, 0, [padRight, key("ArrowRight", true)]);
   for (let t = 1; t < 21; t += 1) tick(state, t);

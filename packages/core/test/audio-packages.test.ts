@@ -9,10 +9,11 @@
 //   * `region-music.prg` - rewrites board-started music to the region theme.
 //
 // Each scenario runs deterministically from a seed, restores to the same state at
-// every tick, and pins its audio consequences.
+// every tick, and pins its audio consequences. Re-record only state hashes with
+// MEDIA_PACKAGES_GOLDEN_RECORD=1 node --test packages/core/test/audio-packages.test.ts.
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextEncoder } from "node:util";
@@ -235,12 +236,13 @@ test("the three authored packages load by name and reap the audio consequence ea
 
 test("the pinned golden records the package scenario's per-tick hashes", () => {
   const run = play({ packages: ["ducking", "stems", "region_music"], ticks: 130, script: 'mediaPlay("media/door.wav", { track: "ui", loop: false })\nmediaPlay("media/stem1.wav", { track: "ambience", loop: false })\nend()\n' });
+  const actual = { id: "ducking-stems-region", finalHash: run.hashes[run.hashes.length - 1]!, ticks: run.hashes };
+  if (process.env["MEDIA_PACKAGES_GOLDEN_RECORD"] === "1") {
+    writeFileSync(join(repoRoot, "golden", "audio", "media-packages.json"), `${JSON.stringify(actual, null, 2)}\n`);
+    return;
+  }
   const golden = readGolden();
-  deepEqual({ id: golden.id, finalHash: golden.finalHash, ticks: golden.ticks }, {
-    id: "ducking-stems-region",
-    finalHash: run.hashes[run.hashes.length - 1],
-    ticks: run.hashes,
-  }, "the pinned per-tick hashes match the committed golden");
+  deepEqual({ id: golden.id, finalHash: golden.finalHash, ticks: golden.ticks }, actual, "the pinned per-tick hashes match the committed golden");
 });
 
 test("the package scenario replays to the same hashes, and a save at every tick restores to them", () => {

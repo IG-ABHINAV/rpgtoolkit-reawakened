@@ -698,20 +698,20 @@ test("a gamepad pages, confirms and cancels through the same actions", () => {
   const session = boot({ startup: "mainmenu()\n" });
   session.pump((state) => state.menu.screens.length === 1);
   const stack = (): string[] => session.state().menu.screens.map((screen) => screen.screen);
-  // The action bitmask changes from one report to the next, so each new bit is one press edge: no release needed between.
-  pad(session, 2);
+  // The physical W3C button mask changes from one report to the next, so each new bit is one press edge: no release needed between.
+  pad(session, 1 << 13);
   equal(selectionOf(session), 1, "down moved the cursor to Equip");
-  pad(session, 16);
+  pad(session, 1 << 0);
   deepEqual(stack(), ["main", "equipment"], "confirm opened Equip");
   pad(session, 0);
-  pad(session, 16);
-  pad(session, 8);
+  pad(session, 1 << 0);
+  pad(session, 1 << 15);
   equal(selectionOf(session), 6, "right turned a page of the slot list");
-  pad(session, 4);
+  pad(session, 1 << 14);
   equal(selectionOf(session), 0, "left turned it back");
-  pad(session, 32);
+  pad(session, 1 << 1);
   deepEqual(stack(), ["main", "equipment"], "cancel left the slot list for the member list");
-  pad(session, 64);
+  pad(session, 1 << 9);
   deepEqual(stack(), [], "the menu button closed the whole menu");
 });
 

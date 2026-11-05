@@ -134,7 +134,7 @@ export async function check({ schema: schemaOverride, committedSchema, vectors: 
     if (row.id === "draw-margin-only-change" && row.hashA === row.hashB) problems.push("draw-margin-only-change: marginCommands must affect the draw hash");
   }
   const { typeProblems } = await import("./types.mjs");
-  problems.push(...typeProblems(schema, { sources }));
+  problems.push(...typeProblems(schema, { sources, inputAlias: "InputRecord" }));
   return problems;
 }
 

@@ -106,6 +106,34 @@ test("registered game actions preserve order and semantic source claims emit one
   equal(state.actions["game.fireball"], false);
   deepEqual(state.keys.map((key) => key.seq), [1]);
 });
+
+test("game-action keyboard bindings preserve raw Get key identity", () => {
+  const state = createInputSection();
+  registerGameAction(state, { name: "game.fireball", label: "Fireball", icon: null, group: null, controls: ["key:KeyF"], locked: false, hidden: false });
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  const result = pollInputKey({ tick: 0, input: inputView(state), claims: [] }, { kind: "input.key", global: true, key: null, parkSeq: 1 });
+  equal(result?.value, "F");
+  equal(state.actions["game.fireball"], true);
+});
+
+test("unknown game-action keyboard bindings still deliver the raw key to scripts", () => {
+  const state = createInputSection({ bindings: { keys: { KeyF: "game.removed" } } });
+  const unknown: string[] = [];
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true }, (action) => unknown.push(action));
+  const result = pollInputKey({ tick: 0, input: inputView(state), claims: [] }, { kind: "input.key", global: true, key: null, parkSeq: 1 });
+  deepEqual(unknown, ["game.removed"]);
+  equal(result?.value, "F");
+  equal(state.actions["game.removed"], undefined);
+});
+
+test("custom legacy menu key does not diagnose an unknown game action or reopen on repeat", () => {
+  const state = createInputSection({ bindings: { keys: { KeyM: "M" } } });
+  const unknown: string[] = [];
+  applyInputEvent(state, { kind: "key", name: "M", code: "KeyM", char: "m", down: true }, (action) => unknown.push(action));
+  applyInputEvent(state, { kind: "key", name: "M", code: "KeyM", char: "m", down: true, repeat: true }, (action) => unknown.push(action));
+  deepEqual(unknown, []);
+  equal(state.pendingKeySequences.length, 1, "OS repeat remains available to legacy waits but is not a fresh menu gesture");
+});
 test("keyboard bindings retain independent physical claims for one game action", () => {
   const state = createInputSection();
   const action = { name: "game.dash", label: "Dash", icon: null, group: null, controls: ["key:KeyF", "key:KeyG"], locked: false, hidden: false };
@@ -116,6 +144,22 @@ test("keyboard bindings retain independent physical claims for one game action",
   equal(state.actions["game.dash"], true);
   applyInputEvent(state, { kind: "key", name: "G", code: "KeyG", char: "g", down: false });
   equal(state.actions["game.dash"], false);
+});
+test("letter-name bindings release their physical-code action claim", () => {
+  const state = createInputSection({ bindings: { keys: { D: "right" } } });
+  applyInputEvent(state, { kind: "key", name: "D", code: "KeyD", char: "d", down: true });
+  equal(state.keyboardActionSources.right?.["key:KeyD"], true);
+  equal(state.keyboardActionSources.right?.["key:D"], undefined);
+  applyInputEvent(state, { kind: "key", name: "D", code: "KeyD", char: "d", down: false });
+  equal(state.actions.right, false, "the physical KeyD release clears the action even when its legacy binding is named D");
+});
+test("mapped and physically bound game actions retain registry order on a shared control", () => {
+  const state = createInputSection({ bindings: { keys: { KeyF: "game.first" } } });
+  const definition = (name: string, controls: string[]) => ({ name, label: name, icon: null, group: null, controls, locked: false, hidden: false });
+  equal(registerGameAction(state, definition("game.first", [])), true);
+  equal(registerGameAction(state, definition("game.second", ["key:KeyF"])), true);
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  deepEqual(state.keys[0]?.resolvedActions, ["game.first", "game.second"]);
 });
 
 test("a registry with the specified 512 actions dispatches the bound action", () => {
@@ -133,6 +177,34 @@ test("a registry with the specified 512 actions dispatches the bound action", ()
   }
   applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
   equal(state.actions["game.action511"], true);
+});
+test("a key release visits only actions indexed to that control", () => {
+  const state = createInputSection();
+  for (let index = 0; index < 512; index += 1) {
+    equal(registerGameAction(state, {
+      name: `game.action${index}`,
+      label: `Action ${index}`,
+      icon: null,
+      group: null,
+      controls: index === 511 ? ["key:KeyF"] : [],
+      locked: false,
+      hidden: false,
+    }), true);
+  }
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  for (let index = 0; index < 511; index += 1) {
+    Object.defineProperty(state.keyboardActionSources, `game.action${index}`, { value: {}, enumerable: true, configurable: true, writable: true });
+  }
+  let scannedRegistry = false;
+  state.keyboardActionSources = new Proxy(state.keyboardActionSources, {
+    ownKeys() {
+      scannedRegistry = true;
+      throw new Error("key-up scanned every action claim");
+    },
+  });
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: false });
+  equal(state.actions["game.action511"], false);
+  equal(scannedRegistry, false, "the release uses only its physical control's reverse index");
 });
 
 test("registered keyboard and gamepad controls dispatch without extra key aliases", () => {
@@ -432,7 +504,7 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 7);
+  equal(state.input.version, 8);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);
@@ -476,13 +548,17 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   raw.schema.input = 2;
   raw.input.version = 2;
   raw.input.pointer = { x: 9, y: 8, buttons: 1 };
+  delete raw.input.nextPointerGestureId;
+  delete raw.input.pointerGestureId;
+  raw.input.pendingClicks = [{ x: 9, y: 8 }];
+  delete raw.input.pendingPointerUps;
   const migrated = restoreGameState(JSON.stringify(raw)).input;
   deepEqual(migrated.pointer, { x: 9, y: 8, buttons: 1, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
   equal(migrated.pointerGestureId, 0, "an old snapshot's held primary pointer remains releasable");
   equal(migrated.nextPointerGestureId, 1);
   applyInputEvent(migrated, { kind: "pointer", x: 9, y: 8, buttons: 0 });
   deepEqual(migrated.pendingPointerUps, [{ gestureId: 0, x: 9, y: 8 }]);
-  equal(migrated.version, 7);
+  equal(migrated.version, 8);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
 });
 

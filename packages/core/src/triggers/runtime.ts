@@ -244,11 +244,11 @@ function stepTick(player: SpriteActor): number {
   const movement = player.movement as typeof player.movement & { readonly lastStepTick?: number };
   return movement.lastStepTick ?? -1;
 }
-function isActivationKey(name: string, action: string | undefined, unbound: boolean): boolean {
-  // A pressed button slot queues the confirm name with the slot's own action (`input.ts`); the
-  // name alone carries the activation decision there (E-41; docs/spec/engine/movement-and-collision.md).
+function isActivationKey(name: string, action: string | null, resolvedActions: readonly string[], unbound: boolean): boolean {
+  // One compatibility key can produce several actions; activation observes the full normalized edge list.
+  if (resolvedActions.includes("confirm")) return true;
   if (name === "confirm") return true;
-  if (action !== undefined) return action === "confirm" || action === "ENTER" || action === " ";
+  if (action !== null) return action === "confirm" || action === "ENTER" || action === " " || action === "ESC";
   return unbound && (name === "ENTER" || name === "Enter" || name === " " || name === "Space");
 }
 function clearQueue(state: GameState, player: SpriteActor): void {
@@ -376,7 +376,7 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
         || state.input.held.Space === true || state.input.held[" "] === true));
   const step = stepTick(player) === state.time.tick;
   const unbound = Object.keys(state.input.bindings.keys).length === 0;
-  const activationEntries = state.input.keys.filter((entry) => entry.seq > section.lastKeySeq && isActivationKey(entry.name, entry.action, unbound));
+  const activationEntries = state.input.keys.filter((entry) => entry.seq > section.lastKeySeq && isActivationKey(entry.name, entry.action, entry.resolvedActions, unbound));
   const pointerTarget = activationEntries[0]?.target;
   const key = (bootPoll && heldActivation) || activationEntries.length > 0;
   if (bootPoll) section.lastKeySeq = 0;

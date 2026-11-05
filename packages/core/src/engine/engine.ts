@@ -68,7 +68,7 @@ import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import type { UiActionClaim } from "../save/sections/ui.ts";
-import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -339,6 +339,14 @@ export function createEngine(init: EngineInit): Engine {
   });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
   state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+  const externallyRegisteredActions: RegisteredAction[] = [];
+  function replayExternallyRegisteredActions(): void {
+    const registered = new Set(state.input.registeredActions.map((action) => action.name));
+    for (const action of externallyRegisteredActions) {
+      if (registered.has(action.name)) continue;
+      if (registerGameAction(state.input, action)) registered.add(action.name);
+    }
+  }
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
@@ -1155,13 +1163,13 @@ export function createEngine(init: EngineInit): Engine {
       } finally {
         nextServices.setPackageStartup(false);
       }
+      replayExternallyRegisteredActions();
     }
     startupServicesReady = runStartups;
     return nextServices;
   }
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
     const movementFallback = movementDefaults(mainFile);
-    const externallyRegisteredActions = state.input.registeredActions.slice();
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -1181,7 +1189,8 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
-      const startupActions = state.input.registeredActions.slice();
+      const externalNames = new Set(externallyRegisteredActions.map((action) => action.name));
+      const startupActions = state.input.registeredActions.filter((action) => !externalNames.has(action.name));
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1190,10 +1199,12 @@ export function createEngine(init: EngineInit): Engine {
 
       Object.assign(state, candidate);
       const actionRegistry = createInputSection();
-      for (const action of [...startupActions, ...externallyRegisteredActions]) registerGameAction(actionRegistry, action);
+      for (const action of startupActions) registerGameAction(actionRegistry, action);
+      for (const action of externallyRegisteredActions) registerGameAction(actionRegistry, action);
       state.input.registeredActions = actionRegistry.registeredActions;
       state.input.actionRegistry = actionRegistry.actionRegistry;
       state.input.controlActions = actionRegistry.controlActions;
+      state.input.actionOrder = actionRegistry.actionOrder;
       state.input.actionPadMasks = actionRegistry.actionPadMasks;
       for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.keyboardActionSources), ...Object.keys(state.input.semanticActionSources)])) {
         if (Object.hasOwn(state.input.actionRegistry, action)) continue;
@@ -1203,6 +1214,7 @@ export function createEngine(init: EngineInit): Engine {
         delete state.input.semanticActionSources[action];
         state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
       }
+      rebuildKeyboardActionClaimIndex(state.input);
       state.world = {
         ...state.world,
         movement: {
@@ -1221,6 +1233,7 @@ export function createEngine(init: EngineInit): Engine {
       pluginLayers = restoredLayers;
       const restoredServices = makeServices(activePlugins, loader ?? undefined, false, restoredLayers);
       runPackageStartup(state, restoredServices, [], activePlugins, restoredServices.listenersBeforePackageStartup);
+      replayExternallyRegisteredActions();
       compileRestoredPrograms(state.vm, restoredServices);
       verifyRestoredHandles(state.vm, restoredServices, state.events);
       services = restoredServices;
@@ -4302,6 +4315,10 @@ export function createEngine(init: EngineInit): Engine {
     },
     registerGameAction(action: RegisteredAction) {
       const registered = registerGameAction(state.input, action);
+      if (registered && !externallyRegisteredActions.some((existing) => existing.name === action.name)) {
+        const definition = state.input.registeredActions.find((existing) => existing.name === action.name);
+        if (definition !== undefined) externallyRegisteredActions.push(definition);
+      }
       if (!registered) diagnostics.push({
         code: "input.action-registration",
         file: mainKey ?? "",

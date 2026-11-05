@@ -876,6 +876,10 @@ function battle() {
                                     if (stockBattle.preserveCharge == 0) {
                                         battle.releaseCharge(cache.party, cache.index)
                                         cache.ready = 0
+                                        if (stockBattleUi.on != 0) {
+                                            stockBattleUi.target = stockBattleUi.screen
+                                            stockBattleUi.drawChargeBar(cache.index, battle.fighter(cache.party, cache.index))
+                                        }
                                     }
                                 } else {
                                     stockBattle.turn(cache.party, cache.index)
@@ -2102,6 +2106,20 @@ stockBattleUi = {
                     }
                     drawcanvas(stockBattleUi.overlayScratch, 0, 0, layout.w, layout.h, stockBattleUi.screen)
                     stockBattleUi.target = stockBattleUi.screen
+                }
+                if (stockBattleUi.on != 0) {
+                    size = battle.partySize(1)
+                    for (index = 0; index < size; index = index + 1) {
+                        fill = battle.chargePercent(1, index)
+                        if (stockBattleUi.bars[index] != fill) {
+                            if (stockBattleUi.mode == "command" || stockBattleUi.mode == "list" || stockBattleUi.mode == "target") {
+                                stockBattleUi.target = stockBattleUi.buffer
+                                stockBattleUi.drawChargeBar(index, battle.fighter(1, index))
+                            }
+                            stockBattleUi.target = stockBattleUi.screen
+                            stockBattleUi.drawChargeBar(index, battle.fighter(1, index))
+                        }
+                    }
                 }
                 return 1
             }

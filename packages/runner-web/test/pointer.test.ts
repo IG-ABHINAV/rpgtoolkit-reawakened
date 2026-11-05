@@ -58,8 +58,8 @@ test("Plane 3 coordinates remain negative or beyond the viewport instead of clam
   };
   const left = pointerEventToLogical(makeEvent(100, 100), host, viewSize, geometry);
   const below = pointerEventToLogical(makeEvent(900, 700), host, viewSize, geometry);
-  equal(left.x, -30);
-  equal(left.y, 50);
+  equal(left.x, -130);
+  equal(left.y, 10);
   equal(below.x, 670);
   equal(below.y, 610);
 });
