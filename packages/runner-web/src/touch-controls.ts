@@ -167,6 +167,7 @@ export function createFallbackTouchControls(
     close: () => {
       releaseAll();
       window.removeEventListener("blur", releaseAll);
+      root.remove();
       style.remove();
       if (changedPosition) stage.style.position = previousPosition;
     },
