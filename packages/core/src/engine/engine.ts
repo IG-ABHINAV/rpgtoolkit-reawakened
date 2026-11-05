@@ -347,6 +347,7 @@ export function createEngine(init: EngineInit): Engine {
   const decodedBundled = new Map<AssetKey, RasterAsset | null>();
   const canvasTextAssets = new Map<AssetKey, RasterAsset>();
   const pending = new Map<number, RequestEntry>();
+  const pendingTileBitmapAnimations = new Set<number>();
   const pendingBlobs = new Map<number, PendingBlobRequest>();
   const pendingImageEffects: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
   const pendingBoardPreviews: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
@@ -1150,6 +1151,7 @@ export function createEngine(init: EngineInit): Engine {
       frameHash = null;
       frameFailure = null;
       refreshFrame(true);
+      pendingTileBitmapAnimations.clear();
     } catch (error) {
       Object.assign(state, previous);
       services = previousServices;
@@ -1910,6 +1912,7 @@ export function createEngine(init: EngineInit): Engine {
     state.time = time;
     shopSession.reset();
     pending.clear();
+    pendingTileBitmapAnimations.clear();
     pendingImageEffects.length = 0;
     pendingBoardPreviews.length = 0;
     queuedInputs.length = 0;
@@ -2859,7 +2862,8 @@ export function createEngine(init: EngineInit): Engine {
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
       prepareSpriteVisuals();
-      if (!failed && pending.size === 0 && pendingBlobs.size === 0) prepareAnimations();
+      // Keep ordinary image animations on the animation phase clock; only composed tile bitmaps need pre-tick dependency completion.
+      if (!failed && pending.size === 0 && pendingBlobs.size === 0) prepareAnimations(true);
       if (failed || pending.size > 0 || pendingBlobs.size > 0 || state.engine.openTick !== undefined) return;
       if (pendingBoardPreviews.length > 0 && !prepareBoardPreviews()) return;
       const boot = state.engine.boot;
@@ -2925,8 +2929,10 @@ export function createEngine(init: EngineInit): Engine {
     let waiting = false;
     for (const frame of animation.frames) {
       if (frame.asset === null || frame.surface !== undefined) continue;
+      const isTileBitmap = frame.asset.toLowerCase().endsWith(".tbm");
+      if (isTileBitmap) pendingTileBitmapAnimations.add(animation.id);
       if (cache.has(frame.asset)) {
-        if (frame.asset.toLowerCase().endsWith(".tbm") && imageTexture(frame.asset) === null) waiting = true;
+        if (isTileBitmap && imageTexture(frame.asset) === null) waiting = true;
         continue;
       }
       const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
@@ -2951,13 +2957,18 @@ export function createEngine(init: EngineInit): Engine {
     const ready = animations.filter((animation) => animation.frames.every((frame) => frame.asset === null || frame.surface !== undefined || cache.has(frame.asset)));
     return { ...state.fx, animations: ready };
   }
-  function prepareAnimations(): void {
+  function prepareAnimations(tileBitmapsOnly = false): void {
     const animations = (state.fx as Partial<FxSection>).animations ?? [];
     for (const animation of animations) {
-      if (animation.loaded || animation.finished) continue;
+      if (tileBitmapsOnly && !pendingTileBitmapAnimations.has(animation.id)) continue;
+      if (animation.loaded || animation.finished) {
+        pendingTileBitmapAnimations.delete(animation.id);
+        continue;
+      }
       const key = animation.asset ?? resolveAnimationFile(animation.file);
       if (key === null) {
         animation.finished = true;
+        pendingTileBitmapAnimations.delete(animation.id);
         diagnostics.push({ code: "asset.missing", file: animation.file, line: 0, message: `animation "${animation.file}" is not in the asset index` });
         continue;
       }
@@ -2969,17 +2980,19 @@ export function createEngine(init: EngineInit): Engine {
       }
       if (!loadAnimation(state, animation, bytes, resolveAnimationImage)) {
         animation.finished = true;
+        pendingTileBitmapAnimations.delete(animation.id);
         diagnostics.push({ code: "asset.invalid", file: key, line: 0, message: `cannot decode animation "${animation.file}"` });
         continue;
       }
       // A frame's picture is a separate asset. The animation starts playing, and its frame clock starts, only once every
-      // picture is in the cache, so the first drawn frame is never a missing texture and the frames are on the same
-      // ticks on every run.
+      // picture is in the cache; the tile-bitmap path can finish from drive after every composed dependency arrives.
       const waiting = requestFrameAssets(animation);
       if (waiting) {
         releaseAnimationSurfaces(state, animation);
         animation.loaded = false;
         animation.frames = [];
+      } else {
+        pendingTileBitmapAnimations.delete(animation.id);
       }
     }
   }

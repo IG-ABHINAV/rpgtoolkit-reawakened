@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Script animations sample each picture or tile at its own size while keeping the animation's destination rectangle. A smaller image no longer aborts the frame, and a tileset frame no longer reads the adjacent tile; ordinary, pinned and sized animations use the same rule (#1271; `docs/spec/formats/animation.md#layout`).
+- Script animations sample each picture or tile at its own size while keeping the animation's destination rectangle. Ordinary image animations retain their phase-owned start tick, and tile-bitmap frames wait for every composed dependency; a smaller image no longer aborts the frame, and a tileset frame no longer reads the adjacent tile (#1271, #1321, #1334; `docs/spec/formats/animation.md#layout`).
 - Held direction input now replaces the selected player's remaining script or click route at the next step boundary, including a waypoint, while the current step finishes and blocking scripts keep ownership of input. Mid-step taps are not buffered; whether 3.1 click-walking differs remains an owner decision (#1286, #1180; `docs/spec/engine/movement-and-collision.md#e-133`).
 - Diagonal pixel-mode direction steps now move four pixels on each axis in one movement advance, and collision is checked at that full destination in both pixel modes (#1282; `docs/spec/engine/movement-and-collision.md#r-62`).
 - Sliding at a wall corner now chooses the same collision edge regardless of polygon winding or starting vertex; the spec defines a deterministic tie-break rather than claiming original-engine parity (#1284; `docs/spec/engine/movement-and-collision.md#r-54`).

@@ -44,6 +44,7 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
 type Game = {
   readonly engine: Engine;
   readonly requests: { readonly key: string; readonly tick: number }[];
+  readonly animationReadiness: { readonly tick: number; readonly id: number; readonly loaded: boolean }[];
   state(): GameState;
   advance(ticks: number, keys?: readonly string[]): void;
   frame(): { readonly w: number; readonly h: number; readonly rgba: Uint8Array };
@@ -63,6 +64,7 @@ function boot(program: string, extra: Readonly<Record<string, Uint8Array>> = {},
   files.set(assetKey("prg/start.prg"), encoder.encode(program));
   for (const [path, bytes] of Object.entries(extra)) files.set(assetKey(path), bytes);
   let latest: GameState | null = null;
+  const animationReadiness: { readonly tick: number; readonly id: number; readonly loaded: boolean }[] = [];
   const engine = createEngine({
     seed: 1,
     assetIndex: createAssetIndex(paths),
@@ -75,12 +77,18 @@ function boot(program: string, extra: Readonly<Record<string, Uint8Array>> = {},
     maxTicks: 1000,
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
     ...(eager ? { scriptObservers: {} } : {}),
-    phaseRegistrations: [{ phase: "audio", run: (state) => { latest = state; } }],
+    phaseRegistrations: [
+      { phase: "input", run: (state) => {
+        for (const animation of state.fx.animations ?? []) animationReadiness.push({ tick: state.time.tick, id: animation.id, loaded: animation.loaded });
+      } },
+      { phase: "audio", run: (state) => { latest = state; } },
+    ],
   });
   let replies: { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: null; readonly down: boolean } }[] = [];
   const game: Game = {
     engine,
     requests: [],
+    animationReadiness,
     state() {
       if (latest === null) throw new Error("no tick has run");
       return latest;
@@ -337,6 +345,26 @@ test("tile-bitmap animation waits for every picture dependency before its clock 
   ok(animation !== undefined && animation.loaded);
   ok(animation.originTick >= second.tick, "the animation starts after both picture dependencies are available");
   deepEqual(pixel(game.frame(), 56, 8), [220, 30, 30, 255]);
+});
+
+test("a pinned animation with one picture keeps its original animation-phase start tick", () => {
+  const animation = unwrap(writeAnimation({
+    magic: "RPGTLKIT ANIM", major: 2, minor: 3, width: 16, height: 16,
+    frames: [
+      { image: "red.png", transparent: { r: 255, g: 0, b: 255 }, sound: "" },
+      { image: "red.png", transparent: { r: 255, g: 0, b: 255 }, sound: "" },
+    ],
+    delay: 0.017, residue: new Uint8Array(),
+  }));
+  const game = boot('id = pinnedanimation("timing.anm", 4, 4, 1)\nthreadSleep(getThreadId(), 120)\nend()\n', {
+    "Misc/timing.anm": animation,
+    "Bitmap/red.png": encodePng(16, 16, solid(255, 0, 0)),
+  });
+  const loaded = game.state().fx.animations[0];
+  ok(loaded !== undefined && loaded.loaded);
+  const firstLoadedPhase = game.animationReadiness.find((sample) => sample.id === loaded.id && sample.loaded);
+  ok(firstLoadedPhase !== undefined);
+  equal(firstLoadedPhase.tick, loaded.originTick + 1, "a single-picture animation becomes loaded in the animation phase, not pre-tick drive");
 });
 
 const PAINT_CANVAS_WHITE = "rendernow(1)\nc = cnvrendernow\ncolorrgb(255,255,255)\nfillrect(0,0,40,40,c)\n";
