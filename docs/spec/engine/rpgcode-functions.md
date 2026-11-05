@@ -358,6 +358,8 @@ run("nextChapter.prg")                                         // legacy Toolkit
 
 **Reawakened rule — movement player handles (OWNER; #1308).** `push`, `playerstep`, and `playerpath` must not move an unrelated player when a handle is wrong. An omitted or empty handle selects the default player. An explicitly supplied unknown, stale, or wrong-type handle raises catchable `builtin.bad-arg` before queuing movement or a wait; numeric and numeric-string handles resolve within players, not items. A numeric handle that exists in both actor types selects the player for these commands.
 
+**Reawakened rule — hidden movement targets (OWNER; #1314).** A scripted `push`, `pushitem`, `playerstep`, `itemstep`, `playerpath`, or `itempath` aimed at a hidden actor raises catchable `builtin.bad-arg` before queuing movement or waiting. Hidden actors do not advance their movement queues, so waiting on one would otherwise block indefinitely.
+
 ## Items, inventory, shop & gold (28)
 
 | Command | Signature | Purpose | Notes |
