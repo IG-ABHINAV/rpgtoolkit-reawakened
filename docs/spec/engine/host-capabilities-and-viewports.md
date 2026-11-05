@@ -12,52 +12,52 @@ author-facing APIs for responsive layouts, safe areas, and touch ergonomics.
 - **G1 & G3:** `features` and `display` are plain JSON state sections. Initial host records are boot inputs captured in those sections; each later change is an explicit `host.features` or `host.display` AD-14 input carrying the complete normalized value. Those sections are snapshot- and hash-significant because RPGCode can query them. Replaying the same game, seed, initial host records, and ordered input log reproduces the same state and hash.
 - **G2:** `core` never queries the DOM, `navigator.userAgent`, or OS platform APIs. The runner computes capabilities and geometry, then supplies them at boot or in logged AD-14 inputs. Core never learns a runner's name.
 - **G4:** Renderers replay draw lists and do not invent game state. Author-drawn on-screen controls are ordinary draw commands; runner fallback controls are host presentation. The physical presentation transform (scale and placement of the logical viewport) is not state; the measured content/game rectangles and safe-area geometry are state because author code can query their derived values.
-+
-+The terms “device state” and “geometry” in [runners.md#runner-may-decide](runners.md#runner-may-decide) distinguish raw host observation from deterministic input: a runner MUST NOT feed raw observations directly into simulation. A runner MAY report a change only as the explicit logged event defined below. Geometry's screen-to-canvas transform remains presentation-only and hash-neutral; the normalized geometry record consumed by RPGCode is hash-significant.
-+
-+### State and input records
-+
-+`HostFeatures` is a partial boot/event input:
-+
-+```typescript
-+type HostFeatures = {
-+  touch?: boolean;
-+  pointer?: "fine" | "coarse" | "none";
-+  keyboard?: boolean;
-+  gamepad?: boolean;
-+  haptics?: boolean;
-+  orientation?: "landscape" | "portrait" | null;
-+};
-+```
-+
-+Core normalizes this to `state.features` with all six own-properties present: absent booleans become `false`, absent `pointer` becomes `"none"`, and absent `orientation` becomes `null`. Unknown input properties are discarded; persisted state contains no `undefined`. Unknown names queried by `hasFeature` return `0`.
-+
-+`HostDisplayGeometry` is:
-+
-+```typescript
-+type HostDisplayGeometry = {
-+  content: { width: number; height: number };
-+  game: { x: number; y: number; width: number; height: number };
-+  safeArea: { top: number; right: number; bottom: number; left: number };
-+};
-+```
-+
-+All ten numbers MUST be finite and non-negative. `content.width`, `content.height`, `game.width`, and `game.height` MUST be positive; `game.x + game.width` MUST NOT exceed `content.width`, and `game.y + game.height` MUST NOT exceed `content.height`. Insets may be zero and are not constrained to the content bounds. A missing boot record defaults to a content and game rectangle of `{x:0,y:0,width:logicalWidth,height:logicalHeight}` and zero insets. Invalid boot records and invalid `host.display` input events are rejected at the boundary and do not partially update state.
-+
-+The state section is `state.display = { geometry: HostDisplayGeometry }`. `state.features` is the normalized record above. Initial records come from `createEngine({ ..., features, displayGeometry })`. Later updates use complete values, not partial patches:
-+
-+```typescript
-+{ kind: "host.features", features: HostFeatures }
-+{ kind: "host.display", geometry: HostDisplayGeometry }
-+```
-+
-+Both event kinds are stamped with the tick at which they take effect, validated as exact AD-14 records, and included in `TickReport.consumed`. Repeated events are retained in order; applying the same complete value twice leaves the same final state. No unspecified property is inferred from OS, browser, or display APIs by core.
-+
-+### Geometry-derived values
-+
-+For configured logical size `W × H`, `scaleX = game.width / W` and `scaleY = game.height / H`. `marginWidth(side)` returns `floor(distance / scaleX)` for left/right, using `game.x` and `content.width - game.x - game.width`; `marginWidth`'s vertical counterpart uses `scaleY` and the top/bottom distances. `safeAreaInset(side)` returns `floor(the corresponding CSS-pixel inset / that axis's scale)`. `displayAspect()` is `content.width / content.height`. `viewWidth()` and `viewHeight()` remain the configured logical dimensions. Pointer mapping and presentation use the same presented rectangle but do not mutate `state.display`.
-+
-+Snapshots persist both sections and their current schema versions. Restore validates every field and rejects unsupported future versions or malformed records; older snapshots that predate either section migrate to the defaults above. `hashGameState` includes both normalized sections. Consequently a resize or capability change can change the state hash only when represented by its consumed host input; a runner's poll cadence, cache invalidation, interpolation, scale/placement calculations or raw event objects cannot.
+
+The terms “device state” and “geometry” in [runners.md#runner-may-decide](runners.md#runner-may-decide) distinguish raw host observation from deterministic input: a runner MUST NOT feed raw observations directly into simulation. A runner MAY report a change only as the explicit logged event defined below. Geometry's screen-to-canvas transform remains presentation-only and hash-neutral; the normalized geometry record consumed by RPGCode is hash-significant.
+
+### State and input records
+
+`HostFeatures` is a partial boot/event input:
+
+```typescript
+type HostFeatures = {
+  touch?: boolean;
+  pointer?: "fine" | "coarse" | "none";
+  keyboard?: boolean;
+  gamepad?: boolean;
+  haptics?: boolean;
+  orientation?: "landscape" | "portrait" | null;
+};
+```
+
+Core normalizes this to `state.features` with all six own-properties present: absent booleans become `false`, absent `pointer` becomes `"none"`, and absent `orientation` becomes `null`. Unknown input properties are discarded; persisted state contains no `undefined`. Unknown names queried by `hasFeature` return `0`.
+
+`HostDisplayGeometry` is:
+
+```typescript
+type HostDisplayGeometry = {
+  content: { width: number; height: number };
+  game: { x: number; y: number; width: number; height: number };
+  safeArea: { top: number; right: number; bottom: number; left: number };
+};
+```
+
+All ten numbers MUST be finite and non-negative. `content.width`, `content.height`, `game.width`, and `game.height` MUST be positive; `game.x + game.width` MUST NOT exceed `content.width`, and `game.y + game.height` MUST NOT exceed `content.height`. Insets may be zero and are not constrained to the content bounds. A missing boot record defaults to a content and game rectangle of `{x:0,y:0,width:logicalWidth,height:logicalHeight}` and zero insets. Invalid boot records and invalid `host.display` input events are rejected at the boundary and do not partially update state.
+
+The state section is `state.display = { geometry: HostDisplayGeometry }`. `state.features` is the normalized record above. Initial records come from `createEngine({ ..., features, displayGeometry })`; boot `features` may be partial. Later updates use complete normalized values, not partial patches:
+
+```typescript
+{ kind: "host.features", features: NormalizedHostFeatures }
+{ kind: "host.display", geometry: HostDisplayGeometry }
+```
+
+`NormalizedHostFeatures` has the same six fields as `HostFeatures`, but all are required. Both event kinds are stamped with the tick at which they take effect, validated as exact AD-14 records, and included in `TickReport.consumed`. Repeated events are retained in order; applying the same complete value twice leaves the same final state. No unspecified property is inferred from OS, browser, or display APIs by core.
+
+### Geometry-derived values
+
+For configured logical size `W × H`, `scaleX = game.width / W` and `scaleY = game.height / H`. `marginWidth(side)` returns `floor(distance / scaleX)` for left/right, using `game.x` and `content.width - game.x - game.width`; `marginWidth`'s vertical counterpart uses `scaleY` and the top/bottom distances. `safeAreaInset(side)` returns `floor(the corresponding CSS-pixel inset / that axis's scale)`. `displayAspect()` is `content.width / content.height`. `viewWidth()` and `viewHeight()` remain the configured logical dimensions. Pointer mapping and presentation use the same presented rectangle but do not mutate `state.display`.
+
+Snapshots persist both sections and their current schema versions. Restore validates every field and rejects unsupported future versions or malformed records; older snapshots that predate either section migrate to the defaults above, using configured logical dimensions when the engine performs restore and 320×240 when a standalone restore supplies no dimensions. `hashGameState` includes both normalized sections. Consequently a resize or capability change can change the state hash only when represented by its consumed host input; a runner's poll cadence, cache invalidation, interpolation, scale/placement calculations or raw event objects cannot.
 
 <a id="host-features"></a>
 ## The host capabilities contract (`HostFeatures`)
