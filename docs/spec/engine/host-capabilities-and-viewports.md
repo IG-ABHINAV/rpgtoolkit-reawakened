@@ -153,17 +153,18 @@ Authors access geometry to align custom UI elements, HUDs, or touch buttons:
 
 | Function | Signature | Returns | Description |
 |---|---|---|---|
-| `viewWidth` | `int viewWidth()` | integer | Current logical viewport width in pixels. |
-| `viewHeight` | `int viewHeight()` | integer | Current logical viewport height in pixels. |
-| `marginWidth` | `int marginWidth(string side)` | integer | Letterbox margin in logical pixels on `"left"`, `"right"`, `"top"`, or `"bottom"`. |
-| `safeAreaInset` | `int safeAreaInset(string side)` | integer | Hardware safe area inset in logical pixels on `"left"`, `"right"`, `"top"`, or `"bottom"`. |
-| `displayAspect` | `float displayAspect()` | float | Aspect ratio of the physical window ($C_w / C_h$). |
+| `viewWidth` | `int viewWidth()` | integer | Current logical viewport width in pixels, as configured for the game. |
+| `viewHeight` | `int viewHeight()` | integer | Current logical viewport height in pixels, as configured for the game. |
+| `marginWidth` | `int marginWidth(string side)` | integer | Letterbox margin in logical pixels for `"left"`, `"right"`, `"top"`, or `"bottom"`. Horizontal distances use `scaleX`; vertical distances use `scaleY`; each result is floored. |
+| `safeAreaInset` | `int safeAreaInset(string side)` | integer | Hardware safe-area inset in logical pixels for `"left"`, `"right"`, `"top"`, or `"bottom"`, divided by the corresponding axis scale and floored. |
+| `displayAspect` | `float displayAspect()` | float | Physical content-window aspect ratio, `content.width / content.height`. |
 
-* **Resize Events:** When a window resizes or a phone rotates, the runner emits `viewport.resized`, notifying active
-  event listeners with updated geometry:
+`marginWidth` and `safeAreaInset` accept side names case-insensitively; any other value raises the catchable `builtin.bad-arg` error. `viewWidth`, `viewHeight`, these geometry queries, and `pointerType` read the current normalized host state, including changes applied earlier in the same tick.
+
+* **Resize Events:** Each accepted `host.display` input that changes the normalized geometry queues a non-cancelable `viewportResized` event on the game emitter. The existing `events` phase delivers it in queue order; delivery is never synchronous with input application. Repeating the same geometry still appears in the consumed input log but does not queue a duplicate notification. Event `detail` contains the current integer logical-pixel values `marginLeft`, `marginRight`, `marginTop`, `marginBottom`, `safeAreaTop`, `safeAreaRight`, `safeAreaBottom`, and `safeAreaLeft`, calculated by the same rules as `marginWidth` and `safeAreaInset`:
   ```rpgcode
-  on("viewportResized", def(event) {
-      hud.reposition(event.marginRight, event.safeAreaBottom);
+  on(game, "viewportResized", def(event) {
+      hud.reposition(event.detail.marginRight, event.detail.safeAreaBottom);
   });
   ```
 
