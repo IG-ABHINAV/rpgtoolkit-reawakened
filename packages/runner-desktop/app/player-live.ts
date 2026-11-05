@@ -2,7 +2,8 @@ import type { InputRecord } from "@tk-reawakened/core";
 import { interactivePackage } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
-import { createLiveSession, observeViewport, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -11,7 +12,7 @@ type Host = {
   listBlobs(area: "saves" | "files", gameId: string): Promise<string[]>;
   quit(): Promise<boolean>;
 };
-declare global { interface Window { desktop?: Host; __live?: { tick: number; stateHash: string; drawHash: string; board: string | null; player: { x: number; y: number } | null; error?: string } } }
+declare global { interface Window { desktop?: Host; __live?: { tick: number; stateHash: string; drawHash: string; board: string | null; player: { x: number; y: number } | null; error?: string }; __session?: LiveSession } }
 
 void start().catch((error: unknown) => {
   const status = document.querySelector<HTMLElement>("#live-status");
@@ -45,6 +46,7 @@ async function start(): Promise<void> {
     files,
     bundled,
     gl,
+    hostViewport: { canvas, viewport },
     blobs: {
       read: (area, gameId, path) => host.readBlob(area, gameId, path),
       write: (area, gameId, path, bytes) => host.writeBlob(area, gameId, path, bytes),
@@ -52,15 +54,15 @@ async function start(): Promise<void> {
     },
     onQuit: () => { void host.quit(); },
   });
-  const stopFitting = observeViewport(canvas, viewport, session.viewSize());
-  run(session, canvas, status, stopFitting);
+  window.__session = session;
+  run(session, canvas, status, { canvas, viewport });
 }
 
-function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, stopFitting: () => void): void {
+function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport): void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
-  let pending: InputRecord[] = [];
+  let pending: PendingInput[] = [];
   let disposed = false;
   const onKeyDown = (event: KeyboardEvent): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
@@ -72,6 +74,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
     canvas,
     viewSize,
@@ -85,8 +88,8 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   document.addEventListener("visibilitychange", onVisibility);
   const dispose = (): void => {
     if (disposed) return;
-    stopFitting();
     disposed = true;
+    stopObservingHost();
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onBlur);
@@ -102,7 +105,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
-    const inputs = pending;
+    const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
     void session.advance(ticks, inputs).then(() => {
       if (disposed) return;

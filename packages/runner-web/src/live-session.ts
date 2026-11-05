@@ -1,3 +1,7 @@
+import type { HostDisplayGeometry, NormalizedHostFeatures } from "@tk-reawakened/core";
+import { createSafeAreaProbe, readHostFeatures, waitForHostDisplay, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
+import { fitCanvas } from "./viewport.ts";
+export { fitCanvas } from "./viewport.ts";
 import {
   assetKey,
   BinaryReader,
@@ -50,6 +54,7 @@ export type LiveSession = {
   readonly tick: () => number;
   readonly stateHash: () => string;
   readonly viewSize: () => { readonly width: number; readonly height: number };
+  readonly hostState: HostStateSnapshot | null;
   readonly draw: (alpha: number) => { readonly drawHash: string; readonly commands: number; readonly render: RenderStats };
   readonly playerPosition: () => { readonly x: number; readonly y: number } | null;
   /** The board the session is on, or `null` before board entry — the signal a host needs to tell "booting" from "playing". */
@@ -80,6 +85,8 @@ type LiveSessionBase = {
   readonly decode?: (outputRateHz: number) => DecodeAhead | null;
   /** Called whenever `loadState()` changes, so a page can show a spinner without polling the session. */
   readonly onLoadChange?: () => void;
+  /** Browser host surface measured before the engine is created; omitted by deterministic closing sessions. */
+  readonly hostViewport?: HostViewport;
   readonly onQuit?: () => void;
 };
 export type LiveSessionOptions = LiveSessionBase & (
@@ -107,25 +114,6 @@ function mainResolution(bytes: Uint8Array, path: AssetKey): { readonly width: nu
   return main.resX > 0 && main.resY > 0 ? { width: main.resX, height: main.resY } : { width: 640, height: 480 };
 }
 
-/**
- * Present the logical frame centred in the space it has, never overflowing (AD-33's pixel-perfect letterbox).
- * Use the largest integer scale that fits when possible; otherwise fall back to the exact fractional fit so a
- * 640x480 (or larger) frame stays fully visible on a portrait phone whose CSS viewport is narrower than the frame.
- */
-export function fitCanvas(
-  canvas: HTMLCanvasElement,
-  width: number,
-  height: number,
-  available: { readonly width: number; readonly height: number },
-): number {
-  const ratio = Math.min(available.width / width, available.height / height);
-  const scale = ratio >= 1 ? Math.floor(ratio) : ratio;
-  canvas.width = width;
-  canvas.height = height;
-  canvas.style.width = `${width * scale}px`;
-  canvas.style.height = `${height * scale}px`;
-  return scale;
-}
 
 /** Keep presentation in sync with a content area's size (docs/spec/engine/runners.md#draw-list). */
 export function observeViewport(
@@ -217,12 +205,25 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   const viewport = interactive
     ? mainResolution(mainBytes, assetKey(mainFile))
     : { width: plan?.width ?? 640, height: plan?.height ?? 480 };
+  let hostFeatures: NormalizedHostFeatures | undefined;
+  let displayGeometry: HostDisplayGeometry | undefined;
+  if (options.hostViewport !== undefined) {
+    const safeArea = createSafeAreaProbe();
+    try {
+      hostFeatures = readHostFeatures();
+      displayGeometry = await waitForHostDisplay(options.hostViewport, viewport, safeArea.read());
+    } finally {
+      safeArea.dispose();
+    }
+  }
   const engine = createEngine({
     seed: plan?.seed ?? 0,
     assetIndex: index,
     assetRoot: PACKAGE_ROOT,
     mainFile,
     gameIdentity,
+    ...(hostFeatures === undefined ? {} : { features: hostFeatures }),
+    ...(displayGeometry === undefined ? {} : { displayGeometry }),
     startup: {
       presence: { hasPlayer: () => spriteRuntime === undefined ? hasPlayer : spriteRuntime.hasPlayer() },
       savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
@@ -434,6 +435,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     tick: () => currentTick,
     stateHash: () => currentStateHash,
     viewSize: () => ({ width: viewport.width, height: viewport.height }),
+    hostState: hostFeatures === undefined || displayGeometry === undefined ? null : { features: hostFeatures, geometry: displayGeometry },
     boardKey: () => latest?.world.board?.key ?? null,
     playerPosition: () => {
       const actor = latest?.sprites.players.find((player) => player.id === latest?.sprites.selectedPlayer)

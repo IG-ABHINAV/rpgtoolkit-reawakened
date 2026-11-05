@@ -52,6 +52,16 @@ The state section is `state.display = { geometry: HostDisplayGeometry }`. `state
 ```
 
 `NormalizedHostFeatures` has the same six fields as `HostFeatures`, but all are required. Both event kinds are stamped with the tick at which they take effect, validated as exact AD-14 records, and included in `TickReport.consumed`. Repeated events are retained in order; applying the same complete value twice leaves the same final state. No unspecified property is inferred from OS, browser, or display APIs by core.
+### Controller transition notifications
+
+When an AD-14 `gamepad` input changes a device from disconnected to connected, or from connected to disconnected, the engine queues a script event for delivery in the ordinary events phase:
+
+| Input edge | Script event | Detail |
+|---|---|---|
+| `connected: true` for a previously disconnected device | `device.connected` | `{ device: number, type: "gamepad" }` |
+| `connected: false` for a previously connected device | `device.disconnected` | `{ device: number, type: "gamepad" }` |
+
+`device` is the normalized AD-14 controller index (0 through 3). Repeated connected samples for an already-connected device and disconnect samples for an already-disconnected or unknown device do not emit a transition event. The event contains no browser object, device name, or other host-specific identity. A runner reports the normalized `gamepad` input; it never dispatches these script events directly. Thus connection notifications are replayed from the same ordered input log as controller state.
 
 ### Geometry-derived values
 
@@ -94,8 +104,8 @@ Authors query capabilities by name without knowing the underlying OS or hardware
 
 | Function | Signature | Returns | Description |
 |---|---|---|---|
-| `hasFeature` | `int hasFeature(string name)` | `1` or `0` | Returns `1` if the named capability is active on the host, otherwise `0`. Unknown feature names safely return `0`. |
-| `pointerType` | `string pointerType()` | `"fine" \| "coarse" \| "none"` | Returns current active pointer precision. |
+| `hasFeature` | `int hasFeature(string name)` | `1` or `0` | Returns `1` when the named normalized capability is active, otherwise `0`; names are case-insensitive. `touch`, `keyboard`, `gamepad`, and `haptics` use their boolean values; `pointer` is active unless its value is `"none"`; `orientation` is active unless its value is `null`. Unknown names return `0`. |
+| `pointerType` | `string pointerType()` | `"fine"`, `"coarse"`, or `"none"` | Current normalized pointer precision. |
 
 ```rpgcode
 // Adaptive author logic
@@ -153,17 +163,18 @@ Authors access geometry to align custom UI elements, HUDs, or touch buttons:
 
 | Function | Signature | Returns | Description |
 |---|---|---|---|
-| `viewWidth` | `int viewWidth()` | integer | Current logical viewport width in pixels. |
-| `viewHeight` | `int viewHeight()` | integer | Current logical viewport height in pixels. |
-| `marginWidth` | `int marginWidth(string side)` | integer | Letterbox margin in logical pixels on `"left"`, `"right"`, `"top"`, or `"bottom"`. |
-| `safeAreaInset` | `int safeAreaInset(string side)` | integer | Hardware safe area inset in logical pixels on `"left"`, `"right"`, `"top"`, or `"bottom"`. |
-| `displayAspect` | `float displayAspect()` | float | Aspect ratio of the physical window ($C_w / C_h$). |
+| `viewWidth` | `int viewWidth()` | integer | Current logical viewport width in pixels, as configured for the game. |
+| `viewHeight` | `int viewHeight()` | integer | Current logical viewport height in pixels, as configured for the game. |
+| `marginWidth` | `int marginWidth(string side)` | integer | Letterbox margin in logical pixels for `"left"`, `"right"`, `"top"`, or `"bottom"`. Horizontal distances use `scaleX`; vertical distances use `scaleY`; each result is floored. |
+| `safeAreaInset` | `int safeAreaInset(string side)` | integer | Hardware safe-area inset in logical pixels for `"left"`, `"right"`, `"top"`, or `"bottom"`, divided by the corresponding axis scale and floored. |
+| `displayAspect` | `float displayAspect()` | float | Physical content-window aspect ratio, `content.width / content.height`. |
 
-* **Resize Events:** When a window resizes or a phone rotates, the runner emits `viewport.resized`, notifying active
-  event listeners with updated geometry:
+`marginWidth` and `safeAreaInset` accept side names case-insensitively; any other value raises the catchable `builtin.bad-arg` error. `viewWidth`, `viewHeight`, these geometry queries, and `pointerType` read the current normalized host state, including changes applied earlier in the same tick.
+
+* **Resize Events:** Each accepted `host.display` input that changes the normalized geometry queues a non-cancelable `viewportResized` event on the game emitter. The existing `events` phase delivers it in queue order; delivery is never synchronous with input application. Repeating the same geometry still appears in the consumed input log but does not queue a duplicate notification. Event `detail` contains the current integer logical-pixel values `marginLeft`, `marginRight`, `marginTop`, `marginBottom`, `safeAreaTop`, `safeAreaRight`, `safeAreaBottom`, and `safeAreaLeft`, calculated by the same rules as `marginWidth` and `safeAreaInset`:
   ```rpgcode
-  on("viewportResized", def(event) {
-      hud.reposition(event.marginRight, event.safeAreaBottom);
+  on(game, "viewportResized", (event) => {
+      hud.reposition(event.detail.marginRight, event.detail.safeAreaBottom);
   });
   ```
 
