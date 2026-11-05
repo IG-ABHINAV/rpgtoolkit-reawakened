@@ -378,6 +378,30 @@ test("input migration reconciles legacy held claims and advances past queued poi
   processGamepadEvents(restored.input);
   equal(restored.input.actions.right, false, "disconnect releases migrated physical gamepad state");
 });
+test("schema 4 letter-name bindings migrate to the physical key claim released by the host", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 4;
+  raw.input.version = 4;
+  raw.input.held = { D: true, KeyD: true };
+  raw.input.bindings = { keys: { D: "right" } };
+  raw.input.keyboardActions = { right: true };
+  raw.input.actions = { right: true };
+  delete raw.input.registeredActions;
+  delete raw.input.keyboardActionSources;
+  delete raw.input.semanticActionSources;
+  delete raw.input.actionRegistry;
+  delete raw.input.actionOrder;
+  delete raw.input.controlActions;
+  delete raw.input.actionPadMasks;
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  deepEqual(restored.input.keyboardActionSources.right, { "key:KeyD": true });
+  applyInputEvent(restored.input, { kind: "key", name: "D", code: "KeyD", char: "d", down: false });
+  equal(restored.input.keyboardActions.right, false);
+  equal(restored.input.actions.right, false, "the physical key-up clears the migrated legacy-name binding");
+});
+
 
 test("schema 6 migration preserves W3C pad claims and the active pointer gesture", () => {
   const original = createGameState({ seed: 9 });

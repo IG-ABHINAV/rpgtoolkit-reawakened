@@ -1839,6 +1839,11 @@ test("public game-action registrations survive same-game reset and load", () => 
   startThread(doubles.state().vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
   run(engine, game.files, 20);
   ok(engine.registeredActionNames().includes("game.resetproof"));
+  engine.advance(1, [{
+    tick: doubles.state().time.tick,
+    event: { kind: "key", name: "F", code: "KeyF", char: "f", down: true },
+  }]);
+  equal(doubles.state().input.actions["game.resetproof"], true, "the external action is held before the save projection is captured");
   doubles.state().inventory.gold = 1234;
   const savedBytes = encoder.encode(snapshotGameSave(doubles.state()));
   startThread(doubles.state().vm, { ref: { kind: "inline", text: 'load("slot")\nend()', ir: IR_VERSION }, kind: "persistent", owner: "script" });
@@ -1861,6 +1866,12 @@ test("public game-action registrations survive same-game reset and load", () => 
   }
   ok(loadReplyApplied, "the same-game load consumed its saved projection");
   equal(doubles.state().inventory.gold, 1234, "the saved game state really loaded after reset");
+  equal(doubles.state().input.actions["game.resetproof"], true, "loading restores the held claim for an externally registered action");
+  engine.advance(1, [{
+    tick: doubles.state().time.tick,
+    event: { kind: "key", name: "F", code: "KeyF", char: "f", down: false },
+  }]);
+  equal(doubles.state().input.actions["game.resetproof"], false, "the loaded action claim releases on the matching physical key-up");
   ok(engine.registeredActionNames().includes("game.resetproof"), "loading preserves public API registrations omitted from the game-save projection");
 });
 

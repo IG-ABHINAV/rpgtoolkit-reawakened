@@ -1188,6 +1188,7 @@ export function createEngine(init: EngineInit): Engine {
       Object.assign(state, candidate);
       const actionRegistry = createInputSection();
       for (const action of startupActions) registerGameAction(actionRegistry, action);
+      for (const action of externallyRegisteredActions) registerGameAction(actionRegistry, action);
       state.input.registeredActions = actionRegistry.registeredActions;
       state.input.actionRegistry = actionRegistry.actionRegistry;
       state.input.controlActions = actionRegistry.controlActions;

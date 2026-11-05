@@ -377,8 +377,19 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
     const keyMap = bindingRecord.keys;
     if (typeof keyMap === "object" && keyMap !== null && !Array.isArray(keyMap)) Object.assign(bindings, keyMap);
   }
-  const defaults: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Space: "confirm", Escape: "cancel" };
   const keyAliases: Record<string, string> = { ENTER: "Enter", RETURN: "Enter", SPACE: "Space", " ": "Space", ESC: "Escape", ESCAPE: "Escape", UP: "ArrowUp", DOWN: "ArrowDown", LEFT: "ArrowLeft", RIGHT: "ArrowRight" };
+  const defaults: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Space: "confirm", Escape: "cancel" };
+  const legacyCode = (name: string): string => {
+    if (keyAliases[name] !== undefined) return keyAliases[name]!;
+    if (/^[A-Z]$/.test(name)) return `Key${name}`;
+    if (/^[0-9]$/.test(name)) return `Digit${name}`;
+    return name;
+  };
+  const legacyName = (code: string): string | null => {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+    return null;
+  };
   const aliases: Record<string, string> = { ENTER: "confirm", RETURN: "confirm", SPACE: "confirm", " ": "confirm", ESC: "cancel", ESCAPE: "cancel", UP: "up", DOWN: "down", LEFT: "left", RIGHT: "right" };
   const resolve = (value: unknown): string | null => typeof value === "string" ? aliases[value.toUpperCase()] ?? value : null;
   if (typeof input.keyboardActions === "object" && input.keyboardActions !== null && !Array.isArray(input.keyboardActions)) {
@@ -387,9 +398,11 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
       const claims: Record<string, true> = {};
       for (const [code, down] of Object.entries(heldKeys)) {
         if (down !== true) continue;
-        const sourceCode = keyAliases[code] ?? code;
+        const sourceCode = legacyCode(code);
         if (sourceCode !== code && heldKeys[sourceCode] === true) continue;
-        const resolved = resolve(bindings[sourceCode]) ?? defaults[sourceCode] ?? resolve(bindings[code]) ?? aliases[code] ?? null;
+        const oldName = legacyName(sourceCode);
+        const resolved = resolve(bindings[sourceCode]) ?? defaults[sourceCode] ?? resolve(bindings[code]) ?? aliases[code] ??
+          (oldName === null ? null : resolve(bindings[oldName]) ?? aliases[oldName]) ?? null;
         if (resolved === action) Object.defineProperty(claims, `key:${sourceCode}`, { value: true, enumerable: true, configurable: true, writable: true });
       }
       if (Object.keys(claims).length === 0) Object.defineProperty(claims, "legacy.keyboard", { value: true, enumerable: true, configurable: true, writable: true });
