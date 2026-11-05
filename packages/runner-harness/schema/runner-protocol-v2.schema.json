@@ -568,6 +568,9 @@
         },
         {
           "$ref": "#/$defs/videoEnded"
+        },
+        {
+          "$ref": "#/$defs/actionInput"
         }
       ]
     },
@@ -1300,6 +1303,32 @@
           "items": {
             "$ref": "#/$defs/prefetchHint"
           }
+        }
+      }
+    },
+    "actionInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "action",
+        "down",
+        "source"
+      ],
+      "properties": {
+        "kind": {
+          "const": "action"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "down": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
         }
       }
     }
