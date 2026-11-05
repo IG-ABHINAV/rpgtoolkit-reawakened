@@ -3,6 +3,8 @@ import { IR_VERSION } from "../script/program.ts";
 import { scriptOwnsInput, startThread } from "../script/state.ts";
 import { enqueueDirectionMove } from "../sprites/movement.ts";
 import type { Facing } from "../sprites/model.ts";
+import { enqueuePathMove } from "../sprites/runtime.ts";
+import type { GameState } from "../save/state.ts";
 import { applySemanticActionEdge, createInputSection, heldPointerGoal, processGamepadEvents, registeredActionNames, takeInputActions, type InputConfig } from "./input.ts";
 import { selectPointerActivationTarget } from "../triggers/runtime.ts";
 
@@ -76,12 +78,19 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   const pointerUps = state.input.pendingPointerUps;
   state.input.pendingPointerUps = [];
   for (const point of pointerUps) {
-    if (!selectPointerActivationTarget(state, point)) continue;
-    const registered = registeredActionNames(state.input);
-    applySemanticActionEdge(state.input, "confirm", true, "pointer.canvas", registered);
-    applySemanticActionEdge(state.input, "confirm", false, "pointer.canvas", registered);
-    state.input.pendingClicks.pop();
+    if (scriptOwnsInput(state.vm) || state.input.pointerMovementSuppressed) continue;
+    const plane = state.input.pointerPlane;
+    const x = point.x - state.input.camera.x;
+    const y = point.y - state.input.camera.y;
+    if (plane !== null && (x < 0 || y < 0 || x >= plane.width || y >= plane.height)) continue;
+    const target = selectPointerActivationTarget(state, point);
+    if (target === null) continue;
+    applySemanticActionEdge(state.input, "confirm", true, "pointer.canvas", undefined, target);
+    applySemanticActionEdge(state.input, "confirm", false, "pointer.canvas");
+    state.input.pendingClicks = state.input.pendingClicks.filter((click) => click.gestureId !== point.gestureId);
   }
+  const currentKeySequences = new Set(state.input.pendingKeySequences);
+  const currentKeys = state.input.keys.filter((key) => currentKeySequences.has(key.seq));
   const { actions, clicks } = takeInputActions(state.input);
   const id = selectedPlayer(state);
   const board = state.world.board ?? null;
@@ -90,9 +99,8 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement, #reawakened-click-movement-freeze).
   let directionBlocked = scriptOwnsInput(state.vm);
   const configured = options.menuKey;
-  const lastConfiguredEdge = configured === undefined ? undefined : [...state.input.keys].reverse().find((key) => key.action === configured.action);
-  if (!directionBlocked && (actions.includes("menu") ||
-      (configured !== undefined && actions.includes(configured.action) && lastConfiguredEdge?.code === configured.code))) {
+  const configuredMenuPress = configured !== undefined && currentKeys.some((key) => key.code === configured.code && key.action === configured.action);
+  if (!directionBlocked && state.battle === null && (actions.includes("menu") || configuredMenuPress)) {
     // A menu opened by this very press owns input from now on, so a direction pressed on the same tick queues no step
     // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement: a blocking script freezes movement).
     if ((options.openMenu ?? openMainMenu)(state)) directionBlocked = true;
@@ -105,7 +113,14 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
   }
   if (board === null || directionBlocked) return;
   // Clicks made during a block never reach here as paths; a button still held when the block ends is polled below.
-  for (const click of clicks) enqueuePathMove(state.sprites, board, id, click, state.input.pathMode, true, true);
+  for (const click of clicks) {
+    if (state.input.pointerMovementSuppressed) continue;
+    const plane = state.input.pointerPlane;
+    const x = click.x - state.input.camera.x;
+    const y = click.y - state.input.camera.y;
+    if (plane !== null && (x < 0 || y < 0 || x >= plane.width || y >= plane.height)) continue;
+    enqueuePathMove(state.sprites, board, id, click, state.input.pathMode, true, true);
+  }
   // A held left button keeps walking towards the cursor whenever the player has no route (3.1 polls it every idle frame).
   const held = clicks.length === 0 && canAcceptDirection(state, id) ? heldPointerGoal(state.input) : null;
   if (held !== null) enqueuePathMove(state.sprites, board, id, held, state.input.pathMode, true, true);

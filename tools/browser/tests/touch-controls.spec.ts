@@ -5,7 +5,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 declare global {
   interface Window {
-    __live?: { readonly tick: number; readonly player: { readonly x: number; readonly y: number } | null };
+    __live?: { readonly tick: number; readonly board?: string | null; readonly player: { readonly x: number; readonly y: number } | null };
+    __session?: { readonly viewSize: () => { readonly width: number; readonly height: number } };
   }
 }
 
@@ -83,6 +84,7 @@ test("touch-capable live player exposes accessible fallback controls without shr
     expect(affordances.height).toBeGreaterThanOrEqual(44);
     expect(affordances.outlineWidth).toBe("3px");
     expect(affordances.outlineStyle).toBe("solid");
+    await page.locator("#screen").focus();
         const overlayBounds = await page.locator(".fallback-touch-pad").evaluate((pad) => {
           const canvas = document.querySelector("#screen");
           if (canvas === null) throw new Error("player canvas is missing");
@@ -93,17 +95,61 @@ test("touch-capable live player exposes accessible fallback controls without shr
         expect(overlayBounds.padTop).toBeGreaterThanOrEqual(overlayBounds.gameTop);
         expect(overlayBounds.padBottom).toBeLessThanOrEqual(overlayBounds.gameBottom);
     await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+    await page.evaluate(() => {
+      const probeWindow = window as Window & { __touchTrace?: unknown[]; __session?: { engine: { advance: (...args: unknown[]) => unknown } } };
+      const engine = probeWindow.__session?.engine;
+      if (engine === undefined) throw new Error("live engine is unavailable");
+      const original = engine.advance;
+      probeWindow.__touchTrace = [];
+      engine.advance = (...args) => {
+        const report = Reflect.apply(original, engine, args) as { consumed?: unknown; tickAfter?: unknown };
+        probeWindow.__touchTrace?.push({ inputs: args[1], consumed: report.consumed, tickAfter: report.tickAfter });
+        return report;
+      };
+      document.querySelector(".fallback-touch-controls")?.addEventListener("pointerdown", (event) => probeWindow.__touchTrace?.push({ pointer: "down", type: event.pointerType }), true);
+      document.querySelector(".fallback-touch-controls")?.addEventListener("pointerup", (event) => probeWindow.__touchTrace?.push({ pointer: "up", type: event.pointerType }), true);
+    });
+    const boardBeforeFallbackConfirm = await page.evaluate(() => window.__live?.board ?? null);
+    for (let presses = 0; presses < 10; presses += 1) {
+      const onBoard = await page.evaluate(() => window.__live !== undefined && window.__live.board !== null);
+      if (onBoard) break;
+      await page.getByRole("button", { name: "Confirm" }).tap();
+      await page.waitForTimeout(500);
+    }
+    const boardAfterFallbackConfirm = await page.evaluate(() => window.__live?.board ?? null);
+    expect(boardBeforeFallbackConfirm).toBeNull();
+    expect(boardAfterFallbackConfirm).not.toBeNull();
+    for (let presses = 0; presses < 10; presses += 1) {
+      const onBoard = await page.evaluate(() => window.__live !== undefined && window.__live.board !== null);
+      if (onBoard) break;
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(500);
+    }
+    await page.waitForFunction(() => window.__live !== undefined && window.__live.board !== null, undefined, { timeout: 45_000 });
 
     const before = await page.evaluate(() => ({
       player: window.__live?.player ?? null,
+      board: window.__live?.board ?? null,
       logicalWidth: document.querySelector<HTMLCanvasElement>("#screen")?.width ?? -1,
       logicalHeight: document.querySelector<HTMLCanvasElement>("#screen")?.height ?? -1,
+      sessionViewSize: window.__session?.viewSize() ?? null,
     }));
     if (before.player === null) throw new Error("live player position is not available");
-    expect(before.logicalWidth).toBe(640);
-    expect(before.logicalHeight).toBe(480);
+    expect(before.sessionViewSize).toEqual({ width: 640, height: 480 });
+    expect(before.logicalWidth).toBeGreaterThan(0);
+    expect(before.logicalHeight).toBeGreaterThan(0);
     await moveRight.tap();
     await page.waitForFunction((start) => { const player = window.__live?.player; return player !== null && player !== undefined && player.x > start.x; }, before.player, { timeout: 10_000 });
+    const touchTrace = await page.evaluate(() => {
+      type InputRecord = { readonly event: { readonly kind: string; readonly action?: string; readonly down?: boolean; readonly source?: string } };
+      type TraceEntry = { readonly pointer?: string; readonly type?: string; readonly inputs?: readonly InputRecord[]; readonly consumed?: readonly InputRecord[] };
+      return (window as Window & { __touchTrace?: readonly TraceEntry[] }).__touchTrace ?? [];
+    });
+    expect(touchTrace.some((entry) => entry.pointer === "down" && entry.type === "touch")).toBe(true);
+    expect(touchTrace.some((entry) => entry.inputs?.some((input) => input.event.kind === "action" && input.event.action === "confirm" && input.event.down && input.event.source === "runner.fallback"))).toBe(true);
+    expect(touchTrace.some((entry) => entry.consumed?.some((input) => input.event.kind === "action" && input.event.action === "confirm" && input.event.down && input.event.source === "runner.fallback"))).toBe(true);
+    expect(touchTrace.some((entry) => entry.inputs?.some((input) => input.event.kind === "action" && input.event.action === "right" && input.event.down && input.event.source === "runner.fallback"))).toBe(true);
+    expect(touchTrace.some((entry) => entry.consumed?.some((input) => input.event.kind === "action" && input.event.action === "right" && input.event.down && input.event.source === "runner.fallback"))).toBe(true);
         await moveRight.focus();
         const keyboardStart = await page.evaluate(() => window.__live?.player ?? null);
         if (keyboardStart === null) throw new Error("live player position is not available");
@@ -133,9 +179,7 @@ test("touch-capable live player exposes accessible fallback controls without shr
             const assistiveStart = await page.evaluate(() => window.__live?.player ?? null);
             if (assistiveStart === null) throw new Error("live player position is not available");
             await moveRight.dispatchEvent("click");
-                await expect(moveRight).toHaveAttribute("aria-pressed", "true");
-                
-                await expect(moveRight).toHaveAttribute("aria-pressed", "false");
+            await expect(moveRight).toHaveAttribute("aria-pressed", "false");
             await page.waitForFunction((start) => {
               const player = window.__live?.player;
               return player !== null && player !== undefined && player.x > start.x;

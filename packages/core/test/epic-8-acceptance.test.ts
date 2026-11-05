@@ -51,12 +51,10 @@ function readGolden(): AcceptanceGolden | null {
   return JSON.parse(readFileSync(goldenPath, "utf8")) as AcceptanceGolden;
 }
 
-// Recorded state hashes moved three times, each in `stateHash` only (every `drawHash` and event list is
-// byte-identical to the previous recording, so the recorded screens, actions and events are unchanged):
-//   #1234 - the menu context and the menu's own item cache carry the E-83 shop data (item prices, shop actions);
-//   #1231 - the party section gained `stepRemainder` and its version number (party schema 3);
-//   #1224 - the stock menu source moved its page indicator to a separate line from its caller-supplied title.
-//   #1241 - the focused-row hand marker changes the menu's draw and state hashes; event records remain unchanged.
+// Recorded checkpoint hashes change only where schema changes require it; gameplay events stay byte-identical.
+// #1234, #1231, #1224 and #1241 changed their documented stock-menu state/draw projections.
+// #1410 adds registered action definitions, control indexes, and held-source claims to normalized input state.
+// #1352 adds UI author-margin state and DrawList v2's explicit marginCommands array, changing state and draw hashes.
 function recordCheckpoint(checkpoints: GoldenCheckpoint[], id: string, session: Session, events: EventView[]): void {
   const state = session.state();
   const stateHash = hashGameState(state);

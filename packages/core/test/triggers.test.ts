@@ -69,9 +69,74 @@ test("a released pointer tap faces toward the reachable item and dispatches one 
   equal(state.sprites.players[0]?.facing, "E", "the tap turns the player horizontally toward the target");
   deepEqual(state.input.pendingClicks, [], "a target tap does not also become a ground path");
   equal(state.input.actions.confirm, false, "the synthesized confirm is a one-tick edge");
-  deepEqual(state.input.keys.map((key) => [key.name, key.action]), [["confirm", "confirm"]]);
+  deepEqual(state.input.keys.map((key) => [key.name, key.action, key.target]), [["confirm", "confirm", "item:0"]]);
   const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
-  equal(events[0]?.key, "item:0", "the ordinary trigger dispatcher consumes that same confirm edge");
+  equal(events[0]?.key, "item:0", "the confirm edge is constrained to the hit item's identity");
+});
+
+test("a contextual gameplay release requires the whole pointer gesture to stay inside Plane 1", () => {
+  const world = board([], [item(0, 100, 0, 1)]);
+  const state = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
+  state.input.pointerPlane = { width: 100, height: 100 };
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player,
+    x: 96,
+    collisionBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor,
+    activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+
+  applyInputEvent(state.input, { kind: "pointer", x: 104, y: 0, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 96, y: 0, buttons: 0 });
+  runInputPhase(state);
+  deepEqual(state.input.keys, [], "a margin-started gesture cannot activate an adjacent off-viewport item");
+  deepEqual(state.input.pendingPointerUps, []);
+
+  applyInputEvent(state.input, { kind: "pointer", x: 96, y: 0, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 96, y: 0, buttons: 0 });
+  runInputPhase(state);
+  equal(state.input.keys[0]?.target, "item:0", "a complete Plane 1 tap still activates normally");
+});
+test("a pointer activation is dispatched only to the tapped item, not the higher-ranked reachable item", () => {
+  const world = board([], [item(0, 32, 0, 1), item(1, 16, 0, 1)]);
+  const actors = [itemActor(world, world.items![0]!, 0), itemActor(world, world.items![1]!, 1)];
+  const state = stateWith(world, actors);
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player,
+    collisionBase: { points: rectangle(-8, -8, 32, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor,
+    activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  applyInputEvent(state.input, { kind: "pointer", x: 16, y: 0, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 16, y: 0, buttons: 0 });
+  runInputPhase(state);
+  equal(state.input.keys[0]?.target, "item:1");
+  const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
+  equal(events[0]?.key, "item:1");
+});
+test("multiple pointer gestures in one tick retain their own target and click work", () => {
+  const world = board([], [item(0, 16, 0, 1), item(1, 24, 0, 1)]);
+  const actors = [itemActor(world, world.items![0]!, 0), itemActor(world, world.items![1]!, 1)];
+  const state = stateWith(world, actors);
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player,
+    collisionBase: { points: rectangle(-8, -8, 32, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor,
+    activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  for (const x of [10, 25]) {
+    applyInputEvent(state.input, { kind: "pointer", x, y: 0, buttons: 1 });
+    applyInputEvent(state.input, { kind: "pointer", x, y: 0, buttons: 0 });
+  }
+  runInputPhase(state);
+  deepEqual(state.input.keys.map((key) => key.target), ["item:0", "item:1"]);
+  equal(state.input.pendingClicks.length, 0, "each contextual tap consumes only its own gesture path");
 });
 
 test("pointer target selection refuses a non-key or unreachable item", () => {
@@ -85,7 +150,7 @@ test("pointer target selection refuses a non-key or unreachable item", () => {
     ...actor,
     activationBase: { points: rectangle(-8, -8, 8, 8) },
   }));
-  equal(selectPointerActivationTarget(state, { x: 16, y: 0 }), false, "step-only items cannot be key-confirm targets");
+  equal(selectPointerActivationTarget(state, { x: 16, y: 0 }), null, "step-only items cannot be key-confirm targets");
 });
 
 test("a released pointer tap without an eligible item remains a ground click", () => {
@@ -94,7 +159,7 @@ test("a released pointer tap without an eligible item remains a ground click", (
   applyInputEvent(state.input, { kind: "pointer", x: 80, y: 80, buttons: 0 });
   runInputPhase(state);
   equal(state.input.keys.length, 0, "no confirm edge is generated");
-  equal(state.sprites.players[0]?.queue.moves.length > 0, true, "the ordinary click-to-walk path is retained");
+  equal((state.sprites.players[0]?.queue.moves.length ?? 0) > 0, true, "the ordinary click-to-walk path is retained");
 });
 test("trigger precedence, conditions, re-arm and key dispatch are deterministic", () => {
   const world = board([region(0), region(1)], [item(0, 0, 0), item(1, 8, 0)]);
@@ -142,7 +207,7 @@ test("a key-press trigger fires on a key and a step-on trigger fires on a step, 
   // A key press at the same place: now only the key region (type 1) qualifies.
   const pressed = stateWith(world);
   pressed.time.tick = 1;
-  pressed.input.keys.push({ seq: 1, name: "ENTER", code: "Enter", char: "\n" });
+  pressed.input.keys.push({ seq: 1, name: "ENTER", code: "Enter", char: "\n", action: null, resolvedActions: [] });
   const keyEvents = runTriggersPhase(pressed, { programRef: (name) => ref(name) });
   equal(keyEvents[0]?.key, "region:0", "a key press starts the key region, not the step-on region");
 
@@ -150,11 +215,21 @@ test("a key-press trigger fires on a key and a step-on trigger fires on a step, 
   const walked = stateWith(world);
   walked.time.tick = 1;
   walked.input.bindings = { keys: { ArrowRight: "right", Enter: "ENTER" } };
-  walked.input.keys.push({ seq: 1, name: "right", code: "ArrowRight", char: null, action: "right" });
+  walked.input.keys.push({ seq: 1, name: "right", code: "ArrowRight", char: null, action: "right", resolvedActions: ["right"] });
   walked.sprites.players = walked.sprites.players.map((player) => ({ ...player, movement: { ...player.movement, lastStepTick: 1, lastStepDistance: 32 } }));
   const walkedEvents = runTriggersPhase(walked, { programRef: (name) => ref(name) });
   equal(walkedEvents[0]?.key, "region:1", "a direction edge with a step only steps on (regions:1), never counts as activation");
   equal(walked.input.keys.length, 1, "the direction press stays queued for movement");
+});
+test("all semantic actions resolved from one physical key reach the trigger dispatcher", () => {
+  const state = stateWith(board([region(0, 1)]));
+  state.input.bindings = { keys: { ArrowUp: "confirm" } };
+  applyInputEvent(state.input, { kind: "key", name: "ArrowUp", code: "ArrowUp", char: null, down: true });
+  equal(state.input.keys[0]?.resolvedActions.includes("up"), true);
+  equal(state.input.keys[0]?.resolvedActions.includes("confirm"), true);
+  state.time.tick = 1;
+  const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
+  equal(events[0]?.key, "region:0", "confirm is dispatched even though the same key also resolves to up");
 });
 
 test("trigger layer matching ignores a region on another layer", () => {
@@ -271,14 +346,14 @@ test("a pressed button slot's confirm name fires a key-press region", () => {
   state.time.tick = 1;
   // `input.ts` queues a button-slot press as the confirm name with the slot's own action.
   state.input.bindings = { keys: { Enter: "ENTER" } };
-  state.input.keys.push({ seq: 1, name: "confirm", code: "confirm", char: null, action: "slot:attack" });
+  state.input.keys.push({ seq: 1, name: "confirm", code: "confirm", char: null, action: "slot:attack", resolvedActions: ["confirm"] });
   const events = runTriggersPhase(state, { programRef: (name) => ref(name) });
   equal(events[0]?.key, "region:0", "the slot press starts the key region");
   // And a boot-hold of the same slot press works where the boot poll accepted the confirm name before.
   const booted = stateWith(world);
   booted.triggers.lastKeySeq = -1;
   booted.input.bindings = { keys: { Enter: "ENTER" } };
-  booted.input.keys.push({ seq: 1, name: "confirm", code: "confirm", char: null, action: "slot:attack" });
+  booted.input.keys.push({ seq: 1, name: "confirm", code: "confirm", char: null, action: "slot:attack", resolvedActions: ["confirm"] });
   equal(runTriggersPhase(booted, { programRef: (name) => ref(name) })[0]?.key, "region:0", "the boot poll accepts the confirm name too");
 });
 

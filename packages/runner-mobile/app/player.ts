@@ -9,7 +9,7 @@ import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web"
 import { createFallbackTouchControls, isFallbackTouchControlTarget } from "@tk-reawakened/runner-web/touch-controls";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -20,6 +20,12 @@ type LiveReport = {
   readonly player: { readonly x: number; readonly y: number } | null;
   readonly moved?: boolean;
   readonly save?: { readonly path: string; readonly written: boolean; readonly blobPresent: boolean };
+  readonly render?: {
+    readonly drawn: number;
+    readonly deferred: number;
+    readonly deferredByKind: Readonly<Record<string, number>>;
+    readonly diagnostics: readonly string[];
+  };
   readonly error?: string;
 };
 
@@ -209,20 +215,19 @@ function run(
   const savePath = "slot-1.json";
   const saveBytes = (): Uint8Array => new TextEncoder().encode(JSON.stringify({ gameId, tick: session.tick() }));
   const onKeyDown = (event: KeyboardEvent): void => {
-      if (isFallbackTouchControlTarget(event.target) && !event.repeat) {
-            fallbackControlKeys.add(event.code);
-            return;
-          }
-          if (fallbackControlKeys.has(event.code)) return;
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-      pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
-    };
+    if (isFallbackTouchControlTarget(event.target)) {
+      fallbackControlKeys.add(event.code);
+      return;
+    }
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
+  };
   const onKeyUp = (event: KeyboardEvent): void => {
-      if (fallbackControlKeys.delete(event.code)) return;
-      pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
-    };
+    if (fallbackControlKeys.delete(event.code) || isFallbackTouchControlTarget(event.target)) return;
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false }, pointerGeometry: null });
+  };
   const focus = (state: "lost" | "gained"): void => {
-    pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+    pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   };
   const onBlur = (): void => {
       fallbackControlKeys.clear();
@@ -230,29 +235,32 @@ function run(
     };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
-  const viewSize = session.viewSize(),
-      observedGeometry = createObservedHostGeometry(session.displayGeometry());
-  const touchControls = createFallbackTouchControls(hostViewport.viewport, () => observedGeometry.current(), (action, down) => {
-    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" } });
+  const viewSize = session.viewSize();
+  const observedGeometry = createObservedHostGeometry(session.displayGeometry());
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+    observedGeometry.observe(event);
+    pending.push({ tick: null, event, pointerGeometry: null });
+  }, session.hostState ?? undefined);
+  const stage = hostViewport.viewport;
+  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, (action, down) => {
+    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
   });
-  const stopObservingHost = observeHostState(
-      hostViewport,
-      viewSize,
-      (event) => {
-        observedGeometry.observe(event);
-        pending.push({ tick: null, event });
-      },
-      session.hostState ?? undefined,
-    );
   const stopPointerInput = attachPointerInput(
-      hostViewport,
-      viewSize,
-      observedGeometry.current,
-      ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-      () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
-    );
+    stage,
+    viewSize,
+    observedGeometry.current,
+    ({ x, y }, buttons) => {
+      const geometry = observedGeometry.current();
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
+    },
+  );
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 
   window.addEventListener("keydown", onKeyDown);
@@ -281,11 +289,16 @@ function run(
   const draw = (now: number): void => {
     frameId = null;
     if (disposed || !isCurrent()) return;
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     accumulator += Math.max(0, now - previous);
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
-    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
+    const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    if (ticks === 0 && geometryNeedsTick) {
+      frameId = window.requestAnimationFrame(draw);
+      return;
+    }
     const inputs = stampPendingInputs(pending, session.tick());
           const submittedActionSequence = fallbackActionSequence;
     pending = [];
@@ -293,17 +306,34 @@ function run(
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
       if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
-            const frame = session.draw(accumulator / stepMs);
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
+      if (restoredGeometryNeedsTick) {
+        frameId = window.requestAnimationFrame(draw);
+        return;
+      }
+      const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const board = session.boardKey();
       if (!moved && startPlayer !== null && player !== null && (player.x !== startPlayer.x || player.y !== startPlayer.y)) moved = true;
       if (startPlayer === null) startPlayer = player;
-
-      // Prove the save path works on this host.
       const written = await host.writeBlob("saves", gameId, savePath, saveBytes());
       if (disposed || !isCurrent()) return;
       const saveLabel = `${saveBlobPresent ? "host blob present; " : ""}${written ? "written" : "write failed"}`;
-      setReport({ tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board, player, moved, save: { path: savePath, written, blobPresent: saveBlobPresent } });
+      setReport({
+        tick: session.tick(),
+        stateHash: session.stateHash(),
+        drawHash: frame.drawHash,
+        board,
+        player,
+        moved,
+        save: { path: savePath, written, blobPresent: saveBlobPresent },
+        render: {
+          drawn: frame.render.drawn,
+          deferred: frame.render.deferred,
+          deferredByKind: frame.render.deferredByKind,
+          diagnostics: frame.render.diagnostics,
+        },
+      });
       status.textContent = [
         `tick ${session.tick()}`,
         `state ${session.stateHash()}`,

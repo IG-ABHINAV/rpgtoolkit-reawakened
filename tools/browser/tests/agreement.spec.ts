@@ -23,6 +23,7 @@ test("every gating ledger row replays through WebGL2 and agrees with its oracle"
   test.setTimeout(300_000);
   await page.goto("/packages/runner-web/app/agreement.html");
   await page.waitForFunction(() => window.__agreement !== undefined, undefined, { timeout: 280_000 });
+  await expect.poll(() => page.evaluate(() => window.__scratchFeedback)).toBe(true);
   const rows = (await page.evaluate(() => window.__agreement)) as readonly RowReport[];
   for (const row of rows) console.log("row:", JSON.stringify(row));
 

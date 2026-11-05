@@ -14,6 +14,7 @@ import {
   type SurfaceId,
   type SurfacePixels,
 } from "@tk-reawakened/core";
+type RegisteredAction = Parameters<Engine["registerGameAction"]>[0];
 
 export type TestEngineState = {
   tick: number;
@@ -55,7 +56,8 @@ export function createTestEngine(): Engine {
     cueId: 0,
     log: "",
   };
-
+  const registeredActions = new Map<string, RegisteredAction>();
+  let pointerMovementSuppressed = false;
   return {
     advance(
       ticks: number,
@@ -113,6 +115,12 @@ export function createTestEngine(): Engine {
                 state.keys.splice(index, 1);
               }
             }
+            break;
+          }
+          case "action": {
+            const index = state.keys.indexOf(event.action);
+            if (event.down && index < 0) state.keys.push(event.action);
+            else if (!event.down && index >= 0) state.keys.splice(index, 1);
             break;
           }
           case "pointer": {
@@ -222,7 +230,39 @@ export function createTestEngine(): Engine {
         width: 320,
         height: 240,
         commands,
+        marginCommands: [],
       };
+    },
+    registeredActionNames() {
+      return ["up", "down", "left", "right", "confirm", "cancel", "menu", ...registeredActions.keys()];
+    },
+    registerGameAction(action: RegisteredAction) {
+      if (!action.name.startsWith("game.") || registeredActions.has(action.name)) return false;
+      registeredActions.set(action.name, action);
+      return true;
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      pointerMovementSuppressed = suppressed;
+    },
+    reportUnknownAction(_action: string) {},
+    customTouchControlsDeclared() {
+      return false;
+    },
+    hostFeatures() {
+      return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null };
+    },
+    hostDisplayGeometry() {
+      return {
+        content: { width: 320, height: 240 },
+        game: { x: 0, y: 0, width: 320, height: 240 },
+        safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+      };
+    },
+    surfaceCacheEpoch() {
+      return 0;
+    },
+    accessibilityTree() {
+      return [];
     },
 
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {

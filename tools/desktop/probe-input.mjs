@@ -110,7 +110,7 @@ async function targets(port) {
       if (response.ok) {
         const list = await response.json();
         const page = list.find((entry) => typeof entry.url === "string" && entry.url.startsWith("app://"));
-        if (page !== undefined && page.webSocketDebuggerUrl !== undefined) return page.webSocketDebuggerUrl;
+        if (page !== undefined && page.webSocketDebuggerUrl !== undefined) return { targetId: page.id, webSocketDebuggerUrl: page.webSocketDebuggerUrl };
       }
     } catch {
       // The port is not listening yet.
@@ -118,6 +118,40 @@ async function targets(port) {
     await new Promise((wait) => setTimeout(wait, 100));
   }
   throw new Error("the desktop page never appeared on the debugging port");
+}
+async function nodeDebuggerTarget(port) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+      if (response.ok) {
+        const list = await response.json();
+        const main = list.find((entry) => entry.type === "node" && typeof entry.webSocketDebuggerUrl === "string");
+        if (main !== undefined) return main.webSocketDebuggerUrl;
+      }
+    } catch {
+      // The main-process inspector has not started yet.
+    }
+    await new Promise((wait) => setTimeout(wait, 100));
+  }
+  throw new Error("the Electron main-process inspector did not appear");
+}
+
+async function resizeWindowContent(mainDebugger, width, height, area) {
+  const expression = `(() => {
+    const window = process.mainModule.require("electron").BrowserWindow.getAllWindows()[0];
+    if (window === undefined) throw new Error("Electron has no BrowserWindow");
+    const [contentWidth, contentHeight] = window.getContentSize();
+    window.setContentSize(
+      Math.round(contentWidth + ${width} - ${area.width}),
+      Math.round(contentHeight + ${height} - ${area.height})
+    );
+    return window.getContentSize();
+  })()`;
+  const result = await mainDebugger.send("Runtime.evaluate", { expression, returnByValue: true });
+  if (result.exceptionDetails !== undefined) {
+    throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? JSON.stringify(result.exceptionDetails));
+  }
+  return result.result.value;
 }
 
 /** A tiny CDP client: request/response over one socket, enough for evaluate and input dispatch. */
@@ -163,10 +197,13 @@ const KEY = {
 async function main() {
   const pkg = packagePath();
   const port = await freePort();
+  let inspectorPort = await freePort();
+  if (inspectorPort === port) inspectorPort = await freePort();
   const child = spawn(
     electronBinary(),
     [
       `--remote-debugging-port=${port}`,
+      `--inspect=127.0.0.1:${inspectorPort}`,
       ...(process.platform === "linux" ? ["--enable-unsafe-swiftshader"] : []),
       dist,
       "--serve", root,
@@ -187,7 +224,19 @@ async function main() {
   child.stdout.on("data", (chunk) => log.push(String(chunk)));
   child.stderr.on("data", (chunk) => log.push(String(chunk)));
 
-  const page = connect(await targets(port));
+  let pageTarget;
+  let page;
+  let mainDebugger;
+  try {
+    pageTarget = await targets(port);
+    page = connect(pageTarget.webSocketDebuggerUrl);
+    mainDebugger = connect(await nodeDebuggerTarget(inspectorPort));
+  } catch (error) {
+    page?.close();
+    mainDebugger?.close();
+    child.kill();
+    throw new Error(`${String(error)}\n${log.join("")}`);
+  }
   const evaluate = async (expression) => {
     const result = await page.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
     if (result.exceptionDetails !== undefined) throw new Error(result.exceptionDetails.text ?? "evaluation failed");
@@ -244,45 +293,71 @@ async function main() {
         return report;
       };
     })()`);
-    // Exercise the actual live page, including a ratio above 2.5 where rounding would choose the wrong scale.
+    // Resize the real BrowserWindow, not just Chromium's emulated CSS viewport. The window's decoration and
+    // the status row are accounted for by applying the difference between the measured viewport area and target.
     const fits = [];
-    for (const [width, height] of [[480, 360], [960, 720], [1900, 1600]]) {
-      await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
-      let display = null;
-      for (let attempt = 0; attempt < 40 && display === null; attempt += 1) {
-        display = await evaluate(`window.__hostConsumed?.filter(input => input.event.kind === "host.display" && input.event.geometry.content.width === ${width}).at(-1) ?? null`);
-        if (display === null) await sleep(50);
+    for (const [width, height] of [[480, 360], [960, 720], [1440, 900]]) {
+      const beforeArea = await evaluate(`(() => {
+        const area = document.querySelector("#viewport").getBoundingClientRect();
+        return { width: area.width, height: area.height };
+      })()`);
+      const nativeContentSize = await resizeWindowContent(mainDebugger, width, height, beforeArea);
+
+      let resizeObservation = null;
+      let lastResizeObservation = null;
+      for (let attempt = 0; attempt < 40 && resizeObservation === null; attempt += 1) {
+        const observation = await evaluate(`(() => {
+          const area = document.querySelector("#viewport").getBoundingClientRect();
+          const display = window.__hostConsumed?.filter(input => input.event.kind === "host.display"
+            && Math.abs(input.event.geometry.content.width - ${width}) < 0.05
+            && Math.abs(input.event.geometry.content.height - ${height}) < 0.05).at(-1) ?? null;
+          return { area: { width: area.width, height: area.height }, display };
+        })()`);
+        lastResizeObservation = observation;
+        if (Math.abs(observation.area.width - width) < 0.05
+          && Math.abs(observation.area.height - height) < 0.05
+          && observation.display !== null) resizeObservation = observation;
+        else await sleep(50);
       }
-      if (display === null) throw new Error(`desktop resize ${width}x${height} did not consume host.display`);
+      if (resizeObservation === null) {
+        throw new Error(`desktop BrowserWindow resize ${width}x${height} did not produce measured content and consumed host.display: ${JSON.stringify({ nativeContentSize, lastResizeObservation })}`);
+      }
+
       const geometry = await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
         const canvas = document.querySelector("#screen");
         const box = canvas.getBoundingClientRect();
         const area = document.querySelector("#viewport").getBoundingClientRect();
-        resolve({ frame: { width: canvas.width, height: canvas.height },
+        resolve({ backing: { width: canvas.width, height: canvas.height },
+          view: window.__session.viewSize(),
           box: { x: box.x, y: box.y, width: box.width, height: box.height },
           area: { x: area.x, y: area.y, width: area.width, height: area.height },
-          hostDisplay: window.__hostConsumed.filter(input => input.event.kind === "host.display").at(-1)?.event.geometry ?? null });
+          hostDisplay: window.__hostConsumed.filter(input => input.event.kind === "host.display"
+            && Math.abs(input.event.geometry.content.width - ${width}) < 0.05
+            && Math.abs(input.event.geometry.content.height - ${height}) < 0.05).at(-1)?.event.geometry ?? null });
       })))`);
-      const { frame, box, area } = geometry;
-      const ratio = Math.min(area.width / frame.width, area.height / frame.height);
-      if (width === 1900 && (ratio <= 2.5 || ratio >= 3)) throw new Error(`probe did not reach its rounding boundary: ${ratio}`);
+      geometry.nativeContentSize = nativeContentSize;
+      const { view, backing, box, area } = geometry;
+      const ratio = Math.min(area.width / view.width, area.height / view.height);
+      if (width === 1440 && (ratio <= 1.5 || ratio >= 2)) throw new Error(`probe did not reach its non-integer scale boundary: ${ratio}`);
       const scale = ratio >= 1 ? Math.floor(ratio) : ratio;
-      if (Math.abs(box.width - frame.width * scale) > 0.05 || Math.abs(box.height - frame.height * scale) > 0.05
-        || Math.abs(box.x - (area.x + (area.width - box.width) / 2)) > 0.05
-        || Math.abs(box.y - (area.y + (area.height - box.height) / 2)) > 0.05) {
-        throw new Error(`desktop frame is not fitted and centred: ${JSON.stringify(geometry)}`);
-      }
+      const gameWidth = view.width * scale;
+      const gameHeight = view.height * scale;
       const hostDisplay = geometry.hostDisplay;
+      if (backing.width !== Math.ceil(area.width) || backing.height !== Math.ceil(area.height)
+        || Math.abs(box.x - area.x) > 0.05 || Math.abs(box.y - area.y) > 0.05
+        || Math.abs(box.width - area.width) > 0.05 || Math.abs(box.height - area.height) > 0.05) {
+        throw new Error(`desktop drawing buffer/canvas does not cover measured content using ceil backing: ${JSON.stringify(geometry)}`);
+      }
       if (hostDisplay === null
         || Math.abs(hostDisplay.content.width - area.width) > 0.05
         || Math.abs(hostDisplay.content.height - area.height) > 0.05
-        || Math.abs(hostDisplay.game.x - (box.x - area.x)) > 0.05
-        || Math.abs(hostDisplay.game.y - (box.y - area.y)) > 0.05
-        || Math.abs(hostDisplay.game.width - box.width) > 0.05
-        || Math.abs(hostDisplay.game.height - box.height) > 0.05) {
-        throw new Error(`desktop host.display geometry does not match its measured frame: ${JSON.stringify(geometry)}`);
+        || Math.abs(hostDisplay.game.x - (area.width - gameWidth) / 2) > 0.05
+        || Math.abs(hostDisplay.game.y - (area.height - gameHeight) / 2) > 0.05
+        || Math.abs(hostDisplay.game.width - gameWidth) > 0.05
+        || Math.abs(hostDisplay.game.height - gameHeight) > 0.05) {
+        throw new Error(`desktop host.display geometry does not match logical frame fit: ${JSON.stringify(geometry)}`);
       }
-      fits.push({ ...geometry, marginLeft: Math.floor(hostDisplay.game.x / (hostDisplay.game.width / frame.width)) });
+      fits.push({ ...geometry, marginLeft: Math.floor(hostDisplay.game.x / scale) });
       if (process.argv.includes("--host-metrics") && width === 960) {
         let scriptPlayer = null;
         for (let attempt = 0; attempt < 40 && scriptPlayer?.x !== 128; attempt += 1) {
@@ -296,7 +371,6 @@ async function main() {
       }
     }
     if (fits[0].marginLeft === fits[2].marginLeft) throw new Error("desktop marginWidth did not change across viewport sizes");
-    await page.send("Emulation.clearDeviceMetricsOverride");
     if (process.argv.includes("--host-metrics")) {
       console.log(JSON.stringify({ package: pkg, opened: { tick: opened.tick, player: opened.player ?? null }, fits }, null, 2));
       return;
@@ -374,6 +448,7 @@ async function main() {
     console.log(JSON.stringify({ package: pkg, error: String(error), log: log.join("") }, null, 2));
     process.exitCode = 1;
   } finally {
+    mainDebugger.close();
     page.close();
     child.kill();
     if (temporaryPackageDirectory !== null) {

@@ -4,7 +4,7 @@ import { createFallbackTouchControls, isFallbackTouchControlTarget } from "@tk-r
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -56,10 +56,10 @@ async function start(): Promise<void> {
     onQuit: () => { void host.quit(); },
   });
   window.__session = session;
-  run(session, canvas, status, { canvas, viewport });
+  run(session, canvas, status, { canvas, viewport }, viewport);
 }
 
-function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport): void {
+function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport, stage: HTMLElement): void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
@@ -68,48 +68,50 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
       let fallbackActionSequence = 0;
   let disposed = false;
   const onKeyDown = (event: KeyboardEvent): void => {
-      if (isFallbackTouchControlTarget(event.target) && !event.repeat) {
-            fallbackControlKeys.add(event.code);
-            return;
-          }
-          if (fallbackControlKeys.has(event.code)) return;
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-      pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
-    };
+    if (isFallbackTouchControlTarget(event.target)) {
+      fallbackControlKeys.add(event.code);
+      return;
+    }
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
+  };
   const onKeyUp = (event: KeyboardEvent): void => {
-      if (fallbackControlKeys.delete(event.code)) return;
-      pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
-    };
-  const focus = (state: "lost" | "gained"): void => pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+    if (fallbackControlKeys.delete(event.code) || isFallbackTouchControlTarget(event.target)) return;
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false }, pointerGeometry: null });
+  };
+  const focus = (state: "lost" | "gained"): void => pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   const onBlur = (): void => {
-      fallbackControlKeys.clear();
-      focus("lost");
-    };
+    fallbackControlKeys.clear();
+    focus("lost");
+  };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
-  const viewSize = session.viewSize(),
-      observedGeometry = createObservedHostGeometry(session.displayGeometry());
-  const touchControls = createFallbackTouchControls(hostViewport.viewport, () => observedGeometry.current(), (action, down) => {
-    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" } });
+  const viewSize = session.viewSize();
+  const observedGeometry = createObservedHostGeometry(session.displayGeometry());
+  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, (action, down) => {
+    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
   });
-  const stopObservingHost = observeHostState(
-      hostViewport,
-      viewSize,
-      (event) => {
-        observedGeometry.observe(event);
-        pending.push({ tick: null, event });
-      },
-      session.hostState ?? undefined,
-    );
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+    observedGeometry.observe(event);
+    pending.push({ tick: null, event, pointerGeometry: null });
+  }, session.hostState ?? undefined);
+  const pointerHost = stage;
   const stopPointerInput = attachPointerInput(
-      hostViewport,
-      viewSize,
-      observedGeometry.current,
-      ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-      () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
-    );
+    pointerHost,
+    viewSize,
+    observedGeometry.current,
+    ({ x, y }, buttons) => {
+      const geometry = observedGeometry.current();
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
+    },
+  );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
@@ -131,19 +133,29 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   window.addEventListener("pagehide", dispose, { once: true });
   const draw = (now: number): void => {
     if (disposed) return;
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     accumulator += Math.max(0, now - previous);
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
-    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
+    const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    if (ticks === 0 && geometryNeedsTick) {
+      requestAnimationFrame(draw);
+      return;
+    }
     const inputs = stampPendingInputs(pending, session.tick());
           const submittedActionSequence = fallbackActionSequence;
     pending = [];
     const tickBeforeAdvance = session.tick();
     void session.advance(ticks, inputs).then(() => {
-      if (disposed) return;
       if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
-            const frame = session.draw(accumulator / stepMs);
+      if (disposed) return;
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
+      if (restoredGeometryNeedsTick) {
+        requestAnimationFrame(draw);
+        return;
+      }
+      const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const result = { tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board: session.boardKey(), player };
       window.__live = result;

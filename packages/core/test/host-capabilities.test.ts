@@ -96,6 +96,22 @@ test("host query built-ins read normalized capabilities and geometry through RPG
   equal(globals.seenorientation, 1);
 });
 
+test("Engine hostDisplayGeometry returns the last consumed geometry as fresh plain data", () => {
+  const { engine } = makeEngine();
+  const initial = engine.hostDisplayGeometry();
+  deepEqual(initial, {
+    content: { width: 640, height: 480 },
+    game: { x: 0, y: 0, width: 640, height: 480 },
+    safeArea: { top: 4, right: 0, bottom: 8, left: 0 },
+  });
+  const report = engine.advance(1, [{ tick: 0, event: { kind: "host.display", geometry: updatedGeometry } }]);
+  equal(report.consumed[0]?.event.kind, "host.display");
+  const current = engine.hostDisplayGeometry();
+  deepEqual(current, updatedGeometry);
+  equal(current === engine.hostDisplayGeometry(), false);
+  equal(current.game === engine.hostDisplayGeometry().game, false);
+});
+
 test("viewport changes and gamepad connection edges queue script-visible game events", () => {
   const { engine, live } = makeEngine();
   engine.advance(1, []);

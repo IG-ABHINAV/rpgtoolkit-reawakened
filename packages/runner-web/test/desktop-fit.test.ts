@@ -33,7 +33,11 @@ test("desktop fitting scales and maps input across viewport resizes", () => {
       equal(rect.height, height);
       ok(rect.left >= 0 && rect.top >= 0 && rect.left + width <= content.width && rect.top + height <= content.height);
       const event = { clientX: rect.left + width * 0.25, clientY: rect.top + height * 0.5 } as PointerEvent;
-      deepEqual(pointerEventToLogical(event, canvas, view), { x: 300, y: 450 });
+      deepEqual(pointerEventToLogical(event, canvas, view, {
+        content: { width: rect.width, height: rect.height },
+        game: { x: 0, y: 0, width: rect.width, height: rect.height },
+        safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+      }), { x: 300, y: 450 });
     };
     check(2800 / 3, 700); // oversized: fractional fallback, whole frame visible
     content.width = 3700; content.height = 2800; resize();

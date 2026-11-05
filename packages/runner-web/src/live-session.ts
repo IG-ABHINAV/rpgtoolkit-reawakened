@@ -1,4 +1,3 @@
-import type { HostDisplayGeometry, NormalizedHostFeatures } from "@tk-reawakened/core";
 import { createSafeAreaProbe, readHostFeatures, waitForHostDisplay, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
 import { fitCanvas } from "./viewport.ts";
 export { fitCanvas } from "./viewport.ts";
@@ -27,6 +26,8 @@ import {
   type DrawList,
   type Engine,
   type GameState,
+  type HostDisplayGeometry,
+  type HostFeatures,
   type InputRecord,
   type RunnerRequest,
   type SurfaceId,
@@ -55,6 +56,8 @@ export type LiveSession = {
   readonly stateHash: () => string;
   readonly viewSize: () => { readonly width: number; readonly height: number };
   readonly hostState: HostStateSnapshot | null;
+  /** Current measured Plane 2 content, Plane 1 presentation rectangle, and physical safe-area insets. */
+  readonly displayGeometry: () => HostDisplayGeometry;
   readonly draw: (alpha: number) => { readonly drawHash: string; readonly commands: number; readonly render: RenderStats };
   readonly playerPosition: () => { readonly x: number; readonly y: number } | null;
   /** The board the session is on, or `null` before board entry — the signal a host needs to tell "booting" from "playing". */
@@ -205,31 +208,36 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   const viewport = interactive
     ? mainResolution(mainBytes, assetKey(mainFile))
     : { width: plan?.width ?? 640, height: plan?.height ?? 480 };
-  let hostFeatures: NormalizedHostFeatures | undefined;
-  let displayGeometry: HostDisplayGeometry | undefined;
+  const hostFeatures = options.hostViewport === undefined ? null : readHostFeatures();
+  let displayGeometry: HostDisplayGeometry = {
+    content: { width: viewport.width, height: viewport.height },
+    game: { x: 0, y: 0, width: viewport.width, height: viewport.height },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
   if (options.hostViewport !== undefined) {
     const safeArea = createSafeAreaProbe();
     try {
-      hostFeatures = readHostFeatures();
       displayGeometry = await waitForHostDisplay(options.hostViewport, viewport, safeArea.read());
     } finally {
       safeArea.dispose();
     }
   }
+  const initialGeometry = displayGeometry;
+  const initialFeatures: HostFeatures = hostFeatures ?? { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null };
   const engine = createEngine({
     seed: plan?.seed ?? 0,
     assetIndex: index,
     assetRoot: PACKAGE_ROOT,
     mainFile,
     gameIdentity,
-    ...(hostFeatures === undefined ? {} : { features: hostFeatures }),
-    ...(displayGeometry === undefined ? {} : { displayGeometry }),
     startup: {
       presence: { hasPlayer: () => spriteRuntime === undefined ? hasPlayer : spriteRuntime.hasPlayer() },
       savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
     },
     width: viewport.width,
     height: viewport.height,
+    features: initialFeatures,
+    displayGeometry: initialGeometry,
     maxTicks: plan?.maxTicks ?? Number.MAX_SAFE_INTEGER,
     include: { shading: true, images: true, sprites: true },
     bundled,
@@ -264,7 +272,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       { section: "audio", applier: () => undefined },
     ],
   });
-  const renderer = createWebgl2Renderer(options.gl, { mode: "letterbox", scale: 1 });
+  const renderer = createWebgl2Renderer(options.gl);
 
   const textures = liveTextureProvider(
     (key) => assets.peek(key) ?? bundled.get(key) ?? null,
@@ -273,6 +281,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     (key) => engine.picturePixels(key),
   );
   const fonts = fontProvider(options.bundled);
+  let renderedSurfaceEpoch = engine.surfaceCacheEpoch();
   let currentTick = 0;
   let currentStateHash = "";
   const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
@@ -420,7 +429,8 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     if (!closed) throw new Error("runner-web: live engine request loop did not settle");
   };
   const queue = (ticks: number, inputs: readonly InputRecord[] = []): Promise<void> => {
-    processing = processing.then(() => pump(ticks, inputs));
+    const queuedInputs = [...inputs];
+    processing = processing.then(() => pump(ticks, queuedInputs));
     return processing;
   };
   void queue(0);
@@ -435,7 +445,8 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     tick: () => currentTick,
     stateHash: () => currentStateHash,
     viewSize: () => ({ width: viewport.width, height: viewport.height }),
-    hostState: hostFeatures === undefined || displayGeometry === undefined ? null : { features: hostFeatures, geometry: displayGeometry },
+    hostState: hostFeatures === null ? null : { features: hostFeatures, geometry: initialGeometry },
+    displayGeometry: () => engine.hostDisplayGeometry(),
     boardKey: () => latest?.world.board?.key ?? null,
     playerPosition: () => {
       const actor = latest?.sprites.players.find((player) => player.id === latest?.sprites.selectedPlayer)
@@ -445,8 +456,14 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     },
     async advance(ticks, inputs = []) { await queue(ticks, inputs); },
     draw(alpha) {
+      const surfaceEpoch = engine.surfaceCacheEpoch();
+      if (surfaceEpoch !== renderedSurfaceEpoch) {
+        renderer.flush();
+        renderedSurfaceEpoch = surfaceEpoch;
+      }
       const list: DrawList = engine.drawList(alpha, { shading: true, images: true, sprites: true });
-      const render = renderer.render(list, {
+      const geometry = engine.hostDisplayGeometry();
+      const render = renderer.render(list, geometry, {
         textures,
         surfaces: (id: SurfaceId, rev: number) => {
           const pixels = engine.surfacePixels(id, rev);
@@ -455,7 +472,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
         fonts: (asset: AssetKey) => fonts.get(asset),
         ...(fonts.get(DEFAULT_FONT_ASSET) === undefined ? {} : { fallbackFont: fonts.get(DEFAULT_FONT_ASSET) }),
       });
-      return { drawHash: hashDrawList(list), commands: list.commands.length, render };
+      return { drawHash: hashDrawList(list), commands: list.commands.length + list.marginCommands.length, render };
     },
   };
 }

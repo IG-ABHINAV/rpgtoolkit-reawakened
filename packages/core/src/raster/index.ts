@@ -1,3 +1,5 @@
+export * from "./presentation.ts";
+
 export * from "./raster.ts";
 export { tintChannel } from "./tint.ts";
 export * from "./shapes.ts";

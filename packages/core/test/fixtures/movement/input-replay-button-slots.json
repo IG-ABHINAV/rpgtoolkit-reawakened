@@ -44,11 +44,11 @@
         {"t":0,"held":[],"intent":null,"slots":["attack","back"]},
         {"t":1,"held":["up"],"intent":"N","queue":[{"seq":1,"key":"up"}],"slots":["attack","back"]},
         {"t":2,"held":["up","right"],"intent":"NE","queue":[{"seq":2,"key":"right"}],"slots":["attack","back"]},
-        {"t":3,"held":["up","right"],"intent":"NE","notes":["ignored:repeat:ArrowRight"],"slots":["attack","back"]},
-        {"t":4,"held":["up","right"],"intent":"NE","notes":["ignored:unbound:KeyQ"],"slots":["attack","back"]},
-        {"t":5,"held":["up","right","confirm"],"intent":"NE","queue":[{"seq":3,"key":"confirm"}],"slots":["attack","back"]},
-        {"t":6,"held":["right","confirm"],"intent":"E","slots":["attack","back"]},
-        {"t":7,"held":["confirm"],"intent":null,"slots":["attack","back"]},
+        {"t":3,"held":["up","right"],"intent":"NE","queue":[{"seq":3,"key":"right"}],"slots":["attack","back"]},
+        {"t":4,"held":["up","right"],"intent":"NE","queue":[{"seq":4,"key":"KeyQ"}],"notes":["ignored:unbound:KeyQ"],"slots":["attack","back"]},
+        {"t":5,"held":["up","right","confirm","menu"],"intent":"NE","queue":[{"seq":5,"key":"confirm"}],"slots":["attack","back"]},
+        {"t":6,"held":["right","confirm","menu"],"intent":"E","slots":["attack","back"]},
+        {"t":7,"held":["confirm","menu"],"intent":null,"slots":["attack","back"]},
         {"t":8,"held":[],"intent":null,"slots":["attack","back"]},
         {"t":9,"held":[],"intent":null,"slots":["attack","back"]}
       ]
@@ -87,7 +87,7 @@
     },
     {
       "name": "gamepad-dead-zone-edges-and-merge",
-      "note": "Gamepad contract: axis magnitude 250 is active (below is 0), d-pad bits and axes merge, press edges append one entry each in ascending bit order, a held action adds none, and a held keyboard key plus a pad share one held state.",
+      "note": "Gamepad contract: axis magnitude 250 is active (below is 0), physical W3C d-pad bits and axes merge, press edges append one entry each in ascending physical-bit order, a held action adds none, and a held keyboard key plus a pad share one held state.",
       "setup": {
         "bindings": {
           "keys": {"ArrowUp":"up","ArrowDown":"down","ArrowLeft":"left","ArrowRight":"right","Enter":"confirm","Escape":"cancel"}
@@ -103,23 +103,23 @@
       "script": [
         {"t":1,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":249,"y":0},"buttons":0}},
         {"t":2,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":250,"y":0},"buttons":0}},
-        {"t":3,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":250,"y":-1000},"buttons":16}},
+        {"t":3,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":250,"y":-1000},"buttons":1}},
         {"t":4,"ev":{"kind":"key","code":"ArrowRight","down":true}},
         {"t":5,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":0,"y":0},"buttons":0}},
         {"t":6,"ev":{"kind":"key","code":"ArrowRight","down":false}},
-        {"t":7,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":0,"y":0},"buttons":64}}
+        {"t":7,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":0,"y":0},"buttons":512}}
       ],
       "ticks": 9,
       "expect": [
         {"t":0,"held":[],"intent":null,"slots":["attack","back"]},
         {"t":1,"held":[],"intent":null,"slots":["attack","back"]},
         {"t":2,"held":["right"],"intent":"E","queue":[{"seq":1,"key":"right"}],"slots":["attack","back"]},
-        {"t":3,"held":["up","right","confirm"],"intent":"NE","queue":[{"seq":2,"key":"up"},{"seq":3,"key":"confirm"}],"slots":["attack","back"]},
-        {"t":4,"held":["up","right","confirm"],"intent":"NE","slots":["attack","back"]},
+        {"t":3,"held":["up","right","confirm"],"intent":"NE","queue":[{"seq":2,"key":"confirm"},{"seq":3,"key":"up"}],"slots":["attack","back"]},
+        {"t":4,"held":["up","right","confirm"],"intent":"NE","queue":[{"seq":4,"key":"right"}],"slots":["attack","back"]},
         {"t":5,"held":["right"],"intent":"E","slots":["attack","back"]},
         {"t":6,"held":[],"intent":null,"slots":["attack","back"]},
-        {"t":7,"held":[],"intent":null,"slots":["attack","back"]},
-        {"t":8,"held":[],"intent":null,"slots":["attack","back"]}
+        {"t":7,"held":["menu"],"intent":null,"queue":[{"seq":5,"key":"menu"}],"slots":["attack","back"]},
+        {"t":8,"held":["menu"],"intent":null,"slots":["attack","back"]}
       ]
     },
     {
@@ -140,8 +140,8 @@
       "script": [
         {"t":1,"ev":{"kind":"gamepad","device":1,"connected":false,"axes":{"x":0,"y":0},"buttons":1}},
         {"t":2,"ev":{"kind":"gamepad","device":4,"connected":true,"axes":{"x":0,"y":0},"buttons":1}},
-        {"t":3,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":0,"y":0},"buttons":8}},
-        {"t":4,"ev":{"kind":"gamepad","device":1,"connected":true,"axes":{"x":0,"y":0},"buttons":8}},
+        {"t":3,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":0,"y":0},"buttons":32768}},
+        {"t":4,"ev":{"kind":"gamepad","device":1,"connected":true,"axes":{"x":0,"y":0},"buttons":32768}},
         {"t":5,"ev":{"kind":"gamepad","device":0,"connected":false,"axes":{"x":0,"y":0},"buttons":0}},
         {"t":6,"ev":{"kind":"gamepad","device":1,"connected":false,"axes":{"x":0,"y":0},"buttons":0}}
       ],
@@ -227,7 +227,7 @@
     },
     {
       "name": "gamepad-only-named-actions",
-      "note": "A gamepad adds nothing the bindings do not name: with no menu binding, the menu bit is ignored.",
+      "note": "A gamepad exposes semantic defaults independent of keyboard bindings: button 0 confirms and Start opens the menu.",
       "setup": {
         "bindings": {"keys":{"Enter":"confirm"}},
         "slots": [
@@ -239,13 +239,13 @@
         "allowDiagonals": true
       },
       "script": [
-        {"t":1,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":0,"y":0},"buttons":80}}
+        {"t":1,"ev":{"kind":"gamepad","device":0,"connected":true,"axes":{"x":0,"y":0},"buttons":513}}
       ],
       "ticks": 3,
       "expect": [
         {"t":0,"held":[],"intent":null,"slots":["attack","back"]},
-        {"t":1,"held":["confirm"],"intent":null,"queue":[{"seq":1,"key":"confirm"}],"slots":["attack","back"]},
-        {"t":2,"held":["confirm"],"intent":null,"slots":["attack","back"]}
+        {"t":1,"held":["confirm","menu"],"intent":null,"queue":[{"seq":1,"key":"confirm"},{"seq":2,"key":"menu"}],"slots":["attack","back"]},
+        {"t":2,"held":["confirm","menu"],"intent":null,"slots":["attack","back"]}
       ]
     }
   ]

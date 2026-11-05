@@ -41,7 +41,7 @@ test("overlaid controls stay inside horizontal safe areas", () => {
     safeArea: { top: 0, right: 80, bottom: 0, left: 80 },
   }));
   equal(layout.docked, false);
-  deepEqual({ left: layout.left, right: layout.right }, { left: 88, right: 1400 });
+  deepEqual({ left: layout.left, right: layout.right }, { left: 88, right: 1408 });
 });
 
 test("portrait overlay anchors controls inside the safe game rectangle", () => {
