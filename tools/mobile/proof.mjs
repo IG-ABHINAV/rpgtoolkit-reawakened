@@ -9,12 +9,12 @@
 // rotates the device, then relaunches and checks the page's host-blob-presence
 // probe. The field records existence, not game-state restoration.
 
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
+import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -53,38 +53,8 @@ function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
 
 mkdirSync(output, { recursive: true });
 
-function runAdbWithTimeout(timeoutMs, ...args) {
-  try {
-    return {
-      status: 0,
-      stdout: execFileSync("adb", args, {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        timeout: timeoutMs,
-        maxBuffer: 20 * 1024 * 1024,
-      }).trim(),
-      stderr: "",
-    };
-  } catch (error) {
-    return {
-      status: error.status ?? null,
-      stdout: String(error.stdout ?? "").trim(),
-      stderr: String(error.stderr ?? error.message ?? "").trim(),
-    };
-  }
-}
-
 function runAdb(...args) {
   return runAdbWithTimeout(ADB_COMMAND_TIMEOUT_MS, ...args);
-}
-
-function adbWithTimeout(timeoutMs, ...args) {
-  const result = runAdbWithTimeout(timeoutMs, ...args);
-  if (result.status !== 0) {
-    const status = result.status === null ? "" : ` (exit ${result.status})`;
-    throw new Error(`adb ${args.join(" ")} failed${status}: ${result.stderr || result.stdout || "no output"}`);
-  }
-  return result.stdout;
 }
 
 function adb(...args) {
@@ -405,7 +375,7 @@ function captureFailureEvidence(error) {
 }
 async function main() {
   adb("wait-for-device");
-  adb("install", "-r", apk);
+  installApk(apk);
   if (process.env.CI === "true") {
     const cleared = adb("shell", "pm", "clear", appId);
     if (cleared !== "Success") throw new Error(`could not clear Android app data for a fresh CI proof: ${cleared}`);
