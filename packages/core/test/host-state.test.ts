@@ -1,4 +1,4 @@
-import { deepEqual, equal, notEqual } from "node:assert/strict";
+import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
 import { createAssetIndex, createEmptyBoard, createEngine, PACKAGE_ROOT, writeBoard, type GameState } from "../src/index.ts";
 import type { HostFeatures } from "../src/ports/host.ts";
@@ -39,10 +39,10 @@ test("host features and display geometry normalize, snapshot, restore, and affec
   equal(hashGameState(restored), originalHash);
 
   state.features = { ...state.features, gamepad: true };
-  notEqual(hashGameState(state), originalHash);
+  ok(hashGameState(state) !== originalHash);
   const featuresHash = hashGameState(state);
   state.display = { geometry: { ...state.display.geometry, game: { ...state.display.geometry.game, x: 200 } } };
-  notEqual(hashGameState(state), featuresHash);
+  ok(hashGameState(state) !== featuresHash);
 });
 
 test("pre-host-state snapshots migrate both sections to logical viewport defaults", () => {
