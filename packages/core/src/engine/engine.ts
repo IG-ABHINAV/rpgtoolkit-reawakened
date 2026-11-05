@@ -3522,29 +3522,35 @@ export function createEngine(init: EngineInit): Engine {
         const item = surface.items[index]!;
         if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
             x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h) {
-          return { surfaceId: surface.id, owner: surface.owner, itemId: item.id, index, action: item.action ?? null };
+          return { surfaceId: surface.id, owner: surface.owner, itemId: item.id, index, action: item.action ?? null, inputSeq: null };
         }
       }
     }
     return null;
   }
 
-  function dispatchAuthorSurfaceAction(claim: UiActionClaim): void {
-    if (claim.action === null) return;
+  function dispatchAuthorSurfaceAction(claim: UiActionClaim): number | null {
+    if (claim.action === null) return null;
     const source = `ui:${claim.surfaceId}/${claim.itemId}`;
+    const inputSeq = state.input.nextSeq;
     if (!applySemanticActionEdge(state.input, claim.action, true, source)) {
       reportUnknownAction(claim.action);
-      return;
+      return null;
     }
     applySemanticActionEdge(state.input, claim.action, false, source);
+    return state.input.nextSeq > inputSeq ? inputSeq : null;
   }
-  function routeAuthorSurfaceAction(action: string, down: boolean): void {
+  function actionInputSequence(action: string, firstSeq: number): number | null {
+    return state.input.keys.find((key) => key.seq >= firstSeq && key.action === action)?.seq ?? null;
+  }
+  function routeAuthorSurfaceAction(action: string, down: boolean, inputSeq: number | null = null): void {
     if (!down) return;
     const surfaces = state.ui.actionSurfaces;
     const surface = surfaces[surfaces.length - 1];
     if (surface === undefined) return;
     if (action === "cancel") {
       state.ui.surfaceCancelled = true;
+      state.ui.surfaceCancelledSeq = inputSeq;
       return;
     }
     if (action === "confirm") {
@@ -3555,6 +3561,7 @@ export function createEngine(init: EngineInit): Engine {
         itemId: item.id,
         index: surface.selection,
         action: null,
+        inputSeq,
       };
       return;
     }
@@ -3579,10 +3586,10 @@ export function createEngine(init: EngineInit): Engine {
     for (const action of inputRegisteredActionNames(state.input)) before.set(action, state.input.actions[action] === true);
     return before;
   }
-  function routeActionStateChanges(before: ReadonlyMap<string, boolean>): void {
+  function routeActionStateChanges(before: ReadonlyMap<string, boolean>, firstSeq: number): void {
     for (const action of inputRegisteredActionNames(state.input)) {
       const down = state.input.actions[action] === true;
-      if (before.get(action) !== down) routeAuthorSurfaceAction(action, down);
+      if (before.get(action) !== down) routeAuthorSurfaceAction(action, down, actionInputSequence(action, firstSeq));
     }
   }
   function applyRoutedInputEvent(event: InputRecord["event"]): void {
@@ -3592,15 +3599,18 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     if (event.kind === "action") {
+      const before = actionStateSnapshot();
+      const firstSeq = state.input.nextSeq;
       applyInputEvent(state.input, event, reportUnknownAction);
-      routeAuthorSurfaceAction(event.action, event.down);
+      routeActionStateChanges(before, firstSeq);
       return;
     }
     if (event.kind !== "pointer") {
       if (event.kind === "key") {
         const before = actionStateSnapshot();
+        const firstSeq = state.input.nextSeq;
         applyInputEvent(state.input, event, reportUnknownAction);
-        routeActionStateChanges(before);
+        routeActionStateChanges(before, firstSeq);
       } else {
         applyInputEvent(state.input, event, reportUnknownAction);
       }
@@ -3646,8 +3656,8 @@ export function createEngine(init: EngineInit): Engine {
       state.input.pressedButtonSlot = null;
       setPointerMovementSuppressed(state.input, false);
       if (target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) {
-        state.ui.surfaceActivated = pressed;
-        dispatchAuthorSurfaceAction(pressed);
+        const inputSeq = dispatchAuthorSurfaceAction(pressed);
+        state.ui.surfaceActivated = { ...pressed, inputSeq };
       }
       return;
     }
@@ -3667,7 +3677,7 @@ export function createEngine(init: EngineInit): Engine {
     switch (phase) {
       case "input": {
         state.ui.surfaceActivated = null;
-        state.ui.surfaceCancelled = false;
+        state.ui.surfaceCancelledSeq = null;
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }
@@ -3685,13 +3695,14 @@ export function createEngine(init: EngineInit): Engine {
           consumed.push(record);
         }
         const actionsBeforeGamepad = actionStateSnapshot();
+        const firstGamepadSeq = state.input.nextSeq;
         processGamepadEvents(state.input, ({ device, connected }) => {
           queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
             device,
             type: "gamepad",
           });
         });
-        routeActionStateChanges(actionsBeforeGamepad);
+        routeActionStateChanges(actionsBeforeGamepad, firstGamepadSeq);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
       }

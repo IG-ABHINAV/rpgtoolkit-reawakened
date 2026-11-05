@@ -295,7 +295,7 @@ export const UI_PLUGIN: PluginDefinition = {
 };
 
 export function applyUiEffect(
-  state: { ui: UiSection; surfaces?: SurfacesSection },
+  state: { ui: UiSection; surfaces?: SurfacesSection; engine?: { claims?: number[] } },
   name: string,
   args: readonly PlainData[],
   /** Resolve a `font(name)` argument against the assets the project ships, when the caller has them. */
@@ -425,11 +425,23 @@ export function applyUiEffect(
     }
     case "uiactivated": {
       const owner = numberArg(first);
-      if (ui.surfaceActivated?.owner === owner) ui.surfaceActivated = null;
+      const claim = ui.surfaceActivated;
+      if (claim?.owner === owner) {
+        if (typeof claim.inputSeq === "number" && state.engine !== undefined) {
+          const claims = state.engine.claims ??= [];
+          if (!claims.includes(claim.inputSeq)) claims.push(claim.inputSeq);
+        }
+        ui.surfaceActivated = null;
+      }
       return;
     }
     case "uicancelled":
+      if (typeof ui.surfaceCancelledSeq === "number" && state.engine !== undefined) {
+        const claims = state.engine.claims ??= [];
+        if (!claims.includes(ui.surfaceCancelledSeq)) claims.push(ui.surfaceCancelledSeq);
+      }
       ui.surfaceCancelled = false;
+      ui.surfaceCancelledSeq = null;
       return;
     case "dialogue":
     case "mwin":

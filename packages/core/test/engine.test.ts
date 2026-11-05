@@ -167,6 +167,7 @@ test("author surface release dispatches its registered action once without click
   const state = capture.state();
   if (state === undefined) throw new Error("expected captured game state");
   equal(state.ui.surfaceActivated?.index, 0);
+  equal(state.ui.surfaceActivated?.inputSeq, state.input.keys.find((key) => key.action === "game.dash")?.seq);
   equal(state.input.pendingActions.filter((action) => action === "game.dash").length, 1);
   equal(state.input.keys.filter((key) => key.action === "game.dash").length, 1);
   equal(state.input.pendingClicks.length, 0);

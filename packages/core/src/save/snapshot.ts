@@ -384,7 +384,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
   record.input = current;
   schema.input = INPUT_SCHEMA_VERSION;
 }
-/** Add deterministic author-surface and explicit custom-touch declaration fields. */
+/** Add deterministic author-surface, explicit custom-touch declaration and input-claim fields. */
 function migrateUi(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.ui;
   if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `ui` version");

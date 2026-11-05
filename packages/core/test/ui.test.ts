@@ -86,6 +86,29 @@ test("custom touch suppression requires an explicit persistent declaration", () 
   equal(state.ui.customTouchControlsDeclared, true);
 });
 
+test("author surface claims consume their shared input sequence once", () => {
+  const state = createGameState({ seed: 0 });
+  state.engine.claims = [];
+  state.ui.surfaceActivated = {
+    owner: 7,
+    surfaceId: "title",
+    itemId: "play",
+    index: 0,
+    action: null,
+    inputSeq: 41,
+  };
+  applyUiEffect(state, "uiActivated", [7]);
+  deepEqual(state.engine.claims, [41]);
+  equal(state.ui.surfaceActivated, null);
+
+  state.ui.surfaceCancelled = true;
+  state.ui.surfaceCancelledSeq = 42;
+  applyUiEffect(state, "uiCancelled", []);
+  deepEqual(state.engine.claims, [41, 42]);
+  equal(state.ui.surfaceCancelled, false);
+  equal(state.ui.surfaceCancelledSeq, null);
+});
+
 test("author UI effects publish one ordered navigation surface and accessibility subtree", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "uiBegin", [7, "title", "menu", 10, 20, 200, 120, 1]);
