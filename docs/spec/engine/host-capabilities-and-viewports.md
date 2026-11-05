@@ -197,7 +197,7 @@ The game explicitly calls `declareCustomTouchControls()` when it supplies usable
 
 ### Tier 2: Runner Fallback Virtual Gamepad (Legacy Compatibility)
 
-When touch is available and the game has not explicitly declared or registered custom touch controls, including for
+When touch is available and the game has not explicitly declared usable custom touch controls, including for
 unpatched Toolkit 3.1 games:
 * **Automatic Minimal Gamepad:** The runner renders a clean, non-intrusive virtual D-pad on the left and primary Action
   buttons on the right.

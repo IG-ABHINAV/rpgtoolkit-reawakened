@@ -16,6 +16,7 @@ import {
   type Arg,
   type Wait,
 } from "../src/index.ts";
+import { resetUiForProgramStart } from "../src/save/sections/ui.ts";
 import { pollMenuScreen } from "../src/script/waits.ts";
 import type { DrawCommand } from "../src/ports/draw.ts";
 
@@ -76,6 +77,15 @@ test("message-window effects splice globals and use deterministic defaults", () 
   equal(state.ui.message.translucency, 50);
   equal(composeUi(state.ui, 800, 600).some((entry) => entry.kind === "rect"), true);
 });
+test("custom touch suppression requires an explicit persistent declaration", () => {
+  const state = createGameState({ seed: 0 });
+  equal(state.ui.customTouchControlsDeclared, false);
+  applyUiEffect(state, "declareCustomTouchControls", []);
+  equal(state.ui.customTouchControlsDeclared, true);
+  resetUiForProgramStart(state.ui);
+  equal(state.ui.customTouchControlsDeclared, true);
+});
+
 test("author UI effects publish one ordered navigation surface and accessibility subtree", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "uiBegin", [7, "title", "menu", 10, 20, 200, 120, 1]);

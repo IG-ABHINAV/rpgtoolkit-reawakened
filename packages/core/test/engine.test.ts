@@ -2,6 +2,7 @@ import { deepEqual, equal } from "node:assert/strict";
 import { TextEncoder } from "node:util";
 import { test } from "node:test";
 import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
+import { applyUiEffect } from "../src/script/packs/ui.ts";
 import { resolveManifestPlugins } from "../src/engine/boot.ts";
 import { ensureScriptScreen, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
 
@@ -118,6 +119,58 @@ test("ordinary pointer down and up activates an enabled button slot once", () =>
   if (state === undefined) throw new Error("expected captured game state");
   equal(state.input.keys.filter((key) => key.action === "slot:primary").length, 1);
   equal(state.input.pendingActions.filter((action) => action === "confirm").length, 1);
+});
+test("Engine touch-control query requires the explicit declaration command", () => {
+  const registration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      if (state.time.tick === 0) {
+        applyUiEffect(state, "uiBegin", [7, "title", "menu", 0, 0, 16, 16, 1]);
+        applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, null, null, 1]);
+        applyUiEffect(state, "uiEnd", [7]);
+      } else {
+        applyUiEffect(state, "declareCustomTouchControls", []);
+      }
+    },
+  };
+  const engine = loadedEngine([registration]);
+  equal(engine.customTouchControlsDeclared(), false);
+  engine.advance(1, []);
+  equal(engine.customTouchControlsDeclared(), false);
+  engine.advance(1, []);
+  equal(engine.customTouchControlsDeclared(), true);
+});
+
+test("author surface release dispatches its registered action once without click leakage", () => {
+  const capture = captureState();
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, "game.dash", null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surfaceRegistration]);
+  equal(engine.registerGameAction({
+    name: "game.dash",
+    label: "Dash",
+    icon: null,
+    group: null,
+    controls: [],
+    locked: false,
+    hidden: false,
+  }), true);
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated?.index, 0);
+  equal(state.input.pendingActions.filter((action) => action === "game.dash").length, 1);
+  equal(state.input.keys.filter((key) => key.action === "game.dash").length, 1);
+  equal(state.input.pendingClicks.length, 0);
+  equal(state.input.pendingPointerUps.length, 0);
 });
 
 test("createEngine routes actor alias writes through package behaviour hooks", () => {
