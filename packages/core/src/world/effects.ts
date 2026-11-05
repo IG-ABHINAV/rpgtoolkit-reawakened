@@ -4,6 +4,7 @@ import type { GameState } from "../save/state.ts";
 import type { AssetKey } from "../ports/keys.ts";
 import type { WorldBoard, WorldPoint, WorldProgram, WorldTile, WorldTileEdit, WorldVector } from "./model.ts";
 import { invalidatePathfindingCache } from "../sprites/pathfinding.ts";
+import { resolvePixelMovement } from "./movement-settings.ts";
 
 function numberArg(effect: EffectRecord, index: number, fallback = 0): number {
   const value = effect.args[index];
@@ -116,6 +117,11 @@ function setProgramPoint(board: WorldBoard, effect: EffectRecord): WorldBoard {
 
 /** Apply one world effect immediately, preserving post order for same-turn reads. */
 export function applyWorldEffect(state: GameState, effect: EffectRecord): void {
+  if (effect.name === "pixelmovement") {
+    const movement = resolvePixelMovement(state.world.movement, effect.args);
+    if (movement !== null) state.world = { ...state.world, movement };
+    return;
+  }
   const board = boardOrNull(state);
   if (board === null) return;
   let next = board;

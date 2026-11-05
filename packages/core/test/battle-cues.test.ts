@@ -261,6 +261,7 @@ function party(state: GameState): void {
   state.party.members = [hero.id];
   state.party.selected = hero.id;
   state.world = {
+    ...state.world,
     board: {
       key: assetKey("boards/field.brd"),
       coordType: 0,

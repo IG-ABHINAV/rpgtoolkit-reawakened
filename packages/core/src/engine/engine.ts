@@ -152,6 +152,8 @@ export type { EnginePhase };
 export type EnginePhaseRegistration = {
   readonly phase: EnginePhase;
   readonly rank?: number;
+  /** Legacy main-file movement mode used as the scene default when no main file exists. */
+  readonly pixelMovement?: number;
   readonly run: (state: GameState, postEffect?: (section: SectionKey, effect: PostEffect) => void) => void;
 };
 
@@ -326,6 +328,12 @@ export function createEngine(init: EngineInit): Engine {
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
   let mainFile: MainFile | null = null;
+  let scenePixelMovement = 0;
+  function movementDefaults(main: MainFile | null): { walking: number; pushing: number } {
+    const mode = main?.pixelMovement ?? scenePixelMovement;
+    return { walking: mode === 1 || mode === 2 ? 1 : 0, pushing: mode === 2 ? 1 : 0 };
+  }
+
   let sceneBoardKey: AssetKey | null = null;
   let loader: ProgramLoader | null = null;
   let initialCharacterKey: AssetKey | null = null;
@@ -391,6 +399,10 @@ export function createEngine(init: EngineInit): Engine {
     list.push(registration);
     registrationByPhase.set(registration.phase, list);
   }
+  scenePixelMovement = registrations.find((registration) => registration.phase === "movement" && registration.pixelMovement !== undefined)?.pixelMovement
+    ?? registrations.find((registration) => registration.phase === "input" && registration.pixelMovement !== undefined)?.pixelMovement
+    ?? 0;
+  if (init.mainFile === undefined) state.world = { ...state.world, movement: movementDefaults(null) };
   const bus = new EffectBus(state, (diagnostic) => diagnostics.push(diagnostic));
 
   const shopSession = createShopSessionRuntime(() => state.vm.threads);
@@ -598,7 +610,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
-    applySpriteEffect(state, effect.name, values, mainFile?.pixelMovement ?? 0);
+    applySpriteEffect(state, effect.name, values);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
@@ -1110,6 +1122,7 @@ export function createEngine(init: EngineInit): Engine {
     return nextServices;
   }
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
+    const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -1130,6 +1143,13 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
+      state.world = {
+        ...state.world,
+        movement: {
+          walking: state.world.movement.walking ?? movementFallback.walking,
+          pushing: state.world.movement.pushing ?? movementFallback.pushing,
+        },
+      };
       // A save may carry a bare section; the restored continuation must still render, so the engine completes
       // the surface section it owns, exactly as it does at creation (never inventing game data).
       if (Object.keys(state.surfaces).length === 0) state.surfaces = createSurfacesSection(init.width, init.height);
@@ -1878,7 +1898,7 @@ export function createEngine(init: EngineInit): Engine {
       resetLifecycle();
       return;
     }
-    if (effect.name === "mainFile" && typeof second === "string") {
+    if ((effect.name === "mainfile" || effect.name === "mainFile") && typeof second === "string") {
       resetLifecycle(second);
       return;
     }
@@ -1892,8 +1912,12 @@ export function createEngine(init: EngineInit): Engine {
     clearStartupAnchors();
     const rng = state.rng;
     const time = state.time;
+    if (nextMain !== undefined) {
+      initialCharacterKey = null;
+      initialCharacterResolved = true;
+    }
     const fresh = createGameState({ seed: 0 });
-    state.world = fresh.world;
+    state.world = { ...fresh.world, movement: movementDefaults(mainFile) };
     state.sprites = fresh.sprites;
     state.actors = fresh.actors;
     state.party = fresh.party;
@@ -2194,7 +2218,7 @@ export function createEngine(init: EngineInit): Engine {
     }
     registerEmitter(state.vm, state.events, boardEmitterKey(board.key));
     clearPathfindingCache();
-    state.world = { board };
+    state.world = { ...state.world, board };
     resetTriggersSection(state.triggers);
     state.triggers.boardKey = board.key;
     // Keep the boot poll pending through any blocking board-enter program.
@@ -2391,6 +2415,7 @@ export function createEngine(init: EngineInit): Engine {
         return false;
       }
       mainFile = parsed.value;
+      state.world = { ...state.world, movement: movementDefaults(mainFile) };
       if (root.kind === "game") root = { kind: "game", projectPath: mainFile.projectPath };
       refreshGameId();
       for (const key of [...privateFontKeys(index, root), ...programKeys(index, root)]) request(key, key.endsWith(".ttf") ? "font" : "program");
@@ -2501,7 +2526,7 @@ export function createEngine(init: EngineInit): Engine {
       const cloneDiagnostics: Diagnostic[] = [];
       const staged = restoreGameState(snapshot(state), cloneDiagnostics);
       if (cloneDiagnostics.length > 0) throw new Error(cloneDiagnostics.map((entry) => entry.message).join("; "));
-      applyRecoveryLedger(staged, ledger, recoveryListenerHandles(candidate.recoveryAssets));
+      applyRecoveryLedger(staged, ledger, movementDefaults(mainFile), recoveryListenerHandles(candidate.recoveryAssets));
       recoveryLaunch = { candidate, ledger, staged, boardKey: assetKey(ledger.world.board.value.key) };
       return true;
     } catch (error) {
@@ -2848,7 +2873,7 @@ export function createEngine(init: EngineInit): Engine {
     if (loaded === "pending" || loaded === null) return false;
     registerEmitter(state.vm, state.events, boardEmitterKey(loaded.key));
     clearPathfindingCache();
-    state.world = { board: loaded };
+    state.world = { ...state.world, board: loaded };
     state.camera = initCameraForBoard(state.camera, loaded, init.cameraTarget);
     postPrefetch(loaded);
     boardLifecycle("entered", loaded, state.sprites.players[0]);
