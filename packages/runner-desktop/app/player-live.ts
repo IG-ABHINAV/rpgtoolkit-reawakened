@@ -108,6 +108,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
       pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
+    ({ x, y }) => session.engine.pointerPreemptsRunnerControl(x, y),
   );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);

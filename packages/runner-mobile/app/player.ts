@@ -257,6 +257,7 @@ function run(
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
       pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
+    ({ x, y }) => session.engine.pointerPreemptsRunnerControl(x, y),
   );
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 

@@ -382,6 +382,7 @@ function startLiveLoop(
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
       pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
+    ({ x, y }) => session.engine.pointerPreemptsRunnerControl(x, y),
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (shouldSuppressGameplayKey(event.code, event.repeat, down, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;

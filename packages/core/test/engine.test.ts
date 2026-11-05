@@ -446,6 +446,27 @@ test("Engine touch-control query requires the explicit declaration command", () 
   equal(engine.customTouchControlsDeclared(), true);
 });
 
+test("pointer preemption query is read-only and follows modal and author UI priority", () => {
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Author target", "author-target", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([surfaceRegistration]);
+  engine.advance(1, []);
+  const before = JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() });
+  equal(engine.pointerPreemptsRunnerControl(5, 5), true);
+  equal(engine.pointerPreemptsRunnerControl(17, 17), false);
+  equal(JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() }), before, "preflight does not mutate or hash simulation state");
+
+  const modal = programEngine('msgbox("Modal")\nend()', []);
+  modal.advance(1, []);
+  equal(modal.pointerPreemptsRunnerControl(300, 200), true, "an active modal preempts a fallback target regardless of the point");
+});
+
 test("default Enter and Escape claims prevent Get from reading the same key", () => {
   for (const key of ["Enter", "Escape"] as const) {
     const capture = captureState();

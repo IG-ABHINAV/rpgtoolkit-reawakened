@@ -34,11 +34,15 @@ export function attachPointerInput(
   geometry: () => HostDisplayGeometry,
   onPointer: (pointer: LogicalPointer, buttons: number) => void,
   onCancel: () => void,
+  preemptsFallback: (pointer: LogicalPointer) => boolean,
 ): () => void {
   let primaryPointerId: number | null = null;
   let suppressedPointerId: number | null = null;
   let routedButtons = 0;
   let lastPointer: LogicalPointer = { x: 0, y: 0 };
+  const runnerOwnedPointers = new Set<number>();
+  const corePreemptedFallbackPointers = new Set<number>();
+  const handledCancels = new WeakSet<Event>();
 
   const cancelPrimary = (pointerId: number): void => {
     if (pointerId !== primaryPointerId || suppressedPointerId === pointerId || (routedButtons & 1) === 0) return;
@@ -47,7 +51,26 @@ export function attachPointerInput(
     routedButtons &= ~1;
   };
   const route = (event: PointerEvent): void => {
-    if (isFallbackTouchControlTarget(event.target)) return;
+    const fallbackTarget = isFallbackTouchControlTarget(event.target);
+    const runnerOwned = runnerOwnedPointers.has(event.pointerId);
+    const corePreempted = corePreemptedFallbackPointers.has(event.pointerId);
+    if (runnerOwned) {
+      if (event.type === "pointerup") runnerOwnedPointers.delete(event.pointerId);
+      return;
+    }
+    if (fallbackTarget && !corePreempted) {
+      if (event.type !== "pointerdown" || event.button !== 0 || (event.buttons & 1) === 0) return;
+      const point = pointerEventToLogical(event, host, viewSize, geometry());
+      if (!preemptsFallback(point)) {
+        runnerOwnedPointers.add(event.pointerId);
+        return;
+      }
+      corePreemptedFallbackPointers.add(event.pointerId);
+    }
+    if (corePreemptedFallbackPointers.has(event.pointerId)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     const rect = host.getBoundingClientRect();
     const outside = event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom;
     const primaryNow = (event.buttons & 1) !== 0;
@@ -78,6 +101,7 @@ export function attachPointerInput(
         primaryPointerId = null;
         suppressedPointerId = null;
       }
+      if (event.type === "pointerup") corePreemptedFallbackPointers.delete(event.pointerId);
       return;
     }
     if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
@@ -91,6 +115,7 @@ export function attachPointerInput(
       primaryPointerId = null;
       suppressedPointerId = null;
     }
+    if (event.type === "pointerup") corePreemptedFallbackPointers.delete(event.pointerId);
   };
   const onPointerLeave = (event: PointerEvent): void => cancelPrimary(event.pointerId);
   const onPointerUpOutside = (event: PointerEvent): void => {
@@ -99,9 +124,18 @@ export function attachPointerInput(
       cancelPrimary(event.pointerId);
       primaryPointerId = null;
       suppressedPointerId = null;
+      corePreemptedFallbackPointers.delete(event.pointerId);
     }
   };
   const onPointerCancel = (event: PointerEvent): void => {
+    if (event.currentTarget === window && handledCancels.has(event)) return;
+    if (event.currentTarget === host) handledCancels.add(event);
+    if (runnerOwnedPointers.delete(event.pointerId)) return;
+    const corePreempted = corePreemptedFallbackPointers.delete(event.pointerId);
+    if (corePreempted) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     if (event.currentTarget === window && event.target === host) return;
     if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
     if (primaryPointerId === event.pointerId) cancelPrimary(event.pointerId);
@@ -117,23 +151,22 @@ export function attachPointerInput(
     routedButtons &= ~1;
   };
 
-  host.addEventListener("pointerdown", route);
-  host.addEventListener("pointermove", route);
-  host.addEventListener("pointerup", route);
+  host.addEventListener("pointerdown", route, true);
+  host.addEventListener("pointermove", route, true);
+  host.addEventListener("pointerup", route, true);
   host.addEventListener("pointerleave", onPointerLeave);
-  host.addEventListener("pointercancel", onPointerCancel);
+  host.addEventListener("pointercancel", onPointerCancel, true);
   window.addEventListener("pointerup", onPointerUpOutside);
   window.addEventListener("pointercancel", onPointerCancel);
   window.addEventListener("blur", onWindowBlur);
   return (): void => {
-    host.removeEventListener("pointerdown", route);
-    host.removeEventListener("pointermove", route);
-    host.removeEventListener("pointerup", route);
+    host.removeEventListener("pointerdown", route, true);
+    host.removeEventListener("pointermove", route, true);
+    host.removeEventListener("pointerup", route, true);
     host.removeEventListener("pointerleave", onPointerLeave);
-    host.removeEventListener("pointercancel", onPointerCancel);
+    host.removeEventListener("pointercancel", onPointerCancel, true);
     window.removeEventListener("pointerup", onPointerUpOutside);
     window.removeEventListener("pointercancel", onPointerCancel);
     window.removeEventListener("blur", onWindowBlur);
   };
 }
-
