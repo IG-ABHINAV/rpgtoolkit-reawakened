@@ -1170,9 +1170,9 @@ export function restoreGameState(
   // The schema migration is the one transform before the newer-version check: a
   // legacy save has `compiler` and no `ir`, and is always older.
   migrateSchema(schemaValue);
-  migrateHostSections(record, schemaValue, options.logicalWidth ?? 320, options.logicalHeight ?? 240);
   refuseNewerIr(schemaValue.ir);
   refuseNewerFrameIr(record);
+  migrateHostSections(record, schemaValue, options.logicalWidth ?? 320, options.logicalHeight ?? 240);
   const schema = schemaValue;
   migrateEvents(record, schema);
   migrateActors(record, schema as Record<string, unknown>);

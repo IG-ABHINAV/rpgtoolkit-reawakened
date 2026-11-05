@@ -70,6 +70,10 @@ test("restore refuses a newer instruction version and a missing section", () => 
   const error = errorOf(() => restoreGameState(JSON.stringify(newer)));
   equal(error.code, "restore.ir-mismatch");
   ok(error.message.includes("schema.ir"), error.message);
+  const malformedHost = JSON.parse(json) as { schema: { ir: string; features: unknown } };
+  malformedHost.schema.ir = "999";
+  malformedHost.schema.features = "invalid";
+  equal(errorOf(() => restoreGameState(JSON.stringify(malformedHost))).code, "restore.ir-mismatch");
 
   const missingSection = JSON.parse(json) as Record<string, unknown>;
   delete missingSection.vm;

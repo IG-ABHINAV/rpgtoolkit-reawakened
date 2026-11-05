@@ -122,10 +122,18 @@ test("engine applies and records complete host updates on their consuming tick",
   ]);
   deepEqual(ordered.consumed.map((input) => input.event.kind), ["key", "host.features"]);
   if (live.state === null) throw new Error("expected a live state");
+  const focusedFeatures = { ...features, gamepad: false };
+  const blur = engine.advance(0, [
+    { tick: ordered.tickAfter, event: { kind: "host.features", features: focusedFeatures } },
+    { tick: ordered.tickAfter, event: { kind: "focus", state: "lost" } },
+  ]);
+  deepEqual(blur.consumed.map((input) => input.event.kind), ["host.features", "focus"]);
+  deepEqual(live.state.features, focusedFeatures);
+  engine.advance(0, [{ tick: ordered.tickAfter, event: { kind: "focus", state: "gained" } }]);
   live.state.vm.globals["resetSentinel"] = 7;
   startThread(live.state.vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
   engine.advance(1, []);
   equal(live.state.vm.globals["resetSentinel"], undefined, "the reset actually ran");
-  deepEqual(live.state.features, features, "reset keeps the current host features");
+  deepEqual(live.state.features, focusedFeatures, "reset keeps the current host features");
   deepEqual(live.state.display.geometry, geometry, "reset keeps the current display geometry");
 });

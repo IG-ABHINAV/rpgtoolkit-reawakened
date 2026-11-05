@@ -3407,16 +3407,17 @@ export function createEngine(init: EngineInit): Engine {
         consumed.push(record);
       } else if (record.event.kind === "focus") {
         if (record.event.state === "lost" && state.engine.openTick === undefined) {
-          // Records queued before the blur happened before it. Apply the keys among them first, so a key pressed in
-          // the blur's own frame is released with the rest instead of surviving into the resumed game
-          // (display-input-audio.md rule 4; issue #1120).
+          // Apply earlier keys and host updates in order before focus loss stops the tick.
+          // Keys must be released by the blur; host observations must not wait for a resumed tick.
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
-            if (earlier.event.kind !== "key") {
-              at += 1;
-              continue;
+            if (!applyHostStateEvent(earlier.event)) {
+              if (earlier.event.kind !== "key") {
+                at += 1;
+                continue;
+              }
+              applyInputEvent(state.input, earlier.event);
             }
-            applyInputEvent(state.input, earlier.event);
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
