@@ -192,6 +192,7 @@ type EngineCommonInit = {
   readonly spriteRuntime?: SpriteRuntime;
   /** The author's default SoundFont (docs/spec/engine/audio-media.md#soundfont-layers rank 3); `null` or absent for none. */
   readonly defaultSoundFont?: AssetKey | null;
+  readonly input?: InputConfig;
   readonly include?: DrawListInclude;
   readonly features?: HostFeatures;
   /** Measured CSS-pixel geometry for the logical game viewport. */
@@ -1908,7 +1909,13 @@ export function createEngine(init: EngineInit): Engine {
     clearStartupAnchors();
     const rng = state.rng;
     const time = state.time;
-    const fresh = createGameState({ seed: 0 });
+    const fresh = createGameState({
+      seed: 0,
+      width: init.width,
+      height: init.height,
+      ...(init.features === undefined ? {} : { features: init.features }),
+      ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+    });
     state.world = fresh.world;
     state.sprites = fresh.sprites;
     state.actors = fresh.actors;
@@ -1919,6 +1926,8 @@ export function createEngine(init: EngineInit): Engine {
     state.events = fresh.events;
     state.battle = fresh.battle;
     state.menu = fresh.menu;
+    state.features = fresh.features;
+    state.display = fresh.display;
     state.input = createInputSection(init.input);
     state.ui = fresh.ui;
     state.camera = createCameraSection(init.width, init.height);
