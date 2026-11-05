@@ -119,6 +119,8 @@ export type CommandView = {
    * threading a position through its arguments, which the language has no
    * expression for (TOOL-5).
    */
+  /** Configured logical viewport, distinct from current physical display geometry. */
+  readonly logicalViewport?: { readonly width: number; readonly height: number };
   readonly pos?: SourcePos;
   /** Main-file game-over program selected by the boot owner. */
   readonly gameOverProgram?: string | null;

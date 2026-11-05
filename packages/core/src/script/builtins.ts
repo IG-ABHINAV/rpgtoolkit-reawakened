@@ -31,6 +31,7 @@ import { ERROR_SPECS } from "./builtins/errors.ts";
 import { EVENT_SPECS } from "./builtins/events.ts";
 import { FILE_SPECS } from "./builtins/files.ts";
 import { PURE_SPECS } from "./builtins/pure.ts";
+import { HOST_SPECS } from "./builtins/host.ts";
 import { SCOPE_SPECS } from "./builtins/scope.ts";
 import { STRING_SPECS } from "./builtins/strings.ts";
 import { THREAD_SPECS } from "./builtins/threads.ts";
@@ -185,6 +186,7 @@ export const CORE_PLUGIN: PluginDefinition = {
         groups: ["internal"],
       },
     },
+    ...HOST_SPECS,
     ...PURE_SPECS,
     {
       name: "sleep",

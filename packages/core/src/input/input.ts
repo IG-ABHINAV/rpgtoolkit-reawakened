@@ -226,7 +226,10 @@ export function applyInputEvent(state: InputSection, event: InputEvent): void {
 }
 
 /** Apply staged pads in device order and clear the per-tick staging area. */
-export function processGamepadEvents(state: InputSection): void {
+export function processGamepadEvents(
+  state: InputSection,
+  onConnectionTransition?: (event: { readonly device: number; readonly connected: boolean }) => void,
+): void {
   const events = state.pendingGamepads.map((event, index) => ({ event, index })).sort((left, right) => left.event.device - right.event.device || left.index - right.index);
   state.pendingGamepads = [];
   for (const { event } of events) {
@@ -236,14 +239,17 @@ export function processGamepadEvents(state: InputSection): void {
       if (prior === undefined || !prior.connected) continue;
       prior.connected = false;
       prior.mask = 0;
+      onConnectionTransition?.({ device: event.device, connected: false });
       updateAllActions(state, true, `gamepad:${event.device}`);
       continue;
     }
     if (!Number.isInteger(event.axes.x) || !Number.isInteger(event.axes.y)) continue;
-    const prior: InputGamepad = state.gamepads[String(event.device)] ?? { connected: true, mask: 0 };
+    const prior: InputGamepad = state.gamepads[String(event.device)] ?? { connected: false, mask: 0 };
+    const newlyConnected = !prior.connected;
     prior.connected = true;
     prior.mask = maskForGamepad(event);
     state.gamepads[String(event.device)] = prior;
+    if (newlyConnected) onConnectionTransition?.({ device: event.device, connected: true });
     updateAllActions(state, true, `gamepad:${event.device}`);
   }
 }
