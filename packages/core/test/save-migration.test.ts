@@ -26,6 +26,7 @@ import {
   snapshot,
   type ScriptError,
 } from "../src/index.ts";
+import { applyInputEvent, processGamepadEvents } from "../src/input/input.ts";
 
 function errorOf(run: () => unknown): { code: string; message: string } {
   try {
@@ -342,6 +343,39 @@ test("game saves persist only playback projection and restore with current audio
   const mismatch = JSON.parse(json) as { audio: { tick: number } };
   mismatch.audio.tick += 1;
   throws(() => restoreGameSave(JSON.stringify(mismatch), current.audio), /audio\.tick must match time\.tick/);
+});
+test("input migration reconciles legacy held claims and advances past queued pointer gesture ids", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as {
+    schema: { input: number };
+    input: Record<string, unknown>;
+  };
+  raw.schema.input = 6;
+  raw.input.version = 6;
+  raw.input.registeredActions = [];
+  raw.input.gamepads = { "0": { connected: true, mask: 8 } };
+  raw.input.actions = { right: true };
+  raw.input.keyboardActions = { right: true };
+  raw.input.keyboardActionSources = {};
+  raw.input.held = { RIGHT: true, ArrowRight: true };
+  raw.input.bindings = { keys: { ArrowRight: "right" } };
+  raw.input.pendingClicks = [{ gestureId: 4, x: 8, y: 9 }];
+  raw.input.pendingPointerUps = [{ gestureId: 5, x: 10, y: 11 }];
+  delete raw.input.actionOrder;
+  delete raw.input.pendingKeySequences;
+  delete raw.input.nextPointerGestureId;
+  delete raw.input.pointerGestureId;
+  const restored = restoreGameState(JSON.stringify(raw));
+  equal(restored.input.gamepads["0"]?.mask, 1 << 15, "legacy logical right becomes W3C physical right");
+  deepEqual(restored.input.keyboardActionSources.right, { "key:ArrowRight": true }, "legacy keyboard hold is linked to its physical key");
+  equal(restored.input.nextPointerGestureId, 6, "the next gesture follows all queued legacy pointer records");
+  applyInputEvent(restored.input, { kind: "pointer", x: 20, y: 21, buttons: 1 });
+  equal(restored.input.pendingClicks.at(-1)?.gestureId, 6);
+  applyInputEvent(restored.input, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: false });
+  equal(restored.input.actions.right, true, "gamepad still owns right after keyboard release");
+  applyInputEvent(restored.input, { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+  processGamepadEvents(restored.input);
+  equal(restored.input.actions.right, false, "disconnect releases migrated physical gamepad state");
 });
 
 test("game saves from prior audio schema migrate to current schema with empty projection", () => {

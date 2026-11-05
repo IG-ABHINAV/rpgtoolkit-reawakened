@@ -1,8 +1,8 @@
 import {
   decodeLog,
   validateInputEvent,
-  type InputEvent,
-  type InputRecord,
+  type InputEventV1,
+  type InputRecordV1,
   type PlainData,
   type PortData,
 } from "@tk-reawakened/core";
@@ -16,7 +16,7 @@ export type TickRecord = {
 export type Run = {
   readonly schema: 1;
   readonly ticks: number;
-  readonly log: readonly InputRecord[];
+  readonly log: readonly InputRecordV1[];
 };
 
 export type Golden = {
@@ -46,7 +46,7 @@ function checkNoExtraKeys(
  * messages carry the record index. This is the only place that knows about
  * event shapes; `parseRun` keeps run-file structure.
  */
-export function parseEvent(raw: unknown, recordIndex: number): InputEvent {
+export function parseEvent(raw: unknown, recordIndex: number): InputEventV1 {
   const missingEvent = `run.json: record ${recordIndex}: event: missing or not an object`;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error(missingEvent);
@@ -79,6 +79,9 @@ export function parseEvent(raw: unknown, recordIndex: number): InputEvent {
         ? prefix + result.message
         : `${prefix}${result.path}: ${result.message}`,
     );
+  }
+  if (result.value.kind === "action") {
+    throw new Error(`run.json: record ${recordIndex}: kind: unknown input event`);
   }
   return result.value;
 }

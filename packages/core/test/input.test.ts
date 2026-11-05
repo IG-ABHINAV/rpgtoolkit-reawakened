@@ -117,6 +117,14 @@ test("keyboard bindings retain independent physical claims for one game action",
   applyInputEvent(state, { kind: "key", name: "G", code: "KeyG", char: "g", down: false });
   equal(state.actions["game.dash"], false);
 });
+test("mapped and physically bound game actions retain registry order on a shared control", () => {
+  const state = createInputSection({ bindings: { keys: { KeyF: "game.first" } } });
+  const definition = (name: string, controls: string[]) => ({ name, label: name, icon: null, group: null, controls, locked: false, hidden: false });
+  equal(registerGameAction(state, definition("game.first", [])), true);
+  equal(registerGameAction(state, definition("game.second", ["key:KeyF"])), true);
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  deepEqual(state.keys[0]?.resolvedActions, ["game.first", "game.second"]);
+});
 
 test("a registry with the specified 512 actions dispatches the bound action", () => {
   const state = createInputSection();
@@ -432,7 +440,7 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 7);
+  equal(state.input.version, 8);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);

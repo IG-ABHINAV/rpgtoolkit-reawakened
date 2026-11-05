@@ -1182,6 +1182,7 @@ export function createEngine(init: EngineInit): Engine {
       state.input.registeredActions = actionRegistry.registeredActions;
       state.input.actionRegistry = actionRegistry.actionRegistry;
       state.input.controlActions = actionRegistry.controlActions;
+      state.input.actionOrder = actionRegistry.actionOrder;
       state.input.actionPadMasks = actionRegistry.actionPadMasks;
       for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.keyboardActionSources), ...Object.keys(state.input.semanticActionSources)])) {
         if (Object.hasOwn(state.input.actionRegistry, action)) continue;

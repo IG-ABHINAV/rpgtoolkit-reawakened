@@ -21,7 +21,7 @@ const PORTS = "packages/core/src/ports";
 /** The three record families on the boundary: where each TypeScript type lives and the schema `$defs` that describes it. */
 export const ROOTS = [
   { file: `${PORTS}/draw.ts`, alias: "DrawList", def: "drawList" },
-  { file: `${PORTS}/input.ts`, alias: "InputRecord", def: "inputRecord" },
+  { file: `${PORTS}/input.ts`, alias: "InputRecordV1", def: "inputRecord" },
   { file: `${PORTS}/requests.ts`, alias: "RunnerRequest", def: "request" },
 ];
 

@@ -190,6 +190,7 @@ function gameSaveRoot(state: GameState): Record<string, unknown> {
   const input = { ...(root.input as Record<string, unknown>) };
   delete input.registeredActions;
   delete input.actionRegistry;
+  delete input.actionOrder;
   delete input.controlActions;
   return { ...root, input, audio: audioSaveProjection(state.audio, state.time.tick) };
 }

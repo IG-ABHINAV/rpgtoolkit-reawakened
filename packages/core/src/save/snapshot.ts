@@ -338,15 +338,18 @@ function migrateTriggers(record: Record<string, unknown>, schema: Record<string,
 }
 
 function rebuildInputActionIndexes(input: Record<string, unknown>): void {
-  const registry: Record<string, true> = Object.fromEntries(["up", "down", "left", "right", "confirm", "cancel", "menu"].map((name) => [name, true]));
+  const engineActions = ["up", "down", "left", "right", "confirm", "cancel", "menu"];
+  const registry: Record<string, true> = Object.fromEntries(engineActions.map((name) => [name, true]));
+  const order: Record<string, number> = Object.fromEntries(engineActions.map((name, index) => [name, index]));
   const controls: Record<string, string[]> = {};
   const padMasks: Record<string, number> = {};
   const registered = Array.isArray(input.registeredActions) ? input.registeredActions : [];
-  for (const value of registered) {
+  for (const [index, value] of registered.entries()) {
     if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
     const action = value as Record<string, unknown>;
     if (typeof action.name !== "string" || !/^game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/.test(action.name)) continue;
     Object.defineProperty(registry, action.name, { value: true, enumerable: true, configurable: true, writable: true });
+    Object.defineProperty(order, action.name, { value: engineActions.length + index, enumerable: true, configurable: true, writable: true });
     if (!Array.isArray(action.controls)) continue;
     for (const control of action.controls) {
       if (typeof control !== "string" || !/^(?:key:[A-Za-z][A-Za-z0-9]*|pad:(?:[0-9]|1[0-6])|pad:axis[01][+-])$/.test(control)) continue;
@@ -359,17 +362,38 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
     }
   }
   input.actionRegistry = registry;
+  input.actionOrder = order;
   input.controlActions = controls;
   input.actionPadMasks = padMasks;
-  if (typeof input.keyboardActionSources !== "object" || input.keyboardActionSources === null || Array.isArray(input.keyboardActionSources)) {
-    const sources: Record<string, Record<string, true>> = {};
-    if (typeof input.keyboardActions === "object" && input.keyboardActions !== null && !Array.isArray(input.keyboardActions)) {
-      for (const [action, held] of Object.entries(input.keyboardActions as Record<string, unknown>)) {
-        if (held === true) sources[action] = { "legacy.keyboard": true };
-      }
-    }
-    input.keyboardActionSources = sources;
+  const sources = typeof input.keyboardActionSources === "object" && input.keyboardActionSources !== null && !Array.isArray(input.keyboardActionSources)
+    ? input.keyboardActionSources as Record<string, Record<string, true>>
+    : {};
+  const heldKeys = typeof input.held === "object" && input.held !== null && !Array.isArray(input.held)
+    ? input.held as Record<string, unknown>
+    : {};
+  const bindings: Record<string, unknown> = {};
+  const bindingRecord = input.bindings;
+  if (typeof bindingRecord === "object" && bindingRecord !== null && !Array.isArray(bindingRecord) && "keys" in bindingRecord) {
+    const keyMap = bindingRecord.keys;
+    if (typeof keyMap === "object" && keyMap !== null && !Array.isArray(keyMap)) Object.assign(bindings, keyMap);
   }
+  const defaults: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Space: "confirm", Escape: "cancel" };
+  const aliases: Record<string, string> = { ENTER: "confirm", RETURN: "confirm", SPACE: "confirm", " ": "confirm", ESC: "cancel", ESCAPE: "cancel", UP: "up", DOWN: "down", LEFT: "left", RIGHT: "right" };
+  const resolve = (value: unknown): string | null => typeof value === "string" ? aliases[value.toUpperCase()] ?? value : null;
+  if (typeof input.keyboardActions === "object" && input.keyboardActions !== null && !Array.isArray(input.keyboardActions)) {
+    for (const [action, held] of Object.entries(input.keyboardActions as Record<string, unknown>)) {
+      if (held !== true || !Object.hasOwn(registry, action) || Object.keys(sources[action] ?? {}).length > 0) continue;
+      const claims: Record<string, true> = {};
+      for (const [code, down] of Object.entries(heldKeys)) {
+        if (down !== true) continue;
+        const resolved = resolve(bindings[code]) ?? defaults[code] ?? null;
+        if (resolved === action) Object.defineProperty(claims, `key:${code}`, { value: true, enumerable: true, configurable: true, writable: true });
+      }
+      if (Object.keys(claims).length === 0) Object.defineProperty(claims, "legacy.keyboard", { value: true, enumerable: true, configurable: true, writable: true });
+      Object.defineProperty(sources, action, { value: claims, enumerable: true, configurable: true, writable: true });
+    }
+  }
+  input.keyboardActionSources = sources;
 }
 
 /** Migrate the raw input section to the binding-aware schema. */
@@ -381,6 +405,14 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
     if (typeof input.actionPadMasks !== "object" || input.actionPadMasks === null || Array.isArray(input.actionPadMasks)) input.actionPadMasks = {};
     if (typeof input.keyboardActionSources !== "object" || input.keyboardActionSources === null || Array.isArray(input.keyboardActionSources)) input.keyboardActionSources = {};
+    if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    if (!Array.isArray(input.keys)) input.keys = [];
+    input.keys = input.keys.map((value) => {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+      const key = value as Record<string, unknown>;
+      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions : typeof key.action === "string" ? [key.action] : [];
+      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
+    });
     if (typeof input.nextPointerGestureId !== "number" || !Number.isSafeInteger(input.nextPointerGestureId) || input.nextPointerGestureId < 1) input.nextPointerGestureId = 1;
     if (typeof input.pointerGestureId !== "number" || !Number.isSafeInteger(input.pointerGestureId)) input.pointerGestureId = null;
     if (!Array.isArray(input.pendingClicks)) input.pendingClicks = [];
@@ -397,6 +429,20 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     rebuildInputActionIndexes(input);
     return;
   }
+  if (version === 7) {
+    const input = recordAt(record.input, "input");
+    input.version = INPUT_SCHEMA_VERSION;
+    if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    if (!Array.isArray(input.keys)) input.keys = [];
+    input.keys = input.keys.map((value) => {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+      const key = value as Record<string, unknown>;
+      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions : typeof key.action === "string" ? [key.action] : [];
+      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
+    });
+    rebuildInputActionIndexes(input);
+    return;
+  }
   const old = record.input;
   if (typeof old !== "object" || old === null || Array.isArray(old)) {
     record.input = createInputSection();
@@ -404,8 +450,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     return;
   }
   const oldRecord = old as Record<string, unknown>;
-  if (version === 2 || version === 3 || version === 4 || version === 5 || version === 6) {
-    // Schema 3 adds pointer edge counters; schema 4 adds cancellable slot presses; schema 5 adds semantic actions; schema 6 adds pointer-up taps; schema 7 adds gesture ids and per-key claims.
+  if (version >= 2 && version <= 6) {
     const fresh = createInputSection();
     const pointer = typeof oldRecord.pointer === "object" && oldRecord.pointer !== null && !Array.isArray(oldRecord.pointer) ? oldRecord.pointer as Record<string, unknown> : {};
     const legacyPoints = (value: unknown): { gestureId: number; x: number; y: number }[] => Array.isArray(value)
@@ -413,7 +458,20 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
         ? [{ gestureId: typeof (point as Record<string, unknown>).gestureId === "number" ? (point as Record<string, number>).gestureId! : 0, x: (point as Record<string, number>).x!, y: (point as Record<string, number>).y! }]
         : [])
       : [];
-    record.input = {
+    const clicks = legacyPoints(oldRecord.pendingClicks);
+    const pointerUps = legacyPoints(oldRecord.pendingPointerUps);
+    const legacyMask = (mask: number): number => {
+      const targets = [12, 13, 14, 15, 0, 1, 9];
+      return targets.reduce((result, target, source) => result | ((mask & (1 << source)) !== 0 ? (1 << target) : 0), 0);
+    };
+    const pads = typeof oldRecord.gamepads === "object" && oldRecord.gamepads !== null && !Array.isArray(oldRecord.gamepads)
+      ? Object.fromEntries(Object.entries(oldRecord.gamepads as Record<string, unknown>).map(([device, value]) => {
+        if (typeof value !== "object" || value === null || Array.isArray(value)) return [device, value];
+        const pad = value as Record<string, unknown>;
+        return [device, { ...pad, mask: typeof pad.mask === "number" ? legacyMask(pad.mask) : 0 }];
+      }))
+      : {};
+    const migrated = {
       ...oldRecord,
       version: INPUT_SCHEMA_VERSION,
       pointer: { ...fresh.pointer, ...pointer },
@@ -423,12 +481,22 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
       keyboardActionSources: {},
       pointerMovementSuppressed: version >= 5 && typeof oldRecord.pointerMovementSuppressed === "boolean" ? oldRecord.pointerMovementSuppressed : false,
       pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
-      nextPointerGestureId: 1,
+      pendingKeySequences: [],
+      gamepads: pads,
       pointerGestureId: ((pointer.buttons as number | undefined ?? 0) & 1) !== 0 ? 0 : null,
-      pendingClicks: legacyPoints(oldRecord.pendingClicks),
-      pendingPointerUps: legacyPoints(oldRecord.pendingPointerUps),
+      pendingClicks: clicks,
+      pendingPointerUps: pointerUps,
+      nextPointerGestureId: Math.max(1, ...clicks.map((item) => item.gestureId + 1), ...pointerUps.map((item) => item.gestureId + 1)),
     };
-    rebuildInputActionIndexes(record.input as Record<string, unknown>);
+    if (!Array.isArray(migrated.keys)) migrated.keys = [];
+    migrated.keys = migrated.keys.map((value) => {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+      const key = value as Record<string, unknown>;
+      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions : typeof key.action === "string" ? [key.action] : [];
+      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
+    });
+    record.input = migrated;
+    rebuildInputActionIndexes(migrated);
     schema.input = INPUT_SCHEMA_VERSION;
     return;
   }
