@@ -368,7 +368,7 @@ test("a native menu provider waits and resumes its same-thread facade call", () 
   );
   const seq = restored.input.nextSeq;
   restored.input.nextSeq += 1;
-  restored.input.keys.push({ seq, name: "enter", code: "Enter", char: null });
+  restored.input.keys.push({ seq, name: "enter", code: "Enter", char: null, action: null, resolvedActions: [] });
   advanceOrFail(restored, restoredServices);
   deepEqual(providerEvents, ["enter", "input"]);
   equal(restored.menu.screens.length, 0);
@@ -478,7 +478,7 @@ test("an RPGCode provider frame resumes around a native child facade call", () =
   equal(state.vm.threads[0]?.status, "waiting");
   const seq = state.input.nextSeq;
   state.input.nextSeq += 1;
-  state.input.keys.push({ seq, name: "enter", code: "Enter", char: null });
+  state.input.keys.push({ seq, name: "enter", code: "Enter", char: null, action: null, resolvedActions: [] });
   runToEnd(state, services);
   deepEqual(nativeEvents, ["enter", "input"]);
   equal(state.vm.globals.parentresumed, 1);
@@ -673,7 +673,7 @@ test("a resumed provider exception cleans its menu stack and reaches the caller 
   equal(state.vm.threads[0]?.status, "waiting");
   const seq = state.input.nextSeq;
   state.input.nextSeq += 1;
-  state.input.keys.push({ seq, name: "enter", code: "Enter", char: null });
+  state.input.keys.push({ seq, name: "enter", code: "Enter", char: null, action: null, resolvedActions: [] });
   advanceScriptTick(state, services);
   equal(state.vm.globals.handled, 1, "the caller's error handler should run");
   equal(state.vm.globals.after, undefined);
@@ -730,7 +730,7 @@ for (const failureCase of [
     equal(state.vm.threads[0]?.status, "waiting");
     const seq = state.input.nextSeq;
     state.input.nextSeq += 1;
-    state.input.keys.push({ seq, name: "enter", code: "Enter", char: null });
+    state.input.keys.push({ seq, name: "enter", code: "Enter", char: null, action: null, resolvedActions: [] });
     advanceScriptTick(state, services);
     equal(state.vm.globals.handled, 1);
     equal(state.vm.globals.after, undefined);

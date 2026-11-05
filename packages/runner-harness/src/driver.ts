@@ -4,6 +4,7 @@ import {
   hashDrawList,
   type Diagnostic,
   type Engine,
+  type InputRecordV1,
   type InputRecord,
   type RunnerRequest,
   type TickReport,
@@ -88,6 +89,17 @@ export type TickObservation = {
 /** Called for each `advance`, after runLog checks timing and consumed-input contracts. */
 export type TickObserver = (observation: TickObservation) => void;
 
+const V1_GAMEPAD_BUTTON_BITS = [12, 13, 14, 15, 0, 1, 9] as const;
+
+function upgradeV1Record(record: InputRecordV1): InputRecord {
+  if (record.event.kind !== "gamepad") return record;
+  let buttons = 0;
+  for (let bit = 0; bit < V1_GAMEPAD_BUTTON_BITS.length; bit++) {
+    if ((record.event.buttons & (1 << bit)) !== 0) buttons |= 1 << V1_GAMEPAD_BUTTON_BITS[bit]!;
+  }
+  return { ...record, event: { ...record.event, buttons } };
+}
+
 export function runLog(
   engine: Engine,
   run: Run,
@@ -121,7 +133,7 @@ export function runLog(
           `runLog: call ${callIndex}: record tick ${rec.tick} is before window [${before}, ${endWindow})`,
         );
       }
-      fedInputs.push(rec);
+      fedInputs.push(upgradeV1Record(rec));
       inputIndex++;
     }
 

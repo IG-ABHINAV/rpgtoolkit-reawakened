@@ -8,11 +8,13 @@ import {
   blitSurface,
   getPixel,
   GRAPHICS_PLUGIN,
+  composeUiMargins,
+  rasterizePresentation,
   readSurfacePixels,
-  type Arg,
   type CommandView,
   type SurfaceId,
 } from "../src/index.ts";
+import type { Arg } from "../src/script/builtins.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
 import type { SurfacesSection } from "../src/save/sections/surfaces.ts";
 
@@ -57,6 +59,38 @@ test("drawing primitives mutate persistent canvases and getPixel writes all outp
   deepEqual(getPixel(state.surfaces, canvas as never, 3, 3), { r: 255, g: 255, b: 255 });
   const output = command("getpixel").call(commandView, [arg(1), arg(1), arg(0, "global:r"), arg(0, "global:g"), arg(0, "global:b"), arg(canvas)], () => ({ value: null }));
   deepEqual(output.out, [[2, 255], [3, 255], [4, 255]]);
+});
+test("screen vector primitives emit safe Plane 3 pixels for every author primitive", () => {
+  const { state, commandView } = view();
+  state.ui.authorMarginCommands = [];
+  command("setpixel").call(commandView, [arg(-1), arg(0)], NONE);
+  command("drawline").call(commandView, [arg(-2), arg(1), arg(-1), arg(1)], NONE);
+  command("drawrect").call(commandView, [arg(-2), arg(2), arg(-1), arg(3)], NONE);
+  command("fillrect").call(commandView, [arg(-2), arg(4), arg(-1), arg(5)], NONE);
+  command("drawcircle").call(commandView, [arg(-1), arg(6), arg(1)], NONE);
+  command("fillcircle").call(commandView, [arg(-1), arg(7), arg(1)], NONE);
+  equal(state.ui.authorMarginCommands.length, 10);
+
+  const geometry = {
+    content: { width: 12, height: 8 },
+    game: { x: 2, y: 0, width: 8, height: 8 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const result = rasterizePresentation({
+    tick: 0,
+    width: 8,
+    height: 8,
+    commands: [],
+    marginCommands: composeUiMargins(state.ui, 8, 8),
+  }, geometry, new Map());
+  equal(result.error, null);
+  const pixel = (x: number, y: number) => [...result.rgba.slice((y * result.width + x) * 4, (y * result.width + x) * 4 + 4)];
+  deepEqual(pixel(1, 0), [255, 255, 255, 255], "setpixel");
+  deepEqual(pixel(0, 1), [255, 255, 255, 255], "drawline");
+  deepEqual(pixel(0, 2), [255, 255, 255, 255], "drawrect");
+  deepEqual(pixel(0, 4), [255, 255, 255, 255], "fillrect");
+  deepEqual(pixel(0, 6), [255, 255, 255, 255], "drawcircle");
+  deepEqual(pixel(1, 7), [255, 255, 255, 255], "fillcircle");
 });
 
 test("canvas blits, screen capture and numbered screen restore use surface revisions", () => {

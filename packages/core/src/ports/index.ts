@@ -11,6 +11,7 @@ export type * from "./rng.ts";
 export type * from "./time.ts";
 export type * from "./keys.ts";
 export type * from "./draw.ts";
+export type * from "./accessibility.ts";
 export type * from "./audio.ts";
 export type * from "./requests.ts";
 export type * from "./logger.ts";

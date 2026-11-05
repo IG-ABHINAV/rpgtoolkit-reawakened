@@ -166,7 +166,7 @@ test("full-engine CallShop opens the stock menu's shop screen and scripted input
   equal(shopFrame(released)?.selection, 0, "the release activates the pressed row's own screen");
   showing(released, "Stock Tonic");
   showing(released, "20 GP each");
-  const padded = pad(session, 2);
+  const padded = pad(session, 1 << 13);
   equal(shopFrame(padded)?.selection, 1, "the pad's down action moves the same cursor");
   showing(padded, "8 GP each");
   press(session, "ESC");

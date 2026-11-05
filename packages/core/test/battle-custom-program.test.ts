@@ -267,6 +267,7 @@ function drawListFor(state: GameState): DrawList {
     tick: state.time.tick,
     width: 640,
     height: 480,
+    marginCommands: [],
     commands: composeUi(state.ui, 640, 480, state.input, false),
   };
 }
@@ -329,8 +330,8 @@ test("custom fight seed and mid-battle save restore preserve state and drawing",
   equal(drawHash, hashDrawList(drawListFor(repeated.state)));
   equal(stateHash === hashState(differentSeed.state), false);
   equal(drawHash === hashDrawList(drawListFor(differentSeed.state)), false);
-  equal(stateHash, "c77efdff1b908987"); // Input schema 4, world schema 2 and host state enter the hash.
-  equal(drawHash, "3fa17af6365a9ba5");
+  equal(stateHash, "d954ffd1368f84e9"); // UI schema 7 adds a hashed author-claim cancellation flag; the draw hash is unchanged.
+  equal(drawHash, "480086a70fb486bb"); // DrawList v2 includes the explicit marginCommands layer.
 
   const restoredState = restoreGameState(snapshot(first.state));
   const restoredRig: Rig = {

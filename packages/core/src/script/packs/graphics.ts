@@ -5,9 +5,8 @@
  * section; asset-backed calls retain their deterministic request/effect seam.
  * Source: docs/spec/engine/rpgcode-functions.md#e-56, #e-58, #e-63.
  */
-import { createSurfacesSection } from "../../raster/surfaces.ts";
 import type { GameState } from "../../save/state.ts";
-import type { Rgb } from "../../ports/draw.ts";
+import type { DrawCommand, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 import type { Arg, BuiltinDoc, BuiltinSpec, ParamSpec } from "../builtins.ts";
 import type { CommandEffect, CommandView, PluginDefinition } from "../plugin.ts";
@@ -16,6 +15,7 @@ import {
   blitSurface,
   canvasGetScreen,
   createSurface,
+  createSurfacesSection,
   drawSurfaceCircle,
   drawSurfaceLine,
   drawSurfaceRect,
@@ -23,6 +23,7 @@ import {
   getPixel,
   killSurface,
   ensureScriptScreen,
+  readSurfacePixels,
   renderNowCanvas,
   renderNowEnabled,
   restoreScreen,
@@ -45,6 +46,77 @@ type AnyState = GameState & { surfaces: GameState["surfaces"] & { renderNow?: Su
  */
 function writingTarget(current: AnyState, id: SurfaceId): SurfaceId {
   return id === SCREEN ? ensureScriptScreen(current.surfaces) : id;
+}
+
+function recordAuthorMarginCommand(
+  current: AnyState,
+  screenTarget: boolean,
+  command: DrawCommand,
+  bounds: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+): void {
+  if (!screenTarget) return;
+  const screen = writingTarget(current, SCREEN);
+  const size = surfaceSize(current.surfaces, screen);
+  if (size === null || ![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isSafeInteger)) return;
+  if (bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.w <= size.w && bounds.y + bounds.h <= size.h) return;
+  current.ui.authorMarginCommands = [...current.ui.authorMarginCommands, command];
+}
+
+function clearAuthorMarginCommands(current: AnyState): void {
+  for (const id of current.ui.authorMarginSurfaces) killSurface(current.surfaces, id);
+  current.ui.authorMarginSurfaces = [];
+  current.ui.authorMarginCommands = [];
+}
+
+function prepareAuthorMarginBlit(
+  current: AnyState,
+  screenTarget: boolean,
+  source: SurfaceId,
+  x: number,
+  y: number,
+  width?: number,
+  height?: number,
+  key?: Rgb,
+  sourceRect?: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+): DrawCommand | null {
+  if (!screenTarget) return null;
+  const sourceSize = surfaceSize(current.surfaces, source);
+  const sourceRev = current.surfaces.entries[String(source)]?.rev;
+  const screenSize = surfaceSize(current.surfaces, writingTarget(current, SCREEN));
+  if (sourceSize === null || sourceRev === undefined || screenSize === null) return null;
+  const sx = sourceRect === undefined ? 0 : Math.max(0, Math.trunc(sourceRect.x));
+  const sy = sourceRect === undefined ? 0 : Math.max(0, Math.trunc(sourceRect.y));
+  const sw = sourceRect === undefined ? sourceSize.w : Math.min(sourceSize.w - sx, Math.max(0, Math.trunc(sourceRect.w)));
+  const sh = sourceRect === undefined ? sourceSize.h : Math.min(sourceSize.h - sy, Math.max(0, Math.trunc(sourceRect.h)));
+  const dst = {
+    x: Math.trunc(x),
+    y: Math.trunc(y),
+    w: width === undefined ? sw : Math.max(0, Math.trunc(width)),
+    h: height === undefined ? sh : Math.max(0, Math.trunc(height)),
+  };
+  if (![sx, sy, sw, sh, dst.x, dst.y, dst.w, dst.h, dst.x + dst.w, dst.y + dst.h].every(Number.isSafeInteger) || sw <= 0 || sh <= 0 || dst.w <= 0 || dst.h <= 0) return null;
+  if (dst.x >= 0 && dst.y >= 0 && dst.x + dst.w <= screenSize.w && dst.y + dst.h <= screenSize.h) return null;
+  const pixels = readSurfacePixels(current.surfaces, source, sourceRev);
+  if (pixels === null) return null;
+  const sourceSnapshot = createSurface(current.surfaces, pixels.w, pixels.h, pixels.rgba);
+  current.ui.authorMarginSurfaces.push(sourceSnapshot);
+  const snapshotRev = current.surfaces.entries[String(sourceSnapshot)]?.rev;
+  if (snapshotRev === undefined) return null;
+  const keyPixels = key === undefined ? null : [key.r, key.g, key.b].map(Math.trunc);
+  const normalizedKey = keyPixels !== null && keyPixels.every((value) => Number.isSafeInteger(value) && value >= 0 && value <= 255)
+    ? { r: keyPixels[0]!, g: keyPixels[1]!, b: keyPixels[2]! }
+    : null;
+  return {
+    kind: "blit",
+    source: { surface: sourceSnapshot, rev: snapshotRev },
+    src: { x: sx, y: sy, w: sw, h: sh },
+    dst,
+    key: normalizedKey,
+    tint: { r: 0, g: 0, b: 0 },
+    alpha: 255,
+    blend: "normal",
+    iso2d: false,
+  };
 }
 
 function numberArg(args: readonly Arg[], index: number, fallback = 0): number {
@@ -127,18 +199,23 @@ function command(name: string, aliases: readonly string[], commandParams: ParamS
 }
 
 const CLEAR = command("clear", [], [{ name: "canvas", optional: true, byRef: false, variadic: false }], docs("Clear a screen or canvas.", "Blanks every pixel of the selected surface to transparent black immediately; without a canvas argument it clears the screen surface."), (view, args) => {
-  const surfaces = state(view).surfaces;
-  const target = writingTarget(state(view), canvasArg(args, 0));
+  const current = state(view);
+  const surfaces = current.surfaces;
+  const canvas = canvasArg(args, 0);
+  const target = writingTarget(current, canvas);
   const size = surfaceSize(surfaces, target);
   const bounds = size === null ? undefined : { first: 0, last: size.w * size.h - 1 };
   const ok = editSurfaceWithBounds(surfaces, target, (rgba) => rgba.fill(0), bounds);
   if (!ok) throw new ScriptError("surface.unknown", `clear: no canvas ${String(target)}`);
+  if (canvas === SCREEN) clearAuthorMarginCommands(current);
   return { value: null, effects: effects(args) };
 });
 
 const SET_PIXEL = command("setpixel", [], params(["x", "y", "canvas"], 2), docs("Set one pixel to the current colour.", "Writes the current RGB colour at integer pixel coordinates, clipping outside the selected surface; the optional canvas defaults to the screen."), (view, args) => {
-  const surfaces = state(view).surfaces;
-  const target = writingTarget(state(view), canvasArg(args, 2));
+  const current = state(view);
+  const surfaces = current.surfaces;
+  const canvas = canvasArg(args, 2);
+  const target = writingTarget(current, canvas);
   const rawX = numberArg(args, 0);
   const rawY = numberArg(args, 1);
   const bounds = surfacePixelBounds(surfaces, target, rawX, rawY);
@@ -155,14 +232,19 @@ const SET_PIXEL = command("setpixel", [], params(["x", "y", "canvas"], 2), docs(
     }
   }, bounds);
   if (!ok) throw new ScriptError("surface.unknown", `setpixel: no canvas ${String(target)}`);
+  const x = Math.trunc(rawX);
+  const y = Math.trunc(rawY);
+  recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "line", x1: x, y1: y, x2: x, y2: y, rgb }, { x, y, w: 1, h: 1 });
   return { value: null, effects: effects(args) };
 });
 
 function primitive(name: string, filled: boolean, circle: boolean): BuiltinSpec {
   const commandParams = circle ? params(["x", "y", "radius", "canvas"], 3) : params(["x1", "y1", "x2", "y2", "canvas"], 4);
   return command(name, [], commandParams, docs(`${filled ? "Fill" : "Draw"} a ${circle ? "circle" : "rectangle"}.`, "Rasterises the integer primitive using the current colour on the screen or optional canvas, clipping to the target bounds and returning immediately."), (view, args) => {
-    const surfaces = state(view).surfaces;
-    const target = writingTarget(state(view), canvasArg(args, circle ? 3 : 4));
+    const current = state(view);
+    const surfaces = current.surfaces;
+    const canvas = canvasArg(args, circle ? 3 : 4);
+    const target = writingTarget(current, canvas);
     const rgb = colour(view);
     const a0 = numberArg(args, 0);
     const a1 = numberArg(args, 1);
@@ -176,13 +258,36 @@ function primitive(name: string, filled: boolean, circle: boolean): BuiltinSpec 
       else drawSurfaceRect(rgba, width, height, a0, a1, a2, a3, rgb, filled);
     }, bounds);
     if (!ok) throw new ScriptError("surface.unknown", `${name}: no canvas ${String(target)}`);
+    if (circle && canvas === SCREEN) {
+      const cx = Math.trunc(a0); const cy = Math.trunc(a1); const radius = Math.max(0, Math.trunc(a2));
+      // Match drawSurfaceCircle's scanline arithmetic exactly; AD-3 ellipse uses a midpoint raster
+      // whose small-radius pixels differ (for example radius 2 at y±1).
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        const span = Math.floor(Math.sqrt(Math.max(0, radius * radius - dy * dy)));
+        if (filled) {
+          const rect = { x: cx - span, y: cy + dy, w: span * 2 + 1, h: 1 };
+          recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "rect", rect, rgb, filled: true }, rect);
+        } else {
+          const x1 = cx - span;
+          const x2 = cx + span;
+          recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "line", x1, y1: cy + dy, x2: x1, y2: cy + dy, rgb }, { x: x1, y: cy + dy, w: 1, h: 1 });
+          if (x2 !== x1) recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "line", x1: x2, y1: cy + dy, x2, y2: cy + dy, rgb }, { x: x2, y: cy + dy, w: 1, h: 1 });
+        }
+      }
+    } else if (!circle) {
+      const left = Math.min(Math.trunc(a0), Math.trunc(a2)); const top = Math.min(Math.trunc(a1), Math.trunc(a3));
+      const rect = { x: left, y: top, w: Math.abs(Math.trunc(a2) - Math.trunc(a0)) + 1, h: Math.abs(Math.trunc(a3) - Math.trunc(a1)) + 1 };
+      recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "rect", rect, rgb, filled }, rect);
+    }
     return { value: null, effects: effects(args) };
   });
 }
 
 const DRAW_LINE = command("drawline", [], params(["x1", "y1", "x2", "y2", "canvas"], 4), docs("Draw a line in the current colour.", "Rasterises an inclusive integer Bresenham line on the screen or optional canvas and clips it to the surface."), (view, args) => {
-  const surfaces = state(view).surfaces;
-  const target = writingTarget(state(view), canvasArg(args, 4));
+  const current = state(view);
+  const surfaces = current.surfaces;
+  const canvas = canvasArg(args, 4);
+  const target = writingTarget(current, canvas);
   const x1 = numberArg(args, 0);
   const y1 = numberArg(args, 1);
   const x2 = numberArg(args, 2);
@@ -191,6 +296,12 @@ const DRAW_LINE = command("drawline", [], params(["x1", "y1", "x2", "y2", "canva
   const rgb = colour(view);
   const ok = editSurfaceWithBounds(surfaces, target, (rgba, width, height) => drawSurfaceLine(rgba, width, height, x1, y1, x2, y2, rgb), bounds);
   if (!ok) throw new ScriptError("surface.unknown", `drawline: no canvas ${String(target)}`);
+  const left = Math.min(Math.trunc(x1), Math.trunc(x2)); const top = Math.min(Math.trunc(y1), Math.trunc(y2));
+  const rect = { x: left, y: top, w: Math.abs(Math.trunc(x2) - Math.trunc(x1)) + 1, h: Math.abs(Math.trunc(y2) - Math.trunc(y1)) + 1 };
+  recordAuthorMarginCommand(current, canvas === SCREEN, {
+    kind: "line",
+    x1: Math.trunc(x1), y1: Math.trunc(y1), x2: Math.trunc(x2), y2: Math.trunc(y2), rgb,
+  }, rect);
   return { value: null, effects: effects(args) };
 });
 const DRAW_RECT = primitive("drawrect", false, false);
@@ -237,27 +348,45 @@ const KILL_CANVAS = command("killcanvas", [], params(["canvas"]), docs("Release 
 });
 
 const DRAW_CANVAS = command("drawcanvas", [], params(["canvas", "x", "y", "width", "height", "destination"], 3), docs("Draw one canvas onto another surface.", "Copies the canvas with nearest-neighbour sampling at x,y; optional dimensions resize it and the optional destination defaults to the screen."), (view, args) => {
+  const current = state(view);
   const source = handle(args[0]?.value);
-  const destination = writingTarget(state(view), canvasArg(args, args.length >= 6 ? 5 : 3));
+  const screenTarget = canvasArg(args, args.length >= 6 ? 5 : 3) === SCREEN;
+  const destination = writingTarget(current, canvasArg(args, args.length >= 6 ? 5 : 3));
   if (source === SCREEN) view.refreshScreen?.();
-  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), args.length >= 5 ? numberArg(args, 3) : undefined, args.length >= 5 ? numberArg(args, 4) : undefined);
+  const width = args.length >= 5 ? numberArg(args, 3) : undefined;
+  const height = args.length >= 5 ? numberArg(args, 4) : undefined;
+  const marginCommand = prepareAuthorMarginBlit(current, screenTarget, source, numberArg(args, 1), numberArg(args, 2), width, height);
+  const ok = blitSurface(current.surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), width, height);
   if (!ok) throw new ScriptError("surface.unknown", "drawcanvas: source or destination canvas is not live");
+  if (marginCommand?.kind === "blit") recordAuthorMarginCommand(current, screenTarget, marginCommand, marginCommand.dst);
   return { value: null, effects: effects(args) };
 });
 const DRAW_CANVAS_TRANSPARENT = command("drawcanvastransparent", [], params(["canvas", "x", "y", "r", "g", "b", "width", "height", "destination"], 6), docs("Draw a canvas with one colour transparent.", "Copies the selected canvas to the screen or optional destination, skipping the exact RGB key and optionally resizing it."), (view, args) => {
+  const current = state(view);
   const source = handle(args[0]?.value);
-  const destination = writingTarget(state(view), canvasArg(args, args.length >= 9 ? 8 : 6));
+  const screenTarget = canvasArg(args, args.length >= 9 ? 8 : 6) === SCREEN;
+  const destination = writingTarget(current, canvasArg(args, args.length >= 9 ? 8 : 6));
   if (source === SCREEN) view.refreshScreen?.();
-  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), args.length >= 8 ? numberArg(args, 6) : undefined, args.length >= 8 ? numberArg(args, 7) : undefined, { r: numberArg(args, 3), g: numberArg(args, 4), b: numberArg(args, 5) });
+  const key = { r: numberArg(args, 3), g: numberArg(args, 4), b: numberArg(args, 5) };
+  const width = args.length >= 8 ? numberArg(args, 6) : undefined;
+  const height = args.length >= 8 ? numberArg(args, 7) : undefined;
+  const marginCommand = prepareAuthorMarginBlit(current, screenTarget, source, numberArg(args, 1), numberArg(args, 2), width, height, key);
+  const ok = blitSurface(current.surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), width, height, key);
   if (!ok) throw new ScriptError("surface.unknown", "drawcanvastransparent: source or destination canvas is not live");
+  if (marginCommand?.kind === "blit") recordAuthorMarginCommand(current, screenTarget, marginCommand, marginCommand.dst);
   return { value: null, effects: effects(args) };
 });
 const CANVAS_DRAW_PART = command("canvasdrawpart", [], params(["canvas", "x", "y", "xsrc", "ysrc", "width", "height", "destination"], 7), docs("Draw part of a canvas.", "Copies a source rectangle from the canvas to x,y on the screen or optional destination using nearest-neighbour pixels."), (view, args) => {
+  const current = state(view);
   const source = handle(args[0]?.value);
-  const destination = writingTarget(state(view), canvasArg(args, 7));
+  const screenTarget = canvasArg(args, 7) === SCREEN;
+  const destination = writingTarget(current, canvasArg(args, 7));
   if (source === SCREEN) view.refreshScreen?.();
-  const ok = blitSurface(state(view).surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, 255, false, { x: numberArg(args, 3), y: numberArg(args, 4), w: numberArg(args, 5), h: numberArg(args, 6) });
+  const sourceRect = { x: numberArg(args, 3), y: numberArg(args, 4), w: numberArg(args, 5), h: numberArg(args, 6) };
+  const marginCommand = prepareAuthorMarginBlit(current, screenTarget, source, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, sourceRect);
+  const ok = blitSurface(current.surfaces, source, destination, numberArg(args, 1), numberArg(args, 2), undefined, undefined, undefined, 255, false, sourceRect);
   if (!ok) throw new ScriptError("surface.unknown", "canvasdrawpart: source or destination canvas is not live");
+  if (marginCommand?.kind === "blit") recordAuthorMarginCommand(current, screenTarget, marginCommand, marginCommand.dst);
   return { value: null, effects: effects(args) };
 });
 const CANVAS_GET_SCREEN = command("canvasgetscreen", [], params(["destination"]), docs("Capture the current screen into a canvas.", "Copies the composed screen surface 0 into the destination canvas and increments its revision."), (view, args) => {

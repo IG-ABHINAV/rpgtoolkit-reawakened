@@ -6,10 +6,11 @@
 // for the listeners' one tick, and then applies the surviving damage and the reward through its
 // package's commands, which dispatch through the actor owner. The two games differ only in the
 // behaviour their package registers in `behaviourStartup`: the core rules, the commands and the
-// actor model are the same.
+// actor model are the same. Re-record state hashes with BATTLE_SCRIPTS_GOLDEN_RECORD=1 node --test
+// packages/core/test/battle-scripts.test.ts.
 import { test } from "node:test";
 import { deepEqual, equal, ok } from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -290,12 +291,20 @@ test("every battle tick saves and restores to the same hash", () => {
 });
 
 test("a battle script replays to the pinned per-tick hashes", () => {
-  for (const [kind, hooks] of [["zelda", ZELDA_HOOKS], ["ff", FF_HOOKS]] as const) {
-    const run = runBattle(kind, hooks);
-    const row = goldenFor(kind);
-    equal(run.hashes.length, row.ticks.length, `${kind} tick count`);
-    deepEqual([...run.hashes], [...row.ticks], `${kind} per-tick hashes`);
-    equal(run.finalHash, row.finalHash, `${kind} final hash`);
+  const runs = [
+    { id: "zelda", run: runBattle("zelda", ZELDA_HOOKS) },
+    { id: "ff", run: runBattle("ff", FF_HOOKS) },
+  ] as const;
+  if (process.env["BATTLE_SCRIPTS_GOLDEN_RECORD"] === "1") {
+    const programs = runs.map(({ id, run }) => ({ id, finalHash: run.finalHash, ticks: run.hashes }));
+    writeFileSync(join(repoRoot, "golden", "actors", "battle-scripts.json"), `${JSON.stringify({ schema: 1, programs }, null, 2)}\n`);
+    return;
+  }
+  for (const { id, run } of runs) {
+    const row = goldenFor(id);
+    equal(run.hashes.length, row.ticks.length, `${id} tick count`);
+    deepEqual([...run.hashes], [...row.ticks], `${id} per-tick hashes`);
+    equal(run.finalHash, row.finalHash, `${id} final hash`);
   }
 });
 

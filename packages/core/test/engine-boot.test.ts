@@ -14,7 +14,7 @@ import { TextDecoder, TextEncoder } from "node:util";
 import {
   actorFromSource,
   addActor,
-  assetKey,
+  applyInputEvent,
   createAssetIndex,
   createSpriteRuntime,
   createVmState,
@@ -48,9 +48,13 @@ import {
   projectGameLedger,
   registerActorObject,
   restoreRecoveryCandidate,
+  registerGameAction,
+  restoreGameState,
+  snapshot,
   snapshotGameSave,
   startProgram,
   startThread,
+  assetKey,
   placeplayerPixel,
   coordLayout,
   tileToPixel,
@@ -1817,6 +1821,110 @@ test("a project folder's RPGCode package layers an engine command and is rebuilt
   const afterReset = run(engine, game.files, 20);
   equal(afterReset.diagnostics.some((diagnostic) => diagnostic.code === "unknown.command"), false);
   equal(doubles.state().vm.globals.wrapped, 1, "reset rebuilt the package layer");
+});
+
+test("public game-action registrations survive same-game reset and load", () => {
+  const game = authorGame(SCRIPTED);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 20);
+  const action = {
+    name: "game.resetproof",
+    label: "Reset proof",
+    icon: null,
+    group: null,
+    controls: ["key:KeyF"],
+    locked: false,
+    hidden: false,
+  };
+  equal(engine.registerGameAction(action), true);
+  ok(engine.registeredActionNames().includes("game.resetproof"));
+
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  run(engine, game.files, 20);
+  ok(engine.registeredActionNames().includes("game.resetproof"));
+  engine.advance(1, [{
+    tick: doubles.state().time.tick,
+    event: { kind: "key", name: "F", code: "KeyF", char: "f", down: true },
+  }]);
+  equal(doubles.state().input.actions["game.resetproof"], true, "the external action is held before the save projection is captured");
+  doubles.state().inventory.gold = 1234;
+  const savedBytes = encoder.encode(snapshotGameSave(doubles.state()));
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: 'load("slot")\nend()', ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  let replies: InputRecord[] = [];
+  let loadReplyQueued = false;
+  let loadReplyApplied = false;
+  for (let guard = 0; guard < 100 && !loadReplyApplied; guard += 1) {
+    loadReplyApplied = loadReplyQueued;
+    loadReplyQueued = false;
+    const report = engine.advance(1, replies);
+    replies = [];
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "loadBlob") {
+        loadReplyQueued = true;
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: savedBytes } });
+      }
+    }
+  }
+  ok(loadReplyApplied, "the same-game load consumed its saved projection");
+  equal(doubles.state().inventory.gold, 1234, "the saved game state really loaded after reset");
+  equal(doubles.state().input.actions["game.resetproof"], true, "loading restores the held claim for an externally registered action");
+  engine.advance(1, [{
+    tick: doubles.state().time.tick,
+    event: { kind: "key", name: "F", code: "KeyF", char: "f", down: false },
+  }]);
+  equal(doubles.state().input.actions["game.resetproof"], false, "the loaded action claim releases on the matching physical key-up");
+  ok(engine.registeredActionNames().includes("game.resetproof"), "loading preserves public API registrations omitted from the game-save projection");
+});
+
+test("loading reconciles the keyboard claim index before releasing removed game actions", () => {
+  const game = authorGame(SCRIPTED);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 20);
+  const action = {
+    name: "game.removed",
+    label: "Removed",
+    icon: null,
+    group: null,
+    controls: ["key:KeyF"],
+    locked: false,
+    hidden: false,
+  };
+  equal(registerGameAction(doubles.state().input, action), true);
+  applyInputEvent(doubles.state().input, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  equal(doubles.state().input.actions["game.removed"], true);
+  const savedBytes = encoder.encode(snapshotGameSave(doubles.state()));
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: 'load("slot")\nend()', ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  let replies: InputRecord[] = [];
+  let loadReplyQueued = false;
+  let loadReplyApplied = false;
+  for (let guard = 0; guard < 100 && !loadReplyApplied; guard += 1) {
+    loadReplyApplied = loadReplyQueued;
+    loadReplyQueued = false;
+    const report = engine.advance(1, replies);
+    replies = [];
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "loadBlob") {
+        loadReplyQueued = true;
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: savedBytes } });
+      }
+    }
+  }
+  ok(loadReplyApplied, "the game load completed");
+  const loaded = doubles.state();
+  equal(Object.hasOwn(loaded.input.actionRegistry, "game.removed"), false);
+  equal(Object.hasOwn(loaded.input.keyboardActionSources, "game.removed"), false);
+  const replay = restoreGameState(snapshot(loaded));
+  const keyUp = { kind: "key", name: "F", code: "KeyF", char: "f", down: false } as const;
+  applyInputEvent(loaded.input, keyUp);
+  applyInputEvent(replay.input, keyUp);
+  equal(Object.hasOwn(loaded.input.keyboardActionSources, "game.removed"), false, "stale held claims were not reconstructed on key-up");
+  equal(hashGameState(loaded), hashGameState(replay), "identical key-up replay and snapshot restore preserve the same canonical state");
 });
 
 test("a package startup that waits is rejected by the lifecycle clock guard", () => {

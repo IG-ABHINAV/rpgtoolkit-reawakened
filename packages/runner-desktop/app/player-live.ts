@@ -3,7 +3,7 @@ import { interactivePackage } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -55,10 +55,10 @@ async function start(): Promise<void> {
     onQuit: () => { void host.quit(); },
   });
   window.__session = session;
-  run(session, canvas, status, { canvas, viewport });
+  run(session, canvas, status, { canvas, viewport }, viewport);
 }
 
-function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport): void {
+function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElement, hostViewport: HostViewport, stage: HTMLElement): void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
@@ -66,20 +66,33 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   let disposed = false;
   const onKeyDown = (event: KeyboardEvent): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
-  const onKeyUp = (event: KeyboardEvent): void => pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
-  const focus = (state: "lost" | "gained"): void => pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+  const onKeyUp = (event: KeyboardEvent): void => pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false }, pointerGeometry: null });
+  const focus = (state: "lost" | "gained"): void => pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   const onBlur = (): void => focus("lost");
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const observedGeometry = createObservedHostGeometry(session.displayGeometry());
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+    observedGeometry.observe(event);
+    pending.push({ tick: null, event, pointerGeometry: null });
+  }, session.hostState ?? undefined);
+  const pointerHost = stage;
   const stopPointerInput = attachPointerInput(
-    canvas,
+    pointerHost,
     viewSize,
-    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+    observedGeometry.current,
+    ({ x, y }, buttons) => {
+      const geometry = observedGeometry.current();
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
+    },
   );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
@@ -105,10 +118,20 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
+    const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    if (ticks === 0 && geometryNeedsTick) {
+      requestAnimationFrame(draw);
+      return;
+    }
     const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
     void session.advance(ticks, inputs).then(() => {
       if (disposed) return;
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
+      if (restoredGeometryNeedsTick) {
+        requestAnimationFrame(draw);
+        return;
+      }
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const result = { tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board: session.boardKey(), player };

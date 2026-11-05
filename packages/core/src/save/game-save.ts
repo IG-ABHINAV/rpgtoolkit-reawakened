@@ -187,7 +187,12 @@ export function restoreRecoveryCandidate(json: string, currentAudio: AudioStateV
 /** Build the same projection for normal saves and recovery candidates. */
 function gameSaveRoot(state: GameState): Record<string, unknown> {
   const root = tagNonFinite(state) as Record<string, unknown>;
-  return { ...root, audio: audioSaveProjection(state.audio, state.time.tick) };
+  const input = { ...(root.input as Record<string, unknown>) };
+  delete input.registeredActions;
+  delete input.actionRegistry;
+  delete input.actionOrder;
+  delete input.controlActions;
+  return { ...root, input, audio: audioSaveProjection(state.audio, state.time.tick) };
 }
 
 /** Serialize the complete canonical game state while keeping only audio playback in a game save. */

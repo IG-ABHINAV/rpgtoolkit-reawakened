@@ -13,7 +13,7 @@ author-facing APIs for responsive layouts, safe areas, and touch ergonomics.
 - **G2:** `core` never queries the DOM, `navigator.userAgent`, or OS platform APIs. The runner computes capabilities and geometry, then supplies them at boot or in logged AD-14 inputs. Core never learns a runner's name.
 - **G4:** Renderers replay draw lists and do not invent game state. Author-drawn on-screen controls are ordinary draw commands; runner fallback controls are host presentation. The physical presentation transform (scale and placement of the logical viewport) is not state; the measured content/game rectangles and safe-area geometry are state because author code can query their derived values.
 
-The terms “device state” and “geometry” in [runners.md#runner-may-decide](runners.md#runner-may-decide) distinguish raw host observation from deterministic input: a runner MUST NOT feed raw observations directly into simulation. A runner MAY report a change only as the explicit logged event defined below. Geometry's screen-to-canvas transform remains presentation-only and hash-neutral; the normalized geometry record consumed by RPGCode is hash-significant.
+The terms “device state” and “geometry” in [runners.md#runner-may-decide](runners.md#runner-may-decide) distinguish raw host observation from deterministic input: a runner MUST NOT feed raw observations directly into simulation. A runner MAY report a change only as the explicit logged event defined below. Geometry's screen-to-canvas transform remains presentation-only and hash-neutral; the normalized geometry record consumed by RPGCode is hash-significant. Rendering and pointer mapping MUST use the last consumed `Engine.hostDisplayGeometry()` value, not a newer unconsumed DOM measurement; the method returns a fresh copy of the normalized record.
 
 ### State and input records
 
@@ -52,6 +52,8 @@ The state section is `state.display = { geometry: HostDisplayGeometry }`. `state
 ```
 
 `NormalizedHostFeatures` has the same six fields as `HostFeatures`, but all are required. Both event kinds are stamped with the tick at which they take effect, validated as exact AD-14 records, and included in `TickReport.consumed`. Repeated events are retained in order; applying the same complete value twice leaves the same final state. No unspecified property is inferred from OS, browser, or display APIs by core.
+
+The `action` input record is `{ kind: "action", action, down, source: "runner.fallback" }`. It carries one semantic transition from runner-owned fallback controls; its `tick` is the ordinary `InputRecord.tick`. The source is stable across matching `down`/`up` records. It is not a key, pointer or gamepad event, and physical binding tables are not consulted. Unknown or unregistered action names are ignored with the ACT-2 once-per-boot diagnostic. The core and runners use this same action transition contract; author-surface pointer releases call the core transition helper from the recorded pointer event instead of manufacturing a second external record.
 ### Controller transition notifications
 
 When an AD-14 `gamepad` input changes a device from disconnected to connected, or from connected to disconnected, the engine queues a script event for delivery in the ordinary events phase:
@@ -106,7 +108,9 @@ Authors query capabilities by name without knowing the underlying OS or hardware
 |---|---|---|---|
 | `hasFeature` | `int hasFeature(string name)` | `1` or `0` | Returns `1` when the named normalized capability is active, otherwise `0`; names are case-insensitive. `touch`, `keyboard`, `gamepad`, and `haptics` use their boolean values; `pointer` is active unless its value is `"none"`; `orientation` is active unless its value is `null`. Unknown names return `0`. |
 | `pointerType` | `string pointerType()` | `"fine"`, `"coarse"`, or `"none"` | Current normalized pointer precision. |
+| `declareCustomTouchControls` | `void declareCustomTouchControls()` | none | Explicitly declares that this game supplies usable custom touch controls. A capability query or ordinary `uiBegin`/`uiEnd` surface does not declare them. Declaration is persistent deterministic game state, included in snapshots and hashes, and remains set until the game state is replaced by loading another game. |
 
+The host reads the current declaration through `Engine.customTouchControlsDeclared()`. The query returns the saved declaration bit and does not inspect host capabilities or infer intent from rendered commands. Hosts suppress fallback controls only when it returns `true`.
 ```rpgcode
 // Adaptive author logic
 if (hasFeature("touch") && !hasFeature("gamepad")) {
@@ -172,11 +176,14 @@ Authors access geometry to align custom UI elements, HUDs, or touch buttons:
 `marginWidth` and `safeAreaInset` accept side names case-insensitively; any other value raises the catchable `builtin.bad-arg` error. `viewWidth`, `viewHeight`, these geometry queries, and `pointerType` read the current normalized host state, including changes applied earlier in the same tick.
 
 * **Resize Events:** Each accepted `host.display` input that changes the normalized geometry queues a non-cancelable `viewportResized` event on the game emitter. The existing `events` phase delivers it in queue order; delivery is never synchronous with input application. Repeating the same geometry still appears in the consumed input log but does not queue a duplicate notification. Event `detail` contains the current integer logical-pixel values `marginLeft`, `marginRight`, `marginTop`, `marginBottom`, `safeAreaTop`, `safeAreaRight`, `safeAreaBottom`, and `safeAreaLeft`, calculated by the same rules as `marginWidth` and `safeAreaInset`:
+
   ```rpgcode
   on(game, "viewportResized", (event) => {
       hud.reposition(event.detail.marginRight, event.detail.safeAreaBottom);
   });
   ```
+
+After restoring a game snapshot, the runner MUST compare the live host geometry with the restored engine geometry and enqueue the live normalized `host.display` value before accepting any subsequent pointer record. This reapplication is required even if the runner's observation cache already contains the same live value: the snapshot may restore an older geometry while the observer itself saw no new resize. The resulting ordered input is the shared source for engine display queries, pointer mapping, and presentation rendering.
 
 <a id="touch-controls"></a>
 ## Touch control presentation: author HUD vs. runner fallback
@@ -186,19 +193,14 @@ presentation policy**:
 
 ### Tier 1: Author-Owned Touch HUD (Preferred)
 
-**Owner ruling:** A game must explicitly declare or register its own touch controls to suppress the runner's fallback.
-Checking `hasFeature("touch")` alone does not suppress it: a query does not prove that usable controls exist.
-For example, a package may declare `touchControls: "custom"`:
-* **The runner renders zero chrome.** No virtual sticks, D-pads, or buttons are injected by the host.
-* **Margin Positioning:** Authors may place custom touch controls directly inside the Plane 3 lateral margins. This
-  prevents fingers from obscuring the game canvas or text boxes on mobile devices.
-* **Action Integration:** Author-drawn touch controls utilize the ADR 0017 Surface API (`uiBegin`, `uiItem`, `uiEnd`).
-  Tapping a custom button triggers the semantic action (`confirm`, `cancel`, or `game.*`) with hit-testing on pointer
-  release.
+The game explicitly calls `declareCustomTouchControls()` when it supplies usable custom touch controls. `hasFeature("touch")` alone does not suppress fallback controls, and publishing an ordinary accessibility surface does not imply a usable touch HUD.
+* **The runner renders zero chrome** after the declaration is committed. No virtual sticks, D-pads, or buttons are injected by the host.
+* **Margin positioning:** Authors may place custom controls directly inside usable Plane 3.
+* **Action integration:** Author-drawn touch controls use the `uiBegin`, `uiItem`, `uiEnd` surface API. A declared item's explicit semantic action (`confirm`, `cancel`, or registered `game.*`) dispatches on primary-pointer release over the same enabled item.
 
 ### Tier 2: Runner Fallback Virtual Gamepad (Legacy Compatibility)
 
-When touch is available and the game has not explicitly declared or registered custom touch controls, including for
+When touch is available and the game has not explicitly declared usable custom touch controls, including for
 unpatched Toolkit 3.1 games:
 * **Automatic Minimal Gamepad:** The runner renders a clean, non-intrusive virtual D-pad on the left and primary Action
   buttons on the right.

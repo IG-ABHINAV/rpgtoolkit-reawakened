@@ -226,7 +226,7 @@ test("dynamic sandbox: font reading and rasterisation touches no forbidden globa
 
     const ref = { asset: "media/fonts/LiberationMono-Regular.ttf" as AssetKey, size: 16, bold: false, italic: false };
     const cmds = emitText("AV 123", 0, 0, { r: 255, g: 255, b: 255 }, ref, { font });
-    const result = rasterize({ tick: 0, width: 64, height: 24, commands: cmds }, new Map([[ref.asset, font]]));
+    const result = rasterize({ tick: 0, width: 64, height: 24, commands: cmds, marginCommands: [] }, new Map([[ref.asset, font]]));
     equal(result.error, null);
   } finally {
     globalThis.Math = originalMath;
@@ -319,7 +319,7 @@ test("rasterisation: nonzero winding hollows out interior holes (e.g. letter O)"
   const ref = { asset: "media/fonts/LiberationMono-Regular.ttf" as AssetKey, size: 24, bold: false, italic: false };
   const commands = emitText("O", 0, 0, { r: 255, g: 255, b: 255 }, ref, { font: mono });
 
-  const result = rasterize({ tick: 0, width: 20, height: 28, commands }, new Map([[ref.asset, mono]]));
+  const result = rasterize({ tick: 0, width: 20, height: 28, commands, marginCommands: [] }, new Map([[ref.asset, mono]]));
   equal(result.error, null);
 
   // In the center of the 'O', pixel should be transparent (0 alpha)
@@ -340,7 +340,7 @@ test("rasterisation: anti-aliasing blends correctly onto colored background", ()
     ...emitText("A", 2, 2, { r: 0, g: 200, b: 0 }, ref, { font: mono }),
   ];
 
-  const result = rasterize({ tick: 0, width: 16, height: 24, commands }, new Map([[ref.asset, mono]]));
+  const result = rasterize({ tick: 0, width: 16, height: 24, commands, marginCommands: [] }, new Map([[ref.asset, mono]]));
   equal(result.error, null);
 
   // Every pixel must remain valid straight RGBA with alpha 255 because of the background fill

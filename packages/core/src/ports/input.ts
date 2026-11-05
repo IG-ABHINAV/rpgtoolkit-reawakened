@@ -109,12 +109,21 @@ export type VideoEnded = {
   readonly reqId: number;
 };
 
+/** A normalized semantic action edge, consumed on its stamped tick (ACT-4). */
+export type ActionInput = {
+  readonly kind: "action";
+  readonly action: string;
+  readonly down: boolean;
+  readonly source: string;
+};
+
 /** The one published input event union (AD-14). */
 export type InputEvent =
   | KeyInput
   | PointerInput
   | PointerCancelInput
   | GamepadInput
+  | ActionInput
   | FocusInput
   | HostFeaturesInput
   | HostDisplayInput
@@ -131,3 +140,20 @@ export type InputRecord = {
   readonly tick: number;
   readonly event: InputEvent;
 };
+/** Historical runner protocol v1 event union; active v2 adds ActionInput. */
+export type InputEventV1 =
+  | KeyInput
+  | PointerInput
+  | PointerCancelInput
+  | GamepadInput
+  | FocusInput
+  | HostFeaturesInput
+  | HostDisplayInput
+  | AssetReply
+  | BlobLoaded
+  | BlobSaved
+  | BlobListed
+  | ExtensionResult
+  | AudioEnded
+  | VideoEnded;
+export type InputRecordV1 = { readonly tick: number; readonly event: InputEventV1 };

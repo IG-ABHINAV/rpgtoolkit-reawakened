@@ -35,8 +35,9 @@ import type { AssetIndex, AssetRoot } from "../formats/resolver/model.ts";
 import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
-import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
+import type { HostDisplayGeometry, HostFeatures, NormalizedHostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
+import type { RegisteredAction } from "../save/sections/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
 import type { RunnerRequest } from "../ports/requests.ts";
@@ -58,7 +59,7 @@ import type { AssetDecoder } from "../formats/registry/decoder.ts";
 import { BUILTIN_TRACKS, MAX_VOICES } from "../audio/model.ts";
 import type { Logger } from "../ports/logger.ts";
 import { composeBoard, type BoardBlit, type SpriteDraw, type SpriteFrame } from "../render/compose.ts";
-import { composeUi, composeUiCursor, renderNowBlit } from "../render/ui.ts";
+import { composeUi, composeUiCursor, composeUiMargins, renderNowBlit, uiAccessibilityTree } from "../render/ui.ts";
 import { emitText, layoutText, resolveFontAsset } from "../render/text.ts";
 import { applyFxDrawList, advanceFx, applyFxEffect } from "../render/fx.ts";
 import { advanceAnimations, animationBlits, decodeAnimationFrames, loadAnimation, releaseAnimationSurfaces, type DecodedAnimation } from "../render/animation.ts";
@@ -66,7 +67,8 @@ import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
-import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
+import type { UiActionClaim } from "../save/sections/ui.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -124,7 +126,8 @@ import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
 import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
-import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch } from "../raster/surfaces.ts";
+import { rasterizeAuthorMargin } from "../raster/raster.ts";
+import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
 
 const MENU_HAND_ASSET = assetKey("media/cursors/tkr-menu-hand.png");
@@ -335,7 +338,15 @@ export function createEngine(init: EngineInit): Engine {
     ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
   });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
-  state.input = createInputSection(init.input);
+  state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+  const externallyRegisteredActions: RegisteredAction[] = [];
+  function replayExternallyRegisteredActions(): void {
+    const registered = new Set(state.input.registeredActions.map((action) => action.name));
+    for (const action of externallyRegisteredActions) {
+      if (registered.has(action.name)) continue;
+      if (registerGameAction(state.input, action)) registered.add(action.name);
+    }
+  }
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
@@ -408,6 +419,12 @@ export function createEngine(init: EngineInit): Engine {
   let recoveryInitialized = false;
   let recoveryResumed = false;
   const diagnostics: Diagnostic[] = [];
+  const reportedUnknownActions = new Set<string>();
+  const reportUnknownAction = (action: string): void => {
+    if (inputRegisteredActionNames(state.input).has(action) || reportedUnknownActions.has(action)) return;
+    reportedUnknownActions.add(action);
+    diagnostics.push({ code: "input.unknown-action", file: mainKey ?? "", line: 0, message: `input names unregistered action "${action}"` });
+  };
   const registrations = [...(init.phaseRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0));
   const registrationByPhase = new Map<EnginePhase, EnginePhaseRegistration[]>();
   for (const registration of registrations) {
@@ -542,7 +559,16 @@ export function createEngine(init: EngineInit): Engine {
       applyCanvasText(lower === "text", effect.args);
       return;
     }
-    applyUiEffect(state, effect.name, effect.args, (name) => resolveFontAsset(name, index.keys));
+    applyUiEffect(state, effect.name, effect.args, (name) => resolveFontAsset(name, index.keys), (owner, message) => {
+      const thread = state.vm.threads.find((candidate) => candidate.id === owner);
+      const location = thread === undefined ? null : threadLocation(thread);
+      diagnostics.push({ code: "a11y.surface", file: location?.file ?? mainKey ?? "", line: location?.line ?? 0, message });
+    });
+    if (lower === "uiend") {
+      for (const surface of state.ui.actionSurfaces) {
+        for (const item of surface.items) if (item.action !== undefined) reportUnknownAction(item.action);
+      }
+    }
     // `winGraphic` names an image; resolve and fetch it now so the window can draw it (E-55).
     if (lower === "wingraphic") primeMessageGraphic();
   });
@@ -641,7 +667,7 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     const kind = blockingAlive() ? "board" : "blocking";
-    if (kind === "blocking") resetUiForProgramStart(state.ui);
+    if (kind === "blocking") resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
     const ref: ProgramRef = {
       kind: "inline",
       text: `${command}(${JSON.stringify(encodeInlineScriptString(serialized))})`,
@@ -668,7 +694,7 @@ export function createEngine(init: EngineInit): Engine {
         return;
       }
       if (!blockingAlive()) {
-        resetUiForProgramStart(state.ui);
+        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
         startProgram(state.vm, { kind: "inline", text: "wait()", ir: IR_VERSION });
       }
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
@@ -738,6 +764,8 @@ export function createEngine(init: EngineInit): Engine {
   state.surfaces = createSurfacesSection(init.width, init.height);
   state.camera = createCameraSection(init.width, init.height);
   const surfaceCache: SurfacePixelCache = new Map();
+  let surfaceCacheEpoch = 0;
+  let generatedMarginPixels: { readonly id: SurfaceId; readonly rev: number; readonly pixels: SurfacePixels } | null = null;
   let frameHash: string | null = null;
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
   let frameFailure: { readonly hash: string; readonly message: string } | null = null;
@@ -1136,6 +1164,7 @@ export function createEngine(init: EngineInit): Engine {
       } finally {
         nextServices.setPackageStartup(false);
       }
+      replayExternallyRegisteredActions();
     }
     startupServicesReady = runStartups;
     return nextServices;
@@ -1161,6 +1190,8 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
+      const externalNames = new Set(externallyRegisteredActions.map((action) => action.name));
+      const startupActions = state.input.registeredActions.filter((action) => !externalNames.has(action.name));
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1168,6 +1199,23 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
+      const actionRegistry = createInputSection();
+      for (const action of startupActions) registerGameAction(actionRegistry, action);
+      for (const action of externallyRegisteredActions) registerGameAction(actionRegistry, action);
+      state.input.registeredActions = actionRegistry.registeredActions;
+      state.input.actionRegistry = actionRegistry.actionRegistry;
+      state.input.controlActions = actionRegistry.controlActions;
+      state.input.actionOrder = actionRegistry.actionOrder;
+      state.input.actionPadMasks = actionRegistry.actionPadMasks;
+      for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.keyboardActionSources), ...Object.keys(state.input.semanticActionSources)])) {
+        if (Object.hasOwn(state.input.actionRegistry, action)) continue;
+        delete state.input.actions[action];
+        delete state.input.keyboardActions[action];
+        delete state.input.keyboardActionSources[action];
+        delete state.input.semanticActionSources[action];
+        state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
+      }
+      rebuildKeyboardActionClaimIndex(state.input);
       state.world = {
         ...state.world,
         movement: {
@@ -1186,6 +1234,7 @@ export function createEngine(init: EngineInit): Engine {
       pluginLayers = restoredLayers;
       const restoredServices = makeServices(activePlugins, loader ?? undefined, false, restoredLayers);
       runPackageStartup(state, restoredServices, [], activePlugins, restoredServices.listenersBeforePackageStartup);
+      replayExternallyRegisteredActions();
       compileRestoredPrograms(state.vm, restoredServices);
       verifyRestoredHandles(state.vm, restoredServices, state.events);
       services = restoredServices;
@@ -1198,6 +1247,7 @@ export function createEngine(init: EngineInit): Engine {
       refreshFrame(true);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       pendingTileBitmapAnimations.clear();
+      surfaceCacheEpoch += 1;
     } catch (error) {
       Object.assign(state, previous);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
@@ -1219,7 +1269,7 @@ export function createEngine(init: EngineInit): Engine {
     const ref: ProgramRef = typeof init.program === "string"
       ? { kind: "inline", text: init.program, ir: IR_VERSION, dialect: "tk3" }
       : init.program;
-    resetUiForProgramStart(state.ui);
+    resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
     startProgram(state.vm, ref);
   }
 
@@ -1467,6 +1517,13 @@ export function createEngine(init: EngineInit): Engine {
     failed = true;
     if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
   }
+  function appendAuthorMarginBlit(command: DrawCommand): void {
+    if (command.kind !== "blit") return;
+    const { x, y, w, h } = command.dst;
+    if (![x, y, w, h, x + w, y + h].every(Number.isSafeInteger) || w <= 0 || h <= 0) return;
+    if (x >= 0 && y >= 0 && x + w <= init.width && y + h <= init.height) return;
+    state.ui.authorMarginCommands = [...(state.ui.authorMarginCommands ?? []), command];
+  }
   /** E-56 `text` / `pixelText` with a canvas: draw the glyphs into that canvas with the active font, colour and underline. */
   function applyCanvasText(cells: boolean, args: readonly PlainData[]): void {
     const canvas = args[3] as SurfaceId;
@@ -1482,14 +1539,14 @@ export function createEngine(init: EngineInit): Engine {
     const assets = rasterAssets(canvasTextAssets);
     const fallbackFont = assets.get(defaultFontAsset);
     if (fallbackFont !== undefined && !assets.has(font.asset)) assets.set(font.asset, fallbackFont);
-    const rendered = rasterize({ tick: state.time.tick, width, height, commands }, assets);
+    const rendered = rasterize({ tick: state.time.tick, width, height, commands, marginCommands: [] }, assets);
     if (rendered.error !== null) {
       diagnostics.push({ code: "render.failed", file: "", line: 0, message: `text: ${rendered.error}` });
       return;
     }
     blitTexture(state.surfaces, { w: rendered.width, h: rendered.height, rgba: rendered.rgba }, canvas, x, y);
   }
-  function applySurfaceImage(effect: EffectRecord, texture: DecodedTexture): void {
+  function applySurfaceImage(effect: EffectRecord, texture: DecodedTexture, sourceAsset: AssetKey): void {
     const args = effect.args;
     let destination = 0 as SurfaceId;
     let x = 0;
@@ -1499,6 +1556,7 @@ export function createEngine(init: EngineInit): Engine {
     let keyColour: { readonly r: number; readonly g: number; readonly b: number } | undefined;
     let alpha = 255;
     let additive = false;
+    let translucent = false;
     if (effect.name === "bitmap") {
       destination = typeof args[1] === "number" ? args[1] as SurfaceId : destination;
       const size = state.surfaces.entries[String(destination)]?.bitmap;
@@ -1516,7 +1574,10 @@ export function createEngine(init: EngineInit): Engine {
         g: typeof args[6] === "number" ? args[6] : 0,
         b: typeof args[7] === "number" ? args[7] : 0,
       };
-      if (effect.name === "setimagetranslucent") alpha = 128;
+      if (effect.name === "setimagetranslucent") {
+        alpha = 128;
+        translucent = true;
+      }
       if (effect.name === "setimageadditive") {
         const percent = typeof args[5] === "number" ? Math.max(0, Math.min(100, Math.trunc(args[5]))) : 0;
         alpha = Math.trunc(percent * 255 / 100);
@@ -1527,12 +1588,36 @@ export function createEngine(init: EngineInit): Engine {
       imageDiagnostic(args[0], `${effect.name}: image dimensions are invalid`);
       return;
     }
+    const screenTarget = destination === (0 as SurfaceId);
+    const dst = {
+      x: Math.trunc(x),
+      y: Math.trunc(y),
+      w: Math.max(0, Math.trunc(width)),
+      h: Math.max(0, Math.trunc(height)),
+    };
+    const keyPixels = keyColour === undefined ? null : [keyColour.r, keyColour.g, keyColour.b].map(Math.trunc);
+    const normalizedKey = keyPixels !== null && keyPixels.every((value) => Number.isSafeInteger(value) && value >= 0 && value <= 255)
+      ? { r: keyPixels[0]!, g: keyPixels[1]!, b: keyPixels[2]! }
+      : null;
+    const source: DrawCommand = {
+      kind: "blit",
+      source: { asset: sourceAsset, tile: null },
+      src: { x: 0, y: 0, w: texture.w, h: texture.h },
+      dst,
+      key: normalizedKey,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha,
+      blend: additive ? "additive" : translucent ? "translucent" : "normal",
+      iso2d: false,
+    };
     // An image that names no canvas lands on the script-screen layer, exactly like the drawing commands
     // (docs/spec/engine/runners.md#surface-read-and-state-hash); destination 0 is the derived presented frame.
     if (destination === (0 as SurfaceId)) destination = ensureScriptScreen(state.surfaces);
     if (!blitTexture(state.surfaces, texture, destination, x, y, width, height, keyColour, alpha, additive)) {
       imageDiagnostic(args[0], `${effect.name}: destination surface is not live`);
+      return;
     }
+    if (screenTarget) appendAuthorMarginBlit(source);
   }
   function applySurfaceEffect(effect: EffectRecord): void {
     if (!IMAGE_EFFECTS[effect.name]) {
@@ -1556,7 +1641,7 @@ export function createEngine(init: EngineInit): Engine {
         }
         return;
       }
-      applySurfaceImage(effect, texture);
+      applySurfaceImage(effect, texture, MENU_HAND_ASSET);
       return;
     }
     const optional = effect.name === MENU_GRAPHIC_EFFECT;
@@ -1578,7 +1663,7 @@ export function createEngine(init: EngineInit): Engine {
       request(key, "image");
       return;
     }
-    applySurfaceImage(effect, texture);
+    applySurfaceImage(effect, texture, key);
   }
   function syncEngineState(): void {
     const next: EngineSection = {
@@ -1738,7 +1823,7 @@ export function createEngine(init: EngineInit): Engine {
         continue;
       }
       pendingImageEffects.splice(index, 1);
-      applySurfaceImage(item.effect, texture);
+      applySurfaceImage(item.effect, texture, item.key);
     }
   }
   function consumeBlob(record: InputRecord, consumed: InputRecord[]): BlobReplyResult {
@@ -1936,6 +2021,7 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
   function resetLifecycle(nextMain?: string): void {
+    reportedUnknownActions.clear();
     discardRecoveryCandidates();
     clearStartupAnchors();
     const rng = state.rng;
@@ -1961,11 +2047,16 @@ export function createEngine(init: EngineInit): Engine {
     state.events = fresh.events;
     state.battle = fresh.battle;
     state.menu = fresh.menu;
-    state.input = createInputSection(init.input);
+    state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
     state.ui = fresh.ui;
     state.camera = createCameraSection(init.width, init.height);
     state.fx = fresh.fx;
     state.surfaces = createSurfacesSection(init.width, init.height);
+    surfaceCache.clear();
+    generatedMarginPixels = null;
+    frameHash = null;
+    frameFailure = null;
+    surfaceCacheEpoch += 1;
     state.rng = rng;
     state.time = time;
     shopSession.reset();
@@ -2331,7 +2422,7 @@ export function createEngine(init: EngineInit): Engine {
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // A blocking enter program is a new outermost program; reset the message window.
       const blocking = blockingAlive();
-      if (!blocking) resetUiForProgramStart(state.ui);
+      if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
       const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
       if (blocking && enterThread !== null) state.engine.pendingEnterThread = enterThread.id;
       else delete state.engine.pendingEnterThread;
@@ -2356,7 +2447,7 @@ export function createEngine(init: EngineInit): Engine {
       clearPendingExit(player.id);
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // An edge link that runs a program starts a new outermost program.
-      resetUiForProgramStart(state.ui);
+      resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
       startFileProgram(link, board.key, "blocking");
       return;
     }
@@ -2554,7 +2645,7 @@ export function createEngine(init: EngineInit): Engine {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
       }
       if (mainFile.startupPrg !== "") {
-        resetUiForProgramStart(state.ui);
+        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
         startFileProgram(mainFile.startupPrg, mainKey, "blocking");
       }
       boot.stage = "startup";
@@ -2863,7 +2954,7 @@ export function createEngine(init: EngineInit): Engine {
       for (const ref of prepared.boardPrograms) startThread(stagedVm, { ref, kind: "board", owner: "world" });
       if (prepared.entryProgram !== null) {
         const blocking = stagedVm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
-        if (!blocking) resetUiForProgramStart(state.ui);
+        if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
         startThread(stagedVm, { ref: prepared.entryProgram, kind: blocking ? "board" : "blocking", owner: blocking ? "world" : "script" });
       }
     } catch (error) {
@@ -3478,11 +3569,188 @@ export function createEngine(init: EngineInit): Engine {
     return false;
   }
 
+  const authorSurfaceSelectionKey = (owner: number, surfaceId: string): string => `${owner}:${surfaceId}`;
+  function authorSurfaceTargetAt(x: number, y: number): UiActionClaim | null {
+    const width = init.width;
+    const height = init.height;
+    const inPlane1 = x >= 0 && y >= 0 && x < width && y < height;
+    if (!inPlane1) {
+      const geometry = state.display.geometry;
+      const scaleX = geometry.game.width / width;
+      const scaleY = geometry.game.height / height;
+      const left = geometry.game.x + x * scaleX;
+      const right = left + scaleX;
+      const top = geometry.game.y + y * scaleY;
+      const bottom = top + scaleY;
+      const safeLeft = geometry.safeArea.left;
+      const safeRight = geometry.content.width - geometry.safeArea.right;
+      const safeTop = geometry.safeArea.top;
+      const safeBottom = geometry.content.height - geometry.safeArea.bottom;
+      if (left < 0 || top < 0 || right > geometry.content.width || bottom > geometry.content.height ||
+          left < safeLeft || right > safeRight || top < safeTop || bottom > safeBottom) return null;
+    }
+    const surfaces = state.ui.actionSurfaces ?? [];
+    for (let surfaceIndex = surfaces.length - 1; surfaceIndex >= 0; surfaceIndex -= 1) {
+      const surface = surfaces[surfaceIndex]!;
+      for (let index = 0; index < surface.items.length; index += 1) {
+        const item = surface.items[index]!;
+        if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
+            x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h) {
+          return { surfaceId: surface.id, owner: surface.owner, itemId: item.id, index, action: item.action ?? null, inputSeq: null, cancelled: false };
+        }
+      }
+    }
+    return null;
+  }
+
+  function dispatchAuthorSurfaceAction(claim: UiActionClaim): number | null {
+    if (claim.action === null) return null;
+    const source = `ui:${claim.owner}/${claim.surfaceId}/${claim.itemId}`;
+    const inputSeq = state.input.nextSeq;
+    if (!applySemanticActionEdge(state.input, claim.action, true, source)) {
+      reportUnknownAction(claim.action);
+      return null;
+    }
+    applySemanticActionEdge(state.input, claim.action, false, source);
+    return state.input.nextSeq > inputSeq ? inputSeq : null;
+  }
+  function actionInputSequence(action: string, firstSeq: number): number | null {
+    return state.input.keys.find((key) => key.seq >= firstSeq && (key.action === action || key.resolvedActions.includes(action)))?.seq ?? null;
+  }
+  function routeAuthorSurfaceAction(action: string, down: boolean, inputSeq: number | null = null): void {
+    if (!down || state.ui.modal !== null) return;
+    const surfaces = state.ui.actionSurfaces ?? [];
+    const surface = surfaces[surfaces.length - 1];
+    if (surface === undefined) return;
+    if (action === "cancel") {
+      state.ui.surfaceCancelled = true;
+      state.ui.surfaceCancelledSeq = inputSeq;
+      state.ui.surfaceCancelledOwner = surface.owner;
+      return;
+    }
+    if (action === "confirm") {
+      const item = surface.items[surface.selection];
+      if (item?.enabled) state.ui.surfaceActivated = { owner: surface.owner, surfaceId: surface.id, itemId: item.id, index: surface.selection, action: null, inputSeq, cancelled: false, };
+      return;
+    }
+    if (action !== "up" && action !== "down" && action !== "left" && action !== "right") return;
+    const step = action === "up" || action === "left" ? -1 : 1;
+    const count = surface.items.length;
+    if (count === 0) return;
+    let index = surface.selection;
+    for (let attempt = 0; attempt < count; attempt += 1) {
+      index = (index + step + count) % count;
+      if (surface.items[index]?.enabled) {
+        state.ui.surfaceSelection[authorSurfaceSelectionKey(surface.owner, surface.id)] = index;
+        state.ui.actionSurfaces = surfaces.map((candidate) =>
+          candidate.owner === surface.owner && candidate.id === surface.id ? { ...candidate, selection: index } : candidate,
+        );
+        return;
+      }
+    }
+  }
+  function actionStateSnapshot(): Map<string, boolean> {
+    const before = new Map<string, boolean>();
+    for (const action of inputRegisteredActionNames(state.input)) before.set(action, state.input.actions[action] === true);
+    return before;
+  }
+  function routeActionStateChanges(before: ReadonlyMap<string, boolean>, firstSeq: number): void {
+    for (const action of inputRegisteredActionNames(state.input)) {
+      const down = state.input.actions[action] === true;
+      if (before.get(action) !== down) routeAuthorSurfaceAction(action, down, actionInputSequence(action, firstSeq));
+    }
+  }
+  function applyRoutedInputEvent(event: InputRecord["event"]): void {
+    if (event.kind === "pointer.cancel") { applyInputEvent(state.input, event, reportUnknownAction); state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); return; }
+    if (event.kind === "action") {
+      const before = actionStateSnapshot();
+      const firstSeq = state.input.nextSeq;
+      applyInputEvent(state.input, event, reportUnknownAction);
+      routeActionStateChanges(before, firstSeq);
+      return;
+    }
+    if (event.kind !== "pointer") {
+      if (event.kind === "key") {
+        const before = actionStateSnapshot();
+        const firstSeq = state.input.nextSeq;
+        applyInputEvent(state.input, event, reportUnknownAction);
+        routeActionStateChanges(before, firstSeq);
+      } else {
+        applyInputEvent(state.input, event, reportUnknownAction);
+        if (event.kind === "focus" && event.state === "lost") { state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); }
+      }
+      return;
+    }
+    const previousButtons = state.input.pointer.buttons;
+    const wasPrimaryDown = (previousButtons & 1) !== 0;
+    const isPrimaryDown = (event.buttons & 1) !== 0;
+    const downEdge = !wasPrimaryDown && isPrimaryDown;
+    const releaseEdge = wasPrimaryDown && !isPrimaryDown;
+    const pressed = state.ui.surfacePointerClaim ?? null;
+    const target = authorSurfaceTargetAt(event.x, event.y);
+    const pendingClicks = state.input.pendingClicks;
+    const pendingClickCount = pendingClicks.length;
+    const pendingPointerUps = state.input.pendingPointerUps;
+    const pendingPointerUpCount = pendingPointerUps.length;
+    const keys = state.input.keys.length;
+    const pendingActions = state.input.pendingActions.length;
+    const nextSeq = state.input.nextSeq;
+    applyInputEvent(state.input, event, reportUnknownAction);
+    const restorePendingPointerQueues = (): void => {
+      pendingClicks.length = pendingClickCount;
+      pendingPointerUps.length = pendingPointerUpCount;
+      state.input.pendingClicks = pendingClicks;
+      state.input.pendingPointerUps = pendingPointerUps;
+    };
+
+    if (state.ui.modal != null) { restorePendingPointerQueues(); if (pressed !== null) { state.ui.surfacePointerClaim = { ...pressed, cancelled: true }; if (releaseEdge) { state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); } } return; }
+    if (pressed !== null) { const sameTarget = target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId; if (!sameTarget && !pressed.cancelled) state.ui.surfacePointerClaim = { ...pressed, cancelled: true }; restorePendingPointerQueues(); state.input.keys.length = keys; state.input.pendingActions.length = pendingActions; state.input.nextSeq = nextSeq; state.input.pressedButtonSlot = null; }
+    if (downEdge && target !== null) {
+      setPointerMovementSuppressed(state.input, true);
+      state.ui.surfacePointerClaim = target;
+      restorePendingPointerQueues();
+      state.input.keys.length = keys;
+      state.input.pendingActions.length = pendingActions;
+      state.input.nextSeq = nextSeq;
+      const surfaces = state.ui.actionSurfaces ?? [];
+      state.ui.actionSurfaces = surfaces.map((surface) =>
+        surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+      );
+      state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
+      state.input.pressedButtonSlot = null;
+      return;
+    }
+    if (releaseEdge && pressed !== null) {
+      state.ui.surfacePointerClaim = null;
+      restorePendingPointerQueues();
+      state.input.keys.length = keys;
+      state.input.pendingActions.length = pendingActions;
+      state.input.nextSeq = nextSeq;
+      state.input.pressedButtonSlot = null;
+      setPointerMovementSuppressed(state.input, false);
+      if (!pressed.cancelled && target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) { const inputSeq = dispatchAuthorSurfaceAction(pressed); state.ui.surfaceActivated = { ...pressed, inputSeq }; }
+      return;
+    }
+    if (target !== null) {
+      const surfaces = state.ui.actionSurfaces ?? [];
+      state.ui.actionSurfaces = surfaces.map((surface) =>
+        surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+      );
+      state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
+    }
+    if (event.x < 0 || event.y < 0 || event.x >= init.width || event.y >= init.height) {
+      restorePendingPointerQueues();
+    }
+  }
+
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        // Backfill older/manual waits before this tick's input records are appended.
+        state.ui.surfaceActivated = null;
+        state.ui.surfaceCancelled = false;
+        state.ui.surfaceCancelledSeq = null;
+        state.ui.surfaceCancelledOwner = null;
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }
@@ -3496,7 +3764,7 @@ export function createEngine(init: EngineInit): Engine {
             consumeAsset(record, consumed);
             continue;
           }
-          applyInputEvent(state.input, record.event);
+          applyRoutedInputEvent(record.event);
           consumed.push(record);
         }
         processGamepadEvents(state.input, ({ device, connected }) => {
@@ -3504,6 +3772,8 @@ export function createEngine(init: EngineInit): Engine {
             device,
             type: "gamepad",
           });
+        }, (action, down, firstSeq) => {
+          routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
         });
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
@@ -3564,6 +3834,8 @@ export function createEngine(init: EngineInit): Engine {
         return;
       case "time":
         runTimePhase(state.time);
+        state.ui.surfaceBuilders = state.ui.surfaceBuilders.filter((builder) => builder.openedTick >= state.time.tick);
+        state.ui.actionSurfaces = state.ui.actionSurfaces.filter((surface) => surface.publishedTick >= state.time.tick - 1);
         collectStateGarbage(state, layerRoots(services.layers));
         return;
       case "movement":
@@ -3656,13 +3928,13 @@ export function createEngine(init: EngineInit): Engine {
                 at += 1;
                 continue;
               }
-              applyInputEvent(state.input, earlier.event);
+              applyRoutedInputEvent(earlier.event);
             }
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
         }
-        applyInputEvent(state.input, record.event);
+        applyRoutedInputEvent(record.event);
         consumed.push(record);
       } else if (!state.input.focused && applyHostStateEvent(record.event)) {
         consumed.push(record);
@@ -3679,7 +3951,7 @@ export function createEngine(init: EngineInit): Engine {
       if (applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
-        applyInputEvent(state.input, record.event);
+        applyRoutedInputEvent(record.event);
         consumed.push(record);
       }
     }
@@ -3691,6 +3963,66 @@ export function createEngine(init: EngineInit): Engine {
     if (state.ui.message === undefined) return;
     state.ui.message = { ...state.ui.message, visible: false };
     state.ui.modal = null;
+  }
+
+  function lowerAuthorMarginCommands(commands: readonly DrawCommand[]): DrawCommand[] {
+    generatedMarginPixels = null;
+    if (commands.length === 0) return [];
+    const geometry = state.display.geometry;
+    const { content, game, safeArea } = geometry;
+    const scaleX = game.width / init.width;
+    const scaleY = game.height / init.height;
+    const emptySafeArea = content.width - safeArea.left - safeArea.right <= 0 ||
+      content.height - safeArea.top - safeArea.bottom <= 0;
+    const left = emptySafeArea ? 0 : Math.floor(Math.max(0, game.x - safeArea.left) / scaleX);
+    const right = emptySafeArea ? 0 : Math.floor(Math.max(0, content.width - safeArea.right - game.x - game.width) / scaleX);
+    const top = emptySafeArea ? 0 : Math.floor(Math.max(0, game.y - safeArea.top) / scaleY);
+    const bottom = emptySafeArea ? 0 : Math.floor(Math.max(0, content.height - safeArea.bottom - game.y - game.height) / scaleY);
+    if (left + right + top + bottom === 0) return [...commands];
+    const width = init.width + left + right;
+    const height = init.height + top + bottom;
+    const offset = { x: left, y: top };
+    const shifted = commands.map((command): DrawCommand => {
+      switch (command.kind) {
+        case "blit":
+          return { ...command, dst: { ...command.dst, x: command.dst.x + offset.x, y: command.dst.y + offset.y } };
+        case "line":
+          return { ...command, x1: command.x1 + offset.x, y1: command.y1 + offset.y, x2: command.x2 + offset.x, y2: command.y2 + offset.y };
+        case "rect":
+        case "ellipse":
+          return { ...command, rect: { ...command.rect, x: command.rect.x + offset.x, y: command.rect.y + offset.y } };
+        case "text":
+          return { ...command, x: command.x + offset.x, y: command.y + offset.y };
+        case "fill":
+        case "pushTarget":
+        case "popTarget":
+          return command;
+        default: {
+          const exhaustive: never = command;
+          return exhaustive;
+        }
+      }
+    });
+    const rendered = rasterizeAuthorMargin(
+      { tick: state.time.tick, width, height, commands: shifted, marginCommands: [] },
+      rasterAssets(),
+      surfaceTextures(state.surfaces, surfaceCache),
+    );
+    if (rendered.error !== null) return [...commands];
+    const id = state.surfaces.nextId as SurfaceId;
+    const rev = Number.parseInt(fnv1a64(`${width}x${height}:${fnv1a64(rendered.rgba)}`).slice(0, 13), 16) || 1;
+    generatedMarginPixels = { id, rev, pixels: { w: width, h: height, rgba: rendered.rgba } };
+    return [{
+      kind: "blit",
+      source: { surface: id, rev },
+      src: { x: 0, y: 0, w: width, h: height },
+      dst: { x: -left, y: -top, w: width, h: height },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: 255,
+      blend: "normal",
+      iso2d: false,
+    }];
   }
 
   function currentDrawList(alpha = 0, include = init.include ?? { shading: false, images: false, sprites: false }): DrawList {
@@ -3726,7 +4058,7 @@ export function createEngine(init: EngineInit): Engine {
       if (debug.fps !== undefined) commands.push({ kind: "text", x: 4, y: 4, text: `FPS ${Math.round(debug.fps)}`, font: state.ui.font, rgb: colour, advances: [] });
       return commands;
     };
-    const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"] };
+    const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"], marginCommands: [] as DrawList["marginCommands"] };
     const base = board === null
       ? empty
       : composeBoard({
@@ -3763,9 +4095,16 @@ export function createEngine(init: EngineInit): Engine {
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const uiForCompose = activeSurface
       ? state.ui
-      : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
+      : { ...state.ui, draws: [], authorMarginCommands: [], message: { ...state.ui.message, visible: false }, modal: null };
     const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection, messageGraphicKey())] };
-    return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)] };
+    return {
+      ...withUi,
+      commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)],
+      marginCommands: [
+        ...lowerAuthorMarginCommands(uiForCompose.authorMarginCommands ?? []),
+        ...composeUiMargins(uiForCompose, init.width, init.height).slice(uiForCompose.authorMarginCommands?.length ?? 0),
+      ],
+    };
   }
   /** A blit of one whole persistent surface, sized from its stored bitmap (E-57's script-screen layer). */
   function surfaceBlit(surfaces: GameState["surfaces"], id: SurfaceId | null): DrawCommand | null {
@@ -3792,8 +4131,26 @@ export function createEngine(init: EngineInit): Engine {
    * silently, so a simulation that never reads the screen never reports a presentation failure, and a script that
    * reads a frame that cannot be replayed is told (docs/spec/engine/runners.md#surface-read-and-state-hash).
    */
+  function primeMarginAssets(list: DrawList): void {
+    const visited = new Set<AssetKey>();
+    for (const command of list.marginCommands) {
+      if (command.kind !== "blit" || !("asset" in command.source)) continue;
+      const asset = command.source.asset;
+      if (visited.has(asset)) continue;
+      visited.add(asset);
+      if (command.source.tile === null) {
+        if (cache.has(asset) || init.bundled?.has(asset)) imageTexture(asset);
+        else request(asset, "image");
+      } else if (cache.has(asset)) {
+        tileTexture(asset);
+      } else {
+        request(asset, "tile");
+      }
+    }
+  }
   function refreshFrame(report: boolean): void {
     const list = currentDrawList(0);
+    primeMarginAssets(list);
     // The rasteriser reads the list's size and commands, never its tick, so a static scene is rebuilt once, not every
     // tick. A rebuild is also forced when an asset has arrived, because a command that named it may now replay.
     const nextHash = `${hashDrawList({ ...list, tick: 0 })}:${cache.size}:${installedFonts.size}`;
@@ -3937,6 +4294,29 @@ export function createEngine(init: EngineInit): Engine {
         stateHash: hashGameState(state),
       };
     },
+    registeredActionNames() {
+      return ["up", "down", "left", "right", "confirm", "cancel", "menu", ...state.input.registeredActions.map((action) => action.name)];
+    },
+    registerGameAction(action: RegisteredAction) {
+      const registered = registerGameAction(state.input, action);
+      if (registered && !externallyRegisteredActions.some((existing) => existing.name === action.name)) {
+        const definition = state.input.registeredActions.find((existing) => existing.name === action.name);
+        if (definition !== undefined) externallyRegisteredActions.push(definition);
+      }
+      if (!registered) diagnostics.push({
+        code: "input.action-registration",
+        file: mainKey ?? "",
+        line: 0,
+        message: "game action registration was rejected (invalid metadata or duplicate name)",
+      });
+      return registered;
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      setPointerMovementSuppressed(state.input, suppressed);
+    },
+    reportUnknownAction(action: string) {
+      reportUnknownAction(action);
+    },
     recoveryCandidate() {
       if (recoveryCaptureRequested) {
         recoveryCaptureRequested = false;
@@ -3960,7 +4340,31 @@ export function createEngine(init: EngineInit): Engine {
     drawList(alpha = 0, include: DrawListInclude = { shading: false, images: false, sprites: false }) {
       return currentDrawList(alpha, include);
     },
+    customTouchControlsDeclared(): boolean {
+      return state.ui.customTouchControlsDeclared === true;
+    },
+    accessibilityTree() {
+      return uiAccessibilityTree(state.ui);
+    },
+    hostFeatures(): NormalizedHostFeatures {
+      return { ...state.features };
+    },
+    hostDisplayGeometry(): HostDisplayGeometry {
+      const { content, game, safeArea } = state.display.geometry;
+      return {
+        content: { ...content },
+        game: { ...game },
+        safeArea: { ...safeArea },
+      };
+    },
+    surfaceCacheEpoch(): number {
+      return surfaceCacheEpoch;
+    },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
+      if (generatedMarginPixels?.id === id && generatedMarginPixels.id === state.surfaces.nextId && generatedMarginPixels.rev === rev) {
+        const { w, h, rgba } = generatedMarginPixels.pixels;
+        return { w, h, rgba: new Uint8Array(rgba) };
+      }
       return readSurfacePixels(state.surfaces, id, rev, surfaceCache);
     },
     picturePixels(key: AssetKey): SurfacePixels | null {

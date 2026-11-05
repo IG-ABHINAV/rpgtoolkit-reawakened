@@ -79,6 +79,7 @@ test("bitmap text replay is a deterministic pixel vector", () => {
     tick: 0,
     width: 12,
     height: 16,
+    marginCommands: [],
     commands: emitText("A", 1, 2, { r: 10, g: 20, b: 30 }, ref),
   }, new Map([[key, testFont()]]));
   equal(result.error, null);

@@ -37,6 +37,7 @@ const KINDS = [
   "pointer.cancel",
   "gamepad",
   "focus",
+  "action",
   "host.features",
   "host.display",
   "asset",
@@ -55,6 +56,7 @@ const KEY_SETS: { readonly [kind in EventKind]: readonly string[] } = {
   key: ["kind", "name", "code", "char", "down", "repeat"],
   pointer: ["kind", "x", "y", "buttons"],
   "pointer.cancel": ["kind"],
+  action: ["kind", "action", "down", "source"],
   gamepad: ["kind", "device", "connected", "axes", "buttons"],
   focus: ["kind", "state"],
   "host.features": ["kind", "features"],
@@ -156,10 +158,16 @@ function validateGamepad(record: UnknownRecord): InputEventValidation {
   const axisRecord = axes as UnknownRecord;
   if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid("axes.x", "expected an integer from -1000 through 1000");
   if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid("axes.y", "expected an integer from -1000 through 1000");
-  if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 127) return invalid("buttons", "expected a 7-bit non-negative integer");
+  if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 0x1ffff) return invalid("buttons", "expected a 17-bit non-negative physical button mask");
   return accept(record);
 }
 
+function validateAction(record: UnknownRecord): InputEventValidation {
+  if (!isNonEmptyString(record["action"])) return invalid("action", "expected a non-empty action name");
+  if (typeof record["down"] !== "boolean") return invalid("down", "expected a boolean");
+  if (!isNonEmptyString(record["source"])) return invalid("source", "expected a non-empty source name");
+  return accept(record);
+}
 function validateFocus(record: UnknownRecord): InputEventValidation {
   if (!isFocusState(record["state"])) return invalid("state", "expected 'lost' or 'gained'");
   return accept(record);
@@ -281,6 +289,8 @@ export function validateInputEvent(raw: unknown): InputEventValidation {
         return accept(record);
       case "gamepad":
         return validateGamepad(record);
+      case "action":
+        return validateAction(record);
       case "focus":
         return validateFocus(record);
       case "host.features":
