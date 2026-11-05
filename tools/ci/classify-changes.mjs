@@ -87,6 +87,19 @@ function isInertPath(path) {
     return false;
   }
 
+  // Documentation that no CI lane reads (provenance skips `docs/`, and no tool parses these
+  // Markdown files) is inert: every Markdown file under docs/ except the normative spec.
+  // The spec (`docs/spec/`, including its examples) is deliberately excluded above.
+  if (path.startsWith("docs/") && path.endsWith(".md") && !path.startsWith("docs/spec/")) {
+    return true;
+  }
+
+  // The installed BMAD framework lives under `_bmad/` and is consumed only by manual ticket
+  // tooling (never by a CI lane); provenance skips it too. Treat the whole tree as inert.
+  if (path.startsWith("_bmad/")) {
+    return true;
+  }
+
   return (
     (!path.includes("/") && path.endsWith(".md")) ||
     path === "docs/guardrails.md" ||
