@@ -321,7 +321,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   const unlockAudio = (): void => {
     void audioContext.resume().then(() => { if (audioContext.state === "running") player.unlock(currentTick); });
   };
-  window.addEventListener("pointerdown", unlockAudio);
+  window.addEventListener("pointerdown", unlockAudio, true);
   window.addEventListener("keydown", unlockAudio);
 
   function close(): void {
@@ -329,7 +329,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     closed = true;
     assets.close();
     decode?.close();
-    window.removeEventListener("pointerdown", unlockAudio);
+    window.removeEventListener("pointerdown", unlockAudio, true);
     window.removeEventListener("keydown", unlockAudio);
     audioContext.removeEventListener("statechange", onAudioStateChange);
     graph.disconnect();

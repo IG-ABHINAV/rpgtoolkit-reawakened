@@ -239,11 +239,12 @@ function run(
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
   const stage = hostViewport.viewport;
-  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, (action, down) => {
+  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean): number => {
     pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
-  });
+  };
+  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, dispatchFallbackAction);
   const stopPointerInput = attachPointerInput(
     stage,
     viewSize,
@@ -257,7 +258,8 @@ function run(
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
       pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
-    ({ x, y }) => session.engine.pointerPreemptsRunnerControl(x, y),
+    ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
+    dispatchFallbackAction,
   );
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 

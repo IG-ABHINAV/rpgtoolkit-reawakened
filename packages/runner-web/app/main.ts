@@ -360,11 +360,12 @@ function startLiveLoop(
   const displayGeometry = createObservedHostGeometry(session.displayGeometry());
   const fallbackControlKeys = new Set<string>();
   let fallbackActionSequence = 0;
-  const touchControls = createFallbackTouchControls(hostViewport.viewport, displayGeometry.current, (action, down) => {
+  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean): number => {
     pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
-  });
+  };
+  const touchControls = createFallbackTouchControls(hostViewport.viewport, displayGeometry.current, dispatchFallbackAction);
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
     displayGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
@@ -382,7 +383,8 @@ function startLiveLoop(
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
       pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
-    ({ x, y }) => session.engine.pointerPreemptsRunnerControl(x, y),
+    ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
+    dispatchFallbackAction,
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (shouldSuppressGameplayKey(event.code, event.repeat, down, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;

@@ -117,8 +117,8 @@ export interface Engine {
   surfaceCacheEpoch(): number;
   /** Plain-data tree for currently published UI surfaces; hosts request it only when needed. */
   accessibilityTree(): readonly AccessibilityNode[];
-  /** Whether an active modal or an eligible author item preempts a runner fallback target at this logical point. */
-  pointerPreemptsRunnerControl(x: number, y: number): boolean;
+  /** Highest-priority core claim at a runner fallback control point, or null when no core target claims it. */
+  runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null;
   /**
    * The pixels of surface `id` at revision `rev`, or `null` when the surface
    * is unknown or `rev` is no longer available (AD-27). A presentation-only

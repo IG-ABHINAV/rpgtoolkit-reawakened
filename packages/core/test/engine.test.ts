@@ -458,13 +458,13 @@ test("pointer preemption query is read-only and follows modal and author UI prio
   const engine = loadedEngine([surfaceRegistration]);
   engine.advance(1, []);
   const before = JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() });
-  equal(engine.pointerPreemptsRunnerControl(5, 5), true);
-  equal(engine.pointerPreemptsRunnerControl(17, 17), false);
+  equal(engine.runnerControlPointerPreemption(5, 5), "author");
+  equal(engine.runnerControlPointerPreemption(17, 17), null);
   equal(JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() }), before, "preflight does not mutate or hash simulation state");
 
   const modal = programEngine('msgbox("Modal")\nend()', []);
   modal.advance(1, []);
-  equal(modal.pointerPreemptsRunnerControl(300, 200), true, "an active modal preempts a fallback target regardless of the point");
+  equal(modal.runnerControlPointerPreemption(300, 200), "modal", "an active modal preempts a fallback target regardless of the point");
 });
 
 test("default Enter and Escape claims prevent Get from reading the same key", () => {

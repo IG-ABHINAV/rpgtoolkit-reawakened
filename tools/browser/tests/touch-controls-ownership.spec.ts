@@ -137,11 +137,14 @@ test("fallback confirm and cancel wait for same-button pointer release", async (
 
 test("fallback DOM yields overlapping author and modal pointers to core", async ({ browser }) => {
   const author = packageWithStartup("author-touch-overlap.tpk", [
+    "activated = 0",
     "while (1) {",
     'uiBegin("overlap", "surface", 0, 0, 640, 480)',
     'uiItem("Other", { id: "other", bounds: { x: 10, y: 10, w: 80, h: 40 } })',
-    'uiItem("Author target", { id: "overlap", bounds: { x: 480, y: 390, w: 100, h: 90 }, action: "confirm" })',
+    'if (activated == 0) { uiItem("Author target", { id: "overlap", bounds: { x: 480, y: 390, w: 100, h: 90 }, action: "confirm" }) }',
+    'if (activated == 1) { uiItem("Author target activated", { id: "overlap", bounds: { x: 480, y: 390, w: 100, h: 90 }, action: "confirm" }) }',
     "uiEnd()",
+    "if (uiActivated() >= 0) { activated = 1 }",
     "sleep(1)",
     "}",
   ].join("\n"));
@@ -149,15 +152,43 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
   for (const fixture of [author, modal]) {
     const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
     const page = await context.newPage();
+      if (fixture === modal) {
+        await page.addInitScript(() => {
+          const target = window as Window & { __audioResumeStates?: string[]; __sessionAudioContext?: AudioContext };
+          target.__audioResumeStates = [];
+          const NativeAudioContext = window.AudioContext;
+          const original = NativeAudioContext.prototype.resume;
+          NativeAudioContext.prototype.resume = function (...args: Parameters<typeof original>): Promise<void> {
+            target.__audioResumeStates?.push(this.state);
+            return original.apply(this, args);
+          };
+          window.AudioContext = class extends NativeAudioContext {
+            constructor(options?: AudioContextOptions) {
+              super(options);
+              target.__sessionAudioContext = this;
+            }
+          };
+        });
+      }
     try {
       await servePackage(page, fixture);
       await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
       const confirm = page.getByRole("button", { name: "Confirm" });
       await confirm.waitFor({ state: "visible", timeout: 45_000 });
+      if (fixture === modal) {
+        await page.waitForFunction(() => (window as Window & { __sessionAudioContext?: AudioContext }).__sessionAudioContext !== undefined, undefined, { timeout: 10_000 });
+        const suspended = await page.evaluate(async () => {
+          const audio = (window as Window & { __sessionAudioContext?: AudioContext }).__sessionAudioContext;
+          if (audio === undefined) return false;
+          await audio.suspend();
+          return audio.state === "suspended";
+        });
+        expect(suspended).toBe(true);
+      }
       const box = await confirm.boundingBox();
       if (box === null) throw new Error("Confirm fallback button has no bounds");
-      await page.waitForFunction(({ screenX, screenY }) => {
-        const target = window as Window & { __session?: { readonly engine?: { pointerPreemptsRunnerControl(x: number, y: number): boolean }; readonly displayGeometry?: () => { readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number } }; readonly viewSize?: () => { readonly width: number; readonly height: number } } };
+      await page.waitForFunction(({ screenX, screenY, expected }) => {
+        const target = window as Window & { __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null }; readonly displayGeometry?: () => { readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number } }; readonly viewSize?: () => { readonly width: number; readonly height: number } } };
         const session = target.__session;
         const geometry = session?.displayGeometry?.();
         const size = session?.viewSize?.();
@@ -166,8 +197,8 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
         if (stage === undefined) return false;
         const x = Math.floor((screenX - stage.left - geometry.game.x) / (geometry.game.width / size.width));
         const y = Math.floor((screenY - stage.top - geometry.game.y) / (geometry.game.height / size.height));
-        return session.engine.pointerPreemptsRunnerControl(x, y);
-      }, { screenX: box.x + box.width / 2, screenY: box.y + box.height / 2 }, { timeout: 45_000 });
+        return session.engine.runnerControlPointerPreemption(x, y) === expected;
+      }, { screenX: box.x + box.width / 2, screenY: box.y + box.height / 2, expected: fixture === author ? "author" : "modal" }, { timeout: 45_000 });
       await installInputTrace(page);
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
       await page.waitForFunction(() => {
@@ -177,7 +208,6 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
       const input = await tracedInputs(page);
       expect(input.some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1)).toBe(true);
       expect(input.some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 0)).toBe(true);
-      expect(input.filter((entry) => entry.event.kind === "action" && entry.event.source === "runner.fallback")).toHaveLength(0);
       if (fixture === author) {
         await page.waitForFunction(() => {
           const target = window as Window & {
@@ -187,8 +217,24 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
               };
             };
           };
-          return target.__session?.engine?.accessibilityTree().some((node) => node.children?.some((child) => child.label === "Author target" && child.focused)) ?? false;
+          return target.__session?.engine?.accessibilityTree().some((node) => node.children?.some((child) => child.label === "Author target activated")) ?? false;
         }, undefined, { timeout: 10_000 });
+        expect(input.filter((entry) => entry.event.kind === "action" && entry.event.source === "runner.fallback")).toHaveLength(0);
+      } else {
+        await page.waitForFunction((action) => {
+          const target = window as Window & {
+            __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null } };
+            __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[];
+          };
+          return target.__session?.engine?.runnerControlPointerPreemption(0, 0) !== "modal" &&
+            (target.__touchInputTrace ?? []).flatMap((entry) => entry.inputs).some((entry) =>
+              entry.event.kind === "action" && entry.event.action === action && entry.event.source === "runner.fallback" && entry.event.down === false);
+        }, "confirm", { timeout: 10_000 });
+        const modalActions = (await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === "confirm" && entry.event.source === "runner.fallback");
+        expect(modalActions.filter((entry) => entry.event.down === true)).toHaveLength(1);
+        expect(modalActions.filter((entry) => entry.event.down === false)).toHaveLength(1);
+        const resumeStates = await page.evaluate(() => (window as Window & { __audioResumeStates?: string[] }).__audioResumeStates ?? []);
+        expect(resumeStates).toContain("suspended");
       }
     } finally {
       await context.close();
@@ -257,6 +303,76 @@ test("fallback grid gaps pass through and unrelated focused-button keys reach ga
       const keys = trace.flatMap((entry) => entry.inputs).filter((entry) => entry.event.kind === "key");
       return ["ArrowRight", "Escape"].every((code) => keys.some((entry) => entry.event.code === code && entry.event.down === true) && keys.some((entry) => entry.event.code === code && entry.event.down === false));
     }, undefined, { timeout: 10_000 });
+  } finally {
+    await context.close();
+  }
+});
+
+test("held Enter on a focused Confirm button emits one action edge", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    const confirm = page.getByRole("button", { name: "Confirm" });
+    await confirm.waitFor({ state: "visible", timeout: 45_000 });
+    await installInputTrace(page);
+    await page.evaluate(() => {
+      const target = window as Window & { __repeatKeydowns?: number };
+      target.__repeatKeydowns = 0;
+      document.addEventListener("keydown", (event) => {
+        if (event.code === "Enter" && event.repeat) target.__repeatKeydowns = (target.__repeatKeydowns ?? 0) + 1;
+      }, true);
+    });
+    await confirm.focus();
+    await page.keyboard.down("Enter");
+    await page.keyboard.down("Enter");
+    await page.keyboard.down("Enter");
+    await page.keyboard.up("Enter");
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs).some((input) => input.event.kind === "action" && input.event.action === "confirm" && input.event.source === "runner.fallback" && input.event.down === false);
+    }, undefined, { timeout: 10_000 });
+    const actionEdges = (await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === "confirm" && entry.event.source === "runner.fallback");
+    expect(actionEdges.filter((entry) => entry.event.down === true)).toHaveLength(1);
+    expect(actionEdges.filter((entry) => entry.event.down === false)).toHaveLength(1);
+    expect(await page.evaluate(() => (window as Window & { __repeatKeydowns?: number }).__repeatKeydowns ?? 0)).toBeGreaterThan(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test("fallback pointer ownership clears after blur before the next gameplay click", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    const right = page.getByRole("button", { name: "Move right" });
+    await right.waitFor({ state: "visible", timeout: 45_000 });
+    await installInputTrace(page);
+    await right.hover();
+    await page.mouse.down();
+    await page.waitForTimeout(50);
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await page.mouse.move(-20, -20);
+    await page.mouse.up();
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    const stage = await page.locator("#stage").boundingBox();
+    if (stage === null) throw new Error("game stage has no bounds");
+    const x = stage.x + stage.width / 2;
+    const y = stage.y + stage.height / 2;
+    const clickTarget = await page.evaluate(({ x: clickX, y: clickY }) => {
+      const target = document.elementFromPoint(clickX, clickY);
+      return { insideFallback: target instanceof Element && target.closest(".fallback-touch-controls") !== null };
+    }, { x, y });
+    expect(clickTarget.insideFallback).toBe(false);
+    await page.mouse.click(x, y);
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs).some((input) => input.event.kind === "pointer" && input.event.buttons === 1);
+    }, undefined, { timeout: 10_000 });
+    const pointerEvents = (await tracedInputs(page)).filter((entry) => entry.event.kind === "pointer");
+    expect(pointerEvents.some((entry) => entry.event.buttons === 1)).toBe(true);
+    expect(pointerEvents.some((entry) => entry.event.buttons === 0)).toBe(true);
   } finally {
     await context.close();
   }

@@ -208,6 +208,7 @@ export function createFallbackTouchControls(
     const button = document.createElement("button");
     button.type = "button";
     button.className = `fallback-touch-button fallback-touch-${entry.zone}`;
+    button.dataset.action = entry.action;
     button.setAttribute("aria-label", entry.label);
     button.setAttribute("aria-pressed", "false");
     button.textContent = entry.glyph;
@@ -217,6 +218,7 @@ export function createFallbackTouchControls(
       if (button.disabled || event.button !== 0) return;
       event.preventDefault();
       button.setPointerCapture(event.pointerId);
+      cancelledPointers.delete(event.pointerId);
       const wasActive = hasActiveSource(entry.action);
       activePointers.set(event.pointerId, entry.action);
       activePointerButtons.set(event.pointerId, button);
@@ -239,8 +241,11 @@ export function createFallbackTouchControls(
     button.addEventListener("pointercancel", (event) => { event.preventDefault(); cancelPointer(event.pointerId); });
     button.addEventListener("lostpointercapture", (event) => cancelPointer((event as PointerEvent).pointerId));
     button.addEventListener("keydown", (event) => {
-      if ((entry.action === "confirm" || entry.action === "cancel") ||
-          (event.code !== "Enter" && event.code !== "Space")) return;
+      if (event.code !== "Enter" && event.code !== "Space") return;
+      if (entry.action === "confirm" || entry.action === "cancel") {
+        if (event.repeat) event.preventDefault();
+        return;
+      }
       event.preventDefault();
       if (button.disabled || event.repeat || activeKeys.has(event.code)) return;
       const wasActive = hasActiveSource(entry.action);

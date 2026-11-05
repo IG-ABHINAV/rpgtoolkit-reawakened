@@ -4346,8 +4346,9 @@ export function createEngine(init: EngineInit): Engine {
     accessibilityTree() {
       return uiAccessibilityTree(state.ui);
     },
-    pointerPreemptsRunnerControl(x: number, y: number): boolean {
-      return state.ui.modal != null || authorSurfaceTargetAt(x, y) !== null;
+    runnerControlPointerPreemption(x: number, y: number): "modal" | "author" | null {
+      if (state.ui.modal != null) return "modal";
+      return authorSurfaceTargetAt(x, y) !== null ? "author" : null;
     },
     hostFeatures(): NormalizedHostFeatures {
       return { ...state.features };

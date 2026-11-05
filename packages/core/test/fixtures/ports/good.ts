@@ -613,7 +613,7 @@ export const conformingEngine: Engine = {
   registerGameAction() { return true; },
   setPointerMovementSuppressed() {},
   reportUnknownAction() {},
-  pointerPreemptsRunnerControl() { return false; },
+  runnerControlPointerPreemption() { return null; },
   surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
     return pinSurfacePixels;
   },

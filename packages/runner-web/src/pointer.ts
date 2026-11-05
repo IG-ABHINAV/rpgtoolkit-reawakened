@@ -34,7 +34,8 @@ export function attachPointerInput(
   geometry: () => HostDisplayGeometry,
   onPointer: (pointer: LogicalPointer, buttons: number) => void,
   onCancel: () => void,
-  preemptsFallback: (pointer: LogicalPointer) => boolean,
+  preemptionAtFallback: (pointer: LogicalPointer) => "modal" | "author" | null,
+  onModalFallbackAction: (action: "confirm" | "cancel", down: boolean) => void,
 ): () => void {
   let primaryPointerId: number | null = null;
   let suppressedPointerId: number | null = null;
@@ -42,6 +43,7 @@ export function attachPointerInput(
   let lastPointer: LogicalPointer = { x: 0, y: 0 };
   const runnerOwnedPointers = new Set<number>();
   const corePreemptedFallbackPointers = new Set<number>();
+  const modalFallbackPointers = new Map<number, { readonly action: "confirm" | "cancel"; readonly button: HTMLButtonElement; cancelled: boolean }>();
   const handledCancels = new WeakSet<Event>();
 
   const cancelPrimary = (pointerId: number): void => {
@@ -52,20 +54,40 @@ export function attachPointerInput(
   };
   const route = (event: PointerEvent): void => {
     const fallbackTarget = isFallbackTouchControlTarget(event.target);
-    const runnerOwned = runnerOwnedPointers.has(event.pointerId);
-    const corePreempted = corePreemptedFallbackPointers.has(event.pointerId);
-    if (runnerOwned) {
-      if (event.type === "pointerup") runnerOwnedPointers.delete(event.pointerId);
-      return;
-    }
-    if (fallbackTarget && !corePreempted) {
-      if (event.type !== "pointerdown" || event.button !== 0 || (event.buttons & 1) === 0) return;
-      const point = pointerEventToLogical(event, host, viewSize, geometry());
-      if (!preemptsFallback(point)) {
-        runnerOwnedPointers.add(event.pointerId);
+    if (runnerOwnedPointers.has(event.pointerId)) {
+      if (event.type === "pointerdown" && event.button === 0 && (event.buttons & 1) !== 0) {
+        runnerOwnedPointers.delete(event.pointerId);
+      } else {
+        if (event.type === "pointerup") runnerOwnedPointers.delete(event.pointerId);
         return;
       }
-      corePreemptedFallbackPointers.add(event.pointerId);
+    }
+    const corePreempted = corePreemptedFallbackPointers.has(event.pointerId);
+    if (fallbackTarget && !corePreempted) {
+      if (event.type === "pointerdown") {
+        if (event.button !== 0 || (event.buttons & 1) === 0) return;
+        const point = pointerEventToLogical(event, host, viewSize, geometry());
+        const preemption = preemptionAtFallback(point);
+        if (preemption === null) {
+          runnerOwnedPointers.add(event.pointerId);
+          return;
+        }
+        corePreemptedFallbackPointers.add(event.pointerId);
+        if (preemption === "modal" && event.target instanceof Element) {
+          const button = event.target.closest<HTMLButtonElement>(".fallback-touch-button");
+          const action = button?.dataset.action;
+          if (button !== null && (action === "confirm" || action === "cancel")) {
+            modalFallbackPointers.set(event.pointerId, { action, button, cancelled: false });
+          }
+        }
+      } else if (event.pointerId !== primaryPointerId) {
+        return;
+      }
+    }
+    const modalFallback = modalFallbackPointers.get(event.pointerId);
+    if (modalFallback !== undefined && event.type === "pointermove" &&
+        document.elementFromPoint(event.clientX, event.clientY)?.closest(".fallback-touch-button") !== modalFallback.button) {
+      modalFallback.cancelled = true;
     }
     if (corePreemptedFallbackPointers.has(event.pointerId)) {
       event.preventDefault();
@@ -101,7 +123,10 @@ export function attachPointerInput(
         primaryPointerId = null;
         suppressedPointerId = null;
       }
-      if (event.type === "pointerup") corePreemptedFallbackPointers.delete(event.pointerId);
+      if (event.type === "pointerup") {
+        corePreemptedFallbackPointers.delete(event.pointerId);
+        modalFallbackPointers.delete(event.pointerId);
+      }
       return;
     }
     if (primaryPointerId !== null && event.pointerId !== primaryPointerId) return;
@@ -111,15 +136,30 @@ export function attachPointerInput(
     lastPointer = pointerEventToLogical(event, host, viewSize, geometry());
     onPointer(lastPointer, buttons);
     routedButtons = buttons;
+    if (event.type === "pointerup") {
+      if (modalFallback !== undefined) {
+        modalFallbackPointers.delete(event.pointerId);
+        if (!modalFallback.cancelled &&
+            document.elementFromPoint(event.clientX, event.clientY)?.closest(".fallback-touch-button") === modalFallback.button) {
+          onModalFallbackAction(modalFallback.action, true);
+          onModalFallbackAction(modalFallback.action, false);
+        }
+      }
+      corePreemptedFallbackPointers.delete(event.pointerId);
+    }
     if (ownsPrimary && event.type === "pointerup" && !primaryNow) {
       primaryPointerId = null;
       suppressedPointerId = null;
     }
-    if (event.type === "pointerup") corePreemptedFallbackPointers.delete(event.pointerId);
   };
   const onPointerLeave = (event: PointerEvent): void => cancelPrimary(event.pointerId);
   const onPointerUpOutside = (event: PointerEvent): void => {
-    if (event.pointerId !== primaryPointerId || event.target === host) return;
+    if (runnerOwnedPointers.delete(event.pointerId)) return;
+    modalFallbackPointers.delete(event.pointerId);
+    if (event.pointerId !== primaryPointerId || event.target === host) {
+      corePreemptedFallbackPointers.delete(event.pointerId);
+      return;
+    }
     if ((event.buttons & 1) === 0) {
       cancelPrimary(event.pointerId);
       primaryPointerId = null;
@@ -131,6 +171,7 @@ export function attachPointerInput(
     if (event.currentTarget === window && handledCancels.has(event)) return;
     if (event.currentTarget === host) handledCancels.add(event);
     if (runnerOwnedPointers.delete(event.pointerId)) return;
+    modalFallbackPointers.delete(event.pointerId);
     const corePreempted = corePreemptedFallbackPointers.delete(event.pointerId);
     if (corePreempted) {
       event.preventDefault();
@@ -144,11 +185,25 @@ export function attachPointerInput(
     suppressedPointerId = null;
     routedButtons &= ~1;
   };
+  const onLostPointerCapture = (event: PointerEvent): void => {
+    if (runnerOwnedPointers.delete(event.pointerId)) return;
+    modalFallbackPointers.delete(event.pointerId);
+    if (!corePreemptedFallbackPointers.delete(event.pointerId)) return;
+    if (primaryPointerId === event.pointerId) {
+      cancelPrimary(event.pointerId);
+      primaryPointerId = null;
+      suppressedPointerId = null;
+      routedButtons &= ~1;
+    }
+  };
   const onWindowBlur = (): void => {
-    if (primaryPointerId === null || (routedButtons & 1) === 0) return;
-    onCancel();
-    suppressedPointerId = primaryPointerId;
-    routedButtons &= ~1;
+    runnerOwnedPointers.clear();
+    corePreemptedFallbackPointers.clear();
+    modalFallbackPointers.clear();
+    if (primaryPointerId !== null && (routedButtons & 1) !== 0) onCancel();
+    primaryPointerId = null;
+    suppressedPointerId = null;
+    routedButtons = 0;
   };
 
   host.addEventListener("pointerdown", route, true);
@@ -156,6 +211,7 @@ export function attachPointerInput(
   host.addEventListener("pointerup", route, true);
   host.addEventListener("pointerleave", onPointerLeave);
   host.addEventListener("pointercancel", onPointerCancel, true);
+  host.addEventListener("lostpointercapture", onLostPointerCapture, true);
   window.addEventListener("pointerup", onPointerUpOutside);
   window.addEventListener("pointercancel", onPointerCancel);
   window.addEventListener("blur", onWindowBlur);
@@ -165,8 +221,10 @@ export function attachPointerInput(
     host.removeEventListener("pointerup", route, true);
     host.removeEventListener("pointerleave", onPointerLeave);
     host.removeEventListener("pointercancel", onPointerCancel, true);
+    host.removeEventListener("lostpointercapture", onLostPointerCapture, true);
     window.removeEventListener("pointerup", onPointerUpOutside);
     window.removeEventListener("pointercancel", onPointerCancel);
     window.removeEventListener("blur", onWindowBlur);
   };
 }
+
