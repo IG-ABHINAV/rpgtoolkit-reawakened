@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import { createWebgl2Renderer } from "../src/index.ts";
-import type { SurfaceId } from "@tk-reawakened/core";
+import type { DrawListV2, HostDisplayGeometry, SurfaceId } from "@tk-reawakened/core";
 
 function fakeContext(): { readonly gl: WebGL2RenderingContext; readonly uploaded: () => Uint8Array | null } {
   let next = 1;
