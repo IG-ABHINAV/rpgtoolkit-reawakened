@@ -370,7 +370,7 @@ function startLiveLoop(
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
   session.setHostRestoreSnapshotProvider(() => {
-    const snapshot = hostObserver.snapshotForRestore();
+    const snapshot = hostObserver.snapshotForRestore(pending);
     for (const event of snapshot) displayGeometry.observe(event);
     return snapshot;
   });

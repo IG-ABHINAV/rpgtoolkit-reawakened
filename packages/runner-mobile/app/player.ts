@@ -239,7 +239,7 @@ function run(
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
   session.setHostRestoreSnapshotProvider(() => {
-    const snapshot = hostObserver.snapshotForRestore();
+    const snapshot = hostObserver.snapshotForRestore(pending);
     for (const event of snapshot) observedGeometry.observe(event);
     return snapshot;
   });

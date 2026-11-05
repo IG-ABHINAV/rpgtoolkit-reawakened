@@ -92,6 +92,7 @@ test("engine applies and records complete host updates on their consuming tick",
   if (!encoded.ok) throw new Error(encoded.error.message);
   const observed: { current: { readonly features: GameState["features"]; readonly geometry: GameState["display"]["geometry"] } | null } = { current: null };
   const live: { state: GameState | null } = { state: null };
+  let inputEdges: string[] = [];
   const engine = createEngine({
     seed: 19,
     assetIndex: createAssetIndex(["Boards/host.brd"]),
@@ -99,8 +100,11 @@ test("engine applies and records complete host updates on their consuming tick",
     initialBoard: "host.brd",
     width: 32,
     height: 32,
-    maxTicks: 4,
-    phaseRegistrations: [{ phase: "movement", run: (state) => { live.state = state; observed.current = { features: state.features, geometry: state.display.geometry }; } }],
+    maxTicks: 10,
+    phaseRegistrations: [
+      { phase: "input", run: (state) => { inputEdges = [...state.input.pendingActions]; } },
+      { phase: "movement", run: (state) => { live.state = state; observed.current = { features: state.features, geometry: state.display.geometry }; } },
+    ],
   });
   const initial = engine.advance(0, []);
   const boardRequest = initial.requests[0];
@@ -139,6 +143,20 @@ test("engine applies and records complete host updates on their consuming tick",
   deepEqual(reverseBlur.consumed.map((input) => input.event.kind), ["focus", "host.features", "host.display"]);
   deepEqual(live.state.features, features);
   engine.advance(0, [{ tick: ordered.tickAfter, event: { kind: "focus", state: "gained" } }]);
+  equal(engine.registerGameAction({
+    name: "game.fireball",
+    label: "Fireball",
+    icon: null,
+    group: null,
+    controls: ["pad:0"],
+    locked: false,
+    hidden: false,
+  }), true);
+  engine.advance(1, [{
+    tick: live.state.time.tick,
+    event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 1 }] },
+  }]);
+  equal(live.state.input.actions["game.fireball"], true, "the package action is held by a real mapped pad button");
   live.state.vm.globals["resetSentinel"] = 7;
   startThread(live.state.vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
   engine.advance(1, []);
@@ -147,10 +165,21 @@ test("engine applies and records complete host updates on their consuming tick",
   deepEqual(live.state.display.geometry, geometry, "reset keeps the current display geometry");
   equal(live.state.input.gamepads["0"]?.connected, true, "reset preserves the latest logged physical controller connection");
   equal(live.state.input.actions.right, true, "reset restores the held controller action");
+  equal(live.state.input.actions["game.fireball"], true, "reset re-registers package actions before recomputing held inputs");
   engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } }]);
   equal(live.state.input.gamepads["0"]?.connected, false, "an omitted physical device releases the restored saved sample");
   equal(live.state.input.actions.right, false, "a disconnected saved direction cannot remain held");
   engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } }]);
   equal(live.state.input.actions.right, true, "a currently held physical direction is applied from the live snapshot");
+  engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } }]);
+  equal(live.state.input.actions.right, false, "the initial device disconnect is consumed");
+  live.state.input.pendingActions = [];
+  inputEdges = [];
+  engine.advance(1, [
+    { tick: live.state.time.tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+    { tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } },
+  ]);
+  equal(live.state.input.actions.right, false, "the complete snapshot disconnect is applied after the same-tick press");
+  ok(inputEdges.includes("right"), "the press edge is preserved before the snapshot's disconnect");
 });
 

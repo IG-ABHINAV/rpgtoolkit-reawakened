@@ -341,13 +341,18 @@ test("gamepad polling accepts only the standard mapping and emits devices in asc
     index, connected: true, mapping, axes: [0, 0],
     buttons: Array.from({ length: 17 }, (_, button) => ({ pressed: pressed && button === 16 })),
   }) as unknown as Gamepad;
-  const browser = makeBrowserEnvironment(() => [pad(2, "standard"), pad(1, "xinput"), pad(0, "standard", true)]);
+  const pads = [pad(2, "standard"), pad(1, "xinput"), pad(0, "standard", true)];
+  const browser = makeBrowserEnvironment(() => pads);
   const restore = installGlobals(browser.globals);
   const host = makeHost(640, 480);
   const inputs: InputRecord[] = [];
+  const pending: PendingInput[] = [];
   let observer: HostStateObserver | null = null;
   try {
-    observer = observeHostState(host, viewSize, (event) => inputs.push({ tick: 0, event }));
+    observer = observeHostState(host, viewSize, (event) => {
+      inputs.push({ tick: 0, event });
+      pending.push({ tick: null, event, pointerGeometry: null });
+    });
     deepEqual(inputs.flatMap(({ event }) => event.kind === "gamepad"
       ? [{ device: event.device, buttons: event.buttons }]
       : []), [
@@ -362,6 +367,21 @@ test("gamepad polling accepts only the standard mapping and emits devices in asc
         { device: 2, axes: { x: 0, y: 0 }, buttons: 0 },
       ] },
     ]);
+    pending.length = 0;
+    pads.length = 0;
+    observer.poll();
+    pending.length = 0;
+    pads.push({ ...pad(0, "standard"), axes: [1, 0] } as unknown as Gamepad);
+    observer.poll();
+    pads.length = 0;
+    observer.poll();
+    const snapshot = observer.snapshotForRestore(pending);
+    deepEqual(snapshot.slice(0, 2), [
+      { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 },
+      { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 },
+    ], "unconsumed press/release transitions precede the full restore snapshot");
+    deepEqual(pending.map(({ event }) => event.kind), ["host.features", "host.features"], "only gamepad edges are moved into the blob reply");
+    deepEqual(snapshot[snapshot.length - 1], { kind: "host.gamepads", devices: [] }, "the snapshot follows the ordered physical edges");
   } finally {
     observer?.dispose();
     restore();

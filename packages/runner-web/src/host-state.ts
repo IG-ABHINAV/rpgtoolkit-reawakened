@@ -6,7 +6,7 @@ export type HostStateSnapshot = { readonly features: NormalizedHostFeatures; rea
 export type HostStateObserver = {
   readonly poll: () => void;
   readonly currentFeatures: () => NormalizedHostFeatures;
-  readonly snapshotForRestore: () => readonly InputRecord["event"][];
+  readonly snapshotForRestore: (pending?: PendingInput[]) => readonly InputRecord["event"][];
   readonly dispose: () => void;
 };
 
@@ -322,7 +322,14 @@ export function observeHostState(
   for (const item of media) item.addEventListener("change", onResize);
   onResize();
   poll();
-  const snapshotForRestore = (): readonly InputRecord["event"][] => {
+  const snapshotForRestore = (pending: PendingInput[] = []): readonly InputRecord["event"][] => {
+    const gamepadEvents: InputRecord["event"][] = [];
+    const retained: PendingInput[] = [];
+    for (const input of pending) {
+      if (input.event.kind === "gamepad") gamepadEvents.push(input.event);
+      else retained.push(input);
+    }
+    pending.splice(0, pending.length, ...retained);
     const geometry = measureHostDisplay(host, view, safeArea.read()) ?? previousGeometry;
     const features = readHostFeatures(keyboardObserved);
     latestFeatures = features;
@@ -350,6 +357,7 @@ export function observeHostState(
       previousGamepads[device] = { x, y, buttons };
     }
     return [
+      ...gamepadEvents,
       { kind: "host.features", features },
       ...(geometry === null ? [] : [{ kind: "host.display" as const, geometry }]),
       { kind: "host.gamepads", devices },

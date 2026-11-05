@@ -353,12 +353,13 @@ test("focused Load applies live capabilities before the restored continuation br
     const features = { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: "portrait" } as const;
     const restored = game.engine.advance(1, [
       { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: load.reqId, bytes: captured.saved } },
+      { tick: report.tickAfter, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } },
       { tick: report.tickAfter, event: { kind: "host.features", features } },
       { tick: report.tickAfter, event: { kind: "host.gamepads", devices: [] } },
     ]);
-    equal(restored.consumed.some(({ event }) => event.kind === "host.features"), true);
-    equal(game.state()?.features.touch, true);
-    equal(game.state()?.vm.globals["touchbranch"], 1, "the restored script observed live touch before selecting its branch");
+    deepEqual(restored.consumed.map(({ event }) => event.kind), ["blob.loaded", "gamepad", "host.features", "host.gamepads"]);
+    equal(game.state()?.input.gamepads["0"]?.connected, false, "the full snapshot releases a physical connect queued during the load reply");
+    equal(game.state()?.input.actions.confirm, false, "a pre-snapshot confirm press cannot become a ghost hold after restore");
     return;
   }
   throw new Error("expected the real load request");

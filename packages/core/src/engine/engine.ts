@@ -2075,10 +2075,6 @@ export function createEngine(init: EngineInit): Engine {
     postQuitWriteFailures.length = 0;
     state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
-    state.input.gamepads = { ...hostGamepads };
-    recomputeInputActions(state.input, (action, down, firstSeq) => {
-      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
-    });
     init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
       const found = index.byKey.get(assetKey(nextMain));
@@ -2104,6 +2100,10 @@ export function createEngine(init: EngineInit): Engine {
     } else {
       services = makeServices(activePlugins, loader ?? undefined, true);
     }
+    state.input.gamepads = { ...hostGamepads };
+    recomputeInputActions(state.input, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+    });
     audio.retry();
   }
   function fail(diagnostic: Diagnostic): void {
@@ -3543,11 +3543,18 @@ export function createEngine(init: EngineInit): Engine {
     }
     if (event.kind === "host.gamepads") {
       const connected = new Set(event.devices.map((device) => device.device));
-      state.input.pendingGamepads = [];
-      for (const [device, pad] of Object.entries(state.input.gamepads)) {
-        const index = Number(device);
-        if (pad.connected && !connected.has(index)) {
-          state.input.pendingGamepads.push({ device: index, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+      const stagedConnected = new Set(
+        Object.entries(state.input.gamepads)
+          .filter(([, pad]) => pad.connected)
+          .map(([device]) => Number(device)),
+      );
+      for (const pending of state.input.pendingGamepads) {
+        if (pending.connected) stagedConnected.add(pending.device);
+        else stagedConnected.delete(pending.device);
+      }
+      for (const device of [...stagedConnected].sort((left, right) => left - right)) {
+        if (!connected.has(device)) {
+          state.input.pendingGamepads.push({ device, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
         }
       }
       for (const device of event.devices) {
@@ -3929,11 +3936,25 @@ export function createEngine(init: EngineInit): Engine {
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (earlier.event.kind !== "gamepad") {
+              at += 1;
+              continue;
+            }
+            const rebased = { ...earlier, tick: state.time.tick };
+            applyInputEvent(state.input, earlier.event);
+            consumed.push(rebased);
+            deferred.splice(at, 1);
+          }
           for (const queued of records.slice(index + 1)) {
             if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved" || queued.event.kind === "blob.listed") continue;
             const rebased = { ...queued, tick: state.time.tick };
             if (applyHostStateEvent(queued.event)) consumed.push(rebased);
-            else deferred.push(rebased);
+            else if (queued.event.kind === "gamepad") {
+              applyInputEvent(state.input, queued.event);
+              consumed.push(rebased);
+            } else deferred.push(rebased);
           }
           break;
         }
