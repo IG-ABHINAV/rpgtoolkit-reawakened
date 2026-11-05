@@ -70,7 +70,7 @@ test("gamepad dead-zone, merge, device ordering and disconnect share edge state"
 test("same-tick gamepad down and up report both ordered action transitions", () => {
   const state = createInputSection({ bindings: { keys: { Enter: "confirm" } } });
   const transitions: string[] = [];
-  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 16 });
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 });
   applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
   processGamepadEvents(state, undefined, (action, down, firstSeq) => transitions.push(`${action}:${down}:${firstSeq}`));
   deepEqual(transitions, ["confirm:true:1", "confirm:false:2"]);
