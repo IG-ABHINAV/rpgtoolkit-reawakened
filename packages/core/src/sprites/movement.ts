@@ -191,29 +191,31 @@ function shapeHitsVector(shape: readonly [number, number][], vector: WorldVector
 function hitEdge(shape: readonly [number, number][], vector: WorldVector): [number, number] | null {
   const points = vectorPoints(vector);
   const segments = vector.closed !== 0 ? points.length : points.length - 1;
-  for (let index = 0; index < segments; index += 1) {
-    const a = points[index];
-    const b = points[(index + 1) % points.length];
-    if (a === undefined || b === undefined) continue;
-    for (let edge = 0; edge < shape.length; edge += 1) {
-      const c = shape[edge];
-      const d = shape[(edge + 1) % shape.length];
-      if (c !== undefined && d !== undefined && segmentsIntersect(a, b, c, d)) return [b[0] - a[0], b[1] - a[1]];
-    }
-  }
+  const comparePoint = (a: [number, number], b: [number, number]): number => a[0] - b[0] || a[1] - b[1];
+  let crossing: [[number, number], [number, number]] | null = null;
+  let fallback: [[number, number], [number, number]] | null = null;
   const shapeX = shape.map((point) => point[0]);
   const shapeY = shape.map((point) => point[1]);
   const minX = Math.min(...shapeX);
   const maxX = Math.max(...shapeX);
   const minY = Math.min(...shapeY);
   const maxY = Math.max(...shapeY);
+  const earlier = (a: [[number, number], [number, number]], b: [[number, number], [number, number]] | null): boolean =>
+    b === null || (comparePoint(a[0], b[0]) || comparePoint(a[1], b[1])) < 0;
   for (let index = 0; index < segments; index += 1) {
     const a = points[index];
     const b = points[(index + 1) % points.length];
     if (a === undefined || b === undefined) continue;
-    if (Math.max(a[0], b[0]) >= minX && Math.min(a[0], b[0]) <= maxX && Math.max(a[1], b[1]) >= minY && Math.min(a[1], b[1]) <= maxY) return [b[0] - a[0], b[1] - a[1]];
+    const edge: [[number, number], [number, number]] = comparePoint(a, b) <= 0 ? [a, b] : [b, a];
+    if (Math.max(a[0], b[0]) >= minX && Math.min(a[0], b[0]) <= maxX && Math.max(a[1], b[1]) >= minY && Math.min(a[1], b[1]) <= maxY && earlier(edge, fallback)) fallback = edge;
+    for (let i = 0; i < shape.length; i += 1) {
+      const c = shape[i];
+      const d = shape[(i + 1) % shape.length];
+      if (c !== undefined && d !== undefined && segmentsIntersect(a, b, c, d) && earlier(edge, crossing)) crossing = edge;
+    }
   }
-  return null;
+  const selected = crossing ?? fallback;
+  return selected === null ? null : [selected[1][0] - selected[0][0], selected[1][1] - selected[0][1]];
 }
 function isGlancing(mx: number, my: number, ex: number, ey: number, iso: boolean): boolean {
   const crossAbs = Math.abs(cross(mx, my, ex, ey));
