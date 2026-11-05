@@ -81,10 +81,12 @@ Only these paths are inert, because they are read by people and not by any lane:
 | root-level `*.md` (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`...) | Prose for people; no job reads them |
 | `docs/guardrails.md` | The rules as prose; the checks that enforce them live in code |
 | `docs/adr/**/*.md` | Decision records |
+| `docs/**/*.md` except `docs/spec/**` | Human-facing documentation; no CI lane reads it (provenance skips `docs/`) |
 | `_bmad-output/**/*.md` | Plans and tickets; not read by any lane |
+| `_bmad/**` | Installed BMAD framework; consumed only by manual ticket tooling, never by a CI lane |
 | `.github/ISSUE_TEMPLATE/**/*.{md,yml,yaml}` | Issue forms; GitHub reads them, CI does not |
 
-It deliberately **excludes**: all of `packages/`, `tools/`, `stock/` and `golden/` (even Markdown there; fixtures and generators are inputs); `docs/spec/` (the normative spec, and `docs/spec/examples` is dump-checked by `golden`); `.github/workflows/` and `.github/pull_request_template.md`; non-Markdown files under `_bmad-output/`; every other file in `docs/`; the lockfile, `package.json`, and every root file that is not Markdown; and any path nobody has classified. The `checks` job still runs provenance over every inert change.
+It deliberately **excludes**: all of `packages/`, `tools/`, `stock/` and `golden/` (even Markdown there; fixtures and generators are inputs); `docs/spec/` (the normative spec, and `docs/spec/examples` is dump-checked by `golden`); `.github/workflows/` and `.github/pull_request_template.md`; non-Markdown files under `_bmad-output/`; non-Markdown files under `docs/`; the lockfile, `package.json`, and every root file that is not Markdown; and any path nobody has classified. The `checks` job still runs provenance over every inert change.
 
 ### Which steps defer for an inert pull request
 

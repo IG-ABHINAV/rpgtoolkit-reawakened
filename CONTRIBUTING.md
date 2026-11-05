@@ -305,12 +305,12 @@ Installing, building, replaying goldens and booting an Android emulator is waste
 The verdict is "defer" only when **every** changed path is one of these, each of which is read by people and by no CI lane:
 
 - a Markdown file in the repository root (`README.md`, `CONTRIBUTING.md`, ...);
-- `docs/guardrails.md`;
-- Markdown under `docs/adr/`;
+- any Markdown file under `docs/` except `docs/spec/` (the normative spec, which `golden` dump-checks);
+- the whole `_bmad/` tree (installed BMAD framework; consumed only by manual ticket tooling);
 - Markdown under `_bmad-output/` (plans and tickets);
 - issue forms under `.github/ISSUE_TEMPLATE/` (`.md`, `.yml`, `.yaml`).
 
-Anything else runs everything, including all of `packages/`, `tools/`, `stock/` and `golden/` (even a README there), all of `docs/spec/`, `.github/workflows/` and the pull request template, any other file in `docs/`, `package.json` and the lockfile, an empty diff, a path nobody has classified, and every push to `main`. The list is positive on purpose: a new kind of file runs everything until someone decides it is inert. A rename counts both its old and its new path.
+Anything else runs everything, including all of `packages/`, `tools/`, `stock/` and `golden/` (even a README there), all of `docs/spec/`, `.github/workflows/` and the pull request template, non-Markdown files under `docs/` or `_bmad-output/`, `package.json` and the lockfile, an empty diff, a path nobody has classified, and every push to `main`. The list is positive on purpose: a new kind of file runs everything until someone decides it is inert. A rename counts both its old and its new path.
 
 Open the job log to see which way it went. A job that defers prints one line, and its later steps show as skipped:
 

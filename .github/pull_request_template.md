@@ -2,7 +2,11 @@
 
 <!-- Summary. Cite the spec: docs sections and capability IDs (E-xx / T-xx). -->
 
+<!-- Documentation-only PR? The G1–G6 checkboxes below do not apply: tick only the
+     "implements no behaviour" line and the worktree-cleanup box. -->
+
 ## Guard-rails checklist ([docs/guardrails.md](../docs/guardrails.md))
+
 Run the checks locally first; the commands are in the [Commands section of CONTRIBUTING.md](../CONTRIBUTING.md#commands).
 
 - [ ] **G1** Script VM changes keep the step-machine model; state stays plain JSON data; snapshot/restore test passes.
