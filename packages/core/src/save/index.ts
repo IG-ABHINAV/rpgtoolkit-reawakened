@@ -37,6 +37,7 @@ export {
   GAME_LEDGER_VERSION,
   GameLedgerError,
   hashGameLedger,
+  hashGameLedgerV3,
   projectGameLedger,
   LEDGER_BOARD,
   LEDGER_IDENTITY,
@@ -110,6 +111,7 @@ export {
   type SurfacesSection,
   type TriggersSection,
   type UiSection,
+  type WorldMovementSettings,
   type WorldSection,
 } from "./sections.ts";
 

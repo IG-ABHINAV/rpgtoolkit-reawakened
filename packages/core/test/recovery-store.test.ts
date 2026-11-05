@@ -10,6 +10,10 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
 import {
+  createGameState,
+  hashGameLedger,
+  hashGameLedgerV3,
+  projectGameLedger,
   promoteRecovery,
   RecoveryStoreError,
   selectRecovery,
@@ -496,4 +500,41 @@ test("a game id that would escape its path scope is refused", () => {
   for (const gameId of ["", ".", "..", "a/b", "a\\b"]) {
     equal(failureCode(() => selectRecovery(store, { gameId }, validate)), "recovery.game-id");
   }
+});
+
+test("a v3 ledger checkpoint remains selectable and can be promoted with its v4 hash", () => {
+  const store = new MemoryStore();
+  const ledger = projectGameLedger(createGameState({ seed: 73 }));
+  // Independently computed from the v3 canonical envelope, before world.movement existed.
+  const oldHash = "596ec4f36ec70a9a";
+  const currentHash = hashGameLedger(ledger);
+  const bytes = utf8Encode(JSON.stringify({ tick: 73 }));
+  const validateVersions: RecoveryValidate = (candidateBytes) => {
+    const parsed = JSON.parse(utf8Decode(candidateBytes)) as { tick?: unknown };
+    if (parsed.tick !== 73) throw new Error("candidate shape");
+    return { tick: parsed.tick, ledgerHash: hashGameLedger(ledger), compatibleLedgerHashes: [hashGameLedgerV3(ledger)] };
+  };
+
+  store.write(generationFile(1, "candidate.bin"), bytes);
+  store.write(generationFile(1, "meta.json"), utf8Encode(JSON.stringify({
+    version: 1, generation: 1, tick: 73, ledgerHash: oldHash,
+  })));
+  store.writeAtomic(pointerPath(), utf8Encode(JSON.stringify({
+    version: 1, gameId: GAME, generation: 1, tick: 73, ledgerHash: oldHash,
+  })));
+
+  const old = selectRecovery(store, { gameId: GAME }, validateVersions);
+  ok(old !== null);
+  equal(old.generation, 1);
+  equal(old.ledgerHash, oldHash);
+
+  const promotedV4 = promoteRecovery(store, { gameId: GAME, bytes: old.bytes }, validateVersions);
+  equal(promotedV4.generation, 2);
+  equal(promotedV4.ledgerHash, currentHash);
+  equal(readJson(store, generationFile(2, "meta.json")).ledgerHash, currentHash);
+  const selectedV4 = selectRecovery(store, { gameId: GAME }, validateVersions);
+  ok(selectedV4 !== null);
+  equal(selectedV4.generation, 2);
+  equal(selectedV4.ledgerHash, currentHash);
+  ok(store.files.has(generationFile(1, "candidate.bin")), "the prior v3 checkpoint remains retained as fallback");
 });

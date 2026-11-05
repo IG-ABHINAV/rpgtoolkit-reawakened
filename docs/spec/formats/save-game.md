@@ -269,8 +269,17 @@ a domain-separated, versioned envelope containing the ledger. Compare hashes
 only for the same ledger domain, version and compatible game identity. This is
 a non-cryptographic progress comparison and accidental-change detector, not
 authentication, a security boundary, collision-proof equality, the existing
-runtime replay hash, or a checksum of the entire save. A version change requires
-an explicit migration and comparison policy.
+runtime replay hash, or a checksum of the entire save.
+
+The movement-settings addition advances the ledger envelope from version 3 to
+version 4. A recovery validator recomputes the current v4 hash and the recognized
+v3 hash (the same migrated projection with the newly added `world.movement`
+field omitted). It reports the v3 hash as explicitly compatible for selection of
+existing promoted checkpoints; the recovery store accepts only the recomputed
+current hash or one of those validator-approved compatibility hashes. A
+selected v3 checkpoint retains its stored v3 hash for pointer/metadata agreement.
+New promotions always persist the v4 hash, so re-promoting a v3 candidate
+migrates it. Other old or unknown ledger versions are not implicitly accepted.
 
 Implementation must validate field shapes, identities and cross-references,
 handle old saves and incompatible assets without silent progress loss, and
