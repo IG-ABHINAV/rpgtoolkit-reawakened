@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Active boards now request and hydrate their placed item sprites, use board-level programs in preference to item-file defaults, and start item-owned multitask threads. Item-thread movement commands resolve `source` to the correct placed item (#1253; `docs/spec/engine/main-loop-and-startup.md#e-10`).
 - Held direction input now replaces the selected player's remaining script or click route at the next step boundary, including a waypoint, while the current step finishes and blocking scripts keep ownership of input. Mid-step taps are not buffered; whether 3.1 click-walking differs remains an owner decision (#1286, #1180; `docs/spec/engine/movement-and-collision.md#e-133`).
 - Diagonal pixel-mode direction steps now move four pixels on each axis in one movement advance, and collision is checked at that full destination in both pixel modes (#1282; `docs/spec/engine/movement-and-collision.md#r-62`).
 - Sliding at a wall corner now chooses the same collision edge regardless of polygon winding or starting vertex; the spec defines a deterministic tie-break rather than claiming original-engine parity (#1284; `docs/spec/engine/movement-and-collision.md#r-54`).

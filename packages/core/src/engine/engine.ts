@@ -70,7 +70,7 @@ import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt,
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
 import type { CameraPoint, CameraTarget } from "../ports/camera.ts";
 import type { SpriteActor, Facing } from "../sprites/model.ts";
-import { resetSpritesSection, placeSelectedPlayer, selectActor as selectPartyActor, removeActorSprite, spriteDraws, createInitialPlayer, type SpriteRuntime } from "../sprites/runtime.ts";
+import { placeSelectedPlayer, selectActor as selectPartyActor, removeActorSprite, spriteDraws, createInitialPlayer, hydrateSprites, itemKey, type SpriteRuntime, type SpriteThreadResolver } from "../sprites/runtime.ts";
 import { runAnimationPhase as runActorAnimationPhase } from "../sprites/animation.ts";
 import { boardCollisionAt } from "../sprites/movement.ts";
 import { resetTriggersSection } from "../triggers/model.ts";
@@ -321,6 +321,7 @@ export function createEngine(init: EngineInit): Engine {
     : new Uint8Array(init.recoveryCandidate);
   const recoveryLaunchRequested = recoveryCandidateBytes !== null;
   const state: GameState = createGameState({ seed: init.seed });
+  init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
   state.input = createInputSection(init.input);
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
@@ -597,7 +598,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
-    applySpriteEffect(state, effect.name, values, mainFile?.pixelMovement ?? 0);
+    applySpriteEffect(state, effect.name, values, mainFile?.pixelMovement ?? 0, effect.thread);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
@@ -841,7 +842,9 @@ export function createEngine(init: EngineInit): Engine {
     if (board.enterPrg !== undefined && board.enterPrg !== "" && entryProgram === null) return null;
     for (const name of board.threads ?? []) if (name !== "" && fingerprintProgram(name) === null) return null;
     for (const item of state.sprites.items) {
-      if (item.multitaskProgram !== null && fingerprintProgram(item.multitaskProgram) === null) return null;
+      if (item.multitaskProgram !== null && (item.multitaskProgram.toLowerCase().endsWith(".prg")
+        ? fingerprintProgram(item.multitaskProgram) === null
+        : !fingerprintProgramRef({ kind: "inline", text: item.multitaskProgram, ir: IR_VERSION, dialect: "tk3" }))) return null;
     }
     const graph = ledger.script.persistentGraph;
     for (const object of graph.objects) {
@@ -1150,8 +1153,11 @@ export function createEngine(init: EngineInit): Engine {
       frameHash = null;
       frameFailure = null;
       refreshFrame(true);
+      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
     } catch (error) {
       Object.assign(state, previous);
+      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
+      init.spriteRuntime?.bindItemThreadCleanup?.((thread) => discardMenuFrames(previousServices, thread));
       services = previousServices;
       pluginLayers = previousLayers;
       startupServicesReady = previousStartupServicesReady;
@@ -1920,7 +1926,7 @@ export function createEngine(init: EngineInit): Engine {
     postQuitWriteFailures.length = 0;
     state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
-    if (init.spriteRuntime !== undefined) resetSpritesSection(init.spriteRuntime.section);
+    init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
       const found = index.byKey.get(assetKey(nextMain));
       if (found === undefined) {
@@ -1957,7 +1963,7 @@ export function createEngine(init: EngineInit): Engine {
   }
 
   /** Hydrate board `key`, requesting its file and then each missing tile asset in turn. */
-  function loadBoard(key: AssetKey, tick = state.time.tick): "pending" | WorldBoard | null {
+  function loadBoard(key: AssetKey, tick = state.time.tick, active = true): "pending" | WorldBoard | null {
     const bytes = cache.get(key);
     if (bytes === undefined) {
       request(key, "board");
@@ -1973,6 +1979,19 @@ export function createEngine(init: EngineInit): Engine {
       return "pending";
     }
     const board = result.value?.board ?? null;
+    if (board !== null && active) {
+      for (const item of board.items ?? []) {
+        const resolved = resolveAsset(index, root, "items", item.itemFile);
+        if (!resolved.ok) {
+          fail({ code: "asset.missing", file: item.itemFile, line: 0, message: `board item "${item.itemFile}" is not in the asset index` });
+          return null;
+        }
+        if (!cache.has(resolved.value)) {
+          request(resolved.value, "board-item");
+          return "pending";
+        }
+      }
+    }
     if (board === null) failed = true;
     return board;
   }
@@ -1991,6 +2010,20 @@ export function createEngine(init: EngineInit): Engine {
     } catch (error) {
       if (!(error instanceof ScriptError)) throw error;
       diagnostics.push({ code: error.code, file: error.pos?.file ?? owner, line: error.pos?.line ?? 0, message: error.message });
+      return null;
+    }
+  }
+  function resolveSpriteProgram(name: string): ProgramRef | null {
+    if (loader === null) return null;
+    try {
+      const ref: ProgramRef = name.toLowerCase().endsWith(".prg")
+        ? fileProgramRef(loader, name)
+        : { kind: "inline", text: name, ir: IR_VERSION, dialect: "tk3" };
+      services.programs.get(ref);
+      return ref;
+    } catch (error) {
+      if (!(error instanceof ScriptError)) throw error;
+      diagnostics.push({ code: error.code, file: error.pos?.file ?? mainKey ?? "", line: error.pos?.line ?? 0, message: error.message });
       return null;
     }
   }
@@ -2154,12 +2187,12 @@ export function createEngine(init: EngineInit): Engine {
     // Every thread this teardown ends loses the menu frames its open provider or item action added.
     for (const thread of state.vm.threads) {
       const doomed = thread.kind === "board" ||
-        (thread.kind === "item" && state.sprites.items.some((item) => (item.handle === null ? item.id : `item:${item.source}`) === thread.source));
+        (thread.kind === "item" && state.sprites.items.some((item) => itemKey(item) === thread.source));
       if (doomed) discardMenuFrames(services, thread);
     }
     endBoardThreads(state.vm);
     for (const item of state.sprites.items) {
-      const source = item.handle === null ? item.id : `item:${item.source}`;
+      const source = itemKey(item);
       endItemThreads(state.vm, source);
     }
     expireProgramTileEdits(state);
@@ -2184,14 +2217,43 @@ export function createEngine(init: EngineInit): Engine {
   function arrive(board: WorldBoard, arrival: Arrival, fromSend: boolean): void {
     const previous = state.world.board;
     const player = state.sprites.players.find((candidate) => candidate.id === state.sprites.selectedPlayer) ?? state.sprites.players[0];
-    if (fromSend) stopOldBoardThreads();
+    if (fromSend || previous !== undefined && previous !== null) stopOldBoardThreads();
     if (previous !== undefined && previous !== null && previous.key !== board.key) {
       const leftEvent = boardLifecycle("left", previous, player);
       deferUnregisterEmitter(state.events, boardEmitterKey(previous.key), leftEvent);
     }
     registerEmitter(state.vm, state.events, boardEmitterKey(board.key));
     clearPathfindingCache();
-    state.world = { board };
+    const itemFiles = new Map<string, Item>();
+    const hydratedItems: NonNullable<WorldBoard["items"]>[number][] = [];
+    const activationPrograms = new Map<number, string>();
+    for (const item of board.items ?? []) {
+      const resolved = resolveAsset(index, root, "items", item.itemFile);
+      if (!resolved.ok) continue;
+      const bytes = cache.get(resolved.value);
+      if (bytes === undefined) continue;
+      const parsed = readItem(new BinaryReader(bytes, resolved.value));
+      if (!parsed.ok) {
+        fail({ code: "asset.invalid", file: resolved.value, line: parsed.error.offset, message: parsed.error.message });
+        return;
+      }
+      itemFiles.set(resolved.value, parsed.value);
+      activationPrograms.set(item.slot, item.activationPrg || parsed.value.activationProgram);
+      hydratedItems.push({ ...item, itemFile: resolved.value });
+    }
+    const activeItems = (board.items ?? []).map((item) => ({ ...item, activationPrg: activationPrograms.get(item.slot) ?? item.activationPrg }));
+    const activeRaw = board.rawItems?.map((item) => ({ ...item, activationPrg: activationPrograms.get(item.slot) ?? item.activationPrg }));
+    state.world = { board: { ...board, items: activeItems, ...(activeRaw === undefined ? {} : { rawItems: activeRaw }) } };
+    const variables: Record<string, string | number | boolean> = {};
+    for (const [name, value] of Object.entries(state.vm.globals)) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") variables[name] = value;
+    }
+    const hydrated = hydrateSprites({
+      board: { ...board, items: hydratedItems }, actorFiles: itemFiles, actors: state.actors, variables, vm: state.vm,
+      programRef: resolveSpriteProgram,
+    });
+    state.sprites.items = hydrated.items;
+    state.sprites.nextItemHandle = hydrated.nextItemHandle;
     resetTriggersSection(state.triggers);
     state.triggers.boardKey = board.key;
     // Keep the boot poll pending through any blocking board-enter program.
@@ -2202,6 +2264,7 @@ export function createEngine(init: EngineInit): Engine {
       : placement;
     placeSelectedPlayer(state.sprites, arrival.x, arrival.y, arrival.layer, arrival.unit, coordLayout(board.coordType), board.sizeX);
     bus.postEffect("sprites", engineEffect("sprites", "placeplayer", spritePlacement));
+    init.spriteRuntime?.prepareRecovery(state.world.board!, state.sprites).commit();
     state.camera = realignCamera(state.camera, board, cameraAim(board, arrival));
     if (fromSend) bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
     postBoardMusic(board);
@@ -2579,6 +2642,20 @@ export function createEngine(init: EngineInit): Engine {
     const currentLoader = loader;
     if (currentLoader === null) return recoveryFailure("recovery.program-loader", "the program loader is unavailable");
     const resolveProgram = (name: string): ProgramRef | null => {
+      if (!name.toLowerCase().endsWith(".prg")) {
+        const ref: ProgramRef = { kind: "inline", text: name, ir: IR_VERSION, dialect: "tk3" };
+        try {
+          const compiled = services.programs.get(ref);
+          if (!Object.values(compiled.fileKeys).every((key) => programFingerprints.has(key))) {
+            recoveryFailure("recovery.asset-manifest", "an inline program includes an unfingerprinted asset");
+            return null;
+          }
+          return ref;
+        } catch (error) {
+          recoveryFailure("recovery.program-invalid", error instanceof Error ? error.message : String(error));
+          return null;
+        }
+      }
       const resolved = resolveAsset(index, root, "programs", name);
       if (!resolved.ok) {
         recoveryFailure("recovery.asset-missing", `required program "${name}" is not in the asset index`);
@@ -2674,7 +2751,7 @@ export function createEngine(init: EngineInit): Engine {
       const staged = launch.staged;
       endBoardThreads(staged.vm);
       for (const item of staged.sprites.items) {
-        endItemThreads(staged.vm, item.handle === null ? item.id : `item:${item.source}`);
+        endItemThreads(staged.vm, itemKey(item));
       }
       const board = installRecoveryBoard(staged, authoredBoard, launch.ledger);
       const player = staged.sprites.players.find((candidate) => candidate.id === staged.sprites.selectedPlayer);
@@ -2723,7 +2800,7 @@ export function createEngine(init: EngineInit): Engine {
         if (!item.visible || item.multitaskProgram === null) return item;
         const ref = prepared.itemPrograms.get(item.id);
         if (ref === undefined) throw new Error(`item program "${item.multitaskProgram}" was not prepared`);
-        const source = item.handle === null ? item.id : `item:${item.source}`;
+        const source = itemKey(item);
         const thread = startThread(stagedVm, { ref, kind: "item", owner: "world", source, target: source });
         return { ...item, multitaskThread: thread.id };
       });
@@ -2841,7 +2918,8 @@ export function createEngine(init: EngineInit): Engine {
   }
   function stepScene(): boolean {
     if (sceneBoardKey === null || state.world.board !== undefined && state.world.board !== null) return false;
-    const loaded = loadBoard(sceneBoardKey);
+    // Scene-only renderers supply their own sprites and do not enter a playable board.
+    const loaded = loadBoard(sceneBoardKey, state.time.tick, false);
     if (loaded === "pending" || loaded === null) return false;
     registerEmitter(state.vm, state.events, boardEmitterKey(loaded.key));
     clearPathfindingCache();
