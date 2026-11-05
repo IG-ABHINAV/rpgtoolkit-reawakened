@@ -10,8 +10,10 @@ function read(relative: string): string {
   return readFileSync(resolve(here, relative), "utf8");
 }
 
-/** The strict policy every player/host page must carry, byte for byte. */
+/** The browser policy and the desktop-only allowance for the SoundFont decoder. */
 const STRICT_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:;";
+const DESKTOP_POLICY = STRICT_POLICY.replace("script-src 'self';", "script-src 'self' 'wasm-unsafe-eval';");
+const DESKTOP_PAGES = ["packages/runner-desktop/app/player.html", "packages/runner-desktop/app/player-measure.html"];
 
 /** Every .html page under each runner package's app directory (`packages/<runner>/app`), walked recursively at test time, so a new runner target or a new page cannot ship without a policy and no list needs maintaining. Returns repo-relative paths. */
 function pages(): string[] {
@@ -40,12 +42,12 @@ test("every player/browser page carries the strict Content-Security-Policy", () 
     const csp = html.match(/<meta[^>]*http-equiv="Content-Security-Policy"[^>]*content="([^"]*)"/i);
     if (csp === null) throw new Error(`${relative}: no Content-Security-Policy meta tag found`);
     const policy = csp[1] ?? "";
-    ok(!/unsafe-eval/.test(policy), `${relative}: CSP must not allow unsafe-eval`);
+    ok(!policy.includes("'unsafe-eval'"), `${relative}: CSP must not allow JavaScript unsafe-eval`);
     ok(/script-src 'self'/.test(policy), `${relative}: CSP must restrict scripts to same origin`);
     equal(
       policy.trim().replace(/\s+/g, " "),
-      STRICT_POLICY,
-      `${relative}: CSP must match the shared strict policy exactly`,
+      DESKTOP_PAGES.includes(relative) ? DESKTOP_POLICY : STRICT_POLICY,
+      `${relative}: CSP must match the approved policy exactly`,
     );
   }
 });

@@ -1,6 +1,7 @@
 import type { InputRecord } from "@tk-reawakened/core";
 import { interactivePackage } from "@tk-reawakened/runner-web";
 import { pointerEventToLogical } from "@tk-reawakened/runner-web/pointer";
+import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, observeViewport, type LiveSession } from "@tk-reawakened/runner-web/live-session";
 
 type Host = {
@@ -19,6 +20,7 @@ void start().catch((error: unknown) => {
 });
 
 async function start(): Promise<void> {
+  await soundFontDecoderReady;
   const host = window.desktop;
   const canvas = document.querySelector<HTMLCanvasElement>("#screen");
   const status = document.querySelector<HTMLElement>("#live-status");
