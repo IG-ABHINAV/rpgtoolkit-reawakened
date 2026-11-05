@@ -1116,6 +1116,7 @@ export function createEngine(init: EngineInit): Engine {
         cancel: mainFile?.cursorCancelSound ?? "",
       }),
       mainFile?.pixelMovement ?? 0,
+      { width: init.width, height: init.height },
     );
     init.spriteRuntime?.bindItemThreadCleanup?.((thread) => discardMenuFrames(nextServices, thread));
     media.activateDeclared();
@@ -3443,7 +3444,35 @@ export function createEngine(init: EngineInit): Engine {
       return true;
     }
     if (event.kind === "host.display") {
-      state.display = { geometry: normalizeDisplayGeometry(event.geometry) };
+      const previous = state.display.geometry;
+      const geometry = normalizeDisplayGeometry(event.geometry);
+      state.display = { geometry };
+      if (
+        previous.content.width !== geometry.content.width ||
+        previous.content.height !== geometry.content.height ||
+        previous.game.x !== geometry.game.x ||
+        previous.game.y !== geometry.game.y ||
+        previous.game.width !== geometry.game.width ||
+        previous.game.height !== geometry.game.height ||
+        previous.safeArea.top !== geometry.safeArea.top ||
+        previous.safeArea.right !== geometry.safeArea.right ||
+        previous.safeArea.bottom !== geometry.safeArea.bottom ||
+        previous.safeArea.left !== geometry.safeArea.left
+      ) {
+        const scaleX = geometry.game.width / init.width;
+        const scaleY = geometry.game.height / init.height;
+        // Script member names are ASCII-folded by the RPGCode parser.
+        queueNativeEvent(state.vm, state.events, "game", "viewportResized", {
+          marginleft: Math.floor(geometry.game.x / scaleX),
+          marginright: Math.floor((geometry.content.width - geometry.game.x - geometry.game.width) / scaleX),
+          margintop: Math.floor(geometry.game.y / scaleY),
+          marginbottom: Math.floor((geometry.content.height - geometry.game.y - geometry.game.height) / scaleY),
+          safeareatop: Math.floor(geometry.safeArea.top / scaleY),
+          safearearight: Math.floor(geometry.safeArea.right / scaleX),
+          safeareabottom: Math.floor(geometry.safeArea.bottom / scaleY),
+          safearealeft: Math.floor(geometry.safeArea.left / scaleX),
+        });
+      }
       return true;
     }
     return false;
@@ -3470,7 +3499,12 @@ export function createEngine(init: EngineInit): Engine {
           applyInputEvent(state.input, record.event);
           consumed.push(record);
         }
-        processGamepadEvents(state.input);
+        processGamepadEvents(state.input, ({ device, connected }) => {
+          queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
+            device,
+            type: "gamepad",
+          });
+        });
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
       }
