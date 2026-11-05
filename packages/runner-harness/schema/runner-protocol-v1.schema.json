@@ -716,6 +716,7 @@
       "properties": {
         "kind": { "const": "host.display" },
         "geometry": {
+          "description": "The game rectangle must also fit within content: x + width <= content.width and y + height <= content.height. Validate these cross-field constraints in addition to this schema (docs/spec/engine/host-capabilities-and-viewports.md#state-and-input-records).",
           "type": "object",
           "additionalProperties": false,
           "required": ["content", "game", "safeArea"],
