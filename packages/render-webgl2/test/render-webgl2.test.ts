@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import { createWebgl2Renderer } from "../src/index.ts";
-import type { DrawListV2, HostDisplayGeometry } from "@tk-reawakened/core";
+import type { SurfaceId } from "@tk-reawakened/core";
 
 function fakeContext(): { readonly gl: WebGL2RenderingContext; readonly uploaded: () => Uint8Array | null } {
   let next = 1;
@@ -62,5 +62,46 @@ test("WebGL2 renderer uploads the exact reference presentation bytes for both pl
     50, 60, 70, 255, 20, 30, 40, 255, 20, 30, 40, 255,
     50, 60, 70, 255, 20, 30, 40, 255, 20, 30, 40, 255,
   ]));
+  renderer.dispose();
+});
+test("WebGL2 requests distinct revisions for repeated surface identities", () => {
+  const { gl, uploaded } = fakeContext();
+  const renderer = createWebgl2Renderer(gl);
+  const surface = 8 as SurfaceId;
+  const seen: number[] = [];
+  const blit = (rev: number, x: number) => ({
+    kind: "blit" as const,
+    source: { surface, rev },
+    src: { x: 0, y: 0, w: 1, h: 1 },
+    dst: { x, y: 0, w: 1, h: 1 },
+    key: null,
+    tint: { r: 0, g: 0, b: 0 },
+    alpha: 255,
+    blend: "normal" as const,
+    iso2d: false,
+  });
+  const surfaceList: DrawListV2 = {
+    tick: 0,
+    width: 2,
+    height: 1,
+    commands: [blit(3, 0), blit(4, 1)],
+    marginCommands: [],
+  };
+  const surfaceGeometry: HostDisplayGeometry = {
+    content: { width: 2, height: 1 },
+    game: { x: 0, y: 0, width: 2, height: 1 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  renderer.render(surfaceList, surfaceGeometry, {
+    textures: () => null,
+    surfaces: (_id, rev) => {
+      seen.push(rev);
+      return rev === 3
+        ? { w: 1, h: 1, rgba: new Uint8Array([255, 0, 0, 255]) }
+        : { w: 1, h: 1, rgba: new Uint8Array([0, 0, 255, 255]) };
+    },
+  });
+  deepEqual(seen, [3, 4]);
+  deepEqual(uploaded(), new Uint8Array([255, 0, 0, 255, 0, 0, 255, 255]));
   renderer.dispose();
 });

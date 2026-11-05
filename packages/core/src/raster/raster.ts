@@ -17,7 +17,9 @@ import type { AssetKey, ScratchId, SurfaceId } from "../ports/keys.ts";
 
 export type RasterAsset = DecodedTexture | LegacyFont | TrueTypeFont | Uint8Array;
 export type RasterAssets = ReadonlyMap<AssetKey, RasterAsset>;
-export type RasterSurfaces = ReadonlyMap<SurfaceId, DecodedTexture>;
+export type RasterSurfaces = ReadonlyMap<SurfaceId, DecodedTexture> & {
+  get(surface: SurfaceId, revision?: number): DecodedTexture | undefined;
+};
 export type RasterResult = {
   readonly width: number;
   readonly height: number;
@@ -57,7 +59,7 @@ function sourceTexture(
     const asset = assets.get(command.source.asset);
     return isTexture(asset) ? asset : null;
   }
-  return surfaces.get(command.source.surface) ?? null;
+  return surfaces.get(command.source.surface, command.source.rev) ?? null;
 }
 
 function drawPixel(target: TargetEntry, x: number, y: number, rgb: Rgb): void {
