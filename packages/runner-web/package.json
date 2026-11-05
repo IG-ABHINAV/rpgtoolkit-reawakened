@@ -29,6 +29,10 @@
       "types": "./dist/pointer.d.ts",
       "default": "./dist/pointer.js"
     },
+    "./touch-controls": {
+      "types": "./dist/touch-controls.d.ts",
+      "default": "./dist/touch-controls.js"
+    },
     "./app": "./app/index.html"
   },
   "scripts": {

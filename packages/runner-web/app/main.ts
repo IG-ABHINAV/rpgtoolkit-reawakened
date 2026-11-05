@@ -10,6 +10,7 @@ import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, fitCanvas, type LiveSession } from "../src/live-session.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
+import { createFallbackTouchControls } from "../src/touch-controls.ts";
 
 type LiveReport = {
   tick: number;
@@ -362,6 +363,13 @@ function startLiveLoop(
   let advancing = false;
   let frameId: number | null = null;
   let pending: InputRecord[] = [];
+  const stage = canvas.parentElement;
+  if (stage === null) throw new Error("player: the screen has no stage for fallback touch controls");
+  const touchControls = createFallbackTouchControls(
+    stage,
+    () => session.displayGeometry(),
+    (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } }),
+  );
   const viewSize = session.viewSize();
   const stopPointerInput = attachPointerInput(
     canvas,
@@ -388,6 +396,9 @@ function startLiveLoop(
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);
   canvas.addEventListener("contextmenu", onContextMenu);
+  const syncTouchControls = (): void => {
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
+  };
   // The spinner is driven by its own timer as well as by each frame, so it appears even if the browser throttles
   // animation frames, and never from the pending `advance`, which cannot resolve while the engine waits on an asset.
   const spinnerTimer = overlay === null ? null : window.setInterval(() => overlay.update(), 100);
@@ -403,6 +414,7 @@ function startLiveLoop(
     document.removeEventListener("visibilitychange", onVisibility);
     stopPointerInput();
     canvas.removeEventListener("contextmenu", onContextMenu);
+    touchControls.close();
     session.close();
   };
   const summary = (spinner: boolean): NonNullable<LiveReport["stalls"]> => {
@@ -416,6 +428,7 @@ function startLiveLoop(
     const elapsed = Math.max(0, now - previous);
     previous = now;
     const spinner = overlay?.update() ?? false;
+    syncTouchControls();
     // While the engine waits on an asset the simulation is frozen, so wall time is not banked: a long wait must not come
     // back as a burst of catch-up ticks. The last presented frame stays on the canvas and the loop keeps running.
     if (!advancing) {
