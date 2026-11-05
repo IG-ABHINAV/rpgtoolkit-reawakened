@@ -1,5 +1,6 @@
 import type { InputRecord } from "@tk-reawakened/core";
 import { interactivePackage } from "@tk-reawakened/runner-web";
+import { createFallbackTouchControls } from "@tk-reawakened/runner-web/touch-controls";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
@@ -74,6 +75,11 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
+  const touchControls = createFallbackTouchControls(
+    hostViewport.viewport,
+    () => session.displayGeometry(),
+    (action, down) => pending.push({ tick: session.tick(), event: { kind: "action", action, down, source: "runner.fallback" } }),
+  );
   const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
     canvas,
@@ -96,6 +102,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
     stopPointerInput();
+    touchControls.close();
     session.close();
   };
   window.addEventListener("pagehide", dispose, { once: true });
@@ -105,6 +112,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     const inputs = stampPendingInputs(pending, session.tick());
     pending = [];
     void session.advance(ticks, inputs).then(() => {
