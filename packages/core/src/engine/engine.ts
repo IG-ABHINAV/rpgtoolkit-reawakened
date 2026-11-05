@@ -2184,7 +2184,7 @@ export function createEngine(init: EngineInit): Engine {
   function arrive(board: WorldBoard, arrival: Arrival, fromSend: boolean): void {
     const previous = state.world.board;
     const player = state.sprites.players.find((candidate) => candidate.id === state.sprites.selectedPlayer) ?? state.sprites.players[0];
-    if (fromSend) stopOldBoardThreads();
+    if (fromSend || previous !== undefined && previous !== null) stopOldBoardThreads();
     if (previous !== undefined && previous !== null && previous.key !== board.key) {
       const leftEvent = boardLifecycle("left", previous, player);
       deferUnregisterEmitter(state.events, boardEmitterKey(previous.key), leftEvent);
@@ -2788,6 +2788,15 @@ export function createEngine(init: EngineInit): Engine {
     if (live === undefined || original !== live || ordinal === undefined) return null;
     return { ordinal, className: live.className, hostType: live.hostType ?? null };
   }
+  /** A board thread has no lifetime owner during startup until a board is installed. */
+  function startupThreadEligible(thread: Thread): boolean {
+    return state.engine.boot?.stage !== "startup"
+      || (state.world.board !== null && state.world.board !== undefined)
+      || thread.kind !== "board";
+  }
+  function discardUnboardedStartupThreads(): void {
+    if (state.world.board === null || state.world.board === undefined) endBoardThreads(state.vm);
+  }
   function stepBoot(boot: NonNullable<EngineSection["boot"]>): boolean {
     if (boot.stage === "recovery") return stepRecovery();
     if (boot.stage === "main" || boot.stage === "assets") return startBoot(boot);
@@ -2801,6 +2810,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       recordStartupAnchors();
       if (recoveryCandidateBytes !== null) {
+        discardUnboardedStartupThreads();
         delete state.engine.transition;
         boot.stage = "recovery";
         return true;
@@ -2809,6 +2819,7 @@ export function createEngine(init: EngineInit): Engine {
         boot.stage = "running";
         return false;
       }
+      discardUnboardedStartupThreads();
       boot.stage = "board";
       return true;
     }
@@ -3252,7 +3263,7 @@ export function createEngine(init: EngineInit): Engine {
         const liveBlockingBefore = new Set(
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
-        withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET));
+        withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET, startupThreadEligible));
         if (state.engine.pendingEnterThread !== undefined) {
           const enterThread = state.vm.threads.find((thread) => thread.id === state.engine.pendingEnterThread);
           if (enterThread === undefined || enterThread.status === "finished") {
@@ -3521,7 +3532,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function beginOpenTick(): void {
     const readyThreads = state.vm.threads
-      .filter((thread) => thread.status === "ready")
+      .filter((thread) => thread.status === "ready" && startupThreadEligible(thread))
       .sort((left, right) => left.id - right.id)
       .map((thread) => thread.id);
     state.engine.openTick = { readyThreads, readyIndex: 0, currentThread: readyThreads[0] ?? 0, stepsUsed: 0 };
@@ -3540,7 +3551,7 @@ export function createEngine(init: EngineInit): Engine {
     if (cursor === undefined) return null;
     while (state.engine.openTick !== undefined) {
       const active = state.vm.threads.find((thread) => thread.id === cursor.currentThread);
-      if (active === undefined || active.status !== "ready") {
+      if (active === undefined || active.status !== "ready" || !startupThreadEligible(active)) {
         nextOpenThread();
         continue;
       }

@@ -968,6 +968,109 @@ test("a scripted game boots from start.prg to its first board with the ruled eff
   deepEqual({ x: state.camera.x, y: state.camera.y }, { x: 0, y: 0 });
   equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
 });
+test("unboarded startup board threads wait until first-board entry; persistent threads survive", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": { threads: ["bg.prg"] } },
+    programs: {
+      "start.prg": 'temporary = thread("temporaryran = 1", 0)\npersistent = thread("persistentran = 1; threadsleep(getthreadid(), 0)", 1)\nsleep(2)\nstartupdone = 1\nend()\n',
+      "bg.prg": "boardthreadran = 1\nthreadsleep(getthreadid(), 0)\n",
+    },
+  });
+  const doubles = makeDoubles(false);
+  const result = run(bootEngine(game, doubles), game.files, 30);
+  deepEqual(result.diagnostics, []);
+  const state = doubles.state();
+  equal(state.vm.globals.startupdone, 1);
+  equal(state.vm.globals.temporaryran, undefined);
+  equal(state.vm.threads.some((thread) => thread.id === state.vm.globals.temporary), false, "startup board thread was destroyed");
+  equal(state.vm.globals.persistentran, 1, "the persistent startup thread executed");
+  equal(state.vm.threads.some((thread) => thread.kind === "persistent" && thread.status !== "finished"), true);
+  equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
+  equal(state.vm.globals.boardthreadran, 1);
+});
+
+test("startup-loaded board threads end before the initial board replaces them", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": { threads: ["new.prg"] }, "other.brd": { threads: ["old.prg"] } },
+    programs: {
+      "start.prg": 'send("other.brd", 20, 20, 1)\nthreadsleep(getthreadid(), 0.05)\nend()\n',
+      "old.prg": "oldid = getthreadid()\nthreadsleep(getthreadid(), 0)\n",
+      "new.prg": "newran = 1\nthreadsleep(getthreadid(), 0)\n",
+    },
+  });
+  const doubles = makeDoubles(false);
+  const result = run(bootEngine(game, doubles), game.files, 30);
+  deepEqual(result.diagnostics, []);
+  const state = doubles.state();
+  equal(state.world.board?.key, "boards/start.brd");
+  ok(typeof state.vm.globals.oldid === "number", "startup-loaded board thread ran");
+  equal(state.vm.threads.some((thread) => thread.frames.some((frame) => frame.program.kind === "file" && frame.program.path === "old.prg")), false, "replaced board thread ended");
+  equal(state.vm.globals.newran, 1, "initial board thread started");
+});
+
+test("debug stepping excludes a startup board child from the ready snapshot", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": { threads: ["bg.prg"] } },
+    programs: {
+      "start.prg": 'temporary = thread("temporaryran = 1", 0)\npersistent = thread("persistentran = 1; threadsleep(getthreadid(), 0)", 1)\nsleep(2)\nstartupdone = 1\nend()\n',
+      "bg.prg": "boardthreadran = 1\nthreadsleep(getthreadid(), 0)\n",
+    },
+  });
+  const doubles = makeDoubles(false);
+  const engine = bootEngine(game, doubles);
+  let ticks = 0;
+  let replies: InputRecord[] = [];
+  const diagnostics: RunResult["diagnostics"][number][] = [];
+  for (let step = 0; step < 10_000 && ticks < 30; step += 1) {
+    const report = engine.advance(1, replies, undefined, "step");
+    replies = [];
+    ticks += report.ticksRun;
+    diagnostics.push(...report.diagnostics);
+    replies = report.requests.flatMap((request) => request.kind === "asset"
+      ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: game.files.get(request.key) ?? null } }]
+      : []);
+  }
+  equal(ticks, 30, "debug stepping completed the requested ticks");
+  deepEqual(diagnostics, []);
+  const state = doubles.state();
+  equal(state.vm.globals.startupdone, 1);
+  equal(state.vm.globals.temporaryran, undefined);
+  equal(state.vm.threads.some((thread) => thread.id === state.vm.globals.temporary), false, "startup board thread was destroyed");
+  equal(state.vm.globals.persistentran, 1, "the persistent startup thread executed");
+  equal(state.vm.threads.some((thread) => thread.kind === "persistent" && thread.status !== "finished"), true);
+  equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
+  equal(state.vm.globals.boardthreadran, 1);
+});
+
+test("debug resume rechecks a deserialized ready cursor containing a startup board thread", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": {} },
+    programs: { "start.prg": 'temporary = thread("temporaryran = 1", 0)\nsleep(2)\nend()\n' },
+  });
+  const doubles = makeDoubles(false);
+  const engine = bootEngine(game, doubles);
+  deepEqual(run(engine, game.files, 1).diagnostics, []);
+  const state = doubles.state();
+  equal(state.engine.boot?.stage, "startup");
+  const child = state.vm.threads.find((thread) => thread.kind === "board");
+  ok(child, "startup created a board child before the cursor was saved");
+  state.engine.openTick = JSON.parse(JSON.stringify({
+    readyThreads: [child.id], readyIndex: 0, currentThread: child.id, stepsUsed: 0,
+  }));
+  for (let step = 0; step < 20 && state.engine.openTick !== undefined; step += 1) {
+    engine.advance(1, [], undefined, "step");
+  }
+  equal(state.engine.openTick, undefined, "the saved cursor was consumed");
+  equal(state.vm.globals.temporaryran, undefined, "the restored cursor did not run the board child");
+});
 
 test("engine services discard an item thread's open menu before hiding it", () => {
   const game = authorGame({
