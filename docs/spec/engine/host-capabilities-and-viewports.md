@@ -65,6 +65,11 @@ When an AD-14 `gamepad` input changes a device from disconnected to connected, o
 
 `device` is the normalized AD-14 controller index (0 through 3). Repeated connected samples for an already-connected device and disconnect samples for an already-disconnected or unknown device do not emit a transition event. The event contains no browser object, device name, or other host-specific identity. A runner reports the normalized `gamepad` input; it never dispatches these script events directly. Thus connection notifications are replayed from the same ordered input log as controller state.
 
+### Live host state after restore
+
+A live runner MUST reconcile the complete current host capability record after every advance that may restore or reset game state. If the restored `state.features` differs from the runner's latest observation, the runner MUST enqueue that observation as a complete `host.features` input at the next consuming boundary; it MUST NOT mutate engine state through an unlogged setter. Pending feature records retain their order, and records stranded at the pre-restore tick are rebased to the next consuming tick in the same way as other unconsumed host observations. This makes current hardware authoritative again while preserving the logged state transition and replay hash. An identical record requires no extra input.
+
+
 ### Geometry-derived values
 
 For configured logical size `W × H`, `scaleX = game.width / W` and `scaleY = game.height / H`. `marginWidth(side)` returns `floor(distance / scaleX)` for left/right, using `game.x` and `content.width - game.x - game.width`; `marginWidth`'s vertical counterpart uses `scaleY` and the top/bottom distances. `safeAreaInset(side)` returns `floor(the corresponding CSS-pixel inset / that axis's scale)`. `displayAspect()` is `content.width / content.height`. `viewWidth()` and `viewHeight()` remain the configured logical dimensions. Pointer mapping and presentation use the same presented rectangle but do not mutate `state.display`.
