@@ -326,6 +326,9 @@ function createHost(
         safeArea: { ...safeArea },
       };
     },
+    surfaceCacheEpoch() {
+      return 0;
+    },
     accessibilityTree() {
       return uiAccessibilityTree(gameState.ui);
     },

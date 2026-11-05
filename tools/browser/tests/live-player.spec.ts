@@ -22,6 +22,11 @@ declare global {
     liveAnalyser?: AnalyserNode;
     __session?: {
       tick(): number;
+      viewSize(): { readonly width: number; readonly height: number };
+      displayGeometry(): {
+        readonly content: { readonly width: number; readonly height: number };
+        readonly game: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+      };
       advance(ticks: number, inputs?: readonly {
         tick: number;
         event: { kind: "key"; name: string; code: string; char: null; down: boolean };
@@ -189,11 +194,27 @@ test("the demo cursor-map hand is visible and follows the selected menu row", as
   await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
   await page.waitForFunction(() => (window.__live?.tick ?? 0) > 30, undefined, { timeout: 45_000 });
   const handPixels = () => page.evaluate(() => {
-    const canvas = document.querySelector("canvas")!;
-    const gl = canvas.getContext("webgl2")!;
-    const count = (y: number): number => {
-      const pixels = new Uint8Array(32 * 20 * 4);
-      gl.readPixels(255, canvas.height - y - 20, 32, 20, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    const session = window.__session;
+    const gl = canvas?.getContext("webgl2");
+    if (canvas === null || session === undefined || gl === null || gl === undefined) {
+      throw new Error("live player canvas, WebGL context, or session is unavailable");
+    }
+    const view = session.viewSize();
+    const { game } = session.displayGeometry();
+    const scaleX = game.width / view.width;
+    const scaleY = game.height / view.height;
+    const pixelEdge = (gameOffset: number, logicalOffset: number, scale: number): number =>
+      Math.ceil(gameOffset + logicalOffset * scale - 0.5);
+    const count = (logicalY: number): number => {
+      const left = pixelEdge(game.x, 255, scaleX);
+      const right = pixelEdge(game.x, 287, scaleX);
+      const top = pixelEdge(game.y, logicalY, scaleY);
+      const bottom = pixelEdge(game.y, logicalY + 20, scaleY);
+      const width = right - left;
+      const height = bottom - top;
+      const pixels = new Uint8Array(width * height * 4);
+      gl.readPixels(left, canvas.height - bottom, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
       let bright = 0;
       for (let i = 0; i < pixels.length; i += 4) {
         if (pixels[i]! > 150 && pixels[i + 1]! > 150 && pixels[i + 2]! > 150) bright += 1;
@@ -264,8 +285,9 @@ test("live demo attaches a board canvas and movement changes the player and pres
   expect(first.error).toBeUndefined();
   if (first.player === null) throw new Error("live demo did not expose the selected player position");
   const readCanvas = () => page.evaluate(() => {
-    const canvas = document.querySelector("canvas");
-    if (canvas === null || !document.contains(canvas)) return null;
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    const session = window.__session;
+    if (canvas === null || !document.contains(canvas) || session === undefined) return null;
     const gl = canvas.getContext("webgl2");
     if (gl === null) return null;
     const pixels = new Uint8Array(canvas.width * canvas.height * 4);
@@ -276,12 +298,20 @@ test("live demo attaches a board canvas and movement changes the player and pres
       frameHash = Math.imul(frameHash ^ pixels[i]!, 16777619);
       if (i % 4 === 0 && (pixels[i] !== 0 || pixels[i + 1] !== 0 || pixels[i + 2] !== 0)) nonBlack += 1;
     }
-    return { width: canvas.width, height: canvas.height, nonBlack, frameHash };
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      logical: session.viewSize(),
+      content: session.displayGeometry().content,
+      nonBlack,
+      frameHash,
+    };
   });
   const canvasInfo = await readCanvas();
   expect(canvasInfo).not.toBeNull();
-  expect(canvasInfo?.width).toBe(640);
-  expect(canvasInfo?.height).toBe(480);
+  expect(canvasInfo?.logical).toEqual({ width: 640, height: 480 });
+  expect(canvasInfo?.width).toBe(Math.ceil(canvasInfo?.content.width ?? 0));
+  expect(canvasInfo?.height).toBe(Math.ceil(canvasInfo?.content.height ?? 0));
   expect(canvasInfo?.nonBlack ?? 0).toBeGreaterThan(1000);
   await page.locator("#screen").focus();
 
@@ -305,6 +335,121 @@ test("live demo attaches a board canvas and movement changes the player and pres
 
   const movedFrame = await readCanvas();
   expect(movedFrame?.frameHash).not.toBe(canvasInfo?.frameHash);
+});
+
+test("live session flushes GPU surface cache after loading a same-id/revision save", async ({ page }) => {
+  const script = [
+    "rendernow(1)",
+    "screen = cnvrendernow",
+    "colorrgb(255, 0, 0)",
+    "fillrect(0, 0, 640, 480, screen)",
+    'Save("slot")',
+    "wait()",
+    'Load("slot")',
+    "end()",
+  ].join("\n");
+  const fixture = packageWithoutStartupProgram("surface-restore-cache.tpk", undefined, script);
+  await servePackage(page, fixture);
+  await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+  await page.waitForFunction(() => (window.__session?.tick() ?? 0) > 10 || window.__live?.error !== undefined, undefined, { timeout: 45_000 });
+  const saveState = await page.evaluate(async () => {
+    const session = window.__session!;
+    const host = window.__blobHost!;
+    return { tick: session.tick(), live: window.__live, paths: await host.list("saves", session.gameId) };
+  });
+  const savePath = saveState.paths.find((path) => path.toLowerCase().includes("slot"));
+  if (savePath === undefined) throw new Error(`startup did not save the collision fixture: ${JSON.stringify(saveState)}`);
+  const saved = await page.evaluate(async (path) => {
+    const session = window.__session!;
+    const host = window.__blobHost!;
+    const bytes = await host.read("saves", session.gameId, path);
+    if (bytes === null) throw new Error("saved surface snapshot is absent");
+    const engine = session.engine;
+    const command = engine.drawList().commands.find((entry) =>
+      entry.kind === "blit" && typeof entry.source === "object" && entry.source !== null && "surface" in entry.source);
+    if (command === undefined || command.kind !== "blit" || !("surface" in command.source)) {
+      throw new Error("startup did not publish a surface-backed draw command");
+    }
+    const source = command.source;
+    const state = JSON.parse(new TextDecoder().decode(bytes)) as {
+      surfaces?: { entries?: Record<string, { rev: number; bitmap: { w: number; h: number; b64: string } }> };
+    };
+    const surface = state.surfaces?.entries?.[String(source.surface)];
+    if (surface === undefined || surface.rev !== source.rev) {
+      throw new Error(`save and live draw disagree on surface revision ${String(source.surface)}@${source.rev}`);
+    }
+    const binary = atob(surface.bitmap.b64);
+    const rgba = new Uint8Array(binary.length);
+    for (let index = 0; index < rgba.length; index += 4) {
+      rgba[index] = 0;
+      rgba[index + 1] = 255;
+      rgba[index + 2] = 0;
+      rgba[index + 3] = 255;
+    }
+    let encoded = "";
+    for (const byte of rgba) encoded += String.fromCharCode(byte);
+    surface.bitmap.b64 = btoa(encoded);
+    const changed = new TextEncoder().encode(JSON.stringify(state));
+    const read = host.read.bind(host);
+    let matchingReads = 0;
+    host.read = async (area, gameId, requestedPath) => {
+      const result = await read(area, gameId, requestedPath);
+      if (area === "saves" && gameId === session.gameId && requestedPath === path && result !== null) {
+        matchingReads += 1;
+        return changed;
+      }
+      return result;
+    };
+    Object.assign(window, { __surfaceRestoreReadCount: () => matchingReads });
+    return { surfaceId: String(source.surface), revision: source.rev, epoch: engine.surfaceCacheEpoch(), savedBytes: bytes.length };
+  }, savePath);
+  expect(saved.savedBytes).toBeGreaterThan(0);
+  const initialRed = await page.waitForFunction(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    const gl = canvas?.getContext("webgl2");
+    if (canvas === null || canvas === undefined || gl === null || gl === undefined) return false;
+    const pixels = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+    gl.readPixels(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let red = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index]! > pixels[index + 1]! * 2 && pixels[index]! > 80) red += 1;
+    }
+    return red > 1_000 ? red : false;
+  }, undefined, { timeout: 45_000 }).then((handle) => handle.jsonValue());
+  expect(initialRed).toBeGreaterThan(1_000);
+
+  await page.locator("#screen").focus();
+  await page.keyboard.press("Enter");
+  await page.waitForFunction((before) => {
+    const session = window.__session;
+    return session !== undefined && session.engine.surfaceCacheEpoch() > before.epoch;
+  }, saved, { timeout: 45_000 });
+  const restored = await page.waitForFunction((before) => {
+    const session = window.__session;
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    const gl = canvas?.getContext("webgl2");
+    if (session === undefined || canvas === null || gl === null || gl === undefined) return false;
+    const list = session.engine.drawList();
+    const sameSurface = list.commands.some((command) =>
+      command.kind === "blit" && typeof command.source === "object" && command.source !== null &&
+      "surface" in command.source && String(command.source.surface) === before.surfaceId && command.source.rev === before.revision);
+    const pixels = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+    gl.readPixels(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let green = 0;
+    let red = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 1]! > pixels[index]! * 2 && pixels[index + 1]! > 80) green += 1;
+      if (pixels[index]! > pixels[index + 1]! * 2 && pixels[index]! > 80) red += 1;
+    }
+    return sameSurface && green > 1_000 && green > red ? { sameSurface, green, red, epoch: session.engine.surfaceCacheEpoch() } : false;
+  }, saved, { timeout: 45_000 }).then((handle) => handle.jsonValue());
+  expect(restored.sameSurface).toBe(true);
+  expect(restored.green).toBeGreaterThan(1_000);
+  expect(restored.green).toBeGreaterThan(restored.red);
+  expect(restored.epoch).toBeGreaterThan(saved.epoch);
+  const readCount = await page.evaluate(() =>
+    (window as Window & { __surfaceRestoreReadCount?: () => number }).__surfaceRestoreReadCount?.() ?? 0);
+  expect(readCount).toBeGreaterThan(0);
 });
 
 test("web runner consumes resize and device transitions and dispatches normalized script events", async ({ page }) => {

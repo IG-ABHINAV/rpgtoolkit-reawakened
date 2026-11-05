@@ -764,6 +764,7 @@ export function createEngine(init: EngineInit): Engine {
   state.surfaces = createSurfacesSection(init.width, init.height);
   state.camera = createCameraSection(init.width, init.height);
   const surfaceCache: SurfacePixelCache = new Map();
+  let surfaceCacheEpoch = 0;
   let generatedMarginPixels: { readonly id: SurfaceId; readonly rev: number; readonly pixels: SurfacePixels } | null = null;
   let frameHash: string | null = null;
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
@@ -1246,6 +1247,7 @@ export function createEngine(init: EngineInit): Engine {
       refreshFrame(true);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       pendingTileBitmapAnimations.clear();
+      surfaceCacheEpoch += 1;
     } catch (error) {
       Object.assign(state, previous);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
@@ -2050,6 +2052,11 @@ export function createEngine(init: EngineInit): Engine {
     state.camera = createCameraSection(init.width, init.height);
     state.fx = fresh.fx;
     state.surfaces = createSurfacesSection(init.width, init.height);
+    surfaceCache.clear();
+    generatedMarginPixels = null;
+    frameHash = null;
+    frameFailure = null;
+    surfaceCacheEpoch += 1;
     state.rng = rng;
     state.time = time;
     shopSession.reset();
@@ -4349,6 +4356,9 @@ export function createEngine(init: EngineInit): Engine {
         game: { ...game },
         safeArea: { ...safeArea },
       };
+    },
+    surfaceCacheEpoch(): number {
+      return surfaceCacheEpoch;
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
       if (generatedMarginPixels?.id === id && generatedMarginPixels.id === state.surfaces.nextId && generatedMarginPixels.rev === rev) {

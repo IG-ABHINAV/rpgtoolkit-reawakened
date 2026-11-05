@@ -258,6 +258,9 @@ export function createTestEngine(): Engine {
         safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
       };
     },
+    surfaceCacheEpoch() {
+      return 0;
+    },
     accessibilityTree() {
       return [];
     },

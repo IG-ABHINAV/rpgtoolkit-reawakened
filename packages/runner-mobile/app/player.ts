@@ -19,6 +19,12 @@ type LiveReport = {
   readonly player: { readonly x: number; readonly y: number } | null;
   readonly moved?: boolean;
   readonly save?: { readonly path: string; readonly written: boolean; readonly blobPresent: boolean };
+  readonly render?: {
+    readonly drawn: number;
+    readonly deferred: number;
+    readonly deferredByKind: Readonly<Record<string, number>>;
+    readonly diagnostics: readonly string[];
+  };
   readonly error?: string;
 };
 
@@ -293,7 +299,21 @@ function run(
       const written = await host.writeBlob("saves", gameId, savePath, saveBytes());
       if (disposed || !isCurrent()) return;
       const saveLabel = `${saveBlobPresent ? "host blob present; " : ""}${written ? "written" : "write failed"}`;
-      setReport({ tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board, player, moved, save: { path: savePath, written, blobPresent: saveBlobPresent } });
+      setReport({
+        tick: session.tick(),
+        stateHash: session.stateHash(),
+        drawHash: frame.drawHash,
+        board,
+        player,
+        moved,
+        save: { path: savePath, written, blobPresent: saveBlobPresent },
+        render: {
+          drawn: frame.render.drawn,
+          deferred: frame.render.deferred,
+          deferredByKind: frame.render.deferredByKind,
+          diagnostics: frame.render.diagnostics,
+        },
+      });
       status.textContent = [
         `tick ${session.tick()}`,
         `state ${session.stateHash()}`,

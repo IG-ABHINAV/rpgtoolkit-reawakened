@@ -385,6 +385,7 @@ test("restore rebuilds the screen before script pixel reads and preserves saved 
 
   const restored = runBoot(bootGame('Load("slot")\nend()\n'), plain.saved, true);
   equal(restored.loadRequests, 1, "the loader issued one host request");
+  ok(restored.engine.surfaceCacheEpoch() > 0, "restoring replaces the runtime surface-cache epoch");
   const state = restored.state;
   ok(state !== null);
   const globals = state.vm.globals as Record<string, unknown>;
@@ -401,6 +402,18 @@ test("restore rebuilds the screen before script pixel reads and preserves saved 
     deepEqual([...capture.rgba.slice(0, 4)], boardColour, `restored surface ${id} carries the composed frame`);
   }
   equal(state.surfaces.entries[String(SCRIPT_SCREEN)], undefined, "a game that never draws to the screen never creates a script-screen layer");
+});
+
+test("reset replaces the runtime surface-cache epoch without serializing it", () => {
+  const game = bootGame("reset()\nend()\n");
+  const initialEpoch = game.engine.surfaceCacheEpoch();
+  runBoot(game, null, false);
+  const afterState = game.state();
+  ok(afterState !== null);
+  const beforeReadHash = hashGameState(afterState);
+  ok(game.engine.surfaceCacheEpoch() > initialEpoch, "reset invalidates cached surfaces");
+  equal(hashGameState(afterState), beforeReadHash, "reading the runtime cache token is not part of game state");
+  equal(Object.hasOwn(afterState, "surfaceCacheEpoch"), false);
 });
 
 /**

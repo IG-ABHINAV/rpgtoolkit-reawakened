@@ -281,6 +281,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     (key) => engine.picturePixels(key),
   );
   const fonts = fontProvider(options.bundled);
+  let renderedSurfaceEpoch = engine.surfaceCacheEpoch();
   let currentTick = 0;
   let currentStateHash = "";
   const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
@@ -455,6 +456,11 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     },
     async advance(ticks, inputs = []) { await queue(ticks, inputs); },
     draw(alpha) {
+      const surfaceEpoch = engine.surfaceCacheEpoch();
+      if (surfaceEpoch !== renderedSurfaceEpoch) {
+        renderer.flush();
+        renderedSurfaceEpoch = surfaceEpoch;
+      }
       const list: DrawList = engine.drawList(alpha, { shading: true, images: true, sprites: true });
       const geometry = engine.hostDisplayGeometry();
       const render = renderer.render(list, geometry, {

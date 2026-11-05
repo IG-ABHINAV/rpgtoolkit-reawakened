@@ -184,6 +184,7 @@ test("goldenJob detects batching disagreement without throwing", () => {
       customTouchControlsDeclared() { return false; },
       hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
       hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+      surfaceCacheEpoch() { return 0; },
       accessibilityTree() { return []; },
       surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
         return null;

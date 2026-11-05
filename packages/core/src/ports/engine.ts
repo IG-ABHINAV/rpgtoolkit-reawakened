@@ -113,6 +113,8 @@ export interface Engine {
 
   /** Last consumed, normalized host geometry used for display planes and pointer mapping. */
   hostDisplayGeometry(): HostDisplayGeometry;
+  /** Monotonic, non-state token bumped whenever reset/restore replaces cached surfaces. */
+  surfaceCacheEpoch(): number;
   /** Plain-data tree for currently published UI surfaces; hosts request it only when needed. */
   accessibilityTree(): readonly AccessibilityNode[];
   /**
