@@ -128,6 +128,22 @@ test("charge refresh covers every bar scan phase and repeated charge changes", (
     deepEqual(rig.diagnostics, []);
   }
 });
+test("a fighter-stat fast-path redraw synchronizes an unrelated party charge bar", () => {
+  const rig = ready("idle");
+  const state = rig.state();
+  const fighter = state.battle!.parties[1][0]!;
+  fighter.charge = 60;
+  ui(rig)["barscan"] = 1; // Keep the normal one-bar scanner away from index 0 for this tick.
+  const enemy = actor(rig, "slime.ene");
+  enemy.stats.hp -= 1; // Changes the scene signature and takes the actual partial-render fast path.
+  const chargeRegion = { x1: 500, y1: 356, x2: 611, y2: 369 };
+  const before = regionHash(rig, chargeRegion);
+  rig.tick(1);
+  const expected = Math.floor(fighter.charge * 100 / 75);
+  equal((ui(rig)["bars"] as Record<string, number>)["0"], expected);
+  ok(regionHash(rig, chargeRegion) !== before, "the unrelated party bar reaches pixels before the fast path returns");
+  deepEqual(rig.diagnostics, []);
+});
 
 test("target picker and message update a renamed target without cursor movement", () => {
   const rig = ready("target");
