@@ -8,7 +8,7 @@
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -230,8 +230,14 @@ function run(
     stage,
     viewSize,
     observedGeometry.current,
-    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+    ({ x, y }, buttons) => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } });
+    },
   );
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 

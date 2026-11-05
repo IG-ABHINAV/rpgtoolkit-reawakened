@@ -3,7 +3,7 @@ import { interactivePackage } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -84,8 +84,14 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     pointerHost,
     viewSize,
     observedGeometry.current,
-    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+    ({ x, y }, buttons) => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } });
+    },
   );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);

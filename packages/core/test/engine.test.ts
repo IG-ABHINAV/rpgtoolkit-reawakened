@@ -161,6 +161,24 @@ test("author surface margin hit-testing uses safe whole cells", () => {
   equal(refused.ui.surfaceActivated, null);
   equal(refused.input.pendingActions.filter((action) => action === "confirm").length, 0);
 });
+test("screen vector primitives crossing Plane 1 enter the margin command layer", () => {
+  const engine = loadedEngine([], undefined, undefined, [
+    "drawline(-2, 1, 2, 1)",
+    "drawrect(-1, 4, 3, 7)",
+    "setpixel(32, 0)",
+    "end()",
+  ].join("\n"));
+  const commands = engine.drawList().marginCommands;
+  deepEqual(commands.map((command) => command.kind), ["line", "rect", "line"]);
+  deepEqual(commands[0], {
+    kind: "line",
+    x1: -2,
+    y1: 1,
+    x2: 2,
+    y2: 1,
+    rgb: { r: 255, g: 255, b: 255 },
+  });
+});
 
 test("unknown author actions remain inert with one diagnostic", () => {
   const capture = captureState();

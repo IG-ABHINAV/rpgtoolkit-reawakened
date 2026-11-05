@@ -257,8 +257,9 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
       options?.value === undefined ? null : options.value as PlainData,
       options?.enabled === undefined ? 1 : (options.enabled === 0 || options.enabled === "0" ? 0 : 1),
       options?.role === undefined ? null : options.role as PlainData,
+      action === undefined ? null : action as PlainData,
       boundsData,
-      optionsValid && enabledValid && boundsValid && actionValid,
+      optionsValid && enabledValid && boundsValid && actionValid ? 1 : 0,
     ] as PlainData[];
     return { value: null, effects: [surfaceEffect(view, argsData)] };
   }),
@@ -295,7 +296,7 @@ export const UI_PLUGIN: PluginDefinition = {
 };
 
 export function applyUiEffect(
-  state: { ui: UiSection; surfaces?: SurfacesSection; engine?: { claims?: number[] } },
+  state: { ui: UiSection; surfaces?: SurfacesSection; engine?: { claims?: number[] }; time?: { tick: number } },
   name: string,
   args: readonly PlainData[],
   /** Resolve a `font(name)` argument against the assets the project ships, when the caller has them. */
@@ -337,7 +338,7 @@ export function applyUiEffect(
       }
       ui.surfaceBuilders = [
         ...ui.surfaceBuilders.filter((builder) => builder.owner !== owner),
-        { owner, id, role, bounds, items: [], invalid: false },
+        { owner, id, role, bounds, items: [], invalid: false, openedTick: state.time?.tick ?? 0 },
       ];
       return;
     }
@@ -409,7 +410,7 @@ export function applyUiEffect(
       if (selection < 0 || selection >= items.length || items[selection]?.enabled !== true) selection = items.findIndex((item) => item.enabled);
       if (selection < 0) selection = -1;
       ui.surfaceSelection[selectionKey] = selection;
-      const surface = { id: builder.id, owner, role: builder.role, bounds: builder.bounds, items, selection };
+      const surface = { id: builder.id, owner, role: builder.role, bounds: builder.bounds, items, selection, publishedTick: state.time?.tick ?? 0 };
       ui.actionSurfaces = [...ui.actionSurfaces.filter((candidate) => candidate.owner !== owner), surface];
       return;
     }

@@ -393,7 +393,27 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
   if (typeof old !== "object" || old === null || Array.isArray(old)) {
     record.ui = createUiSection();
   } else if (version < UI_SCHEMA_VERSION) {
-    record.ui = { ...createUiSection(), ...(old as Record<string, unknown>) };
+    const migrated = { ...createUiSection(), ...(old as Record<string, unknown>) };
+    const time = record.time;
+    const savedTick = typeof time === "object" && time !== null && !Array.isArray(time) &&
+      Number.isSafeInteger((time as Record<string, unknown>).tick)
+      ? (time as Record<string, number>).tick!
+      : 0;
+    if (version < 5) {
+      if (Array.isArray(migrated.actionSurfaces)) {
+        migrated.actionSurfaces = migrated.actionSurfaces.map((surface) =>
+          typeof surface === "object" && surface !== null && !Array.isArray(surface)
+            ? { ...surface, publishedTick: Number.isSafeInteger((surface as Record<string, unknown>).publishedTick) ? (surface as Record<string, number>).publishedTick : savedTick }
+            : surface);
+      }
+      if (Array.isArray(migrated.surfaceBuilders)) {
+        migrated.surfaceBuilders = migrated.surfaceBuilders.map((builder) =>
+          typeof builder === "object" && builder !== null && !Array.isArray(builder)
+            ? { ...builder, openedTick: Number.isSafeInteger((builder as Record<string, unknown>).openedTick) ? (builder as Record<string, number>).openedTick : savedTick }
+            : builder);
+      }
+    }
+    record.ui = migrated;
   }
   schema.ui = UI_SCHEMA_VERSION;
 }
@@ -1245,6 +1265,7 @@ export function restoreGameState(
   migrateInput(record, schema as Record<string, unknown>);
   migrateTriggers(record, schema as Record<string, unknown>);
   migrateUi(record, schema as Record<string, unknown>);
+  migrateAudio(record, schema as Record<string, unknown>);
   migrateEngine(record, schema as Record<string, unknown>);
   applyIrCompatibility(record, options);
   // The loaded state now runs the current instruction version: every position is

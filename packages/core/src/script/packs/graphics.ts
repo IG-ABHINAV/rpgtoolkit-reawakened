@@ -7,7 +7,7 @@
  */
 import { createSurfacesSection } from "../../raster/surfaces.ts";
 import type { GameState } from "../../save/state.ts";
-import type { Rgb } from "../../ports/draw.ts";
+import type { DrawCommand, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 import type { Arg, BuiltinDoc, BuiltinSpec, ParamSpec } from "../builtins.ts";
 import type { CommandEffect, CommandView, PluginDefinition } from "../plugin.ts";
@@ -45,6 +45,20 @@ type AnyState = GameState & { surfaces: GameState["surfaces"] & { renderNow?: Su
  */
 function writingTarget(current: AnyState, id: SurfaceId): SurfaceId {
   return id === SCREEN ? ensureScriptScreen(current.surfaces) : id;
+}
+
+function recordAuthorMarginCommand(
+  current: AnyState,
+  screenTarget: boolean,
+  command: DrawCommand,
+  bounds: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+): void {
+  if (!screenTarget) return;
+  const screen = writingTarget(current, SCREEN);
+  const size = surfaceSize(current.surfaces, screen);
+  if (size === null || ![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isSafeInteger)) return;
+  if (bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.w <= size.w && bounds.y + bounds.h <= size.h) return;
+  current.ui.authorMarginCommands = [...current.ui.authorMarginCommands, command];
 }
 
 function numberArg(args: readonly Arg[], index: number, fallback = 0): number {
@@ -127,18 +141,23 @@ function command(name: string, aliases: readonly string[], commandParams: ParamS
 }
 
 const CLEAR = command("clear", [], [{ name: "canvas", optional: true, byRef: false, variadic: false }], docs("Clear a screen or canvas.", "Blanks every pixel of the selected surface to transparent black immediately; without a canvas argument it clears the screen surface."), (view, args) => {
-  const surfaces = state(view).surfaces;
-  const target = writingTarget(state(view), canvasArg(args, 0));
+  const current = state(view);
+  const surfaces = current.surfaces;
+  const canvas = canvasArg(args, 0);
+  const target = writingTarget(current, canvas);
   const size = surfaceSize(surfaces, target);
   const bounds = size === null ? undefined : { first: 0, last: size.w * size.h - 1 };
   const ok = editSurfaceWithBounds(surfaces, target, (rgba) => rgba.fill(0), bounds);
   if (!ok) throw new ScriptError("surface.unknown", `clear: no canvas ${String(target)}`);
+  if (canvas === SCREEN) current.ui.authorMarginCommands = [];
   return { value: null, effects: effects(args) };
 });
 
 const SET_PIXEL = command("setpixel", [], params(["x", "y", "canvas"], 2), docs("Set one pixel to the current colour.", "Writes the current RGB colour at integer pixel coordinates, clipping outside the selected surface; the optional canvas defaults to the screen."), (view, args) => {
-  const surfaces = state(view).surfaces;
-  const target = writingTarget(state(view), canvasArg(args, 2));
+  const current = state(view);
+  const surfaces = current.surfaces;
+  const canvas = canvasArg(args, 2);
+  const target = writingTarget(current, canvas);
   const rawX = numberArg(args, 0);
   const rawY = numberArg(args, 1);
   const bounds = surfacePixelBounds(surfaces, target, rawX, rawY);
@@ -155,14 +174,19 @@ const SET_PIXEL = command("setpixel", [], params(["x", "y", "canvas"], 2), docs(
     }
   }, bounds);
   if (!ok) throw new ScriptError("surface.unknown", `setpixel: no canvas ${String(target)}`);
+  const x = Math.trunc(rawX);
+  const y = Math.trunc(rawY);
+  recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "line", x1: x, y1: y, x2: x, y2: y, rgb }, { x, y, w: 1, h: 1 });
   return { value: null, effects: effects(args) };
 });
 
 function primitive(name: string, filled: boolean, circle: boolean): BuiltinSpec {
   const commandParams = circle ? params(["x", "y", "radius", "canvas"], 3) : params(["x1", "y1", "x2", "y2", "canvas"], 4);
   return command(name, [], commandParams, docs(`${filled ? "Fill" : "Draw"} a ${circle ? "circle" : "rectangle"}.`, "Rasterises the integer primitive using the current colour on the screen or optional canvas, clipping to the target bounds and returning immediately."), (view, args) => {
-    const surfaces = state(view).surfaces;
-    const target = writingTarget(state(view), canvasArg(args, circle ? 3 : 4));
+    const current = state(view);
+    const surfaces = current.surfaces;
+    const canvas = canvasArg(args, circle ? 3 : 4);
+    const target = writingTarget(current, canvas);
     const rgb = colour(view);
     const a0 = numberArg(args, 0);
     const a1 = numberArg(args, 1);
@@ -176,13 +200,24 @@ function primitive(name: string, filled: boolean, circle: boolean): BuiltinSpec 
       else drawSurfaceRect(rgba, width, height, a0, a1, a2, a3, rgb, filled);
     }, bounds);
     if (!ok) throw new ScriptError("surface.unknown", `${name}: no canvas ${String(target)}`);
+    if (circle) {
+      const cx = Math.trunc(a0); const cy = Math.trunc(a1); const radius = Math.max(0, Math.trunc(a2));
+      const rect = { x: cx - radius, y: cy - radius, w: radius * 2 + 1, h: radius * 2 + 1 };
+      recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "ellipse", rect, rgb, filled }, rect);
+    } else {
+      const left = Math.min(Math.trunc(a0), Math.trunc(a2)); const top = Math.min(Math.trunc(a1), Math.trunc(a3));
+      const rect = { x: left, y: top, w: Math.abs(Math.trunc(a2) - Math.trunc(a0)) + 1, h: Math.abs(Math.trunc(a3) - Math.trunc(a1)) + 1 };
+      recordAuthorMarginCommand(current, canvas === SCREEN, { kind: "rect", rect, rgb, filled }, rect);
+    }
     return { value: null, effects: effects(args) };
   });
 }
 
 const DRAW_LINE = command("drawline", [], params(["x1", "y1", "x2", "y2", "canvas"], 4), docs("Draw a line in the current colour.", "Rasterises an inclusive integer Bresenham line on the screen or optional canvas and clips it to the surface."), (view, args) => {
-  const surfaces = state(view).surfaces;
-  const target = writingTarget(state(view), canvasArg(args, 4));
+  const current = state(view);
+  const surfaces = current.surfaces;
+  const canvas = canvasArg(args, 4);
+  const target = writingTarget(current, canvas);
   const x1 = numberArg(args, 0);
   const y1 = numberArg(args, 1);
   const x2 = numberArg(args, 2);
@@ -191,6 +226,12 @@ const DRAW_LINE = command("drawline", [], params(["x1", "y1", "x2", "y2", "canva
   const rgb = colour(view);
   const ok = editSurfaceWithBounds(surfaces, target, (rgba, width, height) => drawSurfaceLine(rgba, width, height, x1, y1, x2, y2, rgb), bounds);
   if (!ok) throw new ScriptError("surface.unknown", `drawline: no canvas ${String(target)}`);
+  const left = Math.min(Math.trunc(x1), Math.trunc(x2)); const top = Math.min(Math.trunc(y1), Math.trunc(y2));
+  const rect = { x: left, y: top, w: Math.abs(Math.trunc(x2) - Math.trunc(x1)) + 1, h: Math.abs(Math.trunc(y2) - Math.trunc(y1)) + 1 };
+  recordAuthorMarginCommand(current, canvas === SCREEN, {
+    kind: "line",
+    x1: Math.trunc(x1), y1: Math.trunc(y1), x2: Math.trunc(x2), y2: Math.trunc(y2), rgb,
+  }, rect);
   return { value: null, effects: effects(args) };
 });
 const DRAW_RECT = primitive("drawrect", false, false);

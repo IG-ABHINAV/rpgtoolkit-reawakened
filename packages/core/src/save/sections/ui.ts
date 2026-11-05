@@ -1,9 +1,9 @@
 /** Deterministic message-window, text and modal state (E-55/E-60). */
 
-import type { FontRef, Rgb } from "../../ports/draw.ts";
+import type { DrawCommand, FontRef, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 
-export const UI_SCHEMA_VERSION = 4;
+export const UI_SCHEMA_VERSION = 5;
 export type UiTextDraw = {
   readonly x: number;
   readonly y: number;
@@ -99,6 +99,7 @@ export type UiActionSurface = {
   readonly bounds: UiSurfaceBounds;
   readonly items: UiActionItem[];
   readonly selection: number;
+  readonly publishedTick: number;
 };
 
 export type UiSurfaceBuilder = {
@@ -108,6 +109,7 @@ export type UiSurfaceBuilder = {
   readonly bounds: UiSurfaceBounds;
   readonly items: UiActionItem[];
   readonly invalid: boolean;
+  readonly openedTick: number;
 };
 
 export type UiActionClaim = {
@@ -125,6 +127,7 @@ export type UiSection = {
   color: Rgb;
   message: UiMessageWindow;
   draws: UiTextDraw[];
+  authorMarginCommands: DrawCommand[];
   cursorX: number;
   cursorY: number;
   modal: UiModal | null;
@@ -177,6 +180,7 @@ export function createUiSection(): UiSection {
     backgroundSurface: null,
     backgroundRev: 0,
     actionSurfaces: [],
+    authorMarginCommands: [],
     surfaceBuilders: [],
     surfaceSelection: {},
     surfaceActivated: null,
@@ -187,6 +191,7 @@ export function createUiSection(): UiSection {
     customTouchControlsDeclared: false,
   };
 
+}
 /**
  * The state change of a new outermost program start
  * (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle): the message window is
@@ -198,6 +203,7 @@ export function resetUiForProgramStart(ui: UiSection): void {
   if (ui.message === undefined) return;
   ui.message = { ...ui.message, visible: false, text: "" };
   ui.draws = [];
+  ui.authorMarginCommands = [];
   ui.actionSurfaces = [];
   ui.surfaceBuilders = [];
   ui.surfaceSelection = {};

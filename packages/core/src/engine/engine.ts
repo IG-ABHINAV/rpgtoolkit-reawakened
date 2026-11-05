@@ -3627,6 +3627,7 @@ export function createEngine(init: EngineInit): Engine {
     const pressed = state.ui.surfacePointerClaim;
     const target = authorSurfaceTargetAt(event.x, event.y);
     const pendingClicks = state.input.pendingClicks.length;
+    const pendingPointerUps = state.input.pendingPointerUps.length;
     const keys = state.input.keys.length;
     const pendingActions = state.input.pendingActions.length;
     const nextSeq = state.input.nextSeq;
@@ -3634,12 +3635,18 @@ export function createEngine(init: EngineInit): Engine {
 
     if (state.ui.modal !== null) {
       state.input.pendingClicks.length = pendingClicks;
+      state.input.pendingPointerUps.length = pendingPointerUps;
       return;
+    }
+    if (pressed !== null) {
+      state.input.pendingClicks.length = pendingClicks;
+      state.input.pendingPointerUps.length = pendingPointerUps;
     }
     if (downEdge && target !== null) {
       setPointerMovementSuppressed(state.input, true);
       state.ui.surfacePointerClaim = target;
       state.input.pendingClicks.length = pendingClicks;
+      state.input.pendingPointerUps.length = pendingPointerUps;
       state.input.keys.length = keys;
       state.input.pendingActions.length = pendingActions;
       state.input.nextSeq = nextSeq;
@@ -3653,6 +3660,7 @@ export function createEngine(init: EngineInit): Engine {
     if (releaseEdge && pressed !== null) {
       state.ui.surfacePointerClaim = null;
       state.input.pendingClicks.length = pendingClicks;
+      state.input.pendingPointerUps.length = pendingPointerUps;
       state.input.keys.length = keys;
       state.input.pendingActions.length = pendingActions;
       state.input.nextSeq = nextSeq;
@@ -3670,8 +3678,9 @@ export function createEngine(init: EngineInit): Engine {
       );
       state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
     }
-    if (isPrimaryDown && (event.x < 0 || event.y < 0 || event.x >= init.width || event.y >= init.height)) {
+    if (event.x < 0 || event.y < 0 || event.x >= init.width || event.y >= init.height) {
       state.input.pendingClicks.length = pendingClicks;
+      state.input.pendingPointerUps.length = pendingPointerUps;
     }
   }
 
@@ -3699,15 +3708,14 @@ export function createEngine(init: EngineInit): Engine {
           applyRoutedInputEvent(record.event);
           consumed.push(record);
         }
-        const actionsBeforeGamepad = actionStateSnapshot();
-        const firstGamepadSeq = state.input.nextSeq;
         processGamepadEvents(state.input, ({ device, connected }) => {
           queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
             device,
             type: "gamepad",
           });
+        }, (action, down, firstSeq) => {
+          routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
         });
-        routeActionStateChanges(actionsBeforeGamepad, firstGamepadSeq);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
       }
@@ -3767,6 +3775,8 @@ export function createEngine(init: EngineInit): Engine {
         return;
       case "time":
         runTimePhase(state.time);
+        state.ui.surfaceBuilders = state.ui.surfaceBuilders.filter((builder) => builder.openedTick >= state.time.tick);
+        state.ui.actionSurfaces = state.ui.actionSurfaces.filter((surface) => surface.publishedTick >= state.time.tick - 1);
         collectStateGarbage(state, layerRoots(services.layers));
         return;
       case "movement":
@@ -3966,7 +3976,7 @@ export function createEngine(init: EngineInit): Engine {
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const uiForCompose = activeSurface
       ? state.ui
-      : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
+      : { ...state.ui, draws: [], authorMarginCommands: [], message: { ...state.ui.message, visible: false }, modal: null };
     const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection, messageGraphicKey())] };
     return {
       ...withUi,

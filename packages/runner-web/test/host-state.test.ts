@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import type { InputRecord } from "@tk-reawakened/core";
-import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reapplyObservedGeometryBeforePointer, stampPendingInputs, type PendingInput } from "../src/host-state.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
 
 const viewSize = { width: 640, height: 480 };
@@ -105,6 +105,25 @@ test("pointer geometry keeps the newest queued host display through an advance b
   pending.length = 0; // The event has been handed to advance; the engine may not have consumed it yet.
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
+});
+test("pointer handling reapplies current observed geometry after stale save restore", () => {
+  const initial = {
+    content: { width: 640, height: 480 },
+    game: { x: 0, y: 0, width: 640, height: 480 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const resized = {
+    content: { width: 800, height: 600 },
+    game: { x: 80, y: 60, width: 640, height: 480 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const observed = createObservedHostGeometry(initial);
+  observed.observe({ kind: "host.display", geometry: resized });
+  const pending: PendingInput[] = [];
+  reapplyObservedGeometryBeforePointer(initial, observed, pending);
+  deepEqual(pending, [{ tick: null, event: { kind: "host.display", geometry: resized } }]);
+  reapplyObservedGeometryBeforePointer(initial, observed, pending);
+  equal(pending.length, 1, "do not enqueue duplicate geometry ahead of the same pointer");
 });
 
 test("zero-sized host surfaces defer geometry instead of fitting or publishing invalid dimensions", () => {

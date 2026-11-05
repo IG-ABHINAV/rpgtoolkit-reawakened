@@ -8,7 +8,7 @@ import { createLoadController, type LoadModeRequest, type LoadState } from "../s
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, type LiveSession } from "../src/live-session.ts";
-import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 
@@ -365,8 +365,14 @@ function startLiveLoop(
     hostViewport.viewport,
     viewSize,
     displayGeometry.current,
-    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+    ({ x, y }, buttons) => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } });
+    },
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();

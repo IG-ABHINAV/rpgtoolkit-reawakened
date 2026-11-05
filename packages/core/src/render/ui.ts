@@ -198,6 +198,7 @@ export function renderNowBlit(surfaces: SurfacesSection): DrawCommand | null {
  * key of the message window's background image, or null while `winGraphic` is unset or its texture is not decoded yet.
  */
 function surfaceFocusCommands(ui: UiSection): DrawCommand[] {
+  if (ui.modal !== null) return [];
   const commands: DrawCommand[] = [];
   for (const surface of ui.actionSurfaces) {
     const item = surface.items[surface.selection];
@@ -227,6 +228,7 @@ export function composeUi(ui: UiSection, width: number, height: number, input?: 
 /** Author text that crosses the game viewport is duplicated into Plane 3; hosts clip it to eligible margin cells. */
 export function composeUiMargins(ui: UiSection, width: number, height: number): DrawCommand[] {
   const commands: DrawCommand[] = [];
+  commands.push(...ui.authorMarginCommands);
   for (const draw of ui.draws ?? []) {
     const layout = layoutText(draw.text, draw.font, draw.cell ? { lineHeight: draw.font.size } : undefined);
     if (draw.x >= 0 && draw.y >= 0 && draw.x + layout.width <= width && draw.y + layout.height <= height) continue;

@@ -56,11 +56,33 @@ export function stampPendingInputs(inputs: readonly PendingInput[], tick: number
   return inputs.map((input) => ({ tick: input.tick ?? tick, event: input.event }));
 }
 
-/** Keep pointer normalization aligned with the newest ordered host.display observation, even before the engine consumes it. */
-export function createObservedHostGeometry(initial: HostDisplayGeometry): {
+export type ObservedHostGeometry = {
   readonly current: () => HostDisplayGeometry;
   readonly observe: (event: InputRecord["event"]) => void;
-} {
+};
+
+function sameGeometry(left: HostDisplayGeometry, right: HostDisplayGeometry): boolean {
+  return left.content.width === right.content.width && left.content.height === right.content.height &&
+    left.game.x === right.game.x && left.game.y === right.game.y &&
+    left.game.width === right.game.width && left.game.height === right.game.height &&
+    left.safeArea.top === right.safeArea.top && left.safeArea.right === right.safeArea.right &&
+    left.safeArea.bottom === right.safeArea.bottom && left.safeArea.left === right.safeArea.left;
+}
+
+/** Reapply the live observation after load/restore when engine geometry rolled back; preserve host-before-pointer order. */
+export function reapplyObservedGeometryBeforePointer(
+  engineGeometry: HostDisplayGeometry,
+  observed: ObservedHostGeometry,
+  pending: PendingInput[],
+): void {
+  const geometry = observed.current();
+  if (sameGeometry(engineGeometry, geometry)) return;
+  if (pending.some((input) => input.event.kind === "host.display" && sameGeometry(input.event.geometry, geometry))) return;
+  pending.push({ tick: null, event: { kind: "host.display", geometry } });
+}
+
+/** Keep pointer normalization aligned with the newest ordered host.display observation, even before the engine consumes it. */
+export function createObservedHostGeometry(initial: HostDisplayGeometry): ObservedHostGeometry {
   let latest = initial;
   return {
     current: () => latest,
