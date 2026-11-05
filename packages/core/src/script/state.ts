@@ -139,7 +139,7 @@ export type FileHandle = {
 };
 
 /** One sprite move collected by `multiRun` before the one `movement` wait is entered (E-33). */
-export type CollectedMove = { sprite: string; until: number };
+export type CollectedMove = { sprite: string; until: number; actual?: true };
 
 /** One RPGCode thread (AD-7, AD-26). */
 export type Thread = {

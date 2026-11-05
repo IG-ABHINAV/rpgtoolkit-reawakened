@@ -20,8 +20,8 @@
 import type { PlainData } from "./plain-data.ts";
 import type { Value } from "./value.ts";
 
-/** One sprite's move inside a `movement` wait: it ends at absolute tick `until`. */
-export type WaitMove = { sprite: string; until: number };
+/** One sprite's timed or live move inside a `movement` wait. */
+export type WaitMove = { sprite: string; until: number; actual?: true };
 
 /** The reply the host (or a replay) gives a request (AD-5). */
 export type WaitReply = { ok: boolean; value: Value };
@@ -68,11 +68,15 @@ export type InputKeyWait = {
   pointer?: { x: number; y: number; buttons: number; downs: number; ups: number };
 };
 
-/** A wait for coupled sprite movement (`multiRun`, E-33). */
-export type MovementWait = { kind: "movement"; global: boolean; moves: WaitMove[] };
+/** A wait for an actor's live movement queue to become idle. */
+export type SpriteMovementWait = { kind: "sprite.movement"; global: boolean; actor: string };
 
 /** A wait for the 5.10 sprite animation owner to report stance completion. */
 export type StanceWait = { kind: "sprite.stance"; global: boolean; actor: string; stance: string };
+
+/** A wait for coupled sprite movement (`multiRun`, E-33). */
+export type MovementWait = { kind: "movement"; global: boolean; moves: WaitMove[] };
+
 
 /** A wait for a host reply (AD-5), located at the call that made it. */
 export type RequestWait = {
@@ -97,9 +101,9 @@ export type BlobWait = {
   file: string;
   line: number;
 };
-
 /** Every wait kind the VM registry knows (AD-9). */
-export type Wait = SleepWait | InputKeyWait | MovementWait | StanceWait | RequestWait | BlobWait | NamedWait;
+export type Wait = SleepWait | InputKeyWait | MovementWait | SpriteMovementWait | StanceWait | RequestWait | BlobWait | NamedWait;
+
 
 /** The wait kind names, namespaced where an owner part owns the kind. */
 export type WaitKind = Wait["kind"];
@@ -116,6 +120,7 @@ export type WaitSpriteView = {
   readonly id: string;
   readonly stance: string | null;
   readonly stanceComplete: boolean;
+  readonly moving: boolean;
 };
 
 /** The read-only audio state needed by `audio.track` polling. */

@@ -82,6 +82,8 @@ export type CommandView = {
   readonly rng: RngPort;
   readonly clock: ClockPort;
   readonly state?: GameState;
+  /** Main-file mode: 0 queues whole-tile script pushes, pixel modes queue quarter-tile pushes. */
+  readonly pixelMovement?: number;
   /** Refresh the composed screen before a script-visible pixel read; host polling never invokes it. */
   readonly refreshScreen?: () => void;
   /** The script-facing media owner (MEDIA-1): `mediaPlay`, track/voice objects and their operations. */

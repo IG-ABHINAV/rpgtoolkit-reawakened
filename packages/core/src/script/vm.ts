@@ -141,7 +141,7 @@ import {
   type Thread,
   type VmState,
 } from "./state.ts";
-import { defaultWaitPoll, describeWait } from "./waits.ts";
+import { defaultWaitPoll, describeWait, spriteWaitView } from "./waits.ts";
 import {
   compareEqual,
   compareRelational,
@@ -732,6 +732,7 @@ export function createScriptServices(
   beforeBattleStart?: () => void,
   refreshScreen?: () => void,
   menuSounds?: () => { readonly move: string; readonly choose: string; readonly cancel: string },
+  pixelMovement = 0,
 ): ScriptServices {
   const loader = typeof loaderOrGameId === "string" ? undefined : loaderOrGameId;
   const gameId = typeof loaderOrGameId === "string" ? loaderOrGameId : explicitGameId ?? null;
@@ -817,6 +818,7 @@ export function createScriptServices(
     rng,
     clock,
     state: commandState,
+    pixelMovement,
     actors,
     battle,
     ...(battleStartView === undefined ? {} : { battleStart: battleStartView }),
@@ -1114,6 +1116,10 @@ function pointerBaselineOf(pointer: NonNullable<WaitView["input"]>["pointer"]): 
 function resolveWait(vm: VmState, view: WaitView, poll: WaitPoll, thread: Thread, claim?: (seq: number | undefined, discardBefore?: number) => void, services?: ScriptServices, onResolved?: (wait: Wait) => void): void {
   const wait = thread.wait;
   if (wait === null) return;
+  if (wait.kind === "movement" && view.sprites !== undefined) {
+    // Remember each completed actor independently: a forever waypoint can start another traversal before its peers finish.
+    wait.moves = wait.moves.filter((move) => move.actual !== true || view.sprites!.find((actor) => actor.id === move.sprite)?.moving === true);
+  }
   const cursorSelectionBeforePoll = wait.kind === "input.key" ? wait.cursorSelection : undefined;
   const menuContinuation = wait.kind === "menu.screen" ? wait.payload[0] : null;
   if (menuContinuation !== null && typeof menuContinuation === "object" && !Array.isArray(menuContinuation) &&
@@ -1386,7 +1392,7 @@ export function advanceScriptTick(
   }
   runWaitsPhase(
     state.vm,
-    { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: activeClaims },
+    { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, sprites: spriteWaitView(state.sprites), claims: activeClaims },
     poll,
     (seq, discardBefore) => {
       if (discardBefore !== undefined) claimInputBefore(state.input, discardBefore, activeClaims);
@@ -3559,6 +3565,12 @@ function dispatchResolved(
   }
 
   if (result.wait !== undefined) {
+    if (result.wait.kind === "sprite.movement" && thread.collect !== null) {
+      thread.collect.push({ sprite: result.wait.actor, until: tick, actual: true });
+      applyOut(vm, thread, frameIndex, resolved.command.spec, args, result.out ?? [], name, pos, services);
+      frame.operands.push({ value: produced !== undefined ? produced : result.value, ref: null });
+      return "continue";
+    }
     const wait = result.wait.kind === "input.key" && result.wait.parkSeq === undefined
       ? { ...result.wait, parkSeq: services.view.state?.input.nextSeq ?? 0 }
       : result.wait;

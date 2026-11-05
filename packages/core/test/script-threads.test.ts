@@ -38,6 +38,7 @@ import {
   type ScriptError,
   type Wait,
 } from "../src/index.ts";
+import { actorFromSource } from "../src/sprites/model.ts";
 import { createScriptServices } from "./script-test-services.ts";
 
 function ref(text: string): ProgramRef {
@@ -447,6 +448,44 @@ test("multiRun collects several moves into one movement wait; the block lifts wh
     [5, 1],
     [5, 2],
   ]);
+});
+
+test("standalone scheduler waits for a live sprite's queued movement (#1313)", () => {
+  const { state, log, plugins } = setup("mark(1)\nend()\n");
+  const player = actorFromSource({ id: "hero", kind: "player", source: "hero.tem", x: 48, y: 64, layer: 1 }, null, 0, null);
+  player.queue.moves.push({ source: "direction", target: { x: 80, y: 64 }, facing: "E" });
+  state.sprites.players = [player];
+  const thread = state.vm.threads[0]!;
+  thread.wait = { kind: "sprite.movement", actor: player.id, global: true };
+  thread.status = "waiting";
+  const services = createScriptServices(state, plugins);
+  advanceScriptTick(state, services);
+  deepEqual(log.marks, []);
+  equal(thread.status, "waiting");
+  player.queue.moves.length = 0;
+  advanceScriptTick(state, services);
+  deepEqual(log.marks.map((mark) => mark[1]), [1]);
+});
+
+test("a multiRun live wait keeps a completed actor's milestone while another actor moves (#1317)", () => {
+  const { state, log, plugins } = setup("mark(1)\nend()\n");
+  const done = { ...actorFromSource({ id: "done", kind: "item", source: "done.itm", x: 64, y: 64, layer: 1 }, null, 0, 0), queue: { moves: [], waypoint: null } };
+  const moving = actorFromSource({ id: "moving", kind: "item", source: "moving.itm", x: 64, y: 96, layer: 1 }, null, 1, 1);
+  moving.queue.moves.push({ source: "direction", target: { x: 96, y: 96 }, facing: "E" });
+  state.sprites.items = [done, moving];
+  const thread = state.vm.threads[0]!;
+  thread.wait = { kind: "movement", global: true, moves: [{ sprite: "done", until: 0, actual: true }, { sprite: "moving", until: 0, actual: true }] };
+  thread.status = "waiting";
+  const services = createScriptServices(state, plugins);
+  advanceScriptTick(state, services);
+  equal(thread.status, "waiting");
+  if (thread.wait?.kind !== "movement") throw new Error("expected the live movement wait");
+  deepEqual(thread.wait.moves.map((move) => move.sprite), ["moving"], "the completed actor's milestone survives the other actor's movement");
+  const saved = snapshot(state);
+  equal(snapshot(restoreGameState(saved)), saved, "a partially completed live collection remains saveable");
+  state.sprites.items = state.sprites.items.map((item) => item.id === "moving" ? { ...item, queue: { moves: [], waypoint: null } } : item);
+  advanceScriptTick(state, services);
+  deepEqual(log.marks.map((mark) => mark[1]), [1]);
 });
 
 test("multiRun with no moves does not wait, and a lone move waits for its own end", () => {

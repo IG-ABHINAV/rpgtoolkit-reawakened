@@ -3,6 +3,7 @@ import { restoreGameSave, snapshotGameSave, restoreRecoveryCandidate, snapshotRe
 import { deriveGameId } from "../save/game-id.ts";
 import { restoreGameState, snapshot } from "../save/snapshot.ts";
 import { createPluginLayers, type PluginLayers } from "../script/layers.ts";
+import { spriteWaitView } from "../script/waits.ts";
 import { MENU_GRAPHIC_EFFECT, MENU_HAND_EFFECT } from "../script/packs/menu.ts";
 import { actorEmitterKey, actorId } from "../actors/model.ts";
 import type { AudioSaveProjection } from "../audio/save.ts";
@@ -596,7 +597,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
-    applySpriteEffect(state, effect.name, values);
+    applySpriteEffect(state, effect.name, values, mainFile?.pixelMovement ?? 0);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
@@ -1083,6 +1084,7 @@ export function createEngine(init: EngineInit): Engine {
         choose: mainFile?.cursorSelectSound ?? "",
         cancel: mainFile?.cursorCancelSound ?? "",
       }),
+      mainFile?.pixelMovement ?? 0,
     );
     init.spriteRuntime?.bindItemThreadCleanup?.((thread) => discardMenuFrames(nextServices, thread));
     media.activateDeclared();
@@ -2882,11 +2884,7 @@ export function createEngine(init: EngineInit): Engine {
       tick: state.time.tick,
       input: inputView(state.input),
       ui: state.ui,
-      sprites: [...state.sprites.players, ...state.sprites.items].map((actor) => ({
-        id: actor.id,
-        stance: actor.visual.stance,
-        stanceComplete: actor.visual.stanceComplete,
-      })),
+      sprites: spriteWaitView(state.sprites),
       claims: state.engine.claims ?? [],
       audio: state.audio,
       events: state.events,

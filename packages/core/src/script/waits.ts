@@ -15,6 +15,7 @@
 
 import type { Wait, WaitKindResolver, WaitPoll, WaitResult, WaitView } from "../ports/wait.ts";
 import type { PlainData } from "../ports/plain-data.ts";
+import type { SpritesSection } from "../sprites/model.ts";
 import { ScriptError } from "./errors.ts";
 import { DICTIONARY_CLASS } from "./objects.ts";
 
@@ -22,6 +23,20 @@ import { DICTIONARY_CLASS } from "./objects.ts";
 export const REQUEST_TIMEOUT_TEXT = "the request timed out";
 
 const DONE: WaitResult = { value: null, ok: true };
+/** Project actor state for movement and stance waits in every scheduler. */
+export function spriteWaitView(sprites: SpritesSection): NonNullable<WaitView["sprites"]> {
+  return [...sprites.players, ...sprites.items].map((actor) => {
+    const waypoint = actor.queue.waypoint;
+    const waypointPending = waypoint !== null && waypoint.points.length > 0 &&
+      (waypoint.cycles !== 0 || (waypoint.cycle === 0 && waypoint.cursor < waypoint.points.length));
+    return {
+      id: actor.id,
+      stance: actor.visual.stance,
+      stanceComplete: actor.visual.stanceComplete,
+      moving: actor.movement.active !== null || actor.queue.moves.length > 0 || waypointPending,
+    };
+  });
+}
 
 /** `sleep`: due at `until`; `until: null` is indefinite and only a wake ends it. */
 export function pollSleep(view: WaitView, wait: Wait): WaitResult | null {
@@ -147,10 +162,23 @@ export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
 export function pollMovement(view: WaitView, wait: Wait): WaitResult | null {
   if (wait.kind !== "movement") return null;
   for (const move of wait.moves) {
+    if (move.actual === true) {
+      if (view.sprites === undefined) return null;
+      if (view.sprites.find((actor) => actor.id === move.sprite)?.moving === true) return null;
+      continue;
+    }
     if (view.tick < move.until) return null;
   }
   return DONE;
 }
+/** `sprite.movement`: resolve only when the actor has no active or queued move. */
+export function pollSpriteMovement(view: WaitView, wait: Wait): WaitResult | null {
+  if (wait.kind !== "sprite.movement") return null;
+  if (view.sprites === undefined) return null;
+  const actor = view.sprites.find((value) => value.id === wait.actor);
+  return actor === undefined || !actor.moving ? DONE : null;
+}
+
 
 /** `sprite.stance`: resolve only from the animation owner completion result. */
 export function pollStance(view: WaitView, wait: Wait): WaitResult | null {
@@ -295,6 +323,7 @@ export const WAIT_KIND_RESOLVERS: readonly WaitKindResolver[] = [
   { kind: "sleep", poll: pollSleep },
   { kind: "input.key", poll: pollInputKey },
   { kind: "movement", poll: pollMovement },
+  { kind: "sprite.movement", poll: pollSpriteMovement },
   { kind: "sprite.stance", poll: pollStance },
   { kind: "request", poll: pollRequest },
   { kind: "blob", poll: pollRequest },
@@ -333,6 +362,8 @@ export function describeWait(wait: Wait): string {
       return "input.key";
     case "movement":
       return `movement(${wait.moves.length} move(s))`;
+    case "sprite.movement":
+      return `sprite.movement(${wait.actor})`;
     case "sprite.stance":
       return `sprite.stance(${wait.actor})`;
     case "request":

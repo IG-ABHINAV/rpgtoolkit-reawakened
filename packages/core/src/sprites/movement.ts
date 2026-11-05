@@ -508,13 +508,20 @@ const STEP_PIXEL = 4;
 
 /** Convert a direction command to one deterministic target and enqueue it. */
 export function enqueueDirectionMove(section: SpritesSection, id: string, facing: Facing, pixelMovement = 0, clear = false, preserveCadence = false): boolean {
+  const distance = pixelMovement === 0 ? STEP_TILE : STEP_PIXEL;
+  return enqueueDirectionDistanceMove(section, id, facing, distance, clear, preserveCadence);
+}
+/** Scripted direction strings use whole tiles or quarter tiles, independently of keyboard step size. */
+export function enqueueScriptDirectionMove(section: SpritesSection, id: string, facing: Facing, distance: number, clear = false): boolean {
+  return enqueueDirectionDistanceMove(section, id, facing, distance, clear);
+}
+function enqueueDirectionDistanceMove(section: SpritesSection, id: string, facing: Facing, distance: number, clear: boolean, preserveCadence = false): boolean {
   const actor = allActors(section).find((value) => value.id === id);
   if (actor === undefined) return false;
   const vector = directionVector(facing);
-  const distance = pixelMovement === 0 ? STEP_TILE : STEP_PIXEL;
   return updateActor(section, id, (value) => {
     const previous = value.queue.moves[value.queue.moves.length - 1];
-    const origin = !clear && previous !== undefined ? previous.target : { x: value.x, y: value.y };
+    const origin = !clear && previous !== undefined ? previous.target : !clear ? value.movement.active?.target ?? value : value;
     return {
       ...value,
       state: value.visible ? "moving" : value.state,
