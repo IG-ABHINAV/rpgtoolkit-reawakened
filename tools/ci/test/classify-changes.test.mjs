@@ -29,7 +29,9 @@ test("only allowlisted prose and planning paths are inert, and the reason names 
     "README.md",
     "CONTRIBUTING.md",
     "docs/guardrails.md",
+    "docs/architecture-options.md",
     "docs/adr/0001-example.md",
+    "docs/playing-the-desktop-player.md",
     "_bmad-output/initiative/ticket.md",
     ".github/ISSUE_TEMPLATE/bug_report.yml",
     ".github/ISSUE_TEMPLATE/feature.md",
@@ -55,8 +57,6 @@ test("a non-inert path forces a run and the reason names it", () => {
 test("unknown, executable, normative, fixture and workflow paths run everything", () => {
   for (const path of [
     "unknown.md/nested.md",
-    "docs/other.md",
-    "docs/README.md",
     "_bmad-output/config.yaml",
     ".github/ISSUE_TEMPLATE/execute.sh",
     ".github/pull_request_template.md",
@@ -279,6 +279,48 @@ test("workflow: classify seals the verdict before any PR code runs, and no job c
   ok(gate.includes("cannot be inert"), "gate must refuse a defer for a workflow or classifier change");
   ok(gate.includes(".github/workflows/|tools/ci/"), "gate must look for workflow and classifier paths");
   ok(gate.includes("--no-replace-objects diff"), "gate's own diff must ignore replacement refs");
+});
+
+test("mobile CI reserves AVD space and keeps the real emulator proof", () => {
+  const lines = readWorkflowJobs().get("mobile");
+  ok(lines, "mobile job must exist");
+  const text = lines.join("\n");
+  const cleanup = text.indexOf("- name: Reclaim unused hosted-runner toolchains");
+  const sdk = text.indexOf("- run: sdkmanager ");
+  const assemble = text.indexOf("- name: Assemble debug APK");
+  const check = text.indexOf("- name: Require Android emulator disk space");
+  const emulator = text.indexOf("- name: Exercise APK on API 33 emulator");
+  ok(cleanup >= 0 && cleanup < sdk && sdk < assemble && assemble < check && check < emulator);
+  match(text, /sudo rm -rf \/usr\/share\/dotnet \/opt\/ghc \/usr\/local\/share\/boost/u);
+  match(text, /system-images;android-33;google_apis;x86_64/u);
+  match(text, /name: Configure and require KVM access/u);
+  match(text, /uses: reactivecircus\/android-emulator-runner@v2/u);
+  match(text, /api-level: 33/u);
+  match(text, /arch: x86_64/u);
+  match(text, /script: pnpm mobile:proof/u);
+
+  const start = lines.findIndex((line) => line.trim() === "- name: Require Android emulator disk space");
+  const run = lines.findIndex((line, index) => index > start && line === "        run: |");
+  ok(run > start);
+  const body = [];
+  for (let index = run + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line !== "" && !line.startsWith("          ")) break;
+    body.push(line.slice(10));
+  }
+  const directory = mkdtempSync(join(tmpdir(), "mobile-disk-check-"));
+  scratch.push(directory);
+  const bin = join(directory, "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "df"), '#!/bin/sh\n[ "$2" = "$HOME/.android/avd" ] || exit 9\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted\\n/dev/test 20000000 1 %s 1%% /\\n" "$FAKE_AVAILABLE"\n', { mode: 0o755 });
+  for (const [available, expected] of [["8388607", 1], ["8388608", 0], ["invalid", 1]]) {
+    const result = spawnSync("bash", ["-eo", "pipefail", "-c", body.join("\n")], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: directory, PATH: `${bin}:${process.env.PATH}`, FAKE_AVAILABLE: available },
+    });
+    equal(result.status, expected, `${available}: ${result.stderr}`);
+    if (expected !== 0) match(result.stdout, /::error::/u);
+  }
 });
 
 test("CODEOWNERS covers the workflow and classifier paths", () => {

@@ -2,7 +2,11 @@
 
 <!-- Summary. Cite the spec: docs sections and capability IDs (E-xx / T-xx). -->
 
+<!-- Documentation-only PR? The G1–G6 checkboxes below do not apply: tick only the
+     "implements no behaviour" line and the worktree-cleanup box. -->
+
 ## Guard-rails checklist ([docs/guardrails.md](../docs/guardrails.md))
+
 Run the checks locally first; the commands are in the [Commands section of CONTRIBUTING.md](../CONTRIBUTING.md#commands).
 
 - [ ] **G1** Script VM changes keep the step-machine model; state stays plain JSON data; snapshot/restore test passes.
@@ -14,6 +18,13 @@ Run the checks locally first; the commands are in the [Commands section of CONTR
 - [ ] **G7** Implemented from `docs/` only; no legacy source consulted or copied; doc fixes landed first if needed.
 - [ ] I cited the `docs/` sections this change implements (`docs/spec/<path>#<anchor>`, or T-xx IDs), or this change implements no behaviour.
 - [ ] No guard-rail exception, **or** exception marked inline with its ADR (`guardrail-exception: Gx ADR-NNNN`).
+
+## Test evidence
+
+- [ ] For every new evidence test, I recorded the behavior-breaking perturbation, the specific failing result, and the restored passing result below. Any blocker leaves this requirement unmet.
+- [ ] Old-behavior references remain independent of the implementation under test, and any experiment that is the only proof is committed and repeatable.
+
+<!-- List each evidence test, the targeted mutation, commands and red/green outcomes. Rebuild generated or bundled code before both runs. -->
 
 ## Worktree cleanup
 

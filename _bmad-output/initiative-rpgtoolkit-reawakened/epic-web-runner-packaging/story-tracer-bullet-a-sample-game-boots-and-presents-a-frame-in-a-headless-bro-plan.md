@@ -66,10 +66,10 @@ so the two pixel defects can never return silently.
 
 ## The lane's own result
 
-`demo` at tick 120 — previous state hash (current closing baseline `91172695de52cfd6`), draw `9a40be8a0b5ca816`, 128 commands, **123 drawn / 5 deferred
+`demo` at tick 120 — previous state hash (later E-02 baseline `91172695de52cfd6`), draw `9a40be8a0b5ca816`, 128 commands, **123 drawn / 5 deferred
 (text)**, boot about 0.45 s, all seven conformance vectors exact.
 
-**Historical browser result (pre-E-02):** The recorded previous demo state hash is superseded by the current closing baseline `91172695de52cfd6`; its draw hash remains `9a40be8a0b5ca816`. The lane result and merge checks below are historical evidence, not a post-E-02 run.
+**Historical browser result (pre-E-02):** The recorded previous demo state hash and the later E-02 baseline `91172695de52cfd6` / `9a40be8a0b5ca816` are historical. See `golden/regression/closing.json` for current values. The lane result and merge checks below are not a post-E-02 run.
 
 ## Gates at the merge
 

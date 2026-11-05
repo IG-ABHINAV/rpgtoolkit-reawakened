@@ -37,9 +37,9 @@ export function noActiveAudioContinuationProjection(state: GameState) {
 }
 
 /**
- * The projection before the 2026-11-01 owner ruling (#1047): identical except that the saved request-id counter was
- * hashed. Only the counter regressions use it, to show that the old projection moved with bookkeeping the new one
- * ignores.
+ * The projection immediately before #1047: it hashed the saved request counter and all surfaces, while excluding
+ * VM step counters and audio settings. Later screen-surface exclusions mean it is not the current projection with
+ * only the counter restored. Keep it independent of `projectedState`; fixed vectors protect this historical oracle.
  */
 export function hashWithRequestCounter(state: GameState): string {
   const { stepCounters: _stepCounters, ...vm } = state.vm;

@@ -5,6 +5,8 @@ parent: initiative-rpgtoolkit-reawakened
 covers: ["CAP-17"]
 assignee: ""
 risk: low
+tracker_id: "#1360"
+remote: "https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1360"
 ---
 
 # P2 editor tools for beginners
