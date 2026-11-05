@@ -94,8 +94,8 @@ Authors query capabilities by name without knowing the underlying OS or hardware
 
 | Function | Signature | Returns | Description |
 |---|---|---|---|
-| `hasFeature` | `int hasFeature(string name)` | `1` or `0` | Returns `1` if the named capability is active on the host, otherwise `0`. Unknown feature names safely return `0`. |
-| `pointerType` | `string pointerType()` | `"fine" \| "coarse" \| "none"` | Returns current active pointer precision. |
+| `hasFeature` | `int hasFeature(string name)` | `1` or `0` | Returns `1` when the named normalized capability is active, otherwise `0`; names are case-insensitive. `touch`, `keyboard`, `gamepad`, and `haptics` use their boolean values; `pointer` is active unless its value is `"none"`; `orientation` is active unless its value is `null`. Unknown names return `0`. |
+| `pointerType` | `string pointerType()` | `"fine"`, `"coarse"`, or `"none"` | Current normalized pointer precision. |
 
 ```rpgcode
 // Adaptive author logic
