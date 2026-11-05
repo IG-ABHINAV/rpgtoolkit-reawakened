@@ -129,6 +129,9 @@ Rules:
 
 The commands are `uiBegin`, `uiItem`, `uiEnd`, `uiSelection`, `uiFocus`, `uiActivated` and `uiCancelled`, specified with their signatures in the [Reawakened additions](rpgcode-functions.md#reawakened-additions) table. They draw nothing themselves: the script keeps its own art and the engine adds the focus ring and the tree.
 
+The host obtains the current plain-data accessibility nodes through `Engine.accessibilityTree()`. The query is opt-in, returns a fresh read-only tree from the committed author surfaces, and does not mutate or hash simulation state; native screen-reader presentation remains a runner responsibility.
+
+
 Example: with items `"Fire"` (index 0) and `"Ice"` (index 1), confirming the first item makes `uiActivated()` return `0` on that frame and `-1` on every other, so `if (uiActivated() >= 0)` fires for `"Fire"` and never fires on an idle frame.
 
 <a id="a11y-16"></a>
