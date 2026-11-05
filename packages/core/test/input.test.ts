@@ -2,14 +2,19 @@ import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyInputEvent,
+  applySemanticActionEdge,
   configureInput,
   createInputSection,
   inputView,
   processGamepadEvents,
   pruneClaimed,
+  registeredActionNames,
+  registerGameAction,
+  heldPointerGoal,
+  setPointerMovementSuppressed,
   type InputView,
 } from "../src/input/index.ts";
-import { createGameState, hashGameState, restoreGameState, snapshot } from "../src/save/index.ts";
+import { createGameState, hashGameState, restoreGameState, snapshot, snapshotGameSave } from "../src/save/index.ts";
 import { applyInputEffect } from "../src/script/packs/movement.ts";
 import { pollInputKey, pollMenuScreen } from "../src/script/waits.ts";
 
@@ -60,6 +65,58 @@ test("gamepad dead-zone, merge, device ordering and disconnect share edge state"
   applyInputEvent(state, { kind: "gamepad", device: 1, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
   processGamepadEvents(state);
   equal(state.gamepads["1"]?.connected, false);
+});
+test("registered game actions preserve order and semantic source claims emit one compatibility edge", () => {
+  const state = createInputSection();
+  const fireball = { name: "game.fireball", label: "Fireball", icon: null, group: "Spells", controls: [], locked: false, hidden: false, narration: "Cast" };
+  const heal = { name: "game.heal", label: "Heal", icon: null, group: "Spells", controls: [], locked: false, hidden: false };
+  equal(registerGameAction(state, fireball), true);
+  equal(registerGameAction(state, heal), true);
+  equal(registerGameAction(state, { ...fireball, label: "Duplicate" }), false);
+  equal(registerGameAction(state, { ...fireball, name: "confirm" }), false);
+  deepEqual(state.registeredActions.map((action) => action.name), ["game.fireball", "game.heal"]);
+  deepEqual(state.registeredActions[0]?.narration, "Cast");
+
+  const actions = registeredActionNames(state);
+  equal(actions.has("confirm"), true);
+  equal(actions.has("game.fireball"), true);
+  equal(applySemanticActionEdge(state, "game.unknown", true, "runner.fallback", actions), false);
+  deepEqual(state.keys, []);
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" });
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" });
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: true, source: "ui:spellbar/fireball" });
+  equal(state.actions["game.fireball"], true);
+  deepEqual(state.keys.map((key) => key.name), ["game.fireball"]);
+  deepEqual(state.pendingActions, ["game.fireball"]);
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: false, source: "runner.fallback" });
+  equal(state.actions["game.fireball"], true, "another source still holds the action");
+  applyInputEvent(state, { kind: "action", action: "game.fireball", down: false, source: "ui:spellbar/fireball" });
+  equal(state.actions["game.fireball"], false);
+  deepEqual(state.keys.map((key) => key.seq), [1]);
+});
+
+
+test("action registry order is hashed, runtime snapshots restore it, and game saves rebuild it", () => {
+  const state = createGameState({ seed: 7 });
+  const action = { name: "game.dash", label: "Dash", icon: null, group: "Skills", controls: [], locked: false, hidden: false };
+  const before = hashGameState(state);
+  equal(registerGameAction(state.input, action), true);
+  equal(hashGameState(state) === before, false);
+  const restored = restoreGameState(snapshot(state));
+  deepEqual(restored.input.registeredActions, [action]);
+  const save = JSON.parse(snapshotGameSave(state)) as { input: Record<string, unknown> };
+  equal("registeredActions" in save.input, false);
+});
+
+test("claimed and out-of-plane pointer gestures do not become held movement goals", () => {
+  const state = createInputSection({ pointerPlane: { width: 100, height: 80 } });
+  applyInputEvent(state, { kind: "pointer", x: 20, y: 30, buttons: 1 });
+  deepEqual(heldPointerGoal(state), { x: 20, y: 30 });
+  setPointerMovementSuppressed(state, true);
+  equal(heldPointerGoal(state), null);
+  setPointerMovementSuppressed(state, false);
+  applyInputEvent(state, { kind: "pointer", x: 100, y: 30, buttons: 1 });
+  equal(heldPointerGoal(state), null);
 });
 
 test("button slots use logical half-open hit tests and click destinations use camera pixels", () => {
@@ -296,7 +353,7 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 4);
+  equal(state.input.version, 6);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);
@@ -342,8 +399,30 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   raw.input.pointer = { x: 9, y: 8, buttons: 1 };
   const migrated = restoreGameState(JSON.stringify(raw)).input;
   deepEqual(migrated.pointer, { x: 9, y: 8, buttons: 1, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
-  equal(migrated.version, 4);
+  equal(migrated.version, 6);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
+});
+
+test("pointer-up interaction candidates are tick state and v5 snapshots migrate them empty", () => {
+  const state = createGameState({ seed: 7 });
+  state.input = createInputSection();
+  applyInputEvent(state.input, { kind: "pointer", x: 9, y: 8, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 12, y: 14, buttons: 0 });
+  deepEqual(state.input.pendingPointerUps, [{ x: 12, y: 14 }]);
+  const saved = snapshot(state);
+  const restored = restoreGameState(saved);
+  deepEqual(restored.input, state.input);
+  equal(hashGameState(restored), hashGameState(state));
+  const withoutTap = restoreGameState(saved);
+  withoutTap.input.pendingPointerUps = [];
+  equal(hashGameState(withoutTap) === hashGameState(state), false, "pending release work participates in the state hash");
+
+  const raw = JSON.parse(saved) as { schema: Record<string, number>; input: Record<string, unknown> };
+  raw.schema.input = 5;
+  raw.input.version = 5;
+  delete raw.input.pendingPointerUps;
+  const migrated = restoreGameState(JSON.stringify(raw));
+  deepEqual(migrated.input.pendingPointerUps, [], "a v5 save has no release work to replay");
 });
 
 const BASE = { x: 0, y: 0, buttons: 0, downs: 0, ups: 0 };

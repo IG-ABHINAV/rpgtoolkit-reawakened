@@ -9,10 +9,10 @@ import {
 } from "../src/golden.ts";
 
 const GAMEPAD = { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 } as const;
-test("parseRun parses valid run with all 11 event kinds including non-BMP char and bytes", () => {
+test("parseRun parses valid run with all 15 event kinds including non-BMP char and bytes", () => {
   const runText = JSON.stringify({
     schema: 1,
-    ticks: 12,
+    ticks: 13,
     log: [
       {
         tick: 0,
@@ -62,13 +62,17 @@ test("parseRun parses valid run with all 11 event kinds including non-BMP char a
         tick: 11,
         event: { kind: "video.ended", reqId: 1 },
       },
+      {
+        tick: 12,
+        event: { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" },
+      },
     ],
   });
 
   const run = parseRun(runText);
   equal(run.schema, 1);
-  equal(run.ticks, 12);
-  equal(run.log.length, 12);
+  equal(run.ticks, 13);
+  equal(run.log.length, 13);
 
   const keyEv = run.log[0]!.event;
   if (keyEv.kind === "key") {
@@ -85,6 +89,16 @@ test("parseRun parses valid run with all 11 event kinds including non-BMP char a
   } else {
     throw new Error("expected asset event with bytes");
   }
+});
+
+test("parseRun accepts normalized semantic action records with their consuming tick", () => {
+  const run = parseRun(JSON.stringify({
+    schema: 1,
+    ticks: 2,
+    log: [{ tick: 1, event: { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" } }],
+  }));
+  equal(run.log[0]?.tick, 1);
+  deepEqual(run.log[0]?.event, { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" });
 });
 
 test("parseRun rejects bad files and root schema", () => {

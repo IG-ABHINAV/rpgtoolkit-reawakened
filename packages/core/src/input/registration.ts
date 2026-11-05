@@ -3,9 +3,8 @@ import { IR_VERSION } from "../script/program.ts";
 import { scriptOwnsInput, startThread } from "../script/state.ts";
 import { enqueueDirectionMove } from "../sprites/movement.ts";
 import type { Facing } from "../sprites/model.ts";
-import { enqueuePathMove } from "../sprites/runtime.ts";
-import type { GameState } from "../save/state.ts";
-import { createInputSection, heldPointerGoal, processGamepadEvents, takeInputActions, type InputConfig } from "./input.ts";
+import { applySemanticActionEdge, createInputSection, heldPointerGoal, processGamepadEvents, registeredActionNames, takeInputActions, type InputConfig } from "./input.ts";
+import { selectPointerActivationTarget } from "../triggers/runtime.ts";
 
 const FACING_BY_VECTOR: Record<string, Facing> = {
   "0,-1": "N",
@@ -74,6 +73,15 @@ function heldFacing(state: GameState): Facing | null {
 /** Apply input-owned action edges during AD-26's input phase. */
 export function runInputPhase(state: GameState, options: InputPhaseOptions = {}): void {
   processGamepadEvents(state.input);
+  const pointerUps = state.input.pendingPointerUps;
+  state.input.pendingPointerUps = [];
+  for (const point of pointerUps) {
+    if (!selectPointerActivationTarget(state, point)) continue;
+    const registered = registeredActionNames(state.input);
+    applySemanticActionEdge(state.input, "confirm", true, "pointer.canvas", registered);
+    applySemanticActionEdge(state.input, "confirm", false, "pointer.canvas", registered);
+    state.input.pendingClicks.pop();
+  }
   const { actions, clicks } = takeInputActions(state.input);
   const id = selectedPlayer(state);
   const board = state.world.board ?? null;

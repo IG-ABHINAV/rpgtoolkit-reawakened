@@ -187,6 +187,8 @@ export function restoreRecoveryCandidate(json: string, currentAudio: AudioStateV
 /** Build the same projection for normal saves and recovery candidates. */
 function gameSaveRoot(state: GameState): Record<string, unknown> {
   const root = tagNonFinite(state) as Record<string, unknown>;
+  const input = root.input as Record<string, unknown>;
+  delete input.registeredActions;
   return { ...root, audio: audioSaveProjection(state.audio, state.time.tick) };
 }
 
