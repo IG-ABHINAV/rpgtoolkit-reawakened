@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Recovery checkpoints avoid serializing the same save twice, and long escaped strings serialize faster without changing canonical bytes. This reduces work before battles and during state hashing (#1256).
 - The Android proof gives APK installation a separate two-minute deadline for slow cold emulators and reports process timeout, signal and exit details instead of silently losing them (#1208).
 - The desktop player now allows only WebAssembly compilation for its eagerly initialized SoundFont Vorbis decoder, and waits for it before starting the game. This removes the startup CSP rejection and lets compressed SoundFont samples play; JavaScript `unsafe-eval` stays blocked. The browser's separate CSP problem is tracked in #1325 (#1263; `docs/spec/engine/runners.md#csp-and-banks`).
 - Script animations sample each picture or tile at its own size while keeping the animation's destination rectangle. Ordinary image animations retain their phase-owned start tick, and tile-bitmap frames wait for every composed dependency; a smaller image no longer aborts the frame, and a tileset frame no longer reads the adjacent tile (#1271, #1321, #1334; `docs/spec/formats/animation.md#layout`).
