@@ -70,9 +70,10 @@ import { AUDIO_SCHEMA_VERSION, createAudioSection } from "../audio/model.ts";
 import { createEventsSection } from "../events/model.ts";
 import { EVENT_DISPATCH_WAIT } from "../events/emitter.ts";
 import type { Diagnostic } from "../ports/engine.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection, validateBattleSection } from "../battle/model.ts";
 import { migrateMenuSections } from "../menu/migrate.ts";
-import { surfaceByteLength } from "../raster/surfaces.ts";
+import { createDisplaySection, HOST_FEATURES_SCHEMA_VERSION, DISPLAY_SCHEMA_VERSION, normalizeDisplayGeometry, normalizeHostFeatures } from "./sections/host.ts";
 /** Upgrade the old empty battle placeholder to the fighter-reference section. */
 function migrateBattle(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.battle;
@@ -197,6 +198,25 @@ function migrateEngine(record: Record<string, unknown>, schema: Record<string, u
     }
   }
   schema.engine = SCHEMA_VERSIONS.engine;
+}
+
+/** Add the host sections to pre-#1349 saves using the documented deterministic defaults. */
+function migrateHostSections(record: Record<string, unknown>, schema: Record<string, unknown>, logicalWidth: number, logicalHeight: number): void {
+  for (const [name, versionNow] of [["features", HOST_FEATURES_SCHEMA_VERSION], ["display", DISPLAY_SCHEMA_VERSION]] as const) {
+    let version = schema[name];
+    if (version === undefined) {
+      if (Object.hasOwn(record, name)) shapeError(`the snapshot's schema.${name} version is missing`);
+      version = 0;
+    }
+    if (typeof version !== "number" || !Number.isInteger(version) || version < 0) shapeError(`the snapshot's schema.${name} must be a non-negative whole number`);
+    if (version > versionNow) shapeError(`the snapshot's ${name} schema version ${String(version)} is newer than supported version ${versionNow}`);
+    if (version === versionNow) continue;
+    if (version !== 0) shapeError(`the snapshot's ${name} schema version ${String(version)} has no migration`);
+    record[name] = name === "features"
+      ? normalizeHostFeatures(undefined)
+      : createDisplaySection(logicalWidth, logicalHeight);
+    schema[name] = versionNow;
+  }
 }
 
 /** Migrate the old empty sprites placeholder and v2 actors to the movement-aware section. */
@@ -932,6 +952,27 @@ function validateEngineShape(value: unknown): void {
     }
   }
 }
+function validateHostFeaturesShape(value: unknown): void {
+  const features = recordAt(value, "features");
+  try {
+    const normalized = normalizeHostFeatures(features as HostFeatures);
+    if (Object.keys(features).length !== 6 || Object.keys(normalized).some((key) => !Object.hasOwn(features, key))) {
+      shapeError("the snapshot's features must be a complete normalized record");
+    }
+  } catch {
+    shapeError("the snapshot's features record is invalid");
+  }
+}
+
+function validateDisplayShape(value: unknown): void {
+  const display = recordAt(value, "display");
+  if (Object.keys(display).length !== 1) shapeError("the snapshot's display must contain only geometry");
+  try {
+    normalizeDisplayGeometry(recordAt(display.geometry, "display.geometry") as HostDisplayGeometry);
+  } catch {
+    shapeError("the snapshot's display.geometry is invalid");
+  }
+}
 function validateShape(record: Record<string, unknown>): void {
   const schema = recordAt(record.schema, "schema");
   for (const key of Object.keys(SCHEMA_VERSIONS)) numberAt(schema[key], `schema.${key}`);
@@ -947,8 +988,8 @@ function validateShape(record: Record<string, unknown>): void {
     if (key === "sprites") validateSpritesShape(record[key]);
     if (key === "surfaces") validateSurfacesShape(record[key]);
     if (key === "actors") validateActorsShape(record[key]);
-    if (key === "triggers") validateTriggersShape(record[key]);
-    if (key === "audio") validateAudioShape(record[key]);
+    if (key === "features") validateHostFeaturesShape(record[key]);
+    if (key === "display") validateDisplayShape(record[key]);
   }
   const rng = recordAt(record.rng, "rng");
   for (const key of ["s0", "s1", "s2", "s3"]) numberAt(rng[key], `rng.${key}`);
@@ -962,6 +1003,8 @@ function validateShape(record: Record<string, unknown>): void {
 export type RestoreOptions = {
   /** Refuse an older instruction version instead of restarting the affected threads (recovery). */
   readonly requireCurrentIr?: boolean;
+  readonly logicalWidth?: number;
+  readonly logicalHeight?: number;
 };
 
 /** The whole-number form of an instruction version, or `null` when the text is not one. */
@@ -1124,6 +1167,7 @@ export function restoreGameState(
   // The schema migration is the one transform before the newer-version check: a
   // legacy save has `compiler` and no `ir`, and is always older.
   migrateSchema(schemaValue);
+  migrateHostSections(record, schemaValue, options.logicalWidth ?? 320, options.logicalHeight ?? 240);
   refuseNewerIr(schemaValue.ir);
   refuseNewerFrameIr(record);
   const schema = schemaValue;

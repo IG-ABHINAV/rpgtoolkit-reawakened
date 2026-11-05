@@ -34,7 +34,7 @@ import type { AssetKind } from "../formats/main-file/layout.ts";
 import type { AssetIndex, AssetRoot } from "../formats/resolver/model.ts";
 import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
-import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
@@ -43,7 +43,7 @@ import type { StartupPorts } from "../ports/startup.ts";
 import type { AssetKey, SurfaceId } from "../ports/keys.ts";
 import type { BlobKey } from "../ports/requests.ts";
 import { createGameState, type GameState, type SectionKey } from "../save/state.ts";
-import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 import { applyMenuStateEffect, createMenuOwnerPorts } from "../menu/index.ts";
 import { createShopSessionRuntime } from "./shop-session.ts";
 import { hashGameState } from "../save/hash.ts";
@@ -191,7 +191,9 @@ type EngineCommonInit = {
   /** The author's default SoundFont (docs/spec/engine/audio-media.md#soundfont-layers rank 3); `null` or absent for none. */
   readonly defaultSoundFont?: AssetKey | null;
   readonly input?: InputConfig;
-  readonly include?: DrawListInclude;
+  readonly features?: HostFeatures;
+  /** Measured CSS-pixel geometry for the logical game viewport. */
+  readonly displayGeometry?: HostDisplayGeometry;
   /** Decoded image assets supplied by a host or deterministic scene runner. */
   readonly assets?: ReadonlyMap<AssetKey, DecodedTexture>;
   /** Files the host ships with the engine under `media/` (the default bitmap font, bundled TrueType fonts and cursor images), as bytes like every other asset. */
@@ -320,7 +322,13 @@ export function createEngine(init: EngineInit): Engine {
     ? null
     : new Uint8Array(init.recoveryCandidate);
   const recoveryLaunchRequested = recoveryCandidateBytes !== null;
-  const state: GameState = createGameState({ seed: init.seed });
+  const state: GameState = createGameState({
+    seed: init.seed,
+    width: init.width,
+    height: init.height,
+    features: init.features,
+    displayGeometry: init.displayGeometry,
+  });
   state.input = createInputSection(init.input);
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
@@ -1109,7 +1117,6 @@ export function createEngine(init: EngineInit): Engine {
     startupServicesReady = runStartups;
     return nextServices;
   }
-  function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -1120,7 +1127,13 @@ export function createEngine(init: EngineInit): Engine {
     const previousFrameFailure = frameFailure;
     const restoredLayers = createPluginLayers();
     try {
-      Object.assign(state, createGameState({ seed: init.seed }));
+      Object.assign(state, createGameState({
+        seed: init.seed,
+        width: init.width,
+        height: init.height,
+        features: init.features,
+        displayGeometry: init.displayGeometry,
+      }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
       Object.assign(state, previous);
@@ -1714,7 +1727,7 @@ export function createEngine(init: EngineInit): Engine {
         return "consumed";
       }
       try {
-        const restored = restoreGameSave(utf8Decode(event.bytes), state.audio);
+        const restored = restoreGameSave(utf8Decode(event.bytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
         diagnostics.push(...restored.diagnostics);
         applyLoadedGame(restored.state, restored.audio);
         discardRecoveryCandidates();
@@ -2495,7 +2508,7 @@ export function createEngine(init: EngineInit): Engine {
   function initializeRecovery(): boolean {
     if (recoveryCandidateBytes === null) return recoveryFailure("recovery.candidate-missing", "recovery was requested without candidate bytes");
     try {
-      const candidate = restoreRecoveryCandidate(utf8Decode(recoveryCandidateBytes), state.audio);
+      const candidate = restoreRecoveryCandidate(utf8Decode(recoveryCandidateBytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
       const ledger = projectGameLedger(candidate.state);
       if (ledger.world.board.state !== "present") throw new Error("the recovery candidate has no saved board");
       const cloneDiagnostics: Diagnostic[] = [];
@@ -3220,6 +3233,18 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
 
+  function applyHostStateEvent(event: InputRecord["event"]): boolean {
+    if (event.kind === "host.features") {
+      state.features = normalizeHostFeatures(event.features);
+      return true;
+    }
+    if (event.kind === "host.display") {
+      state.display = { geometry: normalizeDisplayGeometry(event.geometry) };
+      return true;
+    }
+    return false;
+  }
+
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
@@ -3230,6 +3255,10 @@ export function createEngine(init: EngineInit): Engine {
         }
         const records = takeQueuedInputs(state.time.tick);
         for (const record of records) {
+          if (applyHostStateEvent(record.event)) {
+            consumed.push(record);
+            continue;
+          }
           if (record.event.kind === "asset") {
             consumeAsset(record, consumed);
             continue;
@@ -3351,7 +3380,9 @@ export function createEngine(init: EngineInit): Engine {
     const deferred: InputRecord[] = [];
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index]!;
-      if (record.event.kind === "asset") {
+      if (applyHostStateEvent(record.event)) {
+        consumed.push(record);
+      } else if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
       } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
         const result = consumeBlob(record, consumed);
@@ -3394,8 +3425,12 @@ export function createEngine(init: EngineInit): Engine {
     if (!failed) return;
     const records = takeQueuedInputs(state.time.tick);
     for (const record of records) {
-      applyInputEvent(state.input, record.event);
-      consumed.push(record);
+      if (applyHostStateEvent(record.event)) {
+        consumed.push(record);
+      } else {
+        applyInputEvent(state.input, record.event);
+        consumed.push(record);
+      }
     }
   }
   /** Hide the message window when an outermost (blocking) program ends, without clearing its text. */
