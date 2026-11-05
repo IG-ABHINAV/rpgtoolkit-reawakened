@@ -1,6 +1,6 @@
 export { createNullAudio, type AudioSink, type NullAudio } from "./audio.ts";
 export { summariseCensus, type ExecutionCensus, type CatalogueRow } from "./execution-census.ts";
-export { runLog, type ReportObservation, type ReportObserver } from "./driver.ts";
+export { runLog, type ReportObservation, type ReportObserver, type TickObservation, type TickObserver } from "./driver.ts";
 export { compareGolden, formatGolden, parseGolden, parseRun, type Golden, type Run, type TickRecord } from "./golden.ts";
 export { checkVectors } from "./vectors.ts";
 export { decodeAssetTexture } from "./textures.ts";

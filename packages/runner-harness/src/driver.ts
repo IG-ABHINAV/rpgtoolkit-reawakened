@@ -6,6 +6,7 @@ import {
   type Engine,
   type InputRecord,
   type RunnerRequest,
+  type TickReport,
 } from "@tk-reawakened/core";
 import type { AudioSink } from "./audio.ts";
 import type { Run, TickRecord } from "./golden.ts";
@@ -70,12 +71,30 @@ export type ReportObservation = {
 /** Called once per `advance` call whose report has requests or diagnostics. */
 export type ReportObserver = (observation: ReportObservation) => void;
 
+/** Every successful `advance` result and the exact stamped records the runner submitted. */
+export type TickObservation = {
+  readonly call: number;
+  readonly tickBefore: number;
+  readonly tickAfter: number;
+  readonly ticksRun: number;
+  readonly loading: boolean;
+  readonly paused: TickReport["paused"];
+  readonly diagnostics: readonly Diagnostic[];
+  readonly fed: readonly InputRecord[];
+  readonly consumed: readonly InputRecord[];
+  readonly stateHash: string;
+};
+
+/** Called for each `advance`, after runLog checks timing and consumed-input contracts. */
+export type TickObserver = (observation: TickObservation) => void;
+
 export function runLog(
   engine: Engine,
   run: Run,
   n: number,
   audio: AudioSink,
   observer?: ReportObserver,
+  tickObserver?: TickObserver,
 ): TickRecord[] {
   if (!Number.isInteger(n) || n < 1) {
     throw new RangeError("runLog: n must be an integer >= 1");
@@ -164,6 +183,18 @@ export function runLog(
       );
     }
 
+    tickObserver?.({
+      call: callIndex,
+      tickBefore: before,
+      tickAfter: report.tickAfter,
+      ticksRun: report.ticksRun,
+      loading: report.loading,
+      paused: report.paused,
+      diagnostics: report.diagnostics,
+      fed: fedInputs,
+      consumed: report.consumed,
+      stateHash: report.stateHash,
+    });
     for (const cue of report.audioCues) {
       audio.handle(cue);
     }
