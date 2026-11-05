@@ -1,6 +1,6 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
-import { createAssetIndex, createEmptyBoard, createEngine, PACKAGE_ROOT, writeBoard, type GameState } from "../src/index.ts";
+import { createAssetIndex, createEmptyBoard, createEngine, IR_VERSION, PACKAGE_ROOT, startThread, writeBoard, type GameState } from "../src/index.ts";
 import type { HostFeatures } from "../src/ports/host.ts";
 import { validateInputEvent } from "../src/validate/input-event.ts";
 import { hashGameState } from "../src/save/hash.ts";
@@ -91,6 +91,7 @@ test("engine applies and records complete host updates on their consuming tick",
   const encoded = writeBoard(createEmptyBoard());
   if (!encoded.ok) throw new Error(encoded.error.message);
   const observed: { current: { readonly features: GameState["features"]; readonly geometry: GameState["display"]["geometry"] } | null } = { current: null };
+  const live: { state: GameState | null } = { state: null };
   const engine = createEngine({
     seed: 19,
     assetIndex: createAssetIndex(["Boards/host.brd"]),
@@ -99,7 +100,7 @@ test("engine applies and records complete host updates on their consuming tick",
     width: 32,
     height: 32,
     maxTicks: 4,
-    phaseRegistrations: [{ phase: "movement", run: (state) => { observed.current = { features: state.features, geometry: state.display.geometry }; } }],
+    phaseRegistrations: [{ phase: "movement", run: (state) => { live.state = state; observed.current = { features: state.features, geometry: state.display.geometry }; } }],
   });
   const initial = engine.advance(0, []);
   const boardRequest = initial.requests[0];
@@ -120,4 +121,11 @@ test("engine applies and records complete host updates on their consuming tick",
     { tick: 1, event: { kind: "host.features", features } },
   ]);
   deepEqual(ordered.consumed.map((input) => input.event.kind), ["key", "host.features"]);
+  if (live.state === null) throw new Error("expected a live state");
+  live.state.vm.globals["resetSentinel"] = 7;
+  startThread(live.state.vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  engine.advance(1, []);
+  equal(live.state.vm.globals["resetSentinel"], undefined, "the reset actually ran");
+  deepEqual(live.state.features, features, "reset keeps the current host features");
+  deepEqual(live.state.display.geometry, geometry, "reset keeps the current display geometry");
 });
