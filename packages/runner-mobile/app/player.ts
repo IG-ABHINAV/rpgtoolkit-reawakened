@@ -208,10 +208,11 @@ function run(
   const savePath = "slot-1.json";
   const saveBytes = (): Uint8Array => new TextEncoder().encode(JSON.stringify({ gameId, tick: session.tick() }));
   const onKeyDown = (event: KeyboardEvent): void => {
-      if (isFallbackTouchControlTarget(event.target)) {
-        fallbackControlKeys.add(event.code);
-        return;
-      }
+      if (isFallbackTouchControlTarget(event.target) && !event.repeat) {
+            fallbackControlKeys.add(event.code);
+            return;
+          }
+          if (fallbackControlKeys.has(event.code)) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
       pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
     };
@@ -222,7 +223,10 @@ function run(
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state } });
   };
-  const onBlur = (): void => focus("lost");
+  const onBlur = (): void => {
+      fallbackControlKeys.clear();
+      focus("lost");
+    };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize(),
@@ -285,7 +289,8 @@ function run(
     pending = [];
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
-      const frame = session.draw(accumulator / stepMs);
+      touchControls.acknowledgeTick(session.tick());
+            const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const board = session.boardKey();
       if (!moved && startPlayer !== null && player !== null && (player.x !== startPlayer.x || player.y !== startPlayer.y)) moved = true;

@@ -384,10 +384,11 @@ function startLiveLoop(
       () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
     );
   const key = (event: KeyboardEvent, down: boolean): void => {
-      if (down && isFallbackTouchControlTarget(event.target)) {
-        fallbackControlKeys.add(event.code);
-        return;
-      }
+      if (down && isFallbackTouchControlTarget(event.target) && !event.repeat) {
+            fallbackControlKeys.add(event.code);
+            return;
+          }
+          if (down && fallbackControlKeys.has(event.code)) return;
       if (!down && fallbackControlKeys.delete(event.code)) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
       pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
@@ -397,7 +398,10 @@ function startLiveLoop(
   const focus = (state: "lost" | "gained"): void => {
     pending.push({ tick: session.tick(), event: { kind: "focus", state } });
   };
-  const onBlur = (): void => focus("lost");
+  const onBlur = (): void => {
+      fallbackControlKeys.clear();
+      focus("lost");
+    };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
@@ -453,7 +457,8 @@ function startLiveLoop(
       session.advance(wholeTicks, inputs).then(() => {
         advancing = false;
         if (disposed) return;
-        const drawn = session.draw(accumulator / stepMs);
+        touchControls.acknowledgeTick(session.tick());
+              const drawn = session.draw(accumulator / stepMs);
         const player = session.playerPosition();
         const state = loadState();
         const live: LiveReport = {
