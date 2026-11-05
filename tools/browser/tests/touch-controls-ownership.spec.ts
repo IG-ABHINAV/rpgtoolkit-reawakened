@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { BinaryReader, deriveGameId, derivePackageIdentity, loadPackage, readDistributionManifest, readMainFile, writeDistributionPackage, writeMainFile } from "@tk-reawakened/core";
 import { expect, test, type Page } from "@playwright/test";
 
-type LiveWindow = Window & { readonly __live?: { readonly tick: number } };
 
 type TouchFixture = { readonly name: string; readonly packageBytes: Uint8Array; readonly descriptor: Record<string, unknown> };
 type TraceInput = { readonly event: { readonly kind: string; readonly action?: string; readonly down?: boolean; readonly source?: string; readonly code?: string; readonly buttons?: number } };
@@ -81,33 +80,38 @@ async function tracedInputs(page: Page): Promise<readonly TraceInput[]> {
 
 
 test("fallback confirm and cancel wait for same-button pointer release", async ({ browser }) => {
-  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
-  const page = await context.newPage();
-  try {
-    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
-    await page.getByRole("button", { name: "Confirm" }).waitFor({ state: "visible", timeout: 45_000 });
-    await installInputTrace(page);
-    for (const [name, action] of [["Confirm", "confirm"], ["Cancel", "cancel"]] as const) {
-      const button = page.getByRole("button", { name });
+  for (const [name, action] of [["Confirm", "confirm"], ["Cancel", "cancel"]] as const) {
+    const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+    const page = await context.newPage();
+    const button = page.getByRole("button", { name });
+    const setup = async (): Promise<{ readonly x: number; readonly y: number }> => {
+      await page.getByRole("button", { name: "Confirm" }).waitFor({ state: "visible", timeout: 45_000 });
+      await installInputTrace(page);
       const box = await button.boundingBox();
       if (box === null) throw new Error(`${name} fallback button has no bounds`);
-      const x = box.x + box.width / 2;
-      const y = box.y + box.height / 2;
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    try {
+      await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+      const first = await setup();
 
-      await page.mouse.move(x, y);
+      await button.hover();
       await page.mouse.down();
       await page.waitForTimeout(50);
       expect((await tracedInputs(page)).filter((input) => input.event.kind === "action" && input.event.action === action && input.event.source === "runner.fallback")).toHaveLength(0);
-      await page.mouse.move(box.x + box.width + 24, y);
-      await page.mouse.move(x, y);
+      await page.mouse.move(first.x + 80, first.y);
+      await page.mouse.move(first.x, first.y);
       await page.mouse.up();
       await page.waitForTimeout(50);
       expect((await tracedInputs(page)).filter((input) => input.event.kind === "action" && input.event.action === action && input.event.source === "runner.fallback")).toHaveLength(0);
 
-      await page.mouse.move(x, y);
+      await page.reload();
+      await setup();
+      await button.hover();
       await page.mouse.down();
+      await page.waitForFunction(() => typeof (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId === "number", undefined, { timeout: 2_000 });
       const pointerId = await page.evaluate(() => (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId ?? -1);
-      if (pointerId < 0) throw new Error("fallback pointer id was not recorded");
+      if (pointerId < 0) throw new Error(`${name} fallback pointer id was not recorded`);
       await button.evaluate((element, id) => {
         element.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, pointerId: id, pointerType: "mouse", button: 0, buttons: 0 }));
       }, pointerId);
@@ -115,17 +119,19 @@ test("fallback confirm and cancel wait for same-button pointer release", async (
       await page.waitForTimeout(50);
       expect((await tracedInputs(page)).filter((input) => input.event.kind === "action" && input.event.action === action && input.event.source === "runner.fallback")).toHaveLength(0);
 
-      await page.mouse.click(x, y);
+      await page.reload();
+      await setup();
+      await button.click();
       await page.waitForFunction((wanted) => {
         const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
         return trace.flatMap((entry) => entry.inputs).some((input) => input.event.kind === "action" && input.event.action === wanted && input.event.source === "runner.fallback" && input.event.down === false);
       }, action, { timeout: 10_000 });
-      const valid = (await tracedInputs(page)).filter((input) => input.event.kind === "action" && input.event.action === action && input.event.source === "runner.fallback");
-      expect(valid.filter((input) => input.event.down === true)).toHaveLength(1);
-      expect(valid.filter((input) => input.event.down === false)).toHaveLength(1);
+      const input = (await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === action && entry.event.source === "runner.fallback");
+      expect(input.filter((entry) => entry.event.down === true)).toHaveLength(1);
+      expect(input.filter((entry) => entry.event.down === false)).toHaveLength(1);
+    } finally {
+      await context.close();
     }
-  } finally {
-    await context.close();
   }
 });
 
@@ -198,9 +204,23 @@ test("fallback grid gaps pass through and unrelated focused-button keys reach ga
     const moveRight = page.getByRole("button", { name: "Move right" });
     await moveRight.waitFor({ state: "visible", timeout: 45_000 });
     await installInputTrace(page);
+    await page.evaluate(() => {
+      const target = window as Window & { __rawPointerDown?: { readonly target: string; readonly buttons: number; readonly x: number; readonly y: number } };
+      target.__rawPointerDown = undefined;
+      document.getElementById("stage")?.addEventListener("pointerdown", (event) => {
+        target.__rawPointerDown = { target: (event.target as Element).tagName, buttons: (event as PointerEvent).buttons, x: (event as PointerEvent).clientX, y: (event as PointerEvent).clientY };
+      }, true);
+    });
     const gap = await page.locator(".fallback-touch-pad").evaluate((pad) => {
       const bounds = pad.getBoundingClientRect();
-      return { x: bounds.left + 24, y: bounds.top + 24 };
+      const stage = document.getElementById("stage");
+      for (let y = Math.ceil(bounds.top) + 2; y < bounds.bottom - 2; y += 3) {
+        for (let x = Math.ceil(bounds.left) + 2; x < bounds.right - 2; x += 3) {
+          const target = document.elementFromPoint(x, y);
+          if (target instanceof Node && stage?.contains(target) === true && !(target instanceof Element && target.closest(".fallback-touch-controls") !== null)) return { x, y };
+        }
+      }
+      throw new Error("fallback touch pad has no hit-testable transparent gap");
     });
     const target = await page.evaluate(({ x, y }) => {
       const element = document.elementFromPoint(x, y);
@@ -209,15 +229,23 @@ test("fallback grid gaps pass through and unrelated focused-button keys reach ga
         isButton: element?.matches(".fallback-touch-button") ?? false,
         insideFallback: element instanceof Element && element.closest(".fallback-touch-controls") !== null,
         insideStage: element instanceof Node && stage?.contains(element) === true,
+        stageRect: stage?.getBoundingClientRect().toJSON(),
+        viewport: { width: innerWidth, height: innerHeight, pointInside: x >= 0 && y >= 0 && x < innerWidth && y < innerHeight },
       };
     }, gap);
     expect(target.isButton).toBe(false);
     expect(target.insideFallback).toBe(false);
     expect(target.insideStage).toBe(true);
     await page.mouse.click(gap.x, gap.y);
-    await page.waitForTimeout(100);
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.flatMap((entry) => entry.inputs).some((input) => input.event.kind === "pointer");
+    }, undefined, { timeout: 10_000 });
     const pointerInputs = (await tracedInputs(page)).filter((input) => input.event.kind === "pointer");
-    expect(pointerInputs.length, `gap target: ${JSON.stringify(target)}`).toBeGreaterThan(0);
+    const rawPointer = await page.evaluate(() => (window as Window & { __rawPointerDown?: unknown }).__rawPointerDown);
+    expect(target.viewport.pointInside).toBe(true);
+    expect(rawPointer).not.toBeUndefined();
+    expect(pointerInputs.length, `gap target: ${JSON.stringify({ target, rawPointer })}`).toBeGreaterThan(0);
 
     await moveRight.focus();
     await page.keyboard.down("ArrowRight");
