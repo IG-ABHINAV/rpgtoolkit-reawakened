@@ -7,12 +7,6 @@ import { enqueuePathMove } from "../sprites/runtime.ts";
 import type { GameState } from "../save/state.ts";
 import { createInputSection, heldPointerGoal, processGamepadEvents, takeInputActions, type InputConfig } from "./input.ts";
 
-const FACING_BY_ACTION: Record<string, Facing> = {
-  up: "N",
-  down: "S",
-  left: "W",
-  right: "E",
-};
 const FACING_BY_VECTOR: Record<string, Facing> = {
   "0,-1": "N",
   "1,-1": "NE",
@@ -61,6 +55,11 @@ function canAcceptDirection(state: GameState, id: string): boolean {
   return actor !== undefined && actor.visible && actor.movement.active === null && actor.queue.moves.length === 0 && actor.queue.waypoint === null && actor.state !== "moving";
 }
 
+function canPreemptDirection(state: GameState, id: string): boolean {
+  const actor = state.sprites.players.find((value) => value.id === id);
+  return actor !== undefined && actor.visible && actor.movement.active === null && actor.state !== "frozen";
+}
+
 function heldFacing(state: GameState): Facing | null {
   let x = (state.input.actions.right === true ? 1 : 0) - (state.input.actions.left === true ? 1 : 0);
   let y = (state.input.actions.down === true ? 1 : 0) - (state.input.actions.up === true ? 1 : 0);
@@ -91,15 +90,10 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
     if ((options.openMenu ?? openMainMenu)(state)) directionBlocked = true;
   }
   if (id === null) return;
-  if (!directionBlocked && actions.some((action) => FACING_BY_ACTION[action] !== undefined) && canAcceptDirection(state, id)) {
+  // E-133: a held direction replaces a queued route only between steps; an active step is never interrupted.
+  if (!directionBlocked && state.input.focused && canPreemptDirection(state, id)) {
     const facing = heldFacing(state);
-    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0);
-  }
-  // Held-direction continuous movement: while a direction key stays held and the player becomes
-  // idle again, queue the next step at the normal cadence (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement).
-  if (!directionBlocked && state.input.focused && canAcceptDirection(state, id)) {
-    const facing = heldFacing(state);
-    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0);
+    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, true, true);
   }
   if (board === null || directionBlocked) return;
   // Clicks made during a block never reach here as paths; a button still held when the block ends is polled below.

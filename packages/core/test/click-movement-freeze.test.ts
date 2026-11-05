@@ -56,7 +56,7 @@ function makeState(extra: { programs?: WorldProgram[]; items?: WorldItem[] } = {
     board,
     players: [{ id: "hero", kind: "player" as const, source: "hero.tem", x: START.x, y: START.y, layer: 1, facing: "S", controlled: true }],
   });
-  state.input = createInputSection({ bindings: { keys: { ArrowRight: "right" } } });
+  state.input = createInputSection({ bindings: { keys: { ArrowRight: "right", ArrowDown: "down" } } });
   return state;
 }
 
@@ -97,6 +97,20 @@ function unblockedGoal(): { x: number; y: number } {
   ok(x > START.x + 96, `the unblocked click walks a long way (reached x=${x})`);
   return { x, y };
 }
+
+test("held direction replaces the remainder of a click route after the active step", () => {
+  const state = makeState();
+  tick(state, 0, [down(GOAL.x, GOAL.y)]);
+  tick(state, 1, [up(GOAL.x, GOAL.y)]);
+  const originalTarget = hero(state).movement.active!.target;
+  ok(hero(state).queue.moves.length > 0, "the click produced a route beyond the active step");
+  tick(state, 2, [{ kind: "key", name: "DOWN", code: "ArrowDown", char: null, down: true }]);
+  deepEqual(hero(state).movement.active!.target, originalTarget, "the current click step is not interrupted");
+  for (let t = 3; t < 100 && hero(state).movement.active?.facing !== "S"; t += 1) tick(state, t);
+  equal(hero(state).x, originalTarget.x, "the original step reached its target before turning");
+  equal(hero(state).movement.active?.facing, "S");
+  equal(hero(state).queue.moves.length, 0, "the rest of the click route was cleared");
+});
 
 test("a click while wait() is parked starts no path, is recorded for scripts, and is not replayed after the block", () => {
   const state = makeState();

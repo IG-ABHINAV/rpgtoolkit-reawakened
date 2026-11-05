@@ -18,6 +18,8 @@ import {
   movementPhaseRegistration,
   killThread,
   findBlockingThread,
+  MOVEMENT_PLUGIN,
+  scriptOwnsInput,
   runThreadsPhase,
   runWaitsPhase,
   startProgram,
@@ -29,6 +31,8 @@ import {
   type PluginDefinition,
   type WorldBoard,
 } from "../src/index.ts";
+import { applySpriteEffect } from "../src/script/packs/movement.ts";
+import { setWaypoint } from "../src/sprites/runtime.ts";
 import { createScriptServices } from "./script-test-services.ts";
 
 function makeBoard(): WorldBoard {
@@ -75,6 +79,55 @@ function tick(state: GameState, t: number, events: InputEv[] = []): void {
   runInputPhase(state);
   runMovement(state);
 }
+
+test("a nonblocking script route is replaced by a held direction at a step boundary", () => {
+  const state = makeState();
+  startThread(state.vm, {
+    ref: { kind: "inline", ir: "1", text: 'playerPath("hero", 0, 80, 63, 112, 63)\nend()' },
+    kind: "board", owner: "script",
+  });
+  runThreadsPhase(state.vm, createScriptServices(state, [MOVEMENT_PLUGIN]), 100);
+  const effect = state.vm.effects.find((entry) => entry.name === "playerpath" && entry.patch?.section === "sprites");
+  ok(effect, "the actual nonblocking script emits a movement effect");
+  equal(scriptOwnsInput(state.vm), false);
+  deepEqual(effect.args, ["hero", 0, 80, 63, 112, 63]);
+  equal(applySpriteEffect(state, effect.name, ["hero", 0, 80, 63, 112, 63]), true);
+  ok(state.sprites.players[0]!.queue.moves.length > 1, "the script queued a route");
+  tick(state, 0, [key("ArrowDown", true)]);
+  const player = state.sprites.players[0]!;
+  equal(player.movement.active?.facing, "S");
+  equal(player.queue.moves.length, 0, "remaining script path was removed");
+  equal(player.queue.waypoint, null);
+});
+
+test("a held direction clears a pending waypoint as well as queued moves", () => {
+  const state = makeState();
+  ok(setWaypoint(state.sprites, "hero", [{ x: 80, y: 63 }, { x: 112, y: 63 }], 1, false));
+  ok(state.sprites.players[0]!.queue.waypoint);
+  tick(state, 0, [key("ArrowDown", true)]);
+  equal(state.sprites.players[0]!.queue.waypoint, null);
+  equal(state.sprites.players[0]!.movement.active?.facing, "S");
+});
+
+test("a tap during an active route step is lost, but a held direction replaces it at the boundary", () => {
+  const state = makeState();
+  ok(applySpriteEffect(state, "playerpath", ["hero", 0, 80, 63, 112, 63, 144, 63]));
+  tick(state, 0);
+  const target = state.sprites.players[0]!.movement.active!.target;
+  tick(state, 1, [key("ArrowDown", true)]);
+  tick(state, 2, [key("ArrowDown", false)]);
+  deepEqual(state.sprites.players[0]!.movement.active!.target, target, "the tap did not interrupt the step");
+  for (let t = 3; t < 24; t += 1) tick(state, t);
+  equal(state.sprites.players[0]!.y, 63, "the completed tap is not buffered");
+  tick(state, 24, [key("ArrowDown", true)]);
+  const boundary = state.sprites.players[0]!.movement.active!.target.x;
+  ok(state.sprites.players[0]!.queue.moves.length > 0, "a later path step remains to preempt");
+  for (let t = 25; t < 100 && state.sprites.players[0]!.movement.active?.facing !== "S"; t += 1) tick(state, t);
+  const player = state.sprites.players[0]!;
+  equal(player.movement.active?.facing, "S");
+  equal(player.x, boundary, "the held key turns at the first boundary rather than after the route ends");
+  equal(player.queue.moves.length, 0);
+});
 
 for (const heldBeforeWait of [true, false]) {
   test(`wait freezes movement when direction is ${heldBeforeWait ? "already held" : "pressed after parking"}`, () => {
@@ -246,6 +299,19 @@ test("holding a direction key moves the player continuously, not one tile", () =
   // At default speed (0.05 s) one 32 px tile takes 24 ticks. In 60 ticks a held key
   // should walk at least two full tiles (64 px). One tile would be the one-step bug.
   ok(endX - startX >= 64, `expected continuous movement over at least 64 px, moved ${endX - startX} px`);
+});
+
+test("a held direction preserves movement cadence across step boundaries", () => {
+  const state = makeState();
+  tick(state, 0, [key("ArrowRight", true)]);
+  for (let t = 1; t <= 21; t += 1) tick(state, t);
+  equal(state.sprites.players[0]!.x, 80, "the first step completes");
+  tick(state, 22);
+  equal(state.sprites.players[0]!.x, 80, "the next step observes the existing advance interval");
+  tick(state, 23);
+  equal(state.sprites.players[0]!.x, 80);
+  tick(state, 24);
+  equal(state.sprites.players[0]!.x, 84, "the next advance occurs at the normal cadence");
 });
 
 test("a single tapped direction key moves exactly one tile", () => {

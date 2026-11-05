@@ -507,7 +507,7 @@ const STEP_TILE = 32;
 const STEP_PIXEL = 4;
 
 /** Convert a direction command to one deterministic target and enqueue it. */
-export function enqueueDirectionMove(section: SpritesSection, id: string, facing: Facing, pixelMovement = 0, clear = false): boolean {
+export function enqueueDirectionMove(section: SpritesSection, id: string, facing: Facing, pixelMovement = 0, clear = false, preserveCadence = false): boolean {
   const actor = allActors(section).find((value) => value.id === id);
   if (actor === undefined) return false;
   const vector = directionVector(facing);
@@ -518,10 +518,11 @@ export function enqueueDirectionMove(section: SpritesSection, id: string, facing
     return {
       ...value,
       state: value.visible ? "moving" : value.state,
-      prev: clear ? null : value.prev,
+      prev: clear && !preserveCadence ? null : value.prev,
       movement: clear ? { ...cloneMovement(value.movement), active: null, waitTicks: 0 } : value.movement,
       queue: {
         ...value.queue,
+        waypoint: clear ? null : value.queue.waypoint,
         moves: [...(clear ? [] : value.queue.moves), { source: "direction", target: { x: origin.x + vector[0] * distance, y: origin.y + vector[1] * distance }, facing }],
       },
     };

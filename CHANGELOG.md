@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Held direction input now replaces the selected player's remaining script or click route at the next step boundary, including a waypoint, while the current step finishes and blocking scripts keep ownership of input. Mid-step taps are not buffered; whether 3.1 click-walking differs remains an owner decision (#1286, #1180; `docs/spec/engine/movement-and-collision.md#e-133`).
 - Diagonal pixel-mode direction steps now move four pixels on each axis in one movement advance, and collision is checked at that full destination in both pixel modes (#1282; `docs/spec/engine/movement-and-collision.md#r-62`).
 - Sliding at a wall corner now chooses the same collision edge regardless of polygon winding or starting vertex; the spec defines a deterministic tie-break rather than claiming original-engine parity (#1284; `docs/spec/engine/movement-and-collision.md#r-54`).
 - Browser and mobile players now treat Quit as a fresh launch: they dispose the old live session and its input/animation loops, then start a new session from the same package. Each restart resets game state, removes prior listeners and ignores stale async completions (#1273; `docs/spec/engine/main-loop-and-startup.md#e-06`).
