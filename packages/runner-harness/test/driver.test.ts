@@ -83,6 +83,27 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
   deepEqual(calls[2]!.inputs, [run.log[2]]);
 });
 
+test("runLog translates historical v1 gamepad buttons before active dispatch", () => {
+  const base = createTestEngine();
+  let received: readonly InputRecord[] = [];
+  const engine: Engine = {
+    ...base,
+    advance(ticks, inputs, maxTicks) {
+      received = inputs;
+      return base.advance(ticks, inputs, maxTicks);
+    },
+  };
+  const run: Run = {
+    schema: 1,
+    ticks: 1,
+    log: [{ tick: 0, event: { ...GAMEPAD, buttons: 8 } }],
+  };
+  runLog(engine, run, 1, createNullAudio());
+  const event = received[0]!.event;
+  equal(event.kind, "gamepad");
+  if (event.kind === "gamepad") equal(event.buttons, 1 << 15);
+});
+
 test("runLog returns records on empty log", () => {
   const engine = createTestEngine();
   const run: Run = {

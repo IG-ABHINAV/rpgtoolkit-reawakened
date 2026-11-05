@@ -106,6 +106,24 @@ test("registered game actions preserve order and semantic source claims emit one
   equal(state.actions["game.fireball"], false);
   deepEqual(state.keys.map((key) => key.seq), [1]);
 });
+
+test("game-action keyboard bindings preserve raw Get key identity", () => {
+  const state = createInputSection();
+  registerGameAction(state, { name: "game.fireball", label: "Fireball", icon: null, group: null, controls: ["key:KeyF"], locked: false, hidden: false });
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  const result = pollInputKey({ tick: 0, input: inputView(state), claims: [] }, { kind: "input.key", global: true, key: null, parkSeq: 1 });
+  equal(result?.value, "F");
+  equal(state.actions["game.fireball"], true);
+});
+
+test("custom legacy menu key does not diagnose an unknown game action or reopen on repeat", () => {
+  const state = createInputSection({ bindings: { keys: { KeyM: "M" } } });
+  const unknown: string[] = [];
+  applyInputEvent(state, { kind: "key", name: "M", code: "KeyM", char: "m", down: true }, (action) => unknown.push(action));
+  applyInputEvent(state, { kind: "key", name: "M", code: "KeyM", char: "m", down: true, repeat: true }, (action) => unknown.push(action));
+  deepEqual(unknown, []);
+  equal(state.pendingKeySequences.length, 1, "OS repeat remains available to legacy waits but is not a fresh menu gesture");
+});
 test("keyboard bindings retain independent physical claims for one game action", () => {
   const state = createInputSection();
   const action = { name: "game.dash", label: "Dash", icon: null, group: null, controls: ["key:KeyF", "key:KeyG"], locked: false, hidden: false };
@@ -484,13 +502,17 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   raw.schema.input = 2;
   raw.input.version = 2;
   raw.input.pointer = { x: 9, y: 8, buttons: 1 };
+  delete raw.input.nextPointerGestureId;
+  delete raw.input.pointerGestureId;
+  raw.input.pendingClicks = [{ x: 9, y: 8 }];
+  delete raw.input.pendingPointerUps;
   const migrated = restoreGameState(JSON.stringify(raw)).input;
   deepEqual(migrated.pointer, { x: 9, y: 8, buttons: 1, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
   equal(migrated.pointerGestureId, 0, "an old snapshot's held primary pointer remains releasable");
   equal(migrated.nextPointerGestureId, 1);
   applyInputEvent(migrated, { kind: "pointer", x: 9, y: 8, buttons: 0 });
   deepEqual(migrated.pendingPointerUps, [{ gestureId: 0, x: 9, y: 8 }]);
-  equal(migrated.version, 7);
+  equal(migrated.version, 8);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
 });
 

@@ -193,6 +193,12 @@ test("parseRun rejects bad records naming record index and field", () => {
       fieldSnippet: "extra: unexpected key",
     },
     {
+      name: "legacy gamepad masks reject bits outside the historical seven-bit shape",
+      record: [{ tick: 0, event: { ...GAMEPAD, buttons: 0x80 } }],
+      fieldSnippet: "buttons: expected a 7-bit legacy button mask",
+    },
+
+    {
       name: "invalid hex digits zz",
       record: [{ tick: 0, event: { kind: "asset", reqId: 1, bytes: { t: "bytes", hex: "zz" } } }],
       fieldSnippet: "decodeLog: at event.bytes: invalid hex digit",

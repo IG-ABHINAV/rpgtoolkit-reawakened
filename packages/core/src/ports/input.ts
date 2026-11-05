@@ -140,6 +140,20 @@ export type InputRecord = {
   readonly tick: number;
   readonly event: InputEvent;
 };
-/** Historical runner protocol v1 excludes semantic actions; v2 uses the active InputEvent above. */
-export type InputEventV1 = Exclude<InputEvent, ActionInput>;
-export type InputRecordV1 = Omit<InputRecord, "event"> & { readonly event: InputEventV1 };
+/** Historical runner protocol v1 event union; active v2 adds ActionInput. */
+export type InputEventV1 =
+  | KeyInput
+  | PointerInput
+  | PointerCancelInput
+  | GamepadInput
+  | FocusInput
+  | HostFeaturesInput
+  | HostDisplayInput
+  | AssetReply
+  | BlobLoaded
+  | BlobSaved
+  | BlobListed
+  | ExtensionResult
+  | AudioEnded
+  | VideoEnded;
+export type InputRecordV1 = { readonly tick: number; readonly event: InputEventV1 };

@@ -400,19 +400,21 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
 function migrateInput(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.input;
   if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `input` version");
+  const normalizeKeys = (value: unknown): unknown[] => Array.isArray(value)
+    ? value.map((entry: unknown) => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
+      const key = entry as Record<string, unknown>;
+      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions as string[] : typeof key.action === "string" ? [key.action] : [];
+      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
+    })
+    : [];
   if (version >= INPUT_SCHEMA_VERSION) {
     const input = recordAt(record.input, "input");
     if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
     if (typeof input.actionPadMasks !== "object" || input.actionPadMasks === null || Array.isArray(input.actionPadMasks)) input.actionPadMasks = {};
     if (typeof input.keyboardActionSources !== "object" || input.keyboardActionSources === null || Array.isArray(input.keyboardActionSources)) input.keyboardActionSources = {};
     if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
-    if (!Array.isArray(input.keys)) input.keys = [];
-    input.keys = input.keys.map((value) => {
-      if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
-      const key = value as Record<string, unknown>;
-      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions : typeof key.action === "string" ? [key.action] : [];
-      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
-    });
+    input.keys = normalizeKeys(input.keys);
     if (typeof input.nextPointerGestureId !== "number" || !Number.isSafeInteger(input.nextPointerGestureId) || input.nextPointerGestureId < 1) input.nextPointerGestureId = 1;
     if (typeof input.pointerGestureId !== "number" || !Number.isSafeInteger(input.pointerGestureId)) input.pointerGestureId = null;
     if (!Array.isArray(input.pendingClicks)) input.pendingClicks = [];
@@ -433,13 +435,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     const input = recordAt(record.input, "input");
     input.version = INPUT_SCHEMA_VERSION;
     if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
-    if (!Array.isArray(input.keys)) input.keys = [];
-    input.keys = input.keys.map((value) => {
-      if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
-      const key = value as Record<string, unknown>;
-      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions : typeof key.action === "string" ? [key.action] : [];
-      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
-    });
+    input.keys = normalizeKeys(input.keys);
     rebuildInputActionIndexes(input);
     return;
   }
@@ -471,7 +467,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
         return [device, { ...pad, mask: typeof pad.mask === "number" ? legacyMask(pad.mask) : 0 }];
       }))
       : {};
-    const migrated = {
+    const migrated: Record<string, unknown> = {
       ...oldRecord,
       version: INPUT_SCHEMA_VERSION,
       pointer: { ...fresh.pointer, ...pointer },
@@ -488,13 +484,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
       pendingPointerUps: pointerUps,
       nextPointerGestureId: Math.max(1, ...clicks.map((item) => item.gestureId + 1), ...pointerUps.map((item) => item.gestureId + 1)),
     };
-    if (!Array.isArray(migrated.keys)) migrated.keys = [];
-    migrated.keys = migrated.keys.map((value) => {
-      if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
-      const key = value as Record<string, unknown>;
-      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions : typeof key.action === "string" ? [key.action] : [];
-      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
-    });
+    migrated.keys = normalizeKeys(migrated.keys);
     record.input = migrated;
     rebuildInputActionIndexes(migrated);
     schema.input = INPUT_SCHEMA_VERSION;

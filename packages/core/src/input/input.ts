@@ -184,11 +184,12 @@ function appendKey(
   action: string | null,
   resolvedActions: readonly string[],
   target: string | null = null,
+  pendingKeySequence = true,
 ): void {
   const seq = state.nextSeq;
   state.nextSeq += 1;
-  state.keys.push({ seq, name, code, char, action, resolvedActions, ...(target === null ? {} : { target }) });
-  state.pendingKeySequences.push(seq);
+  state.keys.push({ seq, name, code, char, action, resolvedActions: [...resolvedActions], ...(target === null ? {} : { target }) });
+  if (pendingKeySequence) state.pendingKeySequences.push(seq);
 }
 
 function boundActions(state: InputSection): Set<string> {
@@ -296,8 +297,7 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
     if (ENGINE_ACTIONS.has(action) || gameSet.has(action)) continue;
     gameSet.add(action);
   }
-  const unknown = [...gameSet].filter((action) => !Object.hasOwn(state.actionRegistry, action) &&
-    (action !== mapped || configured === undefined || !Object.hasOwn(LEGACY_ACTION_ALIASES, configured)));
+  const unknown = [...gameSet].filter((action) => action.startsWith("game.") && !Object.hasOwn(state.actionRegistry, action));
   for (const action of unknown) onUnknownAction?.(action);
   const ordered = [
     ...[...ENGINE_ACTIONS].filter((action) => candidates.includes(action)),
@@ -305,7 +305,9 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
       .sort((a, b) => state.actionOrder[a]! - state.actionOrder[b]!),
   ];
   if (event.down) {
-    appendKey(state, configured ?? event.name, event.code, event.char, configured ?? null, ordered);
+    const semanticGameBinding = mapped !== undefined && mapped.startsWith("game.") && Object.hasOwn(state.actionRegistry, mapped);
+    const name = semanticGameBinding ? event.name : configured ?? event.name;
+    appendKey(state, name, event.code, event.char, configured ?? null, ordered, null, !event.repeat && !priorRaw);
   }
   if (event.down && event.repeat === true) return;
   if (event.down && priorRaw) return;

@@ -83,6 +83,9 @@ export function parseEvent(raw: unknown, recordIndex: number): InputEventV1 {
   if (result.value.kind === "action") {
     throw new Error(`run.json: record ${recordIndex}: kind: unknown input event`);
   }
+  if (result.value.kind === "gamepad" && result.value.buttons > 0x7f) {
+    throw new Error(`run.json: record ${recordIndex}: buttons: expected a 7-bit legacy button mask`);
+  }
   return result.value;
 }
 
@@ -132,7 +135,7 @@ export function parseRun(text: string): Run {
     throw new Error("run.json: log must be an array");
   }
 
-  const log: InputRecord[] = [];
+  const log: InputRecordV1[] = [];
   for (let i = 0; i < root.log.length; i++) {
     const rawRec = root.log[i];
     if (
