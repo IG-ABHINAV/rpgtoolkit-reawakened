@@ -115,4 +115,9 @@ test("engine applies and records complete host updates on their consuming tick",
   deepEqual(changed.consumed.map((input) => input.event.kind), ["host.features", "host.display"]);
   deepEqual(observed.current?.features, features);
   deepEqual(observed.current?.geometry, geometry);
+  const ordered = engine.advance(1, [
+    { tick: 1, event: { kind: "key", name: "LEFT", code: "ArrowLeft", char: null, down: true } },
+    { tick: 1, event: { kind: "host.features", features } },
+  ]);
+  deepEqual(ordered.consumed.map((input) => input.event.kind), ["key", "host.features"]);
 });

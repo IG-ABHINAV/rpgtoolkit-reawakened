@@ -131,6 +131,8 @@ export function checkInputEventExhaustive(kind: InputEvent["kind"]): void {
     case "key":
     case "pointer":
     case "gamepad":
+    case "host.features":
+    case "host.display":
     case "focus":
     case "asset":
     case "blob.loaded":

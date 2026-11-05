@@ -1926,8 +1926,6 @@ export function createEngine(init: EngineInit): Engine {
     state.events = fresh.events;
     state.battle = fresh.battle;
     state.menu = fresh.menu;
-    state.features = fresh.features;
-    state.display = fresh.display;
     state.input = createInputSection(init.input);
     state.ui = fresh.ui;
     state.camera = createCameraSection(init.width, init.height);
@@ -3392,9 +3390,7 @@ export function createEngine(init: EngineInit): Engine {
     const deferred: InputRecord[] = [];
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index]!;
-      if (applyHostStateEvent(record.event)) {
-        consumed.push(record);
-      } else if (record.event.kind === "asset") {
+      if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
       } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
         const result = consumeBlob(record, consumed);
