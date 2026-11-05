@@ -370,20 +370,18 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
   // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
   // else did; every other hash, tick and diagnostic is unchanged.
-  // Re-pinned by #1298: the world schema and persisted movement settings/remainders now contribute to state hashes;
-  // draw hashes, ticks and diagnostics remain unchanged.
-  // #1349: host capability and display state are now included in the state hash.
+  // Input schema 4, world schema 2 and host state are included in these state hashes.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "82a8564e09531410",
-    "sample-system-demo": "0086db612ec35664",
-    "sample-sys-test-demo": "0086db612ec35664",
-    "sample-win-demo": "1d79a3fc3df700f6",
-    "sample-oldman-demo": "8a505b0724c491f1",
-    "sample-man-demo": "0707504c90db43e3",
-    "sample-man-wander-demo": "8799e088efabdb96",
-    "sample-start-basic": "baae2919e3e43438",
-    "sample-system-basic": "0086db612ec35664",
-    "sample-wander-basic": "a6750c09bedd419e",
+    "sample-start-demo": "06ca9f0bdd4c11ef",
+    "sample-system-demo": "3d46538f2575603f",
+    "sample-sys-test-demo": "3d46538f2575603f",
+    "sample-win-demo": "acc687b3c3ffc16d",
+    "sample-oldman-demo": "e982a4baa9a6b74c",
+    "sample-man-demo": "7ac48e96bde06e32",
+    "sample-man-wander-demo": "d0a71f3d764fe937",
+    "sample-start-basic": "87106de35709e7f3",
+    "sample-system-basic": "3d46538f2575603f",
+    "sample-wander-basic": "3d95d1e6ee211051",
   };
 
   for (const res of results) {
@@ -406,7 +404,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "a6750c09bedd419e"); // #1349: host state is included in the state hash
+  equal(hash1, "3d95d1e6ee211051"); // Input schema 4, world schema 2 and host state.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

@@ -114,6 +114,7 @@
         "gamepad-dead-zone-edges-and-merge",
         "gamepad-disconnect-and-unknown-devices",
         "pointer-click-to-move-and-button-slots",
+        "pointer-cancel-clears-slot-gesture",
         "gamepad-only-named-actions"
       ],
       "proposed": ["P-12","P-13","P-18"]

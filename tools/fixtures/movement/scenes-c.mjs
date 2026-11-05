@@ -10,7 +10,9 @@ import { board, hero, makeCase, npc, rectPts } from "./common.mjs";
 const inputCase = (name, note, setup, events, ticks) => ({ name, note, setup, script: events, ticks, expect: runInput(setup, events, ticks) });
 const key = (t, code, down = true, extra = {}) => ({ t, ev: { kind: "key", code, down, ...extra } });
 const pad = (t, device, connected, x, y, buttons) => ({ t, ev: { kind: "gamepad", device, connected, axes: { x, y }, buttons } });
-const pointer = (t, x, y) => ({ t, ev: { kind: "pointer", phase: "down", x, y } });
+const pointer = (t, x, y, buttons = 1) => ({ t, ev: { kind: "pointer", phase: "down", x, y, buttons } });
+const pointerUp = (t, x, y) => ({ t, ev: { kind: "pointer", phase: "up", x, y } });
+const pointerCancel = (t) => ({ t, ev: { kind: "pointer.cancel" } });
 
 export function inputReplayButtonSlots() {
   const bindings = { keys: { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Escape: "cancel" } };
@@ -21,13 +23,14 @@ export function inputReplayButtonSlots() {
   ];
   const base = { bindings, slots, camera: [160, 96], allowDiagonals: true };
   return {
-    spec: ["display-input-audio.md#e-110", "display-input-audio.md#e-112", "display-input-audio.md#reawakened-gamepad-contract", "movement-and-collision.md#e-24", "movement-and-collision.md#e-25"],
+    spec: ["display-input-audio.md#e-110", "display-input-audio.md#e-112", "display-input-audio.md#reawakened-gamepad-contract", "accessibility.md#a11y-6", "movement-and-collision.md#e-24", "movement-and-collision.md#e-25"],
     cases: [
       inputCase("keyboard-diagonal-and-repeat", "E-24: two orthogonal keys give a diagonal only when diagonals are allowed; OS auto-repeat appends no queue entry; an unbound key is ignored; sequence numbers rise monotonically.", base, [key(1, "ArrowUp"), key(2, "ArrowRight"), key(3, "ArrowRight", true, { repeat: true }), key(4, "KeyQ"), key(5, "Enter"), key(6, "ArrowUp", false), key(7, "ArrowRight", false), key(8, "Enter", false)], 10),
       inputCase("diagonals-disabled-last-press-wins", "PROPOSED P-12: with diagonals off, two orthogonal keys move along the most recently pressed axis only.", { ...base, allowDiagonals: false }, [key(1, "ArrowUp"), key(2, "ArrowRight"), key(4, "ArrowUp", false), key(5, "ArrowRight", false)], 7),
       inputCase("gamepad-dead-zone-edges-and-merge", "Gamepad contract: axis magnitude 250 is active (below is 0), d-pad bits and axes merge, press edges append one entry each in ascending bit order, a held action adds none, and a held keyboard key plus a pad share one held state.", base, [pad(1, 0, true, 249, 0, 0), pad(2, 0, true, 250, 0, 0), pad(3, 0, true, 250, -1000, 16), key(4, "ArrowRight"), pad(5, 0, true, 0, 0, 0), key(6, "ArrowRight", false), pad(7, 0, true, 0, 0, 64)], 9),
       inputCase("gamepad-disconnect-and-unknown-devices", "A disconnect releases what that device held; events for a device that never connected, or for a device outside 0..3, are ignored; two devices merge.", base, [pad(1, 1, false, 0, 0, 1), pad(2, 4, true, 0, 0, 1), pad(3, 0, true, 0, 0, 8), pad(4, 1, true, 0, 0, 8), pad(5, 0, false, 0, 0, 0), pad(6, 1, false, 0, 0, 0)], 8),
-      inputCase("pointer-click-to-move-and-button-slots", "E-25 and 5.6 slot shape: a click outside every slot is a click-to-move request in logical pixels and board pixels (camera offset added); a click in an enabled slot is a key-queue entry for its action; a click on a disabled slot is swallowed; PROPOSED P-13: slot hit-test is [x, x+w) x [y, y+h).", base, [pointer(1, 100, 100), pointer(2, 16, 400), pointer(3, 79, 463), pointer(4, 80, 463), pointer(5, 600, 30), { t: 6, ev: { kind: "slot-enabled", id: "menu", enabled: true } }, pointer(7, 600, 30)], 9),
+      inputCase("pointer-click-to-move-and-button-slots", "Pointer-held movement uses the pressed location; an enabled slot activates only on release over the same target; a disabled slot swallows the press; P-13 fixes slot hit-test to [x, x+w) x [y, y+h).", base, [pointer(1, 100, 100), pointerUp(2, 100, 100), pointer(3, 16, 400), pointerUp(4, 79, 463), pointer(5, 80, 463), pointerUp(6, 600, 30), pointer(6, 600, 30), { t: 7, ev: { kind: "slot-enabled", id: "menu", enabled: true } }, pointerUp(7, 600, 30), pointer(7, 600, 30), pointerUp(8, 600, 30)], 10),
+      inputCase("pointer-cancel-clears-slot-gesture", "A pointer cancel clears only the primary held bit and pending slot; it emits no release edge, slot action or click, and preserves the secondary bit.", { bindings: { keys: {} }, slots: [{ id: "attack", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true }], camera: [100, 200], allowDiagonals: true }, [pointer(1, 5, 5, 3), pointerCancel(2), pointer(3, 5, 5, 2), pointer(4, 30, 30, 3), pointerCancel(5)], 6),
       inputCase("gamepad-only-named-actions", "A gamepad adds nothing the bindings do not name: with no menu binding, the menu bit is ignored.", { ...base, bindings: { keys: { Enter: "confirm" } } }, [pad(1, 0, true, 0, 0, 64 | 16)], 3),
     ],
   };

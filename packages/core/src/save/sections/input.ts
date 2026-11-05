@@ -1,6 +1,6 @@
 /** Owner: core/input (AD-10/AD-14; E-110..E-112). */
 
-export const INPUT_SCHEMA_VERSION = 3;
+export const INPUT_SCHEMA_VERSION = 4;
 
 export type InputKeyState = {
   readonly seq: number;
@@ -65,6 +65,7 @@ export type InputSection = {
   pointer: InputPointer;
   focused: boolean;
   buttons: InputButton[];
+  pressedButtonSlot: string | null;
   bindings: InputBindings;
   allowDiagonals: boolean;
   camera: { x: number; y: number };

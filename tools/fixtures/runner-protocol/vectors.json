@@ -4,7 +4,7 @@
   "note": "Records are the JSON projection of the runner boundary: Uint8Array leaves are base64 strings, every key of a kind is present, and an absent value is null (AD-14). Validate against packages/runner-harness/schema/runner-protocol-v1.schema.json; audio messages are the separate audio-protocol kit.",
   "counts": {
     "draw": 12,
-    "input": 20,
+    "input": 21,
     "request": 13
   },
   "vectors": [
@@ -308,6 +308,17 @@
           "x": 320,
           "y": 240,
           "buttons": 1
+        }
+      }
+    },
+    {
+      "id": "input-pointer-cancel",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 12,
+        "event": {
+          "kind": "pointer.cancel"
         }
       }
     },

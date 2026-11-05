@@ -392,6 +392,314 @@ test("focus loss pauses live ticks and focus gain resumes them", async ({ page }
   await page.waitForFunction((tick) => (window.__live?.tick ?? -1) > tick, pausedTick, { timeout: 5_000 });
 });
 
+
+test("web live player cancels a departed primary pointer and suppresses it on re-entry", async ({ page }) => {
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+  await page.evaluate(() => {
+    const hostWindow = window as Window & {
+      __session?: {
+        advance: (ticks: number, inputs?: readonly { readonly tick: number; readonly event: { readonly kind: string; readonly buttons?: number } }[]) => Promise<void>;
+        capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[];
+      };
+    };
+    const session = hostWindow.__session;
+    if (session === undefined) throw new Error("live session is not exposed");
+    const advance = session.advance.bind(session);
+    session.capturedPointerInputs = [];
+    session.advance = (ticks, inputs) => {
+      session.capturedPointerInputs?.push(...(inputs ?? []).flatMap(({ event }) =>
+        event.kind === "pointer" || event.kind === "pointer.cancel" ? [event] : [],
+      ));
+      return advance(ticks, inputs);
+    };
+  });
+  const box = await page.locator("#screen").boundingBox();
+  if (box === null) throw new Error("live canvas has no layout box");
+  const x = box.x + Math.min(30, box.width / 2);
+  const y = box.y + Math.min(30, box.height / 2);
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: "left" });
+  await page.mouse.down({ button: "right" });
+  await page.mouse.move(box.x + box.width + 20, y);
+  await page.mouse.move(x, y);
+  await page.waitForTimeout(100);
+  const mouseRouted = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  const mouseCancel = mouseRouted.findIndex((event) => event.kind === "pointer.cancel");
+  expect(mouseCancel).toBeGreaterThanOrEqual(0);
+  const afterMouseCancel = mouseRouted.slice(mouseCancel + 1).filter((event) => event.kind === "pointer");
+  expect(afterMouseCancel.some((event) => ((event.buttons ?? 0) & 1) === 0)).toBe(true);
+  expect(afterMouseCancel.some((event) => ((event.buttons ?? 0) & 2) !== 0)).toBe(true);
+  await page.mouse.up({ button: "left" });
+  await page.mouse.up({ button: "right" });
+  const beforeChord = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+  await page.mouse.down({ button: "right" });
+  await page.mouse.down({ button: "left" });
+  await page.waitForTimeout(100);
+  const afterChord = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(afterChord.slice(beforeChord).some((event) => event.kind === "pointer" && ((event.buttons ?? 0) & 3) === 3)).toBe(true);
+  await page.mouse.up({ button: "left" });
+  await page.mouse.up({ button: "right" });
+  const beforeFreshClick = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(100);
+  const afterFreshClick = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  const freshClickEvents = afterFreshClick.slice(beforeFreshClick).filter((event) => event.kind === "pointer");
+  const freshClickDown = freshClickEvents.findIndex((event) => ((event.buttons ?? 0) & 1) !== 0);
+  expect(freshClickDown).toBeGreaterThanOrEqual(0);
+  expect(freshClickEvents.slice(freshClickDown + 1).some((event) => ((event.buttons ?? 0) & 1) === 0)).toBe(true);
+  const beforeSynthetic = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    const clientX = rect.left + rect.width / 2;
+    const clientY = rect.top + rect.height / 2;
+    const send = (type: string, pointerId: number, x: number, buttons: number, button = 0, pointerType = "touch"): void => {
+      canvas.dispatchEvent(new PointerEvent(type, {
+        bubbles: true,
+        pointerId,
+        pointerType,
+        button,
+        buttons,
+        clientX: x,
+        clientY,
+      }));
+    };
+    send("pointerdown", 41, clientX, 1);
+    send("pointermove", 41, clientX, 3);
+    // Captured touch moves outside, releasing the secondary button without an out-of-bounds click.
+    send("pointermove", 41, rect.right + 10, 1);
+    send("pointermove", 41, clientX, 1);
+    send("pointerup", 41, clientX, 0);
+
+    // A chord move from the mouse has primary set without a primary pointerdown.
+    send("pointerdown", 51, clientX, 2, 2, "mouse");
+    send("pointermove", 51, clientX, 3, 0, "mouse");
+    send("pointerdown", 52, clientX, 1, 0);
+    send("pointerup", 52, clientX, 0, 0);
+    send("pointermove", 51, clientX, 1);
+    // Release outside without an intervening move; the held primary must still be canceled.
+    send("pointerup", 51, rect.right + 10, 0, 0);
+    send("pointerdown", 61, clientX, 1, 0);
+    send("pointerdown", 62, clientX, 1, 0);
+    send("pointercancel", 62, clientX, 0, 0);
+    send("pointermove", 61, clientX, 1);
+    send("pointerup", 61, clientX, 0, 0);
+    // A pen barrel button followed by the tip may report the primary transition as pointermove too.
+    send("pointerdown", 81, clientX, 2, 2, "pen");
+    send("pointermove", 81, clientX, 3, 0, "pen");
+    send("pointerup", 81, clientX, 0, 0, "pen");
+  });
+  await page.waitForTimeout(100);
+  const routed = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  const syntheticRouted = routed.slice(beforeSynthetic);
+  expect(syntheticRouted.filter((event) => event.kind === "pointer.cancel")).toHaveLength(2);
+  const touchMoveCancel = syntheticRouted.findIndex((event) => event.kind === "pointer.cancel");
+  expect(touchMoveCancel).toBeGreaterThanOrEqual(0);
+  expect(syntheticRouted[touchMoveCancel + 1]?.kind).toBe("pointer");
+  expect(syntheticRouted[touchMoveCancel + 1]?.buttons).toBe(0);
+  expect(syntheticRouted.some((event) => event.kind === "pointer" && ((event.buttons ?? 0) & 3) === 3)).toBe(true);
+  expect(syntheticRouted.some((event) => event.kind === "pointer" && (event.buttons ?? 0) === 1)).toBe(true);
+  expect(syntheticRouted.filter((event) => event.kind === "pointer").slice(-3).map((event) => event.buttons)).toEqual([2, 3, 0]);
+  const beforeForeign = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    const y = rect.top + rect.height / 2;
+    const send = (pointerId: number, x: number, buttons: number): void => {
+      canvas.dispatchEvent(new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerId,
+        pointerType: "touch",
+        buttons,
+        clientX: x,
+        clientY: y,
+      }));
+    };
+    canvas.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      pointerId: 71,
+      pointerType: "touch",
+      button: 0,
+      buttons: 3,
+      clientX: rect.left + rect.width / 2,
+      clientY: y,
+    }));
+    send(72, rect.right + 10, 0);
+  });
+  await page.waitForTimeout(100);
+  const afterForeign = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  const foreignEvents = afterForeign.slice(beforeForeign);
+  expect(foreignEvents).toHaveLength(2);
+  expect(foreignEvents[0]?.kind).toBe("pointer");
+  expect(foreignEvents[0]?.buttons).toBe(3);
+  expect(foreignEvents[1]?.kind).toBe("pointer");
+  expect(foreignEvents[1]?.buttons).toBe(1);
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    canvas.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, pointerId: 72, pointerType: "touch", clientX: rect.right + 10, clientY: y }));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 71, pointerType: "touch", button: 0, buttons: 0, clientX: x, clientY: y }));
+  });
+});
+
+test("foreign pointer motion cannot move the owner’s active primary gesture", async ({ page }) => {
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+  await page.evaluate(() => {
+    const hostWindow = window as Window & {
+      __session?: {
+        advance: (ticks: number, inputs?: readonly { readonly tick: number; readonly event: { readonly kind: string; readonly buttons?: number } }[]) => Promise<void>;
+        capturedPointerInputs?: { readonly kind: string; readonly x?: number; readonly y?: number; readonly buttons?: number }[];
+      };
+    };
+    const session = hostWindow.__session;
+    if (session === undefined) throw new Error("live session is not exposed");
+    const advance = session.advance.bind(session);
+    session.capturedPointerInputs = [];
+    session.advance = (ticks, inputs) => {
+      session.capturedPointerInputs?.push(...(inputs ?? []).flatMap(({ event }) =>
+        event.kind === "pointer" || event.kind === "pointer.cancel" ? [event] : [],
+      ));
+      return advance(ticks, inputs);
+    };
+  });
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    const y = rect.top + rect.height / 2;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true, pointerId: 81, pointerType: "touch", button: 0, buttons: 1,
+      clientX: rect.left + rect.width * 0.25, clientY: y,
+    }));
+    canvas.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true, pointerId: 82, pointerType: "touch", button: -1, buttons: 1,
+      clientX: rect.left + rect.width * 0.75, clientY: y,
+    }));
+  });
+  await page.waitForTimeout(100);
+  const routed = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly x?: number; readonly y?: number; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(routed).toHaveLength(1);
+  expect(routed[0]?.kind).toBe("pointer");
+  expect(routed[0]?.buttons).toBe(1);
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    canvas.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true, pointerId: 81, pointerType: "touch", button: 0, buttons: 0,
+      clientX: rect.left + rect.width * 0.25, clientY: rect.top + rect.height / 2,
+    }));
+  });
+});
+
+test("blur keeps a held primary suppressed until physical release", async ({ page }) => {
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
+  await page.evaluate(() => {
+    const hostWindow = window as Window & {
+      __session?: {
+        advance: (ticks: number, inputs?: readonly { readonly tick: number; readonly event: { readonly kind: string; readonly buttons?: number } }[]) => Promise<void>;
+        capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[];
+      };
+    };
+    const session = hostWindow.__session;
+    if (session === undefined) throw new Error("live session is not exposed");
+    const advance = session.advance.bind(session);
+    session.capturedPointerInputs = [];
+    session.advance = (ticks, inputs) => {
+      session.capturedPointerInputs?.push(...(inputs ?? []).flatMap(({ event }) =>
+        event.kind === "pointer" || event.kind === "pointer.cancel" ? [event] : [],
+      ));
+      return advance(ticks, inputs);
+    };
+  });
+  await page.evaluate(() => {
+    (window as Window & {
+      __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+    }).__session!.capturedPointerInputs = [];
+  });
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (canvas === null) throw new Error("live canvas is absent");
+    const rect = canvas.getBoundingClientRect();
+    const init = {
+      bubbles: true, pointerId: 90, pointerType: "mouse", button: 0,
+      clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2,
+    };
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { ...init, buttons: 1 }));
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { ...init, buttons: 0 }));
+  });
+  await page.waitForTimeout(100);
+  const beforePhysicalHold = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(beforePhysicalHold.map(({ kind, buttons }) => kind === "pointer" ? { kind, buttons } : { kind })).toEqual([
+    { kind: "pointer", buttons: 1 },
+    { kind: "pointer.cancel" },
+    { kind: "pointer", buttons: 0 },
+  ]);
+  const box = await page.locator("#screen").boundingBox();
+  if (box === null) throw new Error("live canvas has no layout box");
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: "left" });
+  await page.waitForTimeout(100);
+  const beforeBlur = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.mouse.move(x + 1, y);
+  await page.waitForTimeout(100);
+  const afterBlurMove = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(afterBlurMove.slice(beforeBlur).some((event) => event.kind === "pointer" && ((event.buttons ?? 0) & 1) !== 0)).toBe(false);
+  await page.mouse.up({ button: "left" });
+  await page.waitForTimeout(100);
+  const beforeFreshClick = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs?.length ?? 0);
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(100);
+  const afterFreshClick = await page.evaluate(() => (window as Window & {
+    __session?: { capturedPointerInputs?: { readonly kind: string; readonly buttons?: number }[] };
+  }).__session?.capturedPointerInputs ?? []);
+  expect(afterFreshClick.slice(beforeFreshClick).some((event) => event.kind === "pointer" && ((event.buttons ?? 0) & 1) !== 0)).toBe(true);
+});
 test("the live player sends title music to the Web Audio graph", async ({ page }) => {
   await page.addInitScript(() => {
     const original = AudioNode.prototype.connect;

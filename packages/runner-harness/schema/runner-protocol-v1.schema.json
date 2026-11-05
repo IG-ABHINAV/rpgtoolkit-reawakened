@@ -527,6 +527,9 @@
           "$ref": "#/$defs/pointerInput"
         },
         {
+          "$ref": "#/$defs/pointerCancelInput"
+        },
+        {
           "$ref": "#/$defs/gamepadInput"
         },
         {
@@ -623,6 +626,16 @@
         "buttons": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "pointerCancelInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "const": "pointer.cancel"
         }
       }
     },
