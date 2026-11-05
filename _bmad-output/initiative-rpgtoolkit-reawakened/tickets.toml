@@ -121,6 +121,7 @@ after = [{ epic = 3, needs = "the parser and the VM" }, { epic = 4, needs = "bre
 
 [[epic]]
 id = 11
+tracker_id = "#1357"
 slug = "epic-editor-foundation"
 title = "Editor foundation: editor-ui, platform-services and two hosts"
 covers = ["CAP-15", "CAP-18"]
@@ -128,6 +129,7 @@ after = [{ epic = 2, needs = "format readers" }, { epic = 9, needs = "runner-web
 
 [[epic]]
 id = 12
+tracker_id = "#1358"
 slug = "epic-editor-assets-p0"
 title = "P0 asset editors: board, character, item, animation, tile bitmap, packaging"
 covers = ["CAP-15"]
@@ -135,6 +137,7 @@ after = [{ epic = 11, needs = "editor-ui and both hosts" }]
 
 [[epic]]
 id = 13
+tracker_id = "#1359"
 slug = "epic-editor-p1"
 title = "P1 editor tools"
 covers = ["CAP-16"]
@@ -142,6 +145,7 @@ after = [{ epic = 12, needs = "the board editor and shared tileset browser" }]
 
 [[epic]]
 id = 14
+tracker_id = "#1360"
 slug = "epic-editor-p2"
 title = "P2 editor tools for beginners"
 covers = ["CAP-17"]
@@ -149,6 +153,7 @@ after = [{ epic = 12, needs = "the program editor and board editor" }]
 
 [[epic]]
 id = 15
+tracker_id = "#1361"
 slug = "epic-desktop-shell"
 title = "Standalone editor in a desktop shell"
 covers = ["CAP-18"]
@@ -156,6 +161,7 @@ after = [{ epic = 12, needs = "a board editor to spike against" }]
 
 [[epic]]
 id = 17
+tracker_id = "#1362"
 slug = "epic-documentation-website"
 title = "Documentation and public website: install, make, import, debug, package and share games"
 covers = ["CAP-19"]
@@ -182,3 +188,20 @@ slug = "epic-headless-sessions"
 title = "Headless sessions: screenshots, short videos, start state and mocks"
 covers = ["CAP-12", "CAP-13"]
 after = [{ epic = 1, needs = "the headless runner, golden harness, licence gate and fixture fetch" }, { epic = 4, needs = "the draw list, core/raster and surfaces that screenshots and frames come from" }, { epic = 6, needs = "synth PCM rendering for the offline WAV master" }]
+
+[[epic]]
+id = 25
+tracker_id = "#1347"
+slug = "epic-game-launcher"
+title = "The Universal Game Launcher: Marketplace, Library and Local Packages"
+covers = ["CAP-12"]
+after = [{ epic = 9, needs = "the runner-web and runner-desktop live player sessions" }]
+
+[[epic]]
+id = 26
+tracker_id = "#1355"
+slug = "epic-host-capabilities-and-viewports"
+title = "Host Capabilities, Display Planes and Touch Control Surface"
+covers = ["CAP-12"]
+after = [{ epic = 9, needs = "the runner boundary and live session" }]
+
