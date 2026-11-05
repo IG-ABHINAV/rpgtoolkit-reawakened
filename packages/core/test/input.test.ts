@@ -67,6 +67,17 @@ test("gamepad dead-zone, merge, device ordering and disconnect share edge state"
   processGamepadEvents(state);
   equal(state.gamepads["1"]?.connected, false);
 });
+test("same-tick gamepad down and up report both ordered action transitions", () => {
+  const state = createInputSection({ bindings: { keys: { Enter: "confirm" } } });
+  const transitions: string[] = [];
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 16 });
+  applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
+  processGamepadEvents(state, undefined, (action, down, firstSeq) => transitions.push(`${action}:${down}:${firstSeq}`));
+  deepEqual(transitions, ["confirm:true:1", "confirm:false:2"]);
+  deepEqual(state.keys.map((key) => key.action), ["confirm"]);
+  equal(state.actions.confirm, false);
+});
+
 test("registered game actions preserve order and semantic source claims emit one compatibility edge", () => {
   const state = createInputSection();
   const fireball = { name: "game.fireball", label: "Fireball", icon: null, group: "Spells", controls: [], locked: false, hidden: false, narration: "Cast" };
