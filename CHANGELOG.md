@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Animated GIF walk and idle sprites now display their current page instead of a marker. The engine shares decoded pages between sprites and uses content-derived texture keys across resets; those keys use the core's FNV-1a 64-bit convention, which has a theoretical collision risk (#1254; `docs/spec/formats/animation.md#animated-gif`, `docs/spec/engine/plugins-and-battle.md#e-54`).
 - Active boards now request and hydrate their placed item sprites, use board-level programs in preference to item-file defaults, and start item-owned multitask threads. Item-thread source handles work in movement and child programs, loading conditions accept ordinary script global names, and recovery retains the authored item identity and signed reserved field. The demo closing regression baseline now includes its authored old man on the board; the title and other games are unchanged (#1253, #1381–#1384; `docs/spec/engine/main-loop-and-startup.md#e-10`).
 - Recovery checkpoints avoid serializing the same save twice, and long escaped strings serialize faster without changing canonical bytes. This reduces work before battles and during state hashing (#1256).
 - The Android proof gives APK installation a separate two-minute deadline for slow cold emulators and reports process timeout, signal and exit details instead of silently losing them (#1208).
