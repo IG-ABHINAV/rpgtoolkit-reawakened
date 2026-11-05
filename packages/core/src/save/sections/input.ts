@@ -1,13 +1,16 @@
 /** Owner: core/input (AD-10/AD-14; E-110..E-112). */
+import type { PlainData } from "../../ports/plain-data.ts";
 
-export const INPUT_SCHEMA_VERSION = 4;
+export const INPUT_SCHEMA_VERSION = 8;
 
 export type InputKeyState = {
   readonly seq: number;
   readonly name: string;
   readonly code: string;
   readonly char: string | null;
-  readonly action?: string;
+  readonly action: string | null;
+  readonly resolvedActions: string[];
+  readonly target?: string;
 };
 
 export type InputButtonSlot = {
@@ -41,6 +44,17 @@ export type InputGamepad = {
   mask: number;
 };
 
+/** Game-owned action definition. Unknown metadata fields are retained verbatim for forward compatibility. */
+export type RegisteredAction = {
+  readonly name: string;
+  readonly label: string;
+  readonly icon: string | null;
+  readonly group: string | null;
+  readonly controls: string[];
+  readonly locked: boolean;
+  readonly hidden: boolean;
+  readonly [extension: string]: PlainData;
+};
 export type InputPointer = {
   x: number;
   y: number;
@@ -75,8 +89,21 @@ export type InputSection = {
   keyboardActions: { [action: string]: boolean };
   actions: { [action: string]: boolean };
   directionOrder: string[];
+  registeredActions: RegisteredAction[];
+  actionRegistry: { [action: string]: true };
+  actionOrder: { [action: string]: number };
+  controlActions: { [control: string]: string[] };
+  actionPadMasks: { [action: string]: number };
+  semanticActionSources: { [action: string]: { [source: string]: boolean } };
+  keyboardActionSources: { [action: string]: { [control: string]: boolean } };
   pendingActions: string[];
-  pendingClicks: { x: number; y: number }[];
+  pendingKeySequences: number[];
+  pendingClicks: { gestureId: number; x: number; y: number }[];
+  pointerMovementSuppressed: boolean;
+  pointerPlane: { width: number; height: number } | null;
+  nextPointerGestureId: number;
+  pointerGestureId: number | null;
+  pendingPointerUps: { gestureId: number; x: number; y: number }[];
   pendingGamepads: Array<{
     device: number;
     connected: boolean;

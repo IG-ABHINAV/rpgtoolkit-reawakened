@@ -12,6 +12,8 @@
 // schema version moved and no other key changed.
 // #585 regenerated both fixtures once: the input section moved to schema 3 (the pointer record gained downs, ups, downX,
 // downY and button), so `schema.input` is 3 and `input.version`/`input.pointer` changed; no other key moved.
+// #1410 regenerated both fixtures for input schema 8's registered-action, control-index and held-source state;
+// no actors, battle values, or other sections changed.
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

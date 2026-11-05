@@ -12,6 +12,7 @@ import type { AudioCue } from "./audio.ts";
 import type { Bytes } from "./bytes.ts";
 import type { DrawList } from "./draw.ts";
 import type { InputRecord } from "./input.ts";
+import type { RegisteredAction } from "../save/sections/input.ts";
 import type { AssetKey, SurfaceId } from "./keys.ts";
 import type { RunnerRequest } from "./requests.ts";
 
@@ -94,6 +95,14 @@ export interface Engine {
 
   /** A pure function of current state; `alpha` is 0 in tests (AD-1). */
   drawList(alpha?: number, include?: DrawListInclude): DrawList;
+  /** Current engine and registered game action names in deterministic order. */
+  registeredActionNames(): readonly string[];
+  /** Register a game.* action during deterministic startup/runtime initialization. */
+  registerGameAction(action: RegisteredAction): boolean;
+  /** Claim or release the current pointer gesture from held-goal movement. */
+  setPointerMovementSuppressed(suppressed: boolean): void;
+  /** Report an action reference that has no runtime registration, at most once per boot. */
+  reportUnknownAction(action: string): void;
 
   /**
    * The pixels of surface `id` at revision `rev`, or `null` when the surface

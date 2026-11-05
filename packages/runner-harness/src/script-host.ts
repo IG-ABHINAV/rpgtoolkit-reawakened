@@ -38,6 +38,9 @@ import {
   STEP_BUDGET,
   verifyRestoredHandles,
   type Breakpoint,
+  applyInputEvent,
+  registerGameAction as registerInputGameAction,
+  registeredActionNames as readRegisteredActionNames,
   type Diagnostic,
   type DrawList,
   type Engine,
@@ -61,6 +64,7 @@ import {
 import { TK2_COMPAT_PLUGIN } from "@tk-reawakened/plugin-tk2-compat";
 import type { AssetKey } from "@tk-reawakened/core";
 import { resolvePluginManifest } from "./script-plugin-resolver.ts";
+type RegisteredAction = Parameters<Engine["registerGameAction"]>[0];
 type HostResolution = {
   readonly plugins: readonly ResolvedPlugin[];
   readonly diagnostics: readonly Diagnostic[];
@@ -240,6 +244,12 @@ function createHost(
   let pendingDiagnostics = [...initialDiagnostics];
   let effectIndex = gameState.vm.effects.length;
   const requests: RunnerRequest[] = [];
+  const reportedUnknownActions = new Set<string>();
+  const reportUnknownAction = (action: string): void => {
+    if (readRegisteredActionNames(gameState.input).has(action) || reportedUnknownActions.has(action)) return;
+    reportedUnknownActions.add(action);
+    pendingDiagnostics.push({ code: "input.unknown-action", file: "", line: 0, message: `input names unregistered action "${action}"` });
+  };
 
   return {
     advance(ticks: number, inputs: readonly InputRecord[] = [], maxTicks?: number): TickReport {
@@ -249,6 +259,12 @@ function createHost(
       for (let index = 0; index < actualTicks; index++) {
         while (inputIndex < inputs.length) {
           const record = inputs[inputIndex]!;
+          if (record.event.kind === "action") {
+            applyInputEvent(gameState.input, record.event, reportUnknownAction);
+            consumed.push(record);
+            inputIndex++;
+            continue;
+          }
           if (record.event.kind === "key" && record.event.down) {
             let matched = false;
             for (const thread of gameState.vm.threads) {
@@ -285,6 +301,16 @@ function createHost(
       };
     },
 
+    registeredActionNames() {
+      return [...readRegisteredActionNames(gameState.input)];
+    },
+    registerGameAction(action: RegisteredAction) {
+      return registerInputGameAction(gameState.input, action);
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      gameState.input.pointerMovementSuppressed = suppressed;
+    },
+    reportUnknownAction,
     drawList(_alpha?: number): DrawList {
       return { tick: gameState.time.tick, width: 320, height: 240, commands: [] };
     },

@@ -50,6 +50,7 @@ import {
   STEP_BUDGET,
   verifyRestoredHandles,
   writeBattleBackground,
+  RENDER_PLUGIN,
   WORLD_PLUGIN,
   writeBoard,
   writeCharacter,
@@ -306,6 +307,7 @@ const plugins = [
   { definition: WORLD_PLUGIN },
   { definition: BATTLE_PLUGIN },
   { definition: UI_PLUGIN },
+  { definition: RENDER_PLUGIN },
 ] as const;
 const stockBattlePlugin: ResolvedPlugin = {
   namespace: "stock_battle",

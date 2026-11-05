@@ -38,6 +38,7 @@ import {
   fileProgramRef,
   hashGameState,
   MEDIA_PLUGIN,
+  RENDER_PLUGIN,
   mediaEventsActive,
   mediaVoiceRef,
   PACKAGE_ROOT,
@@ -90,6 +91,7 @@ const plugins = [
   { definition: WORLD_PLUGIN },
   { definition: BATTLE_PLUGIN },
   { definition: UI_PLUGIN },
+  { definition: RENDER_PLUGIN },
   { definition: MEDIA_PLUGIN },
   stockBattle,
 ] as const;

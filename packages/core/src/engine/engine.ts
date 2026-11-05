@@ -37,6 +37,7 @@ import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
 import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
+import type { RegisteredAction } from "../save/sections/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
 import type { RunnerRequest } from "../ports/requests.ts";
@@ -66,7 +67,7 @@ import { hydrateBoard } from "../world/hydrate.ts";
 import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
-import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
+import { applyInputEvent, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -335,7 +336,15 @@ export function createEngine(init: EngineInit): Engine {
     ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
   });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
-  state.input = createInputSection(init.input);
+  state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+  const externallyRegisteredActions: RegisteredAction[] = [];
+  function replayExternallyRegisteredActions(): void {
+    const registered = new Set(state.input.registeredActions.map((action) => action.name));
+    for (const action of externallyRegisteredActions) {
+      if (registered.has(action.name)) continue;
+      if (registerGameAction(state.input, action)) registered.add(action.name);
+    }
+  }
   state.engine = { claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
@@ -408,6 +417,12 @@ export function createEngine(init: EngineInit): Engine {
   let recoveryInitialized = false;
   let recoveryResumed = false;
   const diagnostics: Diagnostic[] = [];
+  const reportedUnknownActions = new Set<string>();
+  const reportUnknownAction = (action: string): void => {
+    if (inputRegisteredActionNames(state.input).has(action) || reportedUnknownActions.has(action)) return;
+    reportedUnknownActions.add(action);
+    diagnostics.push({ code: "input.unknown-action", file: mainKey ?? "", line: 0, message: `input names unregistered action "${action}"` });
+  };
   const registrations = [...(init.phaseRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0));
   const registrationByPhase = new Map<EnginePhase, EnginePhaseRegistration[]>();
   for (const registration of registrations) {
@@ -1136,6 +1151,7 @@ export function createEngine(init: EngineInit): Engine {
       } finally {
         nextServices.setPackageStartup(false);
       }
+      replayExternallyRegisteredActions();
     }
     startupServicesReady = runStartups;
     return nextServices;
@@ -1161,6 +1177,8 @@ export function createEngine(init: EngineInit): Engine {
       }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
+      const externalNames = new Set(externallyRegisteredActions.map((action) => action.name));
+      const startupActions = state.input.registeredActions.filter((action) => !externalNames.has(action.name));
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
@@ -1168,6 +1186,23 @@ export function createEngine(init: EngineInit): Engine {
       failed = previousFailed;
 
       Object.assign(state, candidate);
+      const actionRegistry = createInputSection();
+      for (const action of startupActions) registerGameAction(actionRegistry, action);
+      for (const action of externallyRegisteredActions) registerGameAction(actionRegistry, action);
+      state.input.registeredActions = actionRegistry.registeredActions;
+      state.input.actionRegistry = actionRegistry.actionRegistry;
+      state.input.controlActions = actionRegistry.controlActions;
+      state.input.actionOrder = actionRegistry.actionOrder;
+      state.input.actionPadMasks = actionRegistry.actionPadMasks;
+      for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.keyboardActionSources), ...Object.keys(state.input.semanticActionSources)])) {
+        if (Object.hasOwn(state.input.actionRegistry, action)) continue;
+        delete state.input.actions[action];
+        delete state.input.keyboardActions[action];
+        delete state.input.keyboardActionSources[action];
+        delete state.input.semanticActionSources[action];
+        state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
+      }
+      rebuildKeyboardActionClaimIndex(state.input);
       state.world = {
         ...state.world,
         movement: {
@@ -1186,6 +1221,7 @@ export function createEngine(init: EngineInit): Engine {
       pluginLayers = restoredLayers;
       const restoredServices = makeServices(activePlugins, loader ?? undefined, false, restoredLayers);
       runPackageStartup(state, restoredServices, [], activePlugins, restoredServices.listenersBeforePackageStartup);
+      replayExternallyRegisteredActions();
       compileRestoredPrograms(state.vm, restoredServices);
       verifyRestoredHandles(state.vm, restoredServices, state.events);
       services = restoredServices;
@@ -1936,6 +1972,7 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
   function resetLifecycle(nextMain?: string): void {
+    reportedUnknownActions.clear();
     discardRecoveryCandidates();
     clearStartupAnchors();
     const rng = state.rng;
@@ -1961,7 +1998,7 @@ export function createEngine(init: EngineInit): Engine {
     state.events = fresh.events;
     state.battle = fresh.battle;
     state.menu = fresh.menu;
-    state.input = createInputSection(init.input);
+    state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
     state.ui = fresh.ui;
     state.camera = createCameraSection(init.width, init.height);
     state.fx = fresh.fx;
@@ -3496,7 +3533,7 @@ export function createEngine(init: EngineInit): Engine {
             consumeAsset(record, consumed);
             continue;
           }
-          applyInputEvent(state.input, record.event);
+          applyInputEvent(state.input, record.event, reportUnknownAction);
           consumed.push(record);
         }
         processGamepadEvents(state.input, ({ device, connected }) => {
@@ -3656,13 +3693,13 @@ export function createEngine(init: EngineInit): Engine {
                 at += 1;
                 continue;
               }
-              applyInputEvent(state.input, earlier.event);
+              applyInputEvent(state.input, earlier.event, reportUnknownAction);
             }
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
         }
-        applyInputEvent(state.input, record.event);
+        applyInputEvent(state.input, record.event, reportUnknownAction);
         consumed.push(record);
       } else if (!state.input.focused && applyHostStateEvent(record.event)) {
         consumed.push(record);
@@ -3679,7 +3716,7 @@ export function createEngine(init: EngineInit): Engine {
       if (applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
-        applyInputEvent(state.input, record.event);
+        applyInputEvent(state.input, record.event, reportUnknownAction);
         consumed.push(record);
       }
     }
@@ -3936,6 +3973,29 @@ export function createEngine(init: EngineInit): Engine {
         paused,
         stateHash: hashGameState(state),
       };
+    },
+    registeredActionNames() {
+      return ["up", "down", "left", "right", "confirm", "cancel", "menu", ...state.input.registeredActions.map((action) => action.name)];
+    },
+    registerGameAction(action: RegisteredAction) {
+      const registered = registerGameAction(state.input, action);
+      if (registered && !externallyRegisteredActions.some((existing) => existing.name === action.name)) {
+        const definition = state.input.registeredActions.find((existing) => existing.name === action.name);
+        if (definition !== undefined) externallyRegisteredActions.push(definition);
+      }
+      if (!registered) diagnostics.push({
+        code: "input.action-registration",
+        file: mainKey ?? "",
+        line: 0,
+        message: "game action registration was rejected (invalid metadata or duplicate name)",
+      });
+      return registered;
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      setPointerMovementSuppressed(state.input, suppressed);
+    },
+    reportUnknownAction(action: string) {
+      reportUnknownAction(action);
     },
     recoveryCandidate() {
       if (recoveryCaptureRequested) {

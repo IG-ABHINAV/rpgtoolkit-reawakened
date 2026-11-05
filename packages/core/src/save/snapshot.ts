@@ -63,7 +63,7 @@ import { IR_VERSION } from "../script/program.ts";
 import { SCHEMA_VERSIONS, type GameState } from "./state.ts";
 import { asActorsSection, createActorsSection, ACTORS_SCHEMA_VERSION, validateActorProgression, type ActorProgression, type ActorStats } from "../actors/model.ts";
 import { asSpritesSection, createSpritesSection, SPRITES_SCHEMA_VERSION } from "../sprites/model.ts";
-import { createInputSection } from "../input/input.ts";
+import { createInputSection, rebuildKeyboardActionClaimIndex } from "../input/input.ts";
 import { createTriggersSection, TRIGGERS_SCHEMA_VERSION } from "../triggers/model.ts";
 import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
 import { AUDIO_SCHEMA_VERSION, createAudioSection } from "../audio/model.ts";
@@ -337,11 +337,121 @@ function migrateTriggers(record: Record<string, unknown>, schema: Record<string,
   schema.triggers = TRIGGERS_SCHEMA_VERSION;
 }
 
+function rebuildInputActionIndexes(input: Record<string, unknown>): void {
+  const engineActions = ["up", "down", "left", "right", "confirm", "cancel", "menu"];
+  const registry: Record<string, true> = Object.fromEntries(engineActions.map((name) => [name, true]));
+  const order: Record<string, number> = Object.fromEntries(engineActions.map((name, index) => [name, index]));
+  const controls: Record<string, string[]> = {};
+  const padMasks: Record<string, number> = {};
+  const registered = Array.isArray(input.registeredActions) ? input.registeredActions : [];
+  for (const [index, value] of registered.entries()) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+    const action = value as Record<string, unknown>;
+    if (typeof action.name !== "string" || !/^game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/.test(action.name)) continue;
+    Object.defineProperty(registry, action.name, { value: true, enumerable: true, configurable: true, writable: true });
+    Object.defineProperty(order, action.name, { value: engineActions.length + index, enumerable: true, configurable: true, writable: true });
+    if (!Array.isArray(action.controls)) continue;
+    for (const control of action.controls) {
+      if (typeof control !== "string" || !/^(?:key:[A-Za-z][A-Za-z0-9]*|pad:(?:[0-9]|1[0-6])|pad:axis[01][+-])$/.test(control)) continue;
+      if (!Object.hasOwn(controls, control)) Object.defineProperty(controls, control, { value: [], enumerable: true, configurable: true, writable: true });
+      controls[control]!.push(action.name);
+      if (control.startsWith("pad:")) {
+        const bit = control === "pad:axis0-" ? 17 : control === "pad:axis0+" ? 18 : control === "pad:axis1-" ? 19 : control === "pad:axis1+" ? 20 : Number(control.slice(4));
+        padMasks[action.name] = (padMasks[action.name] ?? 0) | (1 << bit);
+      }
+    }
+  }
+  input.actionRegistry = registry;
+  input.actionOrder = order;
+  input.controlActions = controls;
+  input.actionPadMasks = padMasks;
+  const sources = typeof input.keyboardActionSources === "object" && input.keyboardActionSources !== null && !Array.isArray(input.keyboardActionSources)
+    ? input.keyboardActionSources as Record<string, Record<string, true>>
+    : {};
+  const heldKeys = typeof input.held === "object" && input.held !== null && !Array.isArray(input.held)
+    ? input.held as Record<string, unknown>
+    : {};
+  const bindings: Record<string, unknown> = {};
+  const bindingRecord = input.bindings;
+  if (typeof bindingRecord === "object" && bindingRecord !== null && !Array.isArray(bindingRecord) && "keys" in bindingRecord) {
+    const keyMap = bindingRecord.keys;
+    if (typeof keyMap === "object" && keyMap !== null && !Array.isArray(keyMap)) Object.assign(bindings, keyMap);
+  }
+  const defaults: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Space: "confirm", Escape: "cancel" };
+  const legacyName = (code: string): string | null => {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^(?:Digit|Numpad)[0-9]$/.test(code)) return code.slice(-1);
+    return null;
+  };
+  const isPhysicalCode = (code: string): boolean =>
+    legacyName(code) !== null
+    || /^(?:Arrow(?:Up|Down|Left|Right)|Enter|Escape|Space|Tab|Backspace|Delete|Insert|Home|End|PageUp|PageDown|CapsLock|NumLock|ScrollLock|Pause|ContextMenu|PrintScreen|(?:Shift|Control|Alt|Meta)(?:Left|Right)|F(?:[1-9]|1[0-2])|Numpad(?:Add|Subtract|Multiply|Divide|Decimal|Enter|Equal|Comma|ParenLeft|ParenRight|Backspace)|Intl(?:Backslash|Ro|Yen)|Lang[1-5])$/.test(code);
+  const aliases: Record<string, string> = { ENTER: "confirm", RETURN: "confirm", SPACE: "confirm", " ": "confirm", ESC: "cancel", ESCAPE: "cancel", UP: "up", DOWN: "down", LEFT: "left", RIGHT: "right" };
+  const resolve = (value: unknown): string | null => typeof value === "string" ? aliases[value.toUpperCase()] ?? value : null;
+  if (typeof input.keyboardActions === "object" && input.keyboardActions !== null && !Array.isArray(input.keyboardActions)) {
+    for (const [action, held] of Object.entries(input.keyboardActions as Record<string, unknown>)) {
+      if (held !== true || !Object.hasOwn(registry, action) || Object.keys(sources[action] ?? {}).length > 0) continue;
+      const claims: Record<string, true> = {};
+      for (const [code, down] of Object.entries(heldKeys)) {
+        // Logical aliases do not prove a physical code. Rebuild only from a separately saved
+        // KeyboardEvent.code, so ENTER cannot invent key:Enter beside a held NumpadEnter.
+        if (down !== true || !isPhysicalCode(code)) continue;
+        const oldName = legacyName(code);
+        const resolved = resolve(bindings[code]) ?? defaults[code] ??
+          (oldName === null ? null : resolve(bindings[oldName]) ?? aliases[oldName]) ?? null;
+        if (resolved === action) Object.defineProperty(claims, `key:${code}`, { value: true, enumerable: true, configurable: true, writable: true });
+      }
+      if (Object.keys(claims).length === 0) Object.defineProperty(claims, "legacy.keyboard", { value: true, enumerable: true, configurable: true, writable: true });
+      Object.defineProperty(sources, action, { value: claims, enumerable: true, configurable: true, writable: true });
+    }
+  }
+  input.keyboardActionSources = sources;
+}
+
 /** Migrate the raw input section to the binding-aware schema. */
 function migrateInput(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.input;
   if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `input` version");
-  if (version >= INPUT_SCHEMA_VERSION) return;
+  const normalizeKeys = (value: unknown): unknown[] => Array.isArray(value)
+    ? value.map((entry: unknown) => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
+      const key = entry as Record<string, unknown>;
+      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions as string[] : typeof key.action === "string" ? [key.action] : [];
+      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
+    })
+    : [];
+  if (version >= INPUT_SCHEMA_VERSION) {
+    const input = recordAt(record.input, "input");
+    if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
+    if (typeof input.actionPadMasks !== "object" || input.actionPadMasks === null || Array.isArray(input.actionPadMasks)) input.actionPadMasks = {};
+    if (typeof input.keyboardActionSources !== "object" || input.keyboardActionSources === null || Array.isArray(input.keyboardActionSources)) input.keyboardActionSources = {};
+    if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    input.keys = normalizeKeys(input.keys);
+    if (typeof input.nextPointerGestureId !== "number" || !Number.isSafeInteger(input.nextPointerGestureId) || input.nextPointerGestureId < 1) input.nextPointerGestureId = 1;
+    if (typeof input.pointerGestureId !== "number" || !Number.isSafeInteger(input.pointerGestureId)) input.pointerGestureId = null;
+    if (!Array.isArray(input.pendingClicks)) input.pendingClicks = [];
+    else input.pendingClicks = input.pendingClicks.map((value) => typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).x === "number" && typeof (value as Record<string, unknown>).y === "number"
+      ? { gestureId: typeof (value as Record<string, unknown>).gestureId === "number" ? (value as Record<string, number>).gestureId! : 0, x: (value as Record<string, number>).x!, y: (value as Record<string, number>).y! }
+      : null).filter((value) => value !== null);
+    if (!Array.isArray(input.pendingPointerUps)) input.pendingPointerUps = [];
+    else input.pendingPointerUps = input.pendingPointerUps.map((value) => typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).x === "number" && typeof (value as Record<string, unknown>).y === "number"
+      ? { gestureId: typeof (value as Record<string, unknown>).gestureId === "number" ? (value as Record<string, number>).gestureId! : 0, x: (value as Record<string, number>).x!, y: (value as Record<string, number>).y! }
+      : null).filter((value) => value !== null);
+    if (input.pointerPlane !== null && (typeof input.pointerPlane !== "object" || Array.isArray(input.pointerPlane))) input.pointerPlane = null;
+    if (input.pointerGestureId === null && typeof input.pointer === "object" && input.pointer !== null
+      && typeof (input.pointer as Record<string, unknown>).buttons === "number" && (((input.pointer as Record<string, number>).buttons ?? 0) & 1) !== 0) input.pointerGestureId = 0;
+    rebuildInputActionIndexes(input);
+    return;
+  }
+  if (version === 7) {
+    const input = recordAt(record.input, "input");
+    input.version = INPUT_SCHEMA_VERSION;
+    if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    input.keys = normalizeKeys(input.keys);
+    rebuildInputActionIndexes(input);
+    schema.input = INPUT_SCHEMA_VERSION;
+    return;
+  }
   const old = record.input;
   if (typeof old !== "object" || old === null || Array.isArray(old)) {
     record.input = createInputSection();
@@ -349,11 +459,54 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     return;
   }
   const oldRecord = old as Record<string, unknown>;
-  if (version === 2 || version === 3) {
-    // Schema 3 adds pointer edge counters; schema 4 adds the cancellable slot press.
-    const fresh = createInputSection().pointer;
+  if (version >= 2 && version <= 6) {
+    const fresh = createInputSection();
     const pointer = typeof oldRecord.pointer === "object" && oldRecord.pointer !== null && !Array.isArray(oldRecord.pointer) ? oldRecord.pointer as Record<string, unknown> : {};
-    record.input = { ...oldRecord, version: INPUT_SCHEMA_VERSION, pointer: { ...fresh, ...pointer }, pressedButtonSlot: null };
+    const legacyPoints = (value: unknown): { gestureId: number; x: number; y: number }[] => Array.isArray(value)
+      ? value.flatMap((point) => typeof point === "object" && point !== null && typeof (point as Record<string, unknown>).x === "number" && typeof (point as Record<string, unknown>).y === "number"
+        ? [{ gestureId: typeof (point as Record<string, unknown>).gestureId === "number" ? (point as Record<string, number>).gestureId! : 0, x: (point as Record<string, number>).x!, y: (point as Record<string, number>).y! }]
+        : [])
+      : [];
+    const clicks = legacyPoints(oldRecord.pendingClicks);
+    const pointerUps = legacyPoints(oldRecord.pendingPointerUps);
+    const legacyMask = (mask: number): number => {
+      const targets = [12, 13, 14, 15, 0, 1, 9];
+      return targets.reduce((result, target, source) => result | ((mask & (1 << source)) !== 0 ? (1 << target) : 0), 0);
+    };
+    const pads = typeof oldRecord.gamepads === "object" && oldRecord.gamepads !== null && !Array.isArray(oldRecord.gamepads)
+      ? Object.fromEntries(Object.entries(oldRecord.gamepads as Record<string, unknown>).map(([device, value]) => {
+        if (typeof value !== "object" || value === null || Array.isArray(value)) return [device, value];
+        const pad = value as Record<string, unknown>;
+        return [device, { ...pad, mask: typeof pad.mask === "number" ? version < 6 ? legacyMask(pad.mask) : pad.mask : 0 }];
+      }))
+      : {};
+    const hasPrimaryPointer = (((pointer.buttons as number | undefined) ?? 0) & 1) !== 0;
+    const savedGestureId = oldRecord.pointerGestureId;
+    const activeGestureId = hasPrimaryPointer
+      ? typeof savedGestureId === "number" && Number.isSafeInteger(savedGestureId) && savedGestureId >= 0 ? savedGestureId : 0
+      : null;
+    const savedNextGestureId = oldRecord.nextPointerGestureId;
+    const nextGestureId = typeof savedNextGestureId === "number" && Number.isSafeInteger(savedNextGestureId) && savedNextGestureId >= 1 ? savedNextGestureId : 1;
+    const migrated: Record<string, unknown> = {
+      ...oldRecord,
+      version: INPUT_SCHEMA_VERSION,
+      pointer: { ...fresh.pointer, ...pointer },
+      pressedButtonSlot: version >= 4 ? oldRecord.pressedButtonSlot ?? null : null,
+      registeredActions: version >= 5 && Array.isArray(oldRecord.registeredActions) ? oldRecord.registeredActions : [],
+      semanticActionSources: version >= 5 && typeof oldRecord.semanticActionSources === "object" && oldRecord.semanticActionSources !== null ? oldRecord.semanticActionSources : {},
+      keyboardActionSources: {},
+      pointerMovementSuppressed: version >= 5 && typeof oldRecord.pointerMovementSuppressed === "boolean" ? oldRecord.pointerMovementSuppressed : false,
+      pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
+      pendingKeySequences: [],
+      gamepads: pads,
+      pointerGestureId: activeGestureId,
+      pendingClicks: clicks,
+      pendingPointerUps: pointerUps,
+      nextPointerGestureId: Math.max(nextGestureId, activeGestureId === null ? 1 : activeGestureId + 1, ...clicks.map((item) => item.gestureId + 1), ...pointerUps.map((item) => item.gestureId + 1)),
+    };
+    migrated.keys = normalizeKeys(migrated.keys);
+    record.input = migrated;
+    rebuildInputActionIndexes(migrated);
     schema.input = INPUT_SCHEMA_VERSION;
     return;
   }
@@ -1211,6 +1364,7 @@ export function restoreGameState(
   migrateVm(record, schema as Record<string, unknown>);
   migrateSprites(record, schema as Record<string, unknown>);
   migrateInput(record, schema as Record<string, unknown>);
+  rebuildKeyboardActionClaimIndex(record.input as GameState["input"]);
   migrateTriggers(record, schema as Record<string, unknown>);
   migrateAudio(record, schema as Record<string, unknown>);
   migrateEngine(record, schema as Record<string, unknown>);

@@ -26,6 +26,7 @@ import {
   snapshot,
   type ScriptError,
 } from "../src/index.ts";
+import { applyInputEvent, processGamepadEvents } from "../src/input/input.ts";
 
 function errorOf(run: () => unknown): { code: string; message: string } {
   try {
@@ -343,6 +344,145 @@ test("game saves persist only playback projection and restore with current audio
   mismatch.audio.tick += 1;
   throws(() => restoreGameSave(JSON.stringify(mismatch), current.audio), /audio\.tick must match time\.tick/);
 });
+test("input migration reconciles legacy held claims and advances past queued pointer gesture ids", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as {
+    schema: { input: number };
+    input: Record<string, unknown>;
+  };
+  raw.schema.input = 5;
+  raw.input.version = 5;
+  raw.input.registeredActions = [];
+  raw.input.gamepads = { "0": { connected: true, mask: 8 } };
+  raw.input.actions = { right: true };
+  raw.input.keyboardActions = { right: true };
+  raw.input.keyboardActionSources = {};
+  raw.input.held = { RIGHT: true, ArrowRight: true };
+  raw.input.bindings = { keys: { ArrowRight: "right" } };
+  raw.input.pendingClicks = [{ gestureId: 4, x: 8, y: 9 }];
+  raw.input.pendingPointerUps = [{ gestureId: 5, x: 10, y: 11 }];
+  delete raw.input.actionOrder;
+  delete raw.input.pendingKeySequences;
+  delete raw.input.nextPointerGestureId;
+  delete raw.input.pointerGestureId;
+  const restored = restoreGameState(JSON.stringify(raw));
+  equal(restored.input.gamepads["0"]?.mask, 1 << 15, "legacy schema 5 logical right becomes W3C physical right");
+  deepEqual(restored.input.keyboardActionSources.right, { "key:ArrowRight": true }, "legacy keyboard hold is linked to its physical key without a duplicate raw-name claim");
+  equal(restored.input.nextPointerGestureId, 6, "the next gesture follows all queued legacy pointer records");
+  applyInputEvent(restored.input, { kind: "pointer", x: 20, y: 21, buttons: 1 });
+  equal(restored.input.pendingClicks.at(-1)?.gestureId, 6);
+  applyInputEvent(restored.input, { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: false });
+  equal(restored.input.actions.right, true, "gamepad still owns right after keyboard release");
+  equal(restored.input.keyboardActions.right, false, "the physical key release clears the migrated keyboard claim");
+  applyInputEvent(restored.input, { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+  processGamepadEvents(restored.input);
+  equal(restored.input.actions.right, false, "disconnect releases migrated physical gamepad state");
+});
+test("schema 4 letter-name bindings release a restored physical claim across keyboard layouts", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 4;
+  raw.input.version = 4;
+  raw.input.held = { A: true, KeyA: true };
+  raw.input.bindings = { keys: { A: "right" } };
+  raw.input.keyboardActions = { right: true };
+  raw.input.actions = { right: true };
+  delete raw.input.registeredActions;
+  delete raw.input.keyboardActionSources;
+  delete raw.input.semanticActionSources;
+  delete raw.input.actionRegistry;
+  delete raw.input.actionOrder;
+  delete raw.input.controlActions;
+  delete raw.input.actionPadMasks;
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  deepEqual(restored.input.keyboardActionSources.right, { "key:KeyA": true });
+  applyInputEvent(restored.input, { kind: "key", name: "Q", code: "KeyA", char: "q", down: false });
+  equal(restored.input.keyboardActions.right, false);
+  equal(restored.input.actions.right, false, "the physical code clears its restored claim even when the logical key name changed");
+});
+
+test("schema 4 numeric binding restores the saved Numpad key, not a guessed Digit key", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 4;
+  raw.input.version = 4;
+  raw.input.held = { "1": true, Numpad1: true };
+  raw.input.bindings = { keys: { "1": "right" } };
+  raw.input.keyboardActions = { right: true };
+  raw.input.actions = { right: true };
+  delete raw.input.registeredActions;
+  delete raw.input.keyboardActionSources;
+  delete raw.input.semanticActionSources;
+  delete raw.input.actionRegistry;
+  delete raw.input.actionOrder;
+  delete raw.input.controlActions;
+  delete raw.input.actionPadMasks;
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  deepEqual(restored.input.keyboardActionSources.right, { "key:Numpad1": true });
+  applyInputEvent(restored.input, { kind: "key", name: "1", code: "Numpad1", char: "1", down: false });
+  equal(restored.input.keyboardActions.right, false);
+  equal(restored.input.actions.right, false, "the numpad key-up releases the migrated claim");
+});
+test("schema 4 NumpadEnter migration does not invent an Enter claim", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 4;
+  raw.input.version = 4;
+  raw.input.held = { ENTER: true, NumpadEnter: true };
+  raw.input.bindings = { keys: { NumpadEnter: "confirm" } };
+  raw.input.keyboardActions = { confirm: true };
+  raw.input.actions = { confirm: true };
+  delete raw.input.registeredActions;
+  delete raw.input.keyboardActionSources;
+  delete raw.input.semanticActionSources;
+  delete raw.input.actionRegistry;
+  delete raw.input.actionOrder;
+  delete raw.input.controlActions;
+  delete raw.input.actionPadMasks;
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  deepEqual(restored.input.keyboardActionSources.confirm, { "key:NumpadEnter": true });
+  applyInputEvent(restored.input, { kind: "key", name: "ENTER", code: "NumpadEnter", char: null, down: false });
+  equal(restored.input.keyboardActions.confirm, false);
+  equal(restored.input.actions.confirm, false, "the recorded numpad key-up clears its sole claim");
+});
+
+
+test("schema 6 migration preserves W3C pad claims and the active pointer gesture", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 6;
+  raw.input.version = 6;
+  raw.input.registeredActions = [{
+    name: "game.pad12",
+    label: "Pad 12",
+    icon: null,
+    group: null,
+    controls: ["pad:12"],
+    locked: false,
+    hidden: false,
+  }];
+  raw.input.gamepads = { "0": { connected: true, mask: 1 << 12 } };
+  raw.input.actions = { "game.pad12": true };
+  raw.input.pointer = { ...(raw.input.pointer as Record<string, unknown>), buttons: 1 };
+  raw.input.pointerGestureId = 7;
+  raw.input.pendingClicks = [{ gestureId: 7, x: 8, y: 9 }];
+  delete raw.input.nextPointerGestureId;
+  const restored = restoreGameState(JSON.stringify(raw));
+  equal(restored.input.gamepads["0"]?.mask, 1 << 12, "schema 6 already uses physical W3C bits");
+  equal(restored.input.pointerGestureId, 7);
+  equal(restored.input.nextPointerGestureId, 8, "the next gesture does not collide with the restored active gesture");
+  applyInputEvent(restored.input, { kind: "pointer", x: 8, y: 9, buttons: 0 });
+  equal(restored.input.pendingPointerUps.at(-1)?.gestureId, 7, "release retains the saved gesture id");
+  applyInputEvent(restored.input, { kind: "pointer", x: 20, y: 21, buttons: 1 });
+  equal(restored.input.pendingClicks.at(-1)?.gestureId, 8, "the next press receives a distinct id");
+  restored.input.actions["game.pad12"] = true;
+  applyInputEvent(restored.input, { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+  processGamepadEvents(restored.input);
+  equal(restored.input.actions["game.pad12"], false, "disconnect releases a migrated physical button-12 action claim");
+});
 
 test("game saves from prior audio schema migrate to current schema with empty projection", () => {
   const state = createGameState({ seed: 7 });
@@ -359,4 +499,14 @@ test("game saves from prior audio schema migrate to current schema with empty pr
   equal(restored.audio.tracks.length, 0);
   equal(restored.audio.tick, 10);
   deepEqual(restored.state.audio.tracks, current.audio.tracks);
+});
+
+test("schema 7 input migration advances both section and root schema versions", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 7;
+  raw.input.version = 7;
+  const restored = restoreGameState(JSON.stringify(raw));
+  equal(restored.schema.input, SCHEMA_VERSIONS.input);
+  equal(restored.input.version, SCHEMA_VERSIONS.input);
 });
