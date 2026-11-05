@@ -296,6 +296,38 @@ test("author surface release dispatches its registered action once without click
   equal(state.input.pendingClicks.length, 0);
   equal(state.input.pendingPointerUps.length, 0);
 });
+test("author surface owns pointer movement and button slots for the full held gesture", () => {
+  const capture = captureState();
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, "game.dash", null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine(
+    [capture.registration, surfaceRegistration],
+    { buttons: [{ id: "confirm", x: 20, y: 20, w: 8, h: 8, action: "confirm", enabled: true }] },
+  );
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 25, y: 25, buttons: 1 } }]);
+  const held = capture.state();
+  if (held === undefined) throw new Error("expected captured game state");
+  equal(held.input.pointerMovementSuppressed, true);
+  equal(held.input.pendingClicks.length, 0);
+  equal(held.input.pendingActions.includes("confirm"), false);
+  equal(held.input.keys.some((key) => key.action === "confirm"), false);
+
+  engine.advance(1, [{ tick: 3, event: { kind: "pointer", x: 25, y: 25, buttons: 0 } }]);
+  const released = capture.state();
+  if (released === undefined) throw new Error("expected captured game state");
+  equal(released.input.pendingClicks.length, 0);
+  equal(released.input.pendingActions.includes("confirm"), false);
+  equal(released.ui.surfaceActivated, null);
+});
+
 
 test("overlapping author surfaces hit the topmost published item", () => {
   const capture = captureState();

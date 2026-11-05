@@ -3661,6 +3661,13 @@ export function createEngine(init: EngineInit): Engine {
       restorePendingPointerQueues();
       return;
     }
+    if (pressed !== null) {
+      restorePendingPointerQueues();
+      state.input.keys.length = keys;
+      state.input.pendingActions.length = pendingActions;
+      state.input.nextSeq = nextSeq;
+      state.input.pressedButtonSlot = null;
+    }
     if (downEdge && target !== null) {
       setPointerMovementSuppressed(state.input, true);
       state.ui.surfacePointerClaim = target;
