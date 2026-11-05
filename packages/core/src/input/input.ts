@@ -34,6 +34,47 @@ const DEFAULT_KEY_ACTIONS: Readonly<Record<string, readonly string[]>> = {
 };
 const DIRECTIONS: Readonly<Record<string, true>> = { up: true, down: true, left: true, right: true };
 
+// Reverse index for physical keyboard claims. It is derived from saved action→source
+// claims and deliberately stays out of canonical state; ordinary key-up dispatch reads
+// only the actions claimed by that one control, never every action held in the game.
+const keyboardClaimsByControl = new WeakMap<InputSection, Map<string, Set<string>>>();
+
+/** Rebuild the derived per-control claim index after a snapshot restore. */
+export function rebuildKeyboardActionClaimIndex(state: InputSection): void {
+  const byControl = new Map<string, Set<string>>();
+  for (const [action, sources] of Object.entries(state.keyboardActionSources)) {
+    for (const [control, held] of Object.entries(sources)) {
+      if (held !== true) continue;
+      let actions = byControl.get(control);
+      if (actions === undefined) byControl.set(control, actions = new Set());
+      actions.add(action);
+    }
+  }
+  keyboardClaimsByControl.set(state, byControl);
+}
+
+function keyboardClaimIndex(state: InputSection): Map<string, Set<string>> {
+  let byControl = keyboardClaimsByControl.get(state);
+  if (byControl === undefined) {
+    rebuildKeyboardActionClaimIndex(state);
+    byControl = keyboardClaimsByControl.get(state)!;
+  }
+  return byControl;
+}
+
+function updateKeyboardClaimIndex(state: InputSection, action: string, control: string, down: boolean): void {
+  const byControl = keyboardClaimIndex(state);
+  if (down) {
+    let actions = byControl.get(control);
+    if (actions === undefined) byControl.set(control, actions = new Set());
+    actions.add(action);
+    return;
+  }
+  const actions = byControl.get(control);
+  actions?.delete(action);
+  if (actions?.size === 0) byControl.delete(control);
+}
+
 export function createInputSection(config: InputConfig = {}): InputSection {
   const state: InputSection = {
     version: 8,
@@ -71,6 +112,7 @@ export function createInputSection(config: InputConfig = {}): InputSection {
     pendingGamepads: [],
   };
   configureInput(state, config);
+  rebuildKeyboardActionClaimIndex(state);
   return state;
 }
 
@@ -299,8 +341,7 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
   }
   const unknown = [...gameSet].filter((action) => action.startsWith("game.") && !Object.hasOwn(state.actionRegistry, action));
   for (const action of unknown) onUnknownAction?.(action);
-  const heldClaims = event.down ? [] : Object.keys(state.keyboardActionSources)
-    .filter((action) => Object.hasOwn(state.actionRegistry, action) && state.keyboardActionSources[action]?.[control] === true);
+  const heldClaims = event.down ? [] : [...(keyboardClaimIndex(state).get(control) ?? [])];
   const ordered = [
     ...[...ENGINE_ACTIONS].filter((action) => candidates.includes(action) || heldClaims.includes(action)),
     ...[...new Set([
@@ -318,10 +359,13 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
   for (const action of ordered) {
     let sources = state.keyboardActionSources[action];
     if (sources === undefined) sources = state.keyboardActionSources[action] = {};
-    if (event.down) Object.defineProperty(sources, control, { value: true, enumerable: true, configurable: true, writable: true });
-    else {
+    if (event.down) {
+      Object.defineProperty(sources, control, { value: true, enumerable: true, configurable: true, writable: true });
+      updateKeyboardClaimIndex(state, action, control, true);
+    } else {
       delete sources[control];
       delete sources["legacy.keyboard"];
+      updateKeyboardClaimIndex(state, action, control, false);
     }
     updateAction(state, action, false, event.code);
   }
@@ -340,6 +384,7 @@ function releaseHeld(state: InputSection): void {
   for (const name of Object.keys(state.held)) if (state.held[name] === true) state.held[name] = false;
   for (const action of Object.keys(state.keyboardActions)) if (state.keyboardActions[action] === true) state.keyboardActions[action] = false;
   for (const sources of Object.values(state.keyboardActionSources)) for (const source of Object.keys(sources)) delete sources[source];
+  rebuildKeyboardActionClaimIndex(state);
   updateAllActions(state, false, "focus");
   state.pointer = { ...state.pointer, buttons: 0 };
   state.pressedButtonSlot = null;

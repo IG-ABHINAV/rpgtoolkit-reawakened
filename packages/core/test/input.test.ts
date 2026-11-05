@@ -178,6 +178,34 @@ test("a registry with the specified 512 actions dispatches the bound action", ()
   applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
   equal(state.actions["game.action511"], true);
 });
+test("a key release visits only actions indexed to that control", () => {
+  const state = createInputSection();
+  for (let index = 0; index < 512; index += 1) {
+    equal(registerGameAction(state, {
+      name: `game.action${index}`,
+      label: `Action ${index}`,
+      icon: null,
+      group: null,
+      controls: index === 511 ? ["key:KeyF"] : [],
+      locked: false,
+      hidden: false,
+    }), true);
+  }
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  for (let index = 0; index < 511; index += 1) {
+    Object.defineProperty(state.keyboardActionSources, `game.action${index}`, { value: {}, enumerable: true, configurable: true, writable: true });
+  }
+  let scannedRegistry = false;
+  state.keyboardActionSources = new Proxy(state.keyboardActionSources, {
+    ownKeys() {
+      scannedRegistry = true;
+      throw new Error("key-up scanned every action claim");
+    },
+  });
+  applyInputEvent(state, { kind: "key", name: "F", code: "KeyF", char: "f", down: false });
+  equal(state.actions["game.action511"], false);
+  equal(scannedRegistry, false, "the release uses only its physical control's reverse index");
+});
 
 test("registered keyboard and gamepad controls dispatch without extra key aliases", () => {
   const state = createInputSection();

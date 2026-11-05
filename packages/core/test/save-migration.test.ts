@@ -425,6 +425,29 @@ test("schema 4 numeric binding restores the saved Numpad key, not a guessed Digi
   equal(restored.input.keyboardActions.right, false);
   equal(restored.input.actions.right, false, "the numpad key-up releases the migrated claim");
 });
+test("schema 4 NumpadEnter migration does not invent an Enter claim", () => {
+  const original = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(original)) as { schema: { input: number }; input: Record<string, unknown> };
+  raw.schema.input = 4;
+  raw.input.version = 4;
+  raw.input.held = { ENTER: true, NumpadEnter: true };
+  raw.input.bindings = { keys: { NumpadEnter: "confirm" } };
+  raw.input.keyboardActions = { confirm: true };
+  raw.input.actions = { confirm: true };
+  delete raw.input.registeredActions;
+  delete raw.input.keyboardActionSources;
+  delete raw.input.semanticActionSources;
+  delete raw.input.actionRegistry;
+  delete raw.input.actionOrder;
+  delete raw.input.controlActions;
+  delete raw.input.actionPadMasks;
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  deepEqual(restored.input.keyboardActionSources.confirm, { "key:NumpadEnter": true });
+  applyInputEvent(restored.input, { kind: "key", name: "ENTER", code: "NumpadEnter", char: null, down: false });
+  equal(restored.input.keyboardActions.confirm, false);
+  equal(restored.input.actions.confirm, false, "the recorded numpad key-up clears its sole claim");
+});
 
 
 test("schema 6 migration preserves W3C pad claims and the active pointer gesture", () => {

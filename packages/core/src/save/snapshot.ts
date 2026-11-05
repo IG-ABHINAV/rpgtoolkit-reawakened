@@ -63,7 +63,7 @@ import { IR_VERSION } from "../script/program.ts";
 import { SCHEMA_VERSIONS, type GameState } from "./state.ts";
 import { asActorsSection, createActorsSection, ACTORS_SCHEMA_VERSION, validateActorProgression, type ActorProgression, type ActorStats } from "../actors/model.ts";
 import { asSpritesSection, createSpritesSection, SPRITES_SCHEMA_VERSION } from "../sprites/model.ts";
-import { createInputSection } from "../input/input.ts";
+import { createInputSection, rebuildKeyboardActionClaimIndex } from "../input/input.ts";
 import { createTriggersSection, TRIGGERS_SCHEMA_VERSION } from "../triggers/model.ts";
 import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
 import { AUDIO_SCHEMA_VERSION, createAudioSection } from "../audio/model.ts";
@@ -377,9 +377,7 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
     const keyMap = bindingRecord.keys;
     if (typeof keyMap === "object" && keyMap !== null && !Array.isArray(keyMap)) Object.assign(bindings, keyMap);
   }
-  const keyAliases: Record<string, string> = { ENTER: "Enter", RETURN: "Enter", SPACE: "Space", " ": "Space", ESC: "Escape", ESCAPE: "Escape", UP: "ArrowUp", DOWN: "ArrowDown", LEFT: "ArrowLeft", RIGHT: "ArrowRight" };
   const defaults: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Space: "confirm", Escape: "cancel" };
-  const legacyCode = (name: string): string => keyAliases[name] ?? name;
   const legacyName = (code: string): string | null => {
     if (/^Key[A-Z]$/.test(code)) return code.slice(3);
     if (/^(?:Digit|Numpad)[0-9]$/.test(code)) return code.slice(-1);
@@ -395,13 +393,13 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
       if (held !== true || !Object.hasOwn(registry, action) || Object.keys(sources[action] ?? {}).length > 0) continue;
       const claims: Record<string, true> = {};
       for (const [code, down] of Object.entries(heldKeys)) {
-        if (down !== true) continue;
-        const sourceCode = legacyCode(code);
-        if (sourceCode !== code && heldKeys[sourceCode] === true) continue;
-        const oldName = legacyName(sourceCode);
-        const resolved = resolve(bindings[sourceCode]) ?? defaults[sourceCode] ?? resolve(bindings[code]) ?? aliases[code] ??
+        // Logical aliases do not prove a physical code. Rebuild only from a separately saved
+        // KeyboardEvent.code, so ENTER cannot invent key:Enter beside a held NumpadEnter.
+        if (down !== true || !isPhysicalCode(code)) continue;
+        const oldName = legacyName(code);
+        const resolved = resolve(bindings[code]) ?? defaults[code] ??
           (oldName === null ? null : resolve(bindings[oldName]) ?? aliases[oldName]) ?? null;
-        if (resolved === action && isPhysicalCode(sourceCode)) Object.defineProperty(claims, `key:${sourceCode}`, { value: true, enumerable: true, configurable: true, writable: true });
+        if (resolved === action) Object.defineProperty(claims, `key:${code}`, { value: true, enumerable: true, configurable: true, writable: true });
       }
       if (Object.keys(claims).length === 0) Object.defineProperty(claims, "legacy.keyboard", { value: true, enumerable: true, configurable: true, writable: true });
       Object.defineProperty(sources, action, { value: claims, enumerable: true, configurable: true, writable: true });
@@ -1366,6 +1364,7 @@ export function restoreGameState(
   migrateVm(record, schema as Record<string, unknown>);
   migrateSprites(record, schema as Record<string, unknown>);
   migrateInput(record, schema as Record<string, unknown>);
+  rebuildKeyboardActionClaimIndex(record.input as GameState["input"]);
   migrateTriggers(record, schema as Record<string, unknown>);
   migrateAudio(record, schema as Record<string, unknown>);
   migrateEngine(record, schema as Record<string, unknown>);
