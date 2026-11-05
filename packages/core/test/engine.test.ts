@@ -49,7 +49,10 @@ test("engine queues non-asset inputs while loading and respects consuming ticks"
   equal(afterFailure.consumed[0]?.event.kind, "key");
 });
 
-function loadedEngine(registrations: Parameters<typeof createEngine>[0]["phaseRegistrations"] = []) {
+function loadedEngine(
+  registrations: Parameters<typeof createEngine>[0]["phaseRegistrations"] = [],
+  input?: Parameters<typeof createEngine>[0]["input"],
+) {
   const board = createEmptyBoard();
   const encoded = writeBoard(board);
   if (!encoded.ok) throw new Error(encoded.error.message);
@@ -62,6 +65,7 @@ function loadedEngine(registrations: Parameters<typeof createEngine>[0]["phaseRe
     height: 32,
     maxTicks: 60,
     phaseRegistrations: registrations,
+    ...(input === undefined ? {} : { input }),
   });
   const first = engine.advance(0, []);
   const request = first.requests[0];
@@ -70,6 +74,51 @@ function loadedEngine(registrations: Parameters<typeof createEngine>[0]["phaseRe
   if (loaded.loading) throw new Error("expected authored board to load");
   return engine;
 }
+
+test("pointer cancellation before a focus-loss tick cannot activate a button slot", () => {
+  const capture = captureState();
+  const button = { id: "primary", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true };
+  const engine = loadedEngine([capture.registration], { buttons: [button] });
+
+  const interrupted = engine.advance(0, [
+    { tick: 0, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 0, event: { kind: "pointer.cancel" } },
+    { tick: 0, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(interrupted.ticksRun, 0);
+
+  engine.advance(0, [
+    { tick: 0, event: { kind: "focus", state: "gained" } },
+    { tick: 0, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+  ]);
+  engine.advance(1, []);
+  const cancelled = capture.state();
+  if (cancelled === undefined) throw new Error("expected captured game state");
+  equal(cancelled.input.pointer.buttons & 1, 0);
+  equal(cancelled.input.pressedButtonSlot, null);
+  equal(cancelled.input.pendingActions.includes("confirm"), false);
+  equal(cancelled.input.keys.some((key) => key.action === "slot:primary"), false);
+
+  const realDown = engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  equal(realDown.ticksRun, 1);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const activated = capture.state();
+  if (activated === undefined) throw new Error("expected captured game state");
+  equal(activated.input.keys.filter((key) => key.action === "slot:primary").length, 1);
+  equal(activated.input.pendingActions.filter((action) => action === "confirm").length, 1);
+});
+
+test("ordinary pointer down and up activates an enabled button slot once", () => {
+  const capture = captureState();
+  const button = { id: "primary", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true };
+  const engine = loadedEngine([capture.registration], { buttons: [button] });
+  engine.advance(1, [{ tick: 0, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.input.keys.filter((key) => key.action === "slot:primary").length, 1);
+  equal(state.input.pendingActions.filter((action) => action === "confirm").length, 1);
+});
 
 test("createEngine routes actor alias writes through package behaviour hooks", () => {
   const plugin: ResolvedPlugin = {

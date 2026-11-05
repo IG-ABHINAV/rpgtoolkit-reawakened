@@ -2,13 +2,15 @@ import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyInputEvent,
+  configureInput,
   createInputSection,
   inputView,
   processGamepadEvents,
   pruneClaimed,
   type InputView,
 } from "../src/input/index.ts";
-import { createGameState, restoreGameState, snapshot } from "../src/save/index.ts";
+import { createGameState, hashGameState, restoreGameState, snapshot } from "../src/save/index.ts";
+import { applyInputEffect } from "../src/script/packs/movement.ts";
 import { pollInputKey, pollMenuScreen } from "../src/script/waits.ts";
 
 test("input records have monotonic sequences and claims deliver each key once", () => {
@@ -68,8 +70,113 @@ test("button slots use logical half-open hit tests and click destinations use ca
   applyInputEvent(state, { kind: "pointer", x: 10, y: 20, buttons: 1 });
   applyInputEvent(state, { kind: "pointer", x: 30, y: 30, buttons: 1 });
   applyInputEvent(state, { kind: "pointer", x: 31, y: 30, buttons: 1 });
-  deepEqual(state.keys.map((key) => key.name), ["confirm"]);
+  deepEqual(state.keys, []);
   deepEqual(state.pendingClicks, [{ x: 130, y: 230 }, { x: 131, y: 230 }]);
+});
+
+test("button slots activate once on release over the pressed target and cancel on departure", () => {
+  const state = createInputSection({ buttons: [
+    { id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true },
+    { id: "no", x: 10, y: 0, w: 10, h: 10, action: "cancel", enabled: true },
+    { id: "disabled", x: 20, y: 0, w: 10, h: 10, action: "menu", enabled: false },
+  ] });
+  const pointer = (x: number, buttons: number): void => applyInputEvent(state, { kind: "pointer", x, y: 5, buttons });
+  pointer(5, 1);
+  deepEqual([state.keys, state.pendingActions], [[], []]);
+  pointer(10, 1);
+  pointer(5, 0);
+  deepEqual([state.keys, state.pendingActions], [[], []]);
+  pointer(5, 1);
+  pointer(5, 3);
+  pointer(5, 1);
+  pointer(5, 0);
+  pointer(5, 0);
+  deepEqual(state.keys.map((key) => key.name), ["confirm"]);
+  deepEqual(state.pendingActions, ["confirm"]);
+  pointer(25, 1);
+  pointer(25, 0);
+  pointer(5, 1);
+  applyInputEvent(state, { kind: "focus", state: "lost" });
+  pointer(5, 0);
+  equal(state.keys.length, 1);
+  pointer(5, 1);
+  configureInput(state, { buttons: [{ id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: false }] });
+  configureInput(state, { buttons: [{ id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true }] });
+  pointer(5, 0);
+  equal(state.keys.length, 1);
+});
+
+test("pointer cancellation clears only the primary bit and pending slot without a release edge", () => {
+  const game = createGameState({ seed: 7 });
+  game.input = createInputSection({
+    bindings: { keys: { ArrowUp: "up" } },
+    buttons: [{ id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true }],
+  });
+  applyInputEvent(game.input, { kind: "key", name: "UP", code: "ArrowUp", char: null, down: true });
+  applyInputEvent(game.input, { kind: "pointer", x: 5, y: 5, buttons: 3 });
+  const beforeCancel = {
+    pointer: { ...game.input.pointer },
+    keys: [...game.input.keys],
+    pendingActions: [...game.input.pendingActions],
+    pendingClicks: [...game.input.pendingClicks],
+  };
+  equal(game.input.pressedButtonSlot, "ok");
+
+  applyInputEvent(game.input, { kind: "pointer.cancel" });
+  deepEqual(game.input.pointer, { ...beforeCancel.pointer, buttons: 2 });
+  equal(game.input.pointer.ups, beforeCancel.pointer.ups, "cancel is not a pointer-up edge");
+  equal(game.input.pressedButtonSlot, null);
+  deepEqual(game.input.keys, beforeCancel.keys);
+  deepEqual(game.input.pendingActions, beforeCancel.pendingActions);
+  deepEqual(game.input.pendingClicks, beforeCancel.pendingClicks);
+  equal(game.input.held.ArrowUp, true, "keyboard controls remain held");
+  equal(game.input.actions.up, true);
+
+  const restored = restoreGameState(snapshot(game));
+  deepEqual(restored.input, game.input, "save/restore preserves the cancelled gesture and remaining button bits");
+  applyInputEvent(restored.input, { kind: "pointer", x: 5, y: 5, buttons: 2 });
+  deepEqual(restored.input.pendingActions, beforeCancel.pendingActions);
+  deepEqual(restored.input.keys, beforeCancel.keys);
+});
+
+test("pointer cancellation emits no click request", () => {
+  const state = createInputSection({ camera: { x: 100, y: 200 } });
+  applyInputEvent(state, { kind: "pointer", x: 30, y: 40, buttons: 1 });
+  const clicks = [...state.pendingClicks];
+  applyInputEvent(state, { kind: "pointer.cancel" });
+  deepEqual(state.pendingClicks, clicks);
+  deepEqual(state.pointer.buttons, 0);
+});
+
+test("button slot presses survive snapshots; old input sections migrate without a press", () => {
+  const state = createGameState({ seed: 7 });
+  state.input = createInputSection({ buttons: [{ id: "ok", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true }] });
+  applyInputEvent(state.input, { kind: "pointer", x: 5, y: 5, buttons: 1 });
+  const restored = restoreGameState(snapshot(state));
+  const withoutPress = restoreGameState(snapshot(state));
+  withoutPress.input.pressedButtonSlot = null;
+  equal(hashGameState(withoutPress) === hashGameState(state), false, "the pending slot changes the state hash");
+  equal(hashGameState(restored), hashGameState(state), "snapshot restore preserves the pending slot hash");
+  applyInputEvent(restored.input, { kind: "pointer", x: 5, y: 5, buttons: 0 });
+  deepEqual(restored.input.pendingActions, ["confirm"]);
+  const raw = JSON.parse(snapshot(state));
+  raw.schema.input = 3;
+  raw.input.version = 3;
+  delete raw.input.pressedButtonSlot;
+  const migrated = restoreGameState(JSON.stringify(raw));
+  applyInputEvent(migrated.input, { kind: "pointer", x: 5, y: 5, buttons: 0 });
+  deepEqual(migrated.input.pendingActions, []);
+});
+
+test("clearing and recreating a pressed button does not resurrect its press", () => {
+  const state = createGameState({ seed: 7 });
+  applyInputEffect(state, "setbutton", ["", "ok", 0, 0, 10, 10]);
+  applyInputEvent(state.input, { kind: "pointer", x: 5, y: 5, buttons: 1 });
+  applyInputEffect(state, "clearbuttons", ["ok"]);
+  applyInputEffect(state, "setbutton", ["", "ok", 0, 0, 10, 10]);
+  applyInputEvent(state.input, { kind: "pointer", x: 5, y: 5, buttons: 0 });
+  deepEqual(state.input.pendingActions, []);
+  deepEqual(state.input.keys, []);
 });
 
 test("extended input section snapshots restore exactly", () => {
@@ -189,7 +296,7 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 3);
+  equal(state.input.version, 4);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);
@@ -235,7 +342,7 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   raw.input.pointer = { x: 9, y: 8, buttons: 1 };
   const migrated = restoreGameState(JSON.stringify(raw)).input;
   deepEqual(migrated.pointer, { x: 9, y: 8, buttons: 1, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 });
-  equal(migrated.version, 3);
+  equal(migrated.version, 4);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
 });
 

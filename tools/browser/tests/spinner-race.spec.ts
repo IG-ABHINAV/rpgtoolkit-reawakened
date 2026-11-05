@@ -172,7 +172,15 @@ test("a late old-session load notification cannot hide the replacement session's
   await page.evaluate(() => { window.__spinnerRaceOldSession = window.__session; });
   await sendKeyDown(page, "Enter", "Enter");
   await page.waitForFunction(() => window.__spinnerRaceOldSession !== undefined && window.__session !== undefined && window.__session !== window.__spinnerRaceOldSession && window.__live !== undefined, undefined, { timeout: 30_000 });
-  await page.locator("canvas").dispatchEvent("pointerdown", { clientX: 20, clientY: 20, buttons: 1, pointerType: "mouse" });
+  const canvasBox = await page.locator("canvas").boundingBox();
+  if (canvasBox === null) throw new Error("replacement canvas has no layout box");
+  await page.locator("canvas").dispatchEvent("pointerdown", {
+    clientX: canvasBox.x + canvasBox.width / 2,
+    clientY: canvasBox.y + canvasBox.height / 2,
+    button: 0,
+    buttons: 1,
+    pointerType: "mouse",
+  });
   await expect.poll(() => destinationHeld, { timeout: 15_000, message: "replacement board must reach the deferred source" }).toBe(true);
   await page.waitForFunction(() => window.__session?.loadState().blocking?.key === "boards/third.brd", undefined, { timeout: 30_000 });
   await page.evaluate(() => {
