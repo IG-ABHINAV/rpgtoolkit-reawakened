@@ -45,6 +45,23 @@ export type HostFeatures = {
 };
 ```
 
+At the engine boundary, recognized fields are normalized into a complete state record: missing booleans become
+`false`, missing pointer precision becomes `"none"`, and missing orientation becomes `null`. Unknown properties
+are discarded before state is saved or hashed; querying an unknown capability returns `0`. The typed state uses
+explicit keys, not `undefined`.
+
+The optional boot-time `displayGeometry` contains a content window size in CSS pixels, the game rectangle's
+offset and size in those same pixels, and top, right, bottom and left safe-area insets in CSS pixels. All values
+are finite, non-negative numbers; the game rectangle must fit within a positive-sized content window. The
+logical viewport remains the engine's configured game size. With no geometry supplied, the content window and
+game rectangle both match that logical size and all insets are zero.
+
+The runner measures these values; core must not read the display. Each margin in logical pixels is the
+corresponding distance from the game rectangle to the content-window edge divided by the game rectangle's
+scale on that axis, rounded down. Safe-area insets use the corresponding scale and the same rounding.
+The display aspect is content width divided by content height. Feature and geometry state is included in
+snapshots and hashes; restore validates the records and migrates older snapshots to the defaults above.
+
 * **Mid-Session Hardware Changes:** If a device is plugged in or unplugged during gameplay (e.g. connecting a Bluetooth
   gamepad or pairing an external keyboard), the runner emits an AD-14 input event:
   `{ tick, event: { kind: "device", type: "gamepad_connected" } }`. Core updates `state.features` deterministically on
