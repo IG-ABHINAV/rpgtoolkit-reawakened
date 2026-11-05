@@ -9,8 +9,11 @@ import {
   createGameState,
   createScriptServices,
   createSurfacesSection,
+  hashGameState,
   pollInputKey,
   pollRenderMsgBox,
+  restoreGameState,
+  snapshot,
   UI_COMMANDS,
   UI_PLUGIN,
   type Arg,
@@ -79,11 +82,23 @@ test("message-window effects splice globals and use deterministic defaults", () 
 });
 test("custom touch suppression requires an explicit persistent declaration", () => {
   const state = createGameState({ seed: 0 });
+  const initialHash = hashGameState(state);
   equal(state.ui.customTouchControlsDeclared, false);
   applyUiEffect(state, "declareCustomTouchControls", []);
   equal(state.ui.customTouchControlsDeclared, true);
+  equal(hashGameState(state) === initialHash, false);
   resetUiForProgramStart(state.ui);
   equal(state.ui.customTouchControlsDeclared, true);
+  const saved = snapshot(state);
+  const restored = restoreGameState(saved);
+  equal(restored.ui.customTouchControlsDeclared, true);
+  equal(hashGameState(restored), hashGameState(state));
+
+  const legacy = JSON.parse(saved) as { schema: { ui: number }; ui: Record<string, unknown> };
+  legacy.schema.ui = 2;
+  delete legacy.ui.surfaceCancelledSeq;
+  const migrated = restoreGameState(JSON.stringify(legacy));
+  equal(migrated.ui.surfaceCancelledSeq, null);
 });
 
 test("author surface claims consume their shared input sequence once", () => {
