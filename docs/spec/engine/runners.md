@@ -414,7 +414,8 @@ The desktop player can receive an SF3 bank, including one named `.sf2`. Its MIDI
 WebAssembly Vorbis decoder even when the bundled uncompressed SF2 is used. The desktop player and measurement page
 therefore allow `wasm-unsafe-eval` in `script-src`; this permits WebAssembly compilation but not JavaScript
 `unsafe-eval`. The policy still permits scripts only from the application's own origin. The decoder supports
-compressed SoundFont samples; its initialization must not produce an unhandled rejection on startup.
+compressed SoundFont samples; the interactive player waits for its initialization before starting audio, and reports
+initialization failure rather than silently playing a compressed sample before the decoder is ready.
 
 The browser player's strict policy remains unchanged by this desktop fix, and its browser lane **MUST** assert that
 the default path instantiates no WebAssembly. The current browser player does not yet meet that requirement: the same
