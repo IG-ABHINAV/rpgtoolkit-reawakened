@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { animationBlits } from "../src/render/animation.ts";
 import {
   assetKey,
   loadAnimation,
@@ -57,7 +58,7 @@ test("script animations advance frames, emit each sound once and draw above the 
   equal((advanceAnimations(state) as readonly { file: string; sound: string }[])[0]?.sound, "one.wav");
   state.time.tick = 1;
   equal((advanceAnimations(state) as readonly { file: string; sound: string }[])[0]?.sound, "two.wav");
-  const commands = applyFxDrawList(blank(), state.fx).commands;
+  const commands = applyFxDrawList(blank(), state.fx, () => ({ w: 8, h: 6 })).commands;
   equal(commands.at(-1)?.kind, "blit");
   deepEqual(commands.at(-1), {
     kind: "blit",
@@ -88,6 +89,10 @@ test("animated GIF pages become distinct deterministic animation surfaces", () =
   equal(animation.frames.length, 3);
   equal(animation.frames.every((frame) => frame.surface !== undefined), true);
   equal(new Set(animation.frames.map((frame) => frame.surface)).size, 3);
+  const command = animationBlits(state.fx, false, () => { throw new Error("GIF surfaces do not resolve assets"); })[0];
+  if (command?.kind !== "blit") throw new Error("GIF frame did not produce a blit");
+  deepEqual(command.src, { x: 0, y: 0, w: animation.frames[0]!.srcWidth, h: animation.frames[0]!.srcHeight });
+  deepEqual(command.source, { surface: animation.frames[0]!.surface, rev: 0 });
   equal(animation.delayTicks, 6);
 });
 
@@ -97,7 +102,7 @@ test("fade advances exactly 30 ticks and leaves a terminal primitive", () => {
   applyFxEffect(state, effect("fade", [0]));
   for (let i = 0; i < 29; i += 1) advanceFx(state);
   equal(state.fx.fade?.elapsedTicks, 29);
-  equal(applyFxDrawList(blank(), state.fx).commands.length, 1);
+  equal(applyFxDrawList(blank(), state.fx, () => null).commands.length, 1);
   advanceFx(state);
   equal(state.fx.fade?.elapsedTicks, 30);
 });
@@ -109,7 +114,7 @@ test("wipe progress uses logical pixels per tick and reaches exact final image",
   advanceFx(state);
   equal(state.fx.wipe?.progress, 4);
   for (let i = 0; i < 159; i += 1) advanceFx(state);
-  const commands = applyFxDrawList(blank(), state.fx).commands;
+  const commands = applyFxDrawList(blank(), state.fx, () => null).commands;
   equal(state.fx.wipe?.progress, 640);
   equal(commands[commands.length - 1]?.kind, "blit");
   deepEqual((commands[commands.length - 1] as { dst: unknown }).dst, { x: 0, y: 0, w: 640, h: 480 });

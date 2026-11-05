@@ -10,7 +10,7 @@
  * (the saved game).
  */
 
-export type { WorldSection } from "./sections/world.ts";
+export type { WorldSection, WorldMovementSettings } from "./sections/world.ts";
 export {
   createCameraSection,
   type CameraEasing,

@@ -18,7 +18,16 @@ import {
 } from "@tk-reawakened/core";
 
 declare global {
-  interface Window { liveAnalyser?: AnalyserNode }
+  interface Window {
+    liveAnalyser?: AnalyserNode;
+    __session?: {
+      tick(): number;
+      advance(ticks: number, inputs?: readonly {
+        tick: number;
+        event: { kind: "key"; name: string; code: string; char: null; down: boolean };
+      }[]): Promise<void>;
+    };
+  }
 }
 
 type LiveReport = {
@@ -207,22 +216,33 @@ for (const mode of [0, 1, 2] as const) {
     await page.waitForFunction(() => window.__live?.player != null && (window.__live?.tick ?? 0) > 30, undefined, { timeout: 45_000 });
     const initial = await page.evaluate(() => window.__live as LiveReport);
     if (initial.player === null) throw new Error("live player did not appear");
-    await page.locator("#screen").focus();
-    await page.keyboard.down("ArrowRight");
-    await page.waitForFunction((x) => window.__live?.player != null && window.__live.player.x !== x, initial.player.x);
-    await page.keyboard.up("ArrowRight");
-    const releaseTick = await page.evaluate(() => window.__live!.tick);
-    await page.waitForFunction((tick) => (window.__live?.tick ?? 0) >= tick + 40, releaseTick);
+    await page.evaluate(async () => {
+      // Pin key-down and key-up to adjacent simulation ticks in the actual live session. The
+      // browser frame loop may run between host calls, but session.advance serializes those
+      // calls; there is no wall-clock hold interval to affect how many movement steps are queued.
+      const session = window.__session;
+      if (session === undefined) throw new Error("live session was not exposed");
+      await session.advance(0);
+      let tick = session.tick();
+      await session.advance(1, [{
+        tick,
+        event: { kind: "key", name: "ARROWRIGHT", code: "ArrowRight", char: null, down: true },
+      }]);
+      tick = session.tick();
+      await session.advance(1, [{
+        tick,
+        event: { kind: "key", name: "ARROWRIGHT", code: "ArrowRight", char: null, down: false },
+      }]);
+      await session.advance(120);
+    });
+    const expectedDistance = mode === 0 ? 32 : 4;
+    await page.waitForFunction(({ x, distance }) => window.__live?.player?.x === x + distance, {
+      x: initial.player.x,
+      distance: expectedDistance,
+    }, { timeout: 10_000 });
     const final = await page.evaluate(() => window.__live as LiveReport);
     expect(final.player?.y).toBe(initial.player.y);
-    const moved = (final.player?.x ?? initial.player.x) - initial.player.x;
-    if (mode === 0) expect(moved).toBe(32);
-    else {
-      // The browser can process another held-key step before the key-up event arrives.
-      expect(moved).toBeGreaterThanOrEqual(4);
-      expect(moved).toBeLessThan(32);
-      expect(moved % 4).toBe(0);
-    }
+    expect(final.player?.x).toBe(initial.player.x + expectedDistance);
   });
 }
 

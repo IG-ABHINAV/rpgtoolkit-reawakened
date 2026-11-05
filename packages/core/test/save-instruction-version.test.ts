@@ -9,6 +9,7 @@ import { test } from "node:test";
 import { TextDecoder, TextEncoder } from "node:util";
 import {
   assetKey,
+  canon,
   createAssetIndex,
   createEmptyBoard,
   createEmptyMainFile,
@@ -19,6 +20,7 @@ import {
   startProgram,
   restoreRecoveryCandidate,
   snapshotRecoveryCandidate,
+  snapshotGameSave,
   startThread,
   restoreGameState,
   writeBoard,
@@ -314,6 +316,24 @@ function recoveryCandidateState(): GameState {
   startProgram(state.vm, { kind: "inline", text: "value = 1\nend()\n", ir: IR_VERSION });
   return state;
 }
+
+test("recovery candidate retains the exact canonical save projection and manifest", () => {
+  const state = recoveryCandidateState();
+  state.vm.globals["nan"] = NaN;
+  state.vm.globals["positive"] = Infinity;
+  state.vm.globals["negative"] = -Infinity;
+  state.vm.globals["text"] = "escaped\n\u00e9🚀";
+  const manifest = {
+    version: 1 as const,
+    board: { key: "boards/start.brd", hash: "0123456789abcdef" },
+    boardDependencies: [{ key: "tiles/a.tst", hash: "fedcba9876543210" }],
+    entryProgram: null,
+    programs: [],
+    listenerAnchors: [],
+  };
+  const expected = canon({ ...JSON.parse(snapshotGameSave(state)), recoveryAssets: manifest });
+  equal(snapshotRecoveryCandidate(state, manifest), expected);
+});
 
 test("a recovery candidate refuses any instruction-version difference, even an older one", () => {
   const state = recoveryCandidateState();

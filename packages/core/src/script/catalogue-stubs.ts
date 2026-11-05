@@ -149,13 +149,6 @@ const STUBS: readonly CatalogueStub[] = [
     params: [{ name: "x1", optional: false, byRef: false, variadic: false }, { name: "y1", optional: false, byRef: false, variadic: false }, { name: "x2", optional: false, byRef: false, variadic: false }, { name: "y2", optional: false, byRef: false, variadic: false }, { name: "dest", optional: false, byRef: true, variadic: false }, { name: "layer", optional: true, byRef: true, variadic: false }],
   },
   {
-    name: "pixelmovement",
-    kind: "state-write",
-    sections: ["world"],
-    obsolete: false,
-    params: [{ name: "bool", optional: true, byRef: false, variadic: false }, { name: "push", optional: true, byRef: false, variadic: false }],
-  },
-  {
     name: "gamespeed",
     kind: "state-write",
     sections: ["world"],

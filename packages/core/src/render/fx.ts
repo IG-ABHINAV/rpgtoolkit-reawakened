@@ -6,7 +6,7 @@ import { ScriptError } from "../script/errors.ts";
 import type { GameState } from "../save/state.ts";
 import { createFxSection, type FxSection, type FxColor } from "../save/sections/fx.ts";
 import { shake } from "../world/camera.ts";
-import { animationBlits, applyAnimationEffect } from "./animation.ts";
+import { animationBlits, applyAnimationEffect, type FrameSourceSize } from "./animation.ts";
 
 function ensureFx(state: GameState): FxSection {
   const current = state.fx as Partial<FxSection>;
@@ -255,7 +255,7 @@ export function advanceFx(state: GameState): void {
 }
 
 /** Append effect commands and apply the active centred presentation zoom. */
-export function applyFxDrawList(list: DrawList, fx: FxSection): DrawList {
+export function applyFxDrawList(list: DrawList, fx: FxSection, sourceSize: FrameSourceSize): DrawList {
   const defaults = createFxSection();
   const normalized: FxSection = {
     ...defaults,
@@ -273,7 +273,7 @@ export function applyFxDrawList(list: DrawList, fx: FxSection): DrawList {
   const cx = list.width / 2;
   const cy = list.height / 2;
   const commands = list.commands.map((command) => zoom === 1 ? command : zoomCommand(command, zoom, cx, cy));
-  commands.push(...animationBlits(normalized, false));
+  commands.push(...animationBlits(normalized, false, sourceSize));
   commands.push(...wipeCommands(normalized, list.width, list.height));
   commands.push(...fadeCommands(normalized, list.width, list.height));
   return { ...list, commands };

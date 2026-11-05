@@ -58,7 +58,7 @@ function key(code: "ArrowRight" | "ArrowLeft" | "ArrowDown", down: boolean, repe
 function makeState(allowDiagonals = false): GameState {
   const board = makeBoard();
   const state = createGameState({ seed: 1 });
-  state.world = { board };
+  state.world = { ...state.world, board };
   state.sprites = hydrateSprites({
     board,
     players: [{ id: "hero", kind: "player" as const, source: "hero.tem", x: 48, y: 63, layer: 1, facing: "S", controlled: true }],

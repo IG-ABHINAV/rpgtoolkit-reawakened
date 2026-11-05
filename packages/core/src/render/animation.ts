@@ -13,6 +13,9 @@ import type { GameState } from "../save/state.ts";
 /** Resolve a frame's image reference to the asset and tile a draw command names (E-54). */
 export type ImageResolver = (image: string) => { readonly asset: AssetKey; readonly tile: number | null } | null;
 
+/** Resolve a frame's decoded source bounds, independent of its destination canvas. */
+export type FrameSourceSize = (frame: AnimationFrameState) => { readonly w: number; readonly h: number } | null;
+
 /** Decoded frame metadata for one `.anm` or GIF: what every consumer (script or sprite) draws from. */
 export type DecodedAnimation = {
   readonly width: number;
@@ -154,20 +157,22 @@ function rect(animation: AnimationState, frame: AnimationFrameState): Rect {
 }
 
 /** Active script animations in creation order: the ordinary ones sit above the composed board, the pinned ones above the render-now canvas. */
-export function animationBlits(fx: FxSection, pinned: boolean): DrawCommand[] {
+export function animationBlits(fx: FxSection, pinned: boolean, sourceSize: FrameSourceSize): DrawCommand[] {
   const commands: DrawCommand[] = [];
   for (const animation of fx.animations) {
     if ((animation.pinned === true) !== pinned || animation.hidden === true) continue;
     if (!animation.loaded || animation.finished || animation.frames.length === 0) continue;
     const frame = animation.frames[animation.frame];
     if (frame === undefined || (frame.surface === undefined && frame.asset === null)) continue;
+    const size = frame.surface === undefined ? sourceSize(frame) : { w: frame.srcWidth, h: frame.srcHeight };
+    if (size === null) continue;
     const source = frame.surface === undefined
       ? { asset: frame.asset!, tile: frame.tile }
       : { surface: frame.surface, rev: 0 };
     commands.push({
       kind: "blit",
       source,
-      src: { x: 0, y: 0, w: frame.srcWidth, h: frame.srcHeight },
+      src: { x: 0, y: 0, w: size.w, h: size.h },
       dst: rect(animation, frame),
       key: frameColor(frame.transparent),
       tint: { r: 0, g: 0, b: 0 },

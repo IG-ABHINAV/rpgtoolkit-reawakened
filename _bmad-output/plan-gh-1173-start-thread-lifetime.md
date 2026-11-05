@@ -62,6 +62,8 @@ Issue #1253's item hydration is not yet on main. The new authored item integrati
 
 An independent review exposed #1366: the initial board can replace a board loaded by startup without retiring its threads. The arrival condition now cleans up any actual previous board; #1348 independently includes the same condition.
 
+Integrated #1348 at main `8ea70aa108e25d6e127eef66a2d1cd06d595e4a4`; the authored startup item test now runs on this branch rather than an auxiliary integration checkout. The old CI run also exposed a message-window lifecycle test that made an ordinary board-scope thread before any board existed; changed that fixture to a persistent thread, preserving its existing assertions while honoring the approved startup rule. The old browser mode-2 test was superseded by #1336's tick-precise live movement test.
+
 ## Plan Change Log
 
 ## Review Triage Log
