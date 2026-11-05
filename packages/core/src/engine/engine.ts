@@ -3517,7 +3517,8 @@ export function createEngine(init: EngineInit): Engine {
       if (left < 0 || top < 0 || right > geometry.content.width || bottom > geometry.content.height ||
           left < safeLeft || right > safeRight || top < safeTop || bottom > safeBottom) return null;
     }
-    for (const surface of state.ui.actionSurfaces) {
+    for (let surfaceIndex = state.ui.actionSurfaces.length - 1; surfaceIndex >= 0; surfaceIndex -= 1) {
+      const surface = state.ui.actionSurfaces[surfaceIndex]!;
       for (let index = 0; index < surface.items.length; index += 1) {
         const item = surface.items[index]!;
         if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&

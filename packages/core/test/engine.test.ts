@@ -174,6 +174,40 @@ test("author surface release dispatches its registered action once without click
   equal(state.input.pendingPointerUps.length, 0);
 });
 
+test("overlapping author surfaces hit the topmost published item", () => {
+  const capture = captureState();
+  const surfaces: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "lower", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Lower", "lower-item", null, 1, null, "game.lower", null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+      applyUiEffect(state, "uiBegin", [8, "upper", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [8, "Upper", "upper-item", null, 1, null, "game.upper", null, 1]);
+      applyUiEffect(state, "uiEnd", [8]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surfaces]);
+  for (const name of ["game.lower", "game.upper"]) {
+    equal(engine.registerGameAction({
+      name,
+      label: name,
+      icon: null,
+      group: null,
+      controls: [],
+      locked: false,
+      hidden: false,
+    }), true);
+  }
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated?.owner, 8);
+  deepEqual(state.input.pendingActions.filter((action) => action.startsWith("game.")), ["game.upper"]);
+});
+
 test("createEngine routes actor alias writes through package behaviour hooks", () => {
   const plugin: ResolvedPlugin = {
     namespace: "engine-actors",
