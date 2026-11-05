@@ -8,7 +8,7 @@ import { createLoadController, type LoadModeRequest, type LoadState } from "../s
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, type LiveSession } from "../src/live-session.ts";
-import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 
@@ -356,21 +356,33 @@ function startLiveLoop(
   let frameId: number | null = null;
   let pending: PendingInput[] = [];
   const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const displayGeometry = createObservedHostGeometry(session.displayGeometry());
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+    displayGeometry.observe(event);
+    pending.push({ tick: null, event, pointerGeometry: null });
+  }, session.hostState ?? undefined);
   const stopPointerInput = attachPointerInput(
-    canvas,
+    hostViewport.viewport,
     viewSize,
-    ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
-    () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
+    displayGeometry.current,
+    ({ x, y }, buttons) => {
+      const geometry = displayGeometry.current();
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
+    },
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
   const onKeyDown = (event: KeyboardEvent): void => key(event, true);
   const onKeyUp = (event: KeyboardEvent): void => key(event, false);
   const focus = (state: "lost" | "gained"): void => {
-    pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+    pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   };
   const onBlur = (): void => focus("lost");
   const onFocus = (): void => focus("gained");
@@ -417,42 +429,47 @@ function startLiveLoop(
       accumulator += elapsed;
       const wholeTicks = Math.floor(accumulator / stepMs);
       accumulator -= wholeTicks * stepMs;
-      const inputs = stampPendingInputs(pending, session.tick());
-      pending = [];
-      advancing = true;
-      session.advance(wholeTicks, inputs).then(() => {
-        advancing = false;
-        if (disposed) return;
-        const drawn = session.draw(accumulator / stepMs);
-        const player = session.playerPosition();
-        const state = loadState();
-        const live: LiveReport = {
-          tick: session.tick(),
-          stateHash: session.stateHash(),
-          drawHash: drawn.drawHash,
-          board: session.boardKey(),
-          player,
-          load: { mode: state.mode, storage: state.storage },
-          stalls: summary(overlay?.update() ?? false),
-          diagnostics: session.diagnostics(),
-        };
-        window.__live = live;
-        window.__report = live;
-        report.textContent = [
-          `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
-          `state ${live.stateHash}`,
-          `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
-          player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
-          `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
-          "Move: arrows or WASD; click the board to walk.",
-        ].join("\n");
-      }).catch((error: unknown) => {
-        advancing = false;
-        if (disposed) return;
-        window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };
-        report.textContent = `player: ${String(error)}`;
-        dispose();
-      });
+      const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      if (wholeTicks !== 0 || !geometryNeedsTick) {
+        const inputs = stampPendingInputs(pending, session.tick());
+        pending = [];
+        advancing = true;
+        session.advance(wholeTicks, inputs).then(() => {
+          if (disposed) return;
+          const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), displayGeometry, pending, session.tick());
+          advancing = false;
+          if (disposed || restoredGeometryNeedsTick) return;
+          const drawn = session.draw(accumulator / stepMs);
+          const player = session.playerPosition();
+          const state = loadState();
+          const live: LiveReport = {
+            tick: session.tick(),
+            stateHash: session.stateHash(),
+            drawHash: drawn.drawHash,
+            board: session.boardKey(),
+            player,
+            load: { mode: state.mode, storage: state.storage },
+            stalls: summary(overlay?.update() ?? false),
+            diagnostics: session.diagnostics(),
+          };
+          window.__live = live;
+          window.__report = live;
+          report.textContent = [
+            `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
+            `state ${live.stateHash}`,
+            `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
+            player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
+            `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
+            "Move: arrows or WASD; click the board to walk.",
+          ].join("\n");
+        }).catch((error: unknown) => {
+          advancing = false;
+          if (disposed) return;
+          window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };
+          report.textContent = `player: ${String(error)}`;
+          dispose();
+        });
+      }
     } else if (window.__live !== undefined) {
       window.__live = { ...window.__live, stalls: summary(spinner) };
     }

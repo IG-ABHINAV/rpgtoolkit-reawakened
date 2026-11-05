@@ -593,6 +593,7 @@ export const pinDrawList: DrawList = {
   width: 320,
   height: 240,
   commands: [pinFill, pinBlitTexRefWithTile, pinBlitSurfaceRef],
+  marginCommands: [],
 };
 
 // Conforming Engine object and call verification (Item 4).
@@ -603,6 +604,11 @@ export const conformingEngine: Engine = {
   drawList(_alpha?: number): DrawList {
     return pinDrawList;
   },
+  customTouchControlsDeclared(): boolean { return false; },
+  hostFeatures() { return { touch: false, pointer: "none", keyboard: true, gamepad: false, haptics: false, orientation: null }; },
+  accessibilityTree() { return []; },
+  hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+  surfaceCacheEpoch() { return 0; },
   registeredActionNames() { return []; },
   registerGameAction() { return true; },
   setPointerMovementSuppressed() {},
@@ -632,6 +638,10 @@ export function testConformingEngineCall(engine: Engine): void {
   engine.advance(1, [], 4);
   engine.drawList();
   engine.drawList(0);
+  engine.customTouchControlsDeclared();
+  engine.hostFeatures();
+  engine.hostDisplayGeometry();
+  engine.accessibilityTree();
   const _pixels: SurfacePixels | null = engine.surfacePixels(0 as SurfaceId, 1);
   engine.recoveryCandidate();
   engine.setBreakpoints([]);

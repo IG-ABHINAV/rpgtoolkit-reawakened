@@ -110,8 +110,8 @@ test("actor presentation draws retain prior positions without mutating state", (
   const previous = draws[0]?.prev;
   if (previous === undefined) throw new Error("movement did not provide a prior position");
   const previousPoint = Array.isArray(previous) ? { x: previous[0]!, y: previous[1]! } : previous as { readonly x: number; readonly y: number };
-  const atPrevious = { tick: 0, width: 320, height: 320, commands: [{ kind: "rect" as const, rect: { x: previousPoint.x, y: previousPoint.y, w: 16, h: 16 }, rgb: { r: 64, g: 96, b: 224 }, filled: true }] };
-  const atCurrent = { tick: 0, width: 320, height: 320, commands: [{ kind: "rect" as const, rect: { x: draws[0]?.x ?? 0, y: draws[0]?.y ?? 0, w: 16, h: 16 }, rgb: { r: 64, g: 96, b: 224 }, filled: true }] };
+  const atPrevious = { tick: 0, width: 320, height: 320, commands: [{ kind: "rect" as const, rect: { x: previousPoint.x, y: previousPoint.y, w: 16, h: 16 }, rgb: { r: 64, g: 96, b: 224 }, filled: true }], marginCommands: [] };
+  const atCurrent = { tick: 0, width: 320, height: 320, commands: [{ kind: "rect" as const, rect: { x: draws[0]?.x ?? 0, y: draws[0]?.y ?? 0, w: 16, h: 16 }, rgb: { r: 64, g: 96, b: 224 }, filled: true }], marginCommands: [] };
   equal(hashDrawList(atPrevious) === hashDrawList(atCurrent), false);
 });
 

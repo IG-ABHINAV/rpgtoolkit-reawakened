@@ -66,6 +66,7 @@ import { asSpritesSection, createSpritesSection, SPRITES_SCHEMA_VERSION } from "
 import { createInputSection, rebuildKeyboardActionClaimIndex } from "../input/input.ts";
 import { createTriggersSection, TRIGGERS_SCHEMA_VERSION } from "../triggers/model.ts";
 import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
+import { createUiSection, UI_SCHEMA_VERSION } from "./sections/ui.ts";
 import { AUDIO_SCHEMA_VERSION, createAudioSection } from "../audio/model.ts";
 import { createEventsSection } from "../events/model.ts";
 import { EVENT_DISPATCH_WAIT } from "../events/emitter.ts";
@@ -519,6 +520,62 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
   record.input = current;
   schema.input = INPUT_SCHEMA_VERSION;
 }
+/** Add deterministic author-surface, explicit custom-touch declaration and input-claim fields. */
+function migrateUi(record: Record<string, unknown>, schema: Record<string, unknown>): void {
+  const version = schema.ui;
+  if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `ui` version");
+  if (version > UI_SCHEMA_VERSION) shapeError(`the snapshot's ui schema ${version} is newer than supported schema ${UI_SCHEMA_VERSION}`);
+  const old = record.ui;
+  if (typeof old !== "object" || old === null || Array.isArray(old)) {
+    shapeError("the snapshot's `ui` section must be an object");
+  }
+  if (version < UI_SCHEMA_VERSION) {
+    const migrated: Record<string, unknown> = { ...createUiSection(), ...(old as Record<string, unknown>) };
+    const time = record.time;
+    const savedTick = typeof time === "object" && time !== null && !Array.isArray(time) &&
+      Number.isSafeInteger((time as Record<string, unknown>).tick)
+      ? (time as Record<string, number>).tick!
+      : 0;
+    if (version < 5) {
+      if (Array.isArray(migrated.actionSurfaces)) {
+        migrated.actionSurfaces = migrated.actionSurfaces.map((surface: unknown) => {
+          if (typeof surface !== "object" || surface === null || Array.isArray(surface)) return surface;
+          const publishedTick = (surface as Record<string, unknown>).publishedTick;
+          return {
+            ...surface,
+            publishedTick: Number.isSafeInteger(publishedTick) ? publishedTick : savedTick,
+          };
+        });
+      }
+      if (Array.isArray(migrated.surfaceBuilders)) {
+        migrated.surfaceBuilders = migrated.surfaceBuilders.map((builder: unknown) => {
+          if (typeof builder !== "object" || builder === null || Array.isArray(builder)) return builder;
+          const openedTick = (builder as Record<string, unknown>).openedTick;
+          return {
+            ...builder,
+            openedTick: Number.isSafeInteger(openedTick) ? openedTick : savedTick,
+          };
+        });
+      }
+    }
+    if (!Array.isArray(migrated.authorMarginSurfaces)) migrated.authorMarginSurfaces = [];
+        for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+          const claim = migrated[key];
+          if (claim !== null && typeof claim === "object" && !Array.isArray(claim)) migrated[key] = { ...claim, cancelled: typeof (claim as Record<string, unknown>).cancelled === "boolean" ? (claim as Record<string, unknown>).cancelled : false };
+        }
+    record.ui = migrated;
+  } else {
+    const current = old as Record<string, unknown>;
+    if (!Array.isArray(current.authorMarginSurfaces)) current.authorMarginSurfaces = [];
+  }
+  const currentUi = record.ui as Record<string, unknown>;
+    for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+      const claim = currentUi[key];
+      if (claim !== null && (typeof claim !== "object" || Array.isArray(claim) || typeof (claim as Record<string, unknown>).cancelled !== "boolean")) shapeError(`the snapshot's UI ${key} must be null or an object with boolean \`cancelled\``);
+    }
+    schema.ui = UI_SCHEMA_VERSION;
+}
+
 
 /** Migrate the empty audio placeholder (schema 1) to the track-and-voice section (schema 2; docs/spec/engine/audio-media.md#audio-state). */
 function migrateAudio(record: Record<string, unknown>, schema: Record<string, unknown>): void {
@@ -1366,6 +1423,7 @@ export function restoreGameState(
   migrateInput(record, schema as Record<string, unknown>);
   rebuildKeyboardActionClaimIndex(record.input as GameState["input"]);
   migrateTriggers(record, schema as Record<string, unknown>);
+  migrateUi(record, schema as Record<string, unknown>);
   migrateAudio(record, schema as Record<string, unknown>);
   migrateEngine(record, schema as Record<string, unknown>);
   applyIrCompatibility(record, options);

@@ -5,16 +5,23 @@ import {
   assetKey,
   colourSurface,
   composeUi,
+  composeUiMargins,
+  uiAccessibilityTree,
   createGameState,
   createScriptServices,
   createSurfacesSection,
+  hashGameState,
   pollInputKey,
   pollRenderMsgBox,
+  restoreGameState,
+  snapshot,
   UI_COMMANDS,
   UI_PLUGIN,
   type Arg,
   type Wait,
 } from "../src/index.ts";
+import { resetUiForProgramStart } from "../src/save/sections/ui.ts";
+import { killSurface } from "../src/raster/surfaces.ts";
 import { pollMenuScreen } from "../src/script/waits.ts";
 import type { DrawCommand } from "../src/ports/draw.ts";
 
@@ -39,9 +46,9 @@ function firstEffect(result: ReturnType<typeof command>): NonNullable<NonNullabl
   return effect;
 }
 
-test("UI pack exposes message, cursor-map and cursor commands", () => {
-  equal(UI_COMMANDS.length, 34);
-  equal(new Set(UI_COMMANDS.map((entry) => entry.name)).size, 34);
+test("UI pack exposes message, cursor-map, accessibility surface and touch declaration commands", () => {
+  equal(UI_COMMANDS.length, 42);
+  equal(new Set(UI_COMMANDS.map((entry) => entry.name)).size, 42);
   equal(UI_COMMANDS.every((entry) => (entry.doc?.summary.length ?? 0) > 0 && (entry.doc?.behaviour.length ?? 0) > 0), true);
 });
 test("dialogue UI effect uses the message window and appends text", () => {
@@ -75,6 +82,121 @@ test("message-window effects splice globals and use deterministic defaults", () 
   equal(state.ui.message.translucency, 50);
   equal(composeUi(state.ui, 800, 600).some((entry) => entry.kind === "rect"), true);
 });
+test("custom touch suppression requires an explicit persistent declaration", () => {
+  const state = createGameState({ seed: 0 });
+  const initialHash = hashGameState(state);
+  applyUiEffect(state, "mwincls", []);
+  equal(state.ui.customTouchControlsDeclared, false);
+  applyUiEffect(state, "declareCustomTouchControls", []);
+  equal(state.ui.customTouchControlsDeclared, true);
+  equal(hashGameState(state) === initialHash, false);
+  resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+  equal(state.ui.customTouchControlsDeclared, true);
+  const saved = snapshot(state);
+  const restored = restoreGameState(saved);
+  equal(restored.ui.customTouchControlsDeclared, true);
+  equal(hashGameState(restored), hashGameState(state));
+
+  const legacy = JSON.parse(saved) as { schema: { ui: number }; ui: Record<string, unknown> };
+  legacy.schema.ui = 2;
+  delete legacy.ui.surfaceCancelledSeq;
+  delete legacy.ui.surfaceCancelledOwner;
+  const migrated = restoreGameState(JSON.stringify(legacy));
+  equal(migrated.ui.surfaceCancelledSeq, null);
+  equal(migrated.ui.surfaceCancelledOwner, null);
+});
+test("legacy UI save migration preserves surface lifetime metadata and defaults Plane 3 commands", () => {
+  const state = createGameState({ seed: 0 });
+  applyUiEffect(state, "mwincls", []);
+  state.time.tick = 7;
+  applyUiEffect(state, "uiBegin", [7, "title", "menu", 0, 0, 16, 16, 1]);
+  applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, null, null, 1]);
+  applyUiEffect(state, "uiEnd", [7]);
+  applyUiEffect(state, "uiBegin", [8, "builder", "surface", 0, 0, 16, 16, 1]);
+  const old = JSON.parse(snapshot(state)) as {
+    schema: { ui: number };
+    ui: { authorMarginCommands?: unknown; actionSurfaces: Record<string, unknown>[]; surfaceBuilders: Record<string, unknown>[] };
+  };
+  old.schema.ui = 4;
+  delete old.ui.authorMarginCommands;
+  delete old.ui.actionSurfaces[0]?.publishedTick;
+  delete old.ui.surfaceBuilders[0]?.openedTick;
+  Object.assign(old.ui, { surfacePointerClaim: { surfaceId: "title", owner: 7, itemId: "play", index: 0, action: null, inputSeq: null } });
+  const migrated = restoreGameState(JSON.stringify(old));
+  equal(migrated.ui.actionSurfaces[0]?.publishedTick, 7);
+  equal(migrated.ui.surfaceBuilders[0]?.openedTick, 7);
+  equal(migrated.ui.surfacePointerClaim?.cancelled, false);
+  deepEqual(migrated.ui.authorMarginCommands, []);
+});
+
+test("author surface claims consume their shared input sequence once", () => {
+  const state = createGameState({ seed: 0 });
+  applyUiEffect(state, "mwincls", []);
+  state.ui.surfaceActivated = { owner: 7, surfaceId: "title", itemId: "play", index: 0, action: null, inputSeq: 41, cancelled: false, };
+  applyUiEffect(state, "uiActivated", [7]);
+  deepEqual(state.engine.claims, [41]);
+  equal(state.ui.surfaceActivated, null);
+
+  state.ui.surfaceCancelled = true;
+  state.ui.surfaceCancelledSeq = 42;
+  state.ui.surfaceCancelledOwner = 7;
+  applyUiEffect(state, "uiCancelled", [8]);
+  deepEqual(state.engine.claims, [41]);
+  equal(state.ui.surfaceCancelled, true);
+  applyUiEffect(state, "uiCancelled", [7]);
+  deepEqual(state.engine.claims, [41, 42]);
+  equal(state.ui.surfaceCancelled, false);
+  equal(state.ui.surfaceCancelledSeq, null);
+  equal(state.ui.surfaceCancelledOwner, null);
+});
+
+test("author text crossing Plane 1 is emitted in the margin command layer", () => {
+  const outside = createGameState({ seed: 0 });
+  applyUiEffect(outside, "pixeltext", [-4, 4, "Go", 0]);
+  ok(composeUiMargins(outside.ui, 32, 32).some((command) => command.kind === "text"));
+
+  const inside = createGameState({ seed: 0 });
+  applyUiEffect(inside, "pixeltext", [4, 4, "Go", 0]);
+  equal(composeUiMargins(inside.ui, 32, 32).length, 0);
+});
+
+test("author UI effects publish one ordered navigation surface and accessibility subtree", () => {
+  const state = createGameState({ seed: 0 });
+  applyUiEffect(state, "uiBegin", [7, "title", "menu", 10, 20, 200, 120, 1]);
+  applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, "confirm", null, 1]);
+  applyUiEffect(state, "uiItem", [7, "Settings", "settings", "audio", 0, "button", null, null, 1]);
+  applyUiEffect(state, "uiEnd", [7]);
+  const surface = state.ui.actionSurfaces[0];
+  ok(surface);
+  equal(surface.selection, 0);
+  deepEqual(surface.items.map(({ id, label, enabled, bounds }) => ({ id, label, enabled, bounds })), [
+    { id: "play", label: "Play", enabled: true, bounds: { x: 10, y: 20, w: 200, h: 60 } },
+    { id: "settings", label: "Settings", enabled: false, bounds: { x: 10, y: 80, w: 200, h: 60 } },
+  ]);
+  deepEqual(uiAccessibilityTree(state.ui), [{
+    id: "surface:7:title",
+    role: "menu",
+    label: "title",
+    value: null,
+    state: { disabled: false, selected: false, checked: null },
+    focused: false,
+    bounds: { x: 10, y: 20, w: 200, h: 120 },
+    children: [
+      { id: "7:title:play", role: "menuitem", label: "Play", value: null, state: { disabled: false, selected: true, checked: null }, focused: true, bounds: { x: 10, y: 20, w: 200, h: 60 }, children: [] },
+      { id: "7:title:settings", role: "button", label: "Settings", value: "audio", state: { disabled: true, selected: false, checked: null }, focused: false, bounds: { x: 10, y: 80, w: 200, h: 60 }, children: [] },
+    ],
+  }]);
+  equal(composeUi(state.ui, 320, 240).some((entry) => entry.kind === "rect"), true);
+});
+test("malformed author surfaces report diagnostics without publishing a partial surface", () => {
+  const state = createGameState({ seed: 0 });
+  const reports: string[] = [];
+  applyUiEffect(state, "uiBegin", [9, "broken", "menu", 0, 0, 0, 10, 0], undefined, (_owner, message) => reports.push(message));
+  applyUiEffect(state, "uiEnd", [9], undefined, (_owner, message) => reports.push(message));
+  deepEqual(reports, ["uiBegin rejected a malformed author surface"]);
+  equal(state.ui.actionSurfaces.length, 0);
+});
+
 
 test("engine-backed message windows use the default translucent colour surface", () => {
   const state = createGameState({ seed: 0 });

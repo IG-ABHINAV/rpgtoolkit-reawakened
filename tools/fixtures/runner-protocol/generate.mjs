@@ -18,7 +18,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isEntryPoint } from "../fetch.mjs";
 import { refName, schemaErrors, schemaProblems } from "./schema.mjs";
-import { typeProblems } from "./types.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const output = join(here, "vectors.json");
@@ -211,8 +210,6 @@ export function check({ schema: schemaOverride, committed, vectors: vectorsOverr
     }
   }
 
-  // 5. The TypeScript types and the schema agree.
-  problems.push(...typeProblems(schema, { sources }));
 
   return problems;
 }

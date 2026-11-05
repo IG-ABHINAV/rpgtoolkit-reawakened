@@ -35,7 +35,7 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
       };
     },
     drawList(_alpha?: number): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
       return null;
@@ -49,6 +49,11 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
     registerGameAction() { return true; },
     setPointerMovementSuppressed() {},
     reportUnknownAction() {},
+    customTouchControlsDeclared() { return false; },
+    hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
+    hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+    surfaceCacheEpoch() { return 0; },
+    accessibilityTree() { return []; },
   };
 
   const run: Run = {
@@ -150,7 +155,7 @@ test("runLog throws naming call and cause for engine violations", () => {
       return modifyReport(base);
     },
     drawList(): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(): SurfacePixels | null {
       return null;
@@ -164,6 +169,11 @@ test("runLog throws naming call and cause for engine violations", () => {
     registerGameAction() { return true; },
     setPointerMovementSuppressed() {},
     reportUnknownAction() {},
+    customTouchControlsDeclared() { return false; },
+    hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
+    hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+    surfaceCacheEpoch() { return 0; },
+    accessibilityTree() { return []; },
   });
   const failureCases: readonly {
     name: string;
@@ -300,7 +310,7 @@ test("runLog accepts non-empty requests and diagnostics and hands them to the ob
       };
     },
     drawList(): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(): SurfacePixels | null {
       return null;
@@ -314,6 +324,11 @@ test("runLog accepts non-empty requests and diagnostics and hands them to the ob
     registerGameAction() { return true; },
     setPointerMovementSuppressed() {},
     reportUnknownAction() {},
+      customTouchControlsDeclared() { return false; },
+      hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
+      hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+      surfaceCacheEpoch() { return 0; },
+      accessibilityTree() { return []; },
     };
   };
   const seen: { call: number; tickAfter: number; requests: number; diagnostics: unknown }[] = [];

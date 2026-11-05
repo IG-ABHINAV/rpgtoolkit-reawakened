@@ -7,6 +7,7 @@ import { ScriptError } from "../script/errors.ts";
 import { engineEffect } from "../engine/boot.ts";
 import type { GameState } from "../save/state.ts";
 import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { killSurface } from "../raster/surfaces.ts";
 import type { Facing, SpriteActor } from "../sprites/model.ts";
 import type { WorldItem, WorldProgram, WorldPoint } from "../world/model.ts";
 import { coordLayout, tileToPixel } from "../world/coords.ts";
@@ -450,7 +451,7 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
     state.sprites.items = state.sprites.items.map((actor) => actor.id === winner!.actor!.id ? { ...actor, facing: facingToward(actor, player) } : actor);
     clearQueue(state, player);
   } else if ((winner.activationType & 4) !== 0) clearQueue(state, player);
-  resetUiForProgramStart(state.ui);
+  resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
   const thread = startThread(state.vm, { ref, kind: "blocking", owner: "script", source: winner.source === "item" ? winner.actor?.id ?? null : winner.key, target: player.id });
   const active: TriggerActive = {
     key: winner.key,

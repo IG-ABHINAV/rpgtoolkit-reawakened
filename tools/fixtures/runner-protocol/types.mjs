@@ -34,7 +34,7 @@ const cache = new Map();
  * Build one program over the three port files. `sources` maps a repository-relative path to a function
  * that rewrites that file's text, so a test can perturb a type without touching the working tree.
  */
-function createProgram(sources) {
+function createProgram(sources, roots) {
   const config = ts.getParsedCommandLineOfConfigFile(
     join(repo, "packages/core/tsconfig.json"),
     { noEmit: true, composite: false },
@@ -52,22 +52,21 @@ function createProgram(sources) {
     cache.set(fileName, { text, file });
     return file;
   };
-  return ts.createProgram(ROOTS.map((root) => join(repo, root.file)), config.options, host);
+  return ts.createProgram(roots.map((root) => join(repo, root.file)), config.options, host);
 }
 
 /** Problems between the wire types in `core` and `schema`; empty when they describe the same records. */
-export function typeProblems(schema, { sources = {} } = {}) {
+export function typeProblems(schema, { sources = {}, inputAlias = "InputRecordV1" } = {}) {
   const problems = [];
   const defs = schema.$defs ?? {};
-
-  // The schema root is exactly the three families.
+  const roots = ROOTS.map((root) => root.def === "inputRecord" ? { ...root, alias: inputAlias } : root);
   const rootRefs = (schema.oneOf ?? []).map((alternative) => refName(alternative.$ref)).sort();
-  const wanted = ROOTS.map((root) => root.def).sort();
+  const wanted = roots.map((root) => root.def).sort();
   if (JSON.stringify(rootRefs) !== JSON.stringify(wanted)) {
     problems.push(`schema root: oneOf must reference exactly ${wanted.join(", ")}; it references ${rootRefs.join(", ") || "nothing"}`);
   }
 
-  const program = createProgram(sources);
+  const program = createProgram(sources, roots);
   const checker = program.getTypeChecker();
   const typeIds = new Map();
   const nodeIds = new Map();
@@ -246,7 +245,7 @@ export function typeProblems(schema, { sources = {} } = {}) {
     }
   }
 
-  for (const root of ROOTS) {
+  for (const root of roots) {
     const source = program.getSourceFile(join(repo, root.file));
     const declaration = source?.statements.find((statement) => ts.isTypeAliasDeclaration(statement) && statement.name.text === root.alias);
     if (declaration === undefined) {

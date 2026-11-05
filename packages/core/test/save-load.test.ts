@@ -348,13 +348,13 @@ function tampered(bytes: Uint8Array, edit: (root: Record<string, unknown>) => vo
 
 type Refusal = { code: string; message: string };
 
-function refusalOf(json: string): Refusal {
+function refusalOf(json: string, context = "snapshot"): Refusal {
   try {
     restoreGameState(json);
   } catch (error) {
     return error as Refusal;
   }
-  throw new Error("expected the snapshot to be refused");
+  throw new Error(`expected ${context} to be refused`);
 }
 
 test("every missing section is refused as a shape error naming the section", () => {
@@ -373,7 +373,7 @@ test("every section of an impossible type is refused", () => {
   for (const section of SECTIONS) {
     const root = JSON.parse(json) as Record<string, unknown>;
     root[section] = 42;
-    const refusal = refusalOf(JSON.stringify(root));
+    const refusal = refusalOf(JSON.stringify(root), `scalar ${section}`);
     ok(["restore.shape", "restore.ir-mismatch"].includes(refusal.code), `a scalar ${section} is refused: ${refusal.code} ${refusal.message}`);
   }
 });

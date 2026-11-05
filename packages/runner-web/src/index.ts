@@ -252,7 +252,9 @@ export function runScriptedFrame(options: ScriptedFrameOptions): FrameReport {
   const frame = run.frames.find((candidate) => candidate.tick === (options.tick ?? 120)) ?? run.frames.at(-1);
   if (frame === undefined) throw new Error(`runner-web: ${options.game} captured no frame`);
   const renderer = createWebgl2Renderer(options.gl);
-  const render = renderer.render(frame.drawList as DrawList, {
+  const list = frame.drawList as DrawList;
+  const geometry = { content: { width: list.width, height: list.height }, game: { x: 0, y: 0, width: list.width, height: list.height }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } };
+  const render = renderer.render(list, geometry, {
     textures: textureProvider(options.files),
     surfaces: (id: SurfaceId, rev: number) => {
       const pixels = frame.surfaces.get(`${id}:${rev}`);

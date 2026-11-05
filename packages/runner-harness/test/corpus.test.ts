@@ -370,19 +370,21 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
   // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
   // else did; every other hash, tick and diagnostic is unchanged.
-  // Re-pinned by #1410: registered action definitions, control indexes and source claims are now part of normalized
-  // input state and its hash. The legacy corpus inputs, ticks, diagnostics, draws and events remain unchanged.
+  // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
+  // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
+  // UI schema 7 adds the persisted author-claim cancellation flag; only state hashes move from this schema change.
+  // Corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "9edee8ad3c3b0e59",
-    "sample-system-demo": "4d7bb6f94491d8b1",
-    "sample-sys-test-demo": "4d7bb6f94491d8b1",
-    "sample-win-demo": "3d93d5c4d1f262bb",
-    "sample-oldman-demo": "78288793d586715a",
-    "sample-man-demo": "eebd9b35c8719458",
-    "sample-man-wander-demo": "c2b5a44540c7dd95",
-    "sample-start-basic": "f8abcd7239528fc9",
-    "sample-system-basic": "4d7bb6f94491d8b1",
-    "sample-wander-basic": "f9b3745a2227abfb",
+    "sample-start-demo": "d4d5cf26ecf2280a",
+    "sample-system-demo": "1a67e8bc05aeb7e2",
+    "sample-sys-test-demo": "1a67e8bc05aeb7e2",
+    "sample-win-demo": "d0b39c89987bb522",
+    "sample-oldman-demo": "c030d5e1232a9f1d",
+    "sample-man-demo": "f66fdd92bfd77427",
+    "sample-man-wander-demo": "d1d34d7ab3691236",
+    "sample-start-basic": "f2269b2e13b97a56",
+    "sample-system-basic": "1a67e8bc05aeb7e2",
+    "sample-wander-basic": "8a16b3434ef59ef2",
   };
 
   for (const res of results) {
@@ -405,7 +407,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "f9b3745a2227abfb"); // Input schema 8, world schema 2 and host state.
+  equal(hash1, "8a16b3434ef59ef2"); // UI schema 7 persists author-claim cancellation state.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);
