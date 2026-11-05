@@ -5,6 +5,8 @@ parent: initiative-rpgtoolkit-reawakened
 covers: ["CAP-15"]
 assignee: ""
 risk: medium
+tracker_id: "#1358"
+remote: "https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1358"
 ---
 
 # P0 asset editors: board, character, item, animation, tile bitmap, packaging

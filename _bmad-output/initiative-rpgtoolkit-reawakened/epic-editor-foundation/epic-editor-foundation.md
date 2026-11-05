@@ -5,6 +5,8 @@ parent: initiative-rpgtoolkit-reawakened
 covers: ["CAP-15", "CAP-18"]
 assignee: ""
 risk: high
+tracker_id: "#1357"
+remote: "https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1357"
 ---
 
 # Editor foundation: editor-ui, platform-services and two hosts

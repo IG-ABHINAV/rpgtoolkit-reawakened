@@ -1,0 +1,80 @@
+# tickets.toml — planned entries for epic-game-launcher, in build order.
+
+[[entry]]
+id = 1
+tracker_id = "#1341"
+type = "story"
+title = "The Library registry and storage service across desktop (library.json) and web/mobile (OPFS)"
+description = "Implements the host-side library registry service according to docs/spec/engine/launcher.md#storage-and-registry. Stores package metadata, SHA-256 hashes, last-played timestamps, and queries AD-17 save blobs for quick-resume status."
+verify = "Unit tests verify that registering, querying, updating, and removing library entries succeeds on Node filesystem and OPFS mock; invalid SHA-256 or corrupt entries are refused with explicit diagnostics."
+covers = ["CAP-12"]
+after = []
+hitl = false
+risk = "low"
+references = ["spec - docs/spec/engine/launcher.md#storage-and-registry", "spec - docs/spec/engine/runners.md#install"]
+
+[[entry]]
+id = 2
+tracker_id = "#1342"
+type = "story"
+title = "Local package ingestion bridge with zero network upload"
+description = "Builds the local file ingestion bridge for desktop (dialog.showOpenDialog), mobile (Capacitor FilePicker / share sheet), and web (HTML5 drag-and-drop and File System Access API). Ensures bytes are read purely client-side into ArrayBuffers without network transmission, with an optional copy into local OPFS storage."
+verify = "Tests prove that dropped and picked .tpk/.zip files unpack in memory, verify against their install descriptors, and launch without triggering any fetch or network upload requests."
+covers = ["CAP-12"]
+after = [1]
+hitl = false
+risk = "medium"
+references = ["spec - docs/spec/engine/launcher.md#three-pillars"]
+
+[[entry]]
+id = 3
+tracker_id = "#1343"
+type = "story"
+title = "Marketplace catalog client, manifest schema and package downloader"
+description = "Implements the remote catalog client that fetches and validates catalog.json. Integrates with createLoadController to stream or download packages into the local store and register them into the Library registry upon installation."
+verify = "Catalog schema validation rejects malformed entries; valid packages stream or download based on the threshold rule and register in the library."
+covers = ["CAP-12"]
+after = [1]
+hitl = false
+risk = "low"
+references = ["spec - docs/spec/engine/launcher.md#three-pillars", "spec - docs/spec/engine/runners.md#load-modes"]
+
+[[entry]]
+id = 4
+tracker_id = "#1344"
+type = "story"
+title = "Launcher presentation UI, game cards, resume action and session handoff"
+description = "Creates the shared Launcher UI component in runner-web. Displays Marketplace, Library, and Open Local tabs, responsive game cards, thumbnail caching, and the 'Resume' button for existing saves. Manages the session handoff: unlocking audio on user gesture, mounting the WebGL2 canvas, and returning cleanly to the Launcher upon session exit."
+verify = "Interactive and Playwright browser tests prove tab navigation, audio unlocking on game launch, smooth transition to gameplay canvas, and returning to the launcher when the game exits."
+covers = ["CAP-12"]
+after = [2, 3]
+hitl = false
+risk = "medium"
+references = ["spec - docs/spec/engine/launcher.md#runner-handoff"]
+
+[[entry]]
+id = 5
+tracker_id = "#1345"
+type = "story"
+title = "Multi-platform launch resolution and conformance suite"
+description = "Wires the complete launch resolution sequence into runner-desktop, runner-web, and runner-mobile: explicit CLI/query parameters -> player.json -> baked default -> Launcher UI. Verifies that quitting an active session restores the Launcher UI."
+verify = "CI passes verifying all four launch paths on desktop (macOS/Linux/Windows), web browser, and mobile stub."
+covers = ["CAP-12"]
+after = [4]
+hitl = true
+risk = "medium"
+references = ["spec - docs/spec/engine/launcher.md#launch-resolution", "ruling - docs/adr/0013-desktop-shell-electron.md"]
+
+[[entry]]
+id = 6
+tracker_id = "#1346"
+type = "story"
+title = "Standalone distribution wrapping for desktop, web and mobile"
+description = "Builds the export packaging pipeline for standalone games. Embeds the package and descriptor into runner-desktop (resources/ + player.json for Steam/itch.io native builds), runner-web (static HTML5 bundle with embedded package), and runner-mobile (Capacitor assets + native app metadata), verifying that standalone builds boot directly into the game canvas and bypass the Launcher UI completely."
+verify = "Exported standalone builds boot directly into gameplay without rendering the Launcher UI on desktop, web, and mobile, and terminating the game closes the application cleanly."
+covers = ["CAP-12"]
+after = [5]
+hitl = false
+risk = "low"
+references = ["spec - docs/spec/engine/launcher.md#standalone-distribution"]
+

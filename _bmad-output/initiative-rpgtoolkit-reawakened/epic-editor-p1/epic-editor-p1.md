@@ -5,6 +5,8 @@ parent: initiative-rpgtoolkit-reawakened
 covers: ["CAP-16"]
 assignee: ""
 risk: low
+tracker_id: "#1359"
+remote: "https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1359"
 ---
 
 # P1 editor tools
