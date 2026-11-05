@@ -56,6 +56,20 @@ export function stampPendingInputs(inputs: readonly PendingInput[], tick: number
   return inputs.map((input) => ({ tick: input.tick ?? tick, event: input.event }));
 }
 
+/** Keep pointer normalization aligned with the newest ordered host.display observation, even before the engine consumes it. */
+export function createObservedHostGeometry(initial: HostDisplayGeometry): {
+  readonly current: () => HostDisplayGeometry;
+  readonly observe: (event: InputRecord["event"]) => void;
+} {
+  let latest = initial;
+  return {
+    current: () => latest,
+    observe(event) {
+      if (event.kind === "host.display") latest = event.geometry;
+    },
+  };
+}
+
 /** Fit and measure only when the host has a positive content box. */
 export function measureHostDisplay(
   { canvas, viewport }: HostViewport,

@@ -3,7 +3,7 @@ import { interactivePackage } from "@tk-reawakened/runner-web";
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -74,12 +74,16 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => pending.push({ tick: null, event }), session.hostState ?? undefined);
+  const observedGeometry = createObservedHostGeometry(session.displayGeometry());
+  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+    observedGeometry.observe(event);
+    pending.push({ tick: null, event });
+  }, session.hostState ?? undefined);
   const pointerHost = stage;
   const stopPointerInput = attachPointerInput(
     pointerHost,
     viewSize,
-    session.displayGeometry,
+    observedGeometry.current,
     ({ x, y }, buttons) => pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons } }),
     () => pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" } }),
   );
