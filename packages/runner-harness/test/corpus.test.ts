@@ -372,18 +372,19 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // else did; every other hash, tick and diagnostic is unchanged.
   // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
   // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
+  // UI schema 7 adds the persisted author-claim cancellation flag; only state hashes move from this schema change.
   // Corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "2b9005ba66a136ab",
-    "sample-system-demo": "77b7638f2feb8fab",
-    "sample-sys-test-demo": "77b7638f2feb8fab",
-    "sample-win-demo": "b8498fb13ec51e3b",
-    "sample-oldman-demo": "ab61156ec31e63da",
-    "sample-man-demo": "a410982e30fcd718",
-    "sample-man-wander-demo": "98c225eec5b0beeb",
-    "sample-start-basic": "539995817aa8b417",
-    "sample-system-basic": "77b7638f2feb8fab",
-    "sample-wander-basic": "babfa61391229f83",
+    "sample-start-demo": "d4d5cf26ecf2280a",
+    "sample-system-demo": "1a67e8bc05aeb7e2",
+    "sample-sys-test-demo": "1a67e8bc05aeb7e2",
+    "sample-win-demo": "d0b39c89987bb522",
+    "sample-oldman-demo": "c030d5e1232a9f1d",
+    "sample-man-demo": "f66fdd92bfd77427",
+    "sample-man-wander-demo": "d1d34d7ab3691236",
+    "sample-start-basic": "f2269b2e13b97a56",
+    "sample-system-basic": "1a67e8bc05aeb7e2",
+    "sample-wander-basic": "8a16b3434ef59ef2",
   };
 
   for (const res of results) {
@@ -406,7 +407,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "babfa61391229f83"); // Input schema 8, UI schema 5 and host state.
+  equal(hash1, "8a16b3434ef59ef2"); // UI schema 7 persists author-claim cancellation state.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);
