@@ -436,7 +436,7 @@ function startLiveLoop(
         advancing = true;
         session.advance(wholeTicks, inputs).then(() => {
           if (disposed) return;
-          const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), displayGeometry, pending);
+          const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), displayGeometry, pending, session.tick());
           advancing = false;
           if (disposed || restoredGeometryNeedsTick) return;
           const drawn = session.draw(accumulator / stepMs);

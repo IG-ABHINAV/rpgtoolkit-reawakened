@@ -143,6 +143,7 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   applyUiEffect(savedState, "uiItem", [7, "Go", "margin-go", null, 1, null, "confirm", null, 1]);
   applyUiEffect(savedState, "uiEnd", [7]);
   savedState.input.focused = false;
+  Object.assign(savedState.time, { tick: 50 });
   const saved = new TextEncoder().encode(snapshotGameSave(savedState));
   let activatedItem: string | null = null;
   const engine = createEngine({
@@ -184,9 +185,9 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
   const logical = pointerEventToLogical({ clientX: 0, clientY: 0 } as PointerEvent, host, { width: 2, height: 2 }, observed.current());
   deepEqual(logical, { x: -2, y: 0 });
   const pending: PendingInput[] = [
-    { tick: null, event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true }, pointerGeometry: null },
-    { tick: null, event: { kind: "pointer", ...logical, buttons: 1 }, pointerGeometry: resized },
-    { tick: null, event: { kind: "pointer", ...logical, buttons: 0 }, pointerGeometry: resized },
+    { tick: loadReport.tickAfter, event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true }, pointerGeometry: null },
+    { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 1 }, pointerGeometry: resized },
+    { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 0 }, pointerGeometry: resized },
   ];
   const restored = engine.advance(0, [{
     tick: loadReport.tickAfter,
@@ -201,12 +202,16 @@ test("post-restore geometry is inserted before stalled-load margin pointers with
     readyReport = engine.advance(0, assetReplies);
   }
   deepEqual(engine.hostDisplayGeometry(), initial, "Load restores the older saved display geometry");
-  const queued = reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, pending);
+  equal(loadReport.tickAfter === readyReport.tickAfter, false, "the restored save tick differs from the wait/input timestamp");
+  const queued = reconcileObservedGeometryAfterAdvance(engine.hostDisplayGeometry(), observed, pending, readyReport.tickAfter);
   equal(queued, true, "restored geometry remains queued until a budgeted tick");
+  deepEqual(pending.map(({ tick }) => tick), [null, null, null, null], "unconsumed numeric producer timestamps rebase only while still pending");
   deepEqual(pending.map(({ event }) => event.kind), ["key", "host.display", "pointer", "pointer"], "restore geometry is inserted immediately before the pointers it qualifies, preserving key and pointer order");
   deepEqual(engine.hostDisplayGeometry(), initial, "reconciliation does not mutate or advance simulation state");
 
-  const resumed = engine.advance(0, stampPendingInputs(pending, readyReport.tickAfter));
+  const resumedInputs = stampPendingInputs(pending, readyReport.tickAfter);
+  deepEqual(resumedInputs.map(({ tick }) => tick), pending.map(() => readyReport.tickAfter));
+  const resumed = engine.advance(0, resumedInputs);
   equal(resumed.ticksRun, 0, "geometry reconciliation never spends an unbudgeted simulation tick");
   equal(resumed.tickAfter, readyReport.tickAfter, "the tick counter stays unchanged");
   deepEqual(resumed.consumed.map(({ event }) => event.kind), ["host.display"], "unfocused pre-tick consumes geometry but leaves key and pointer events queued");

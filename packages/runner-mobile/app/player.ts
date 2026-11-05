@@ -280,7 +280,7 @@ function run(
     pending = [];
     void session.advance(ticks, inputs).then(async () => {
       if (disposed || !isCurrent()) return;
-      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending);
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
       if (restoredGeometryNeedsTick) {
         frameId = window.requestAnimationFrame(draw);
         return;

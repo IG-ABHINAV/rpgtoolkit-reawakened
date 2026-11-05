@@ -111,13 +111,19 @@ export function reapplyObservedGeometryBeforePointer(
   return reconcilePendingGeometry(engineGeometry, observed.current(), pending);
 }
 
-/** A restore may roll geometry back; repair each queued pointer's geometry before the next budgeted tick. */
+/** A restore may roll geometry and tick back; rebase unconsumed host records at the next consuming boundary. */
 export function reconcileObservedGeometryAfterAdvance(
   engineGeometry: HostDisplayGeometry,
   observed: ObservedHostGeometry,
   pending: PendingInput[],
+  consumingTick: number,
 ): boolean {
-  return reconcilePendingGeometry(engineGeometry, observed.current(), pending);
+  const needsTick = reconcilePendingGeometry(engineGeometry, observed.current(), pending);
+  for (let index = 0; index < pending.length; index += 1) {
+    const input = pending[index]!;
+    if (input.tick !== null && input.tick !== consumingTick) pending[index] = { ...input, tick: null };
+  }
+  return needsTick;
 }
 
 

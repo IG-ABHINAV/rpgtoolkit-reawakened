@@ -127,7 +127,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     pending = [];
     void session.advance(ticks, inputs).then(() => {
       if (disposed) return;
-      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending);
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
       if (restoredGeometryNeedsTick) {
         requestAnimationFrame(draw);
         return;
