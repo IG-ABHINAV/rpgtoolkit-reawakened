@@ -2644,8 +2644,8 @@ export function createEngine(init: EngineInit): Engine {
     }
     const currentLoader = loader;
     if (currentLoader === null) return recoveryFailure("recovery.program-loader", "the program loader is unavailable");
-    const resolveProgram = (name: string): ProgramRef | null => {
-      if (!name.toLowerCase().endsWith(".prg")) {
+    const resolveProgram = (name: string, itemProgram = false): ProgramRef | null => {
+      if (itemProgram && !name.toLowerCase().endsWith(".prg")) {
         const ref: ProgramRef = { kind: "inline", text: name, ir: IR_VERSION, dialect: "tk3" };
         try {
           const compiled = services.programs.get(ref);
@@ -2697,7 +2697,7 @@ export function createEngine(init: EngineInit): Engine {
     const itemPrograms = new Map<string, ProgramRef>();
     for (const sprite of ledger.sprites.items) {
       if (!sprite.visible || sprite.multitaskProgram === null) continue;
-      const ref = resolveProgram(sprite.multitaskProgram);
+      const ref = resolveProgram(sprite.multitaskProgram, true);
       if (ref === null) return false;
       itemPrograms.set(sprite.id, ref);
     }

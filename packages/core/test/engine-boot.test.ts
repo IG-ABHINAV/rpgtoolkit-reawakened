@@ -2850,6 +2850,27 @@ test("recovery boots startup first, stages durable state paused, and resumes ent
   equal(state.time.tick, savedTick + 1);
 });
 
+test("recovery resumes extensionless indexed board and entry programs as files (#1373)", () => {
+  const spec: GameSpec = {
+    ...PAUSED_RECOVERY_GAME,
+    boards: { "start.brd": { enter: "enter", threads: ["board"] } },
+    programs: {
+      ...PAUSED_RECOVERY_GAME.programs,
+      enter: "entryCount = entryCount + 1\nend()\n",
+      board: "boardCount = boardCount + 1\nend()\n",
+    },
+  };
+  const { game, candidate } = recoveryCandidateWithDurableState(spec);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles, undefined, undefined, candidate);
+  deepEqual(run(engine, game.files, 30).diagnostics, []);
+  equal(engine.recoveryStatus(), "paused");
+  equal(engine.resumeRecovery(), true);
+  deepEqual(run(engine, game.files, 3).diagnostics, []);
+  equal(doubles.state().vm.globals.entrycount, 1);
+  equal(doubles.state().vm.globals.boardcount, 1);
+});
+
 test("declining recovery by supplying no candidate follows ordinary boot", () => {
   const game = authorGame(PAUSED_RECOVERY_GAME);
   const doubles = makeDoubles();
