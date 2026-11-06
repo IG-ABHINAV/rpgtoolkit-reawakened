@@ -226,3 +226,33 @@ export async function probePendingIsolation(url) {
     await context.close();
   }
 }
+
+/** Release the decoder after replacing a pending bank and observe every actual bank installation. */
+export async function probeReleasedSupersession(url, replacement) {
+  const compressed = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf3")).arrayBuffer());
+  const plain = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf2")).arrayBuffer());
+  const { context, control, processor } = await setup(url);
+  try {
+    const installed = [];
+    processor.port.addEventListener("message", ({ data }) => {
+      if (data.kind === "bank.accepted") installed.push(data.bank?.id ?? null);
+    });
+    const sendBank = (id, bytes) => processor.port.postMessage({ kind: "message", message: {
+      kind: "setBank", bankKind: "soundfont", bank: id === null ? null : { source: "bundled", id, sha256: null },
+      bankBytes: bytes, bankSha: id,
+    } });
+    sendBank("old", compressed);
+    const accepted = replacement === "compressed" ? null : waitMessage(processor.port, "bank.accepted");
+    sendBank(replacement === "none" ? null : replacement, replacement === "none" ? null : replacement === "plain" ? plain : compressed);
+    if (accepted !== null) await accepted;
+    const decoded = waitMessage(control.port, "decoded");
+    control.port.postMessage({ kind: "resolve" });
+    await decoded;
+    const fence = waitMessage(processor.port, "latency");
+    processor.port.postMessage({ kind: "latency" });
+    await fence;
+    return installed;
+  } finally {
+    await context.close();
+  }
+}

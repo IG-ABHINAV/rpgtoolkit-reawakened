@@ -14,7 +14,7 @@ registerProcessor("decoder-probe-control", class extends AudioWorkletProcessor {
         if (probeRelease === undefined) throw new Error("decoder did not start");
         this.port.postMessage({ kind: "pending" });
       } else if (data.kind === "resolve") {
-        probeRelease();
+        probeRelease().then(() => this.port.postMessage({ kind: "decoded" }));
         this.port.postMessage({ kind: "released" });
       } else if (data.kind === "reject") probeReject();
     };

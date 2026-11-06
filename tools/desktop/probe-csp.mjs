@@ -52,6 +52,13 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
       || isolation.resumed <= 0.0001 || isolation.unrelated <= 0.0001 || isolation.superseded <= 0.0001 || !isolation.reset) {
       throw new Error(`pending decoder blocked independent audio: ${JSON.stringify(isolation)}`);
     }
+    for (const replacement of ["plain", "none", "compressed"]) {
+      const installed = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeReleasedSupersession('/apps/${workletFilename}', '${replacement}'))`);
+      const expected = replacement === "none" ? null : replacement;
+      if (installed.length !== 1 || installed[0] !== expected) {
+        throw new Error(`stale bank installed after decoder release (${replacement}): ${JSON.stringify(installed)}`);
+      }
+    }
 
     // Exercise the actual desktop graph and status display with the decoder rejected in its own realm.
     writeFileSync(liveWorklet, readFileSync(workletOutput));
