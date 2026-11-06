@@ -240,7 +240,15 @@ function run(
   }, session.hostState ?? undefined);
   const stage = hostViewport.viewport;
   const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean, modalId: number | null = null): number => {
-    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback", modalId }, pointerGeometry: null });
+    let event: InputRecord["event"];
+    if (modalId === null) {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId: null };
+    } else if (action === "confirm" || action === "cancel") {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId };
+    } else {
+      throw new Error("only confirm or cancel may target a modal");
+    }
+    pending.push({ tick: null, event, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
   };
