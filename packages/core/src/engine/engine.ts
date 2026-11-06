@@ -3776,6 +3776,16 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
 
+  function processPendingGamepadEvents(): void {
+    processGamepadEvents(state.input, ({ device, connected }) => {
+      queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
+        device,
+        type: "gamepad",
+      });
+    }, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+    });
+  }
   function applyQueuedInputRecords(consumed: InputRecord[]): void {
     const records = takeQueuedInputs(state.time.tick);
     for (const record of records) {
@@ -3793,14 +3803,7 @@ export function createEngine(init: EngineInit): Engine {
       applyRoutedInputEvent(record.event);
       consumed.push(record);
     }
-    processGamepadEvents(state.input, ({ device, connected }) => {
-      queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
-        device,
-        type: "gamepad",
-      });
-    }, (action, down, firstSeq) => {
-      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
-    });
+    processPendingGamepadEvents();
   }
 
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
@@ -3968,14 +3971,24 @@ export function createEngine(init: EngineInit): Engine {
         consumed.push(record);
       } else if (record.event.kind === "focus") {
         if (record.event.state === "lost" && deferred.length > 0 && state.engine.openTick === undefined) {
-          // Keep focus loss behind earlier deferred records; focus gain must open the gate so they can be consumed.
-          deferred.push(record);
-          inputFocused = false;
-        } else {
-          inputFocused = record.event.state === "gained";
-          applyRoutedInputEvent(record.event);
-          consumed.push(record);
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) break;
+            if (applyHostStateEvent(earlier.event)) {
+              consumed.push(earlier);
+              deferred.splice(at, 1);
+              continue;
+            }
+            if (earlier.event.kind !== "key" && earlier.event.kind !== "action" && earlier.event.kind !== "gamepad") break;
+            applyRoutedInputEvent(earlier.event);
+            consumed.push(earlier);
+            deferred.splice(at, 1);
+          }
+          processPendingGamepadEvents();
         }
+        inputFocused = record.event.state === "gained";
+        applyRoutedInputEvent(record.event);
+        consumed.push(record);
       } else if (!inputFocused && hasPointerRecord && (record.event.kind === "host.display" || record.event.kind === "pointer")) {
         deferred.push(record);
       } else if (hasPointerRecord || deferred.length > 0) {
