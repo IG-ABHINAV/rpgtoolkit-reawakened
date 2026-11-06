@@ -205,3 +205,24 @@ test("runtime validation rejects the generated v2 modal-scoped game action vecto
   if (vector === undefined) throw new Error("generated v2 modal-action refusal vector is missing");
   equal(validateInputEvent(vector.record.event).ok, false, vector.id);
 });
+
+test("runtime gamepad validation matches published v2 device and axis boundaries", () => {
+  const root = dirname(fileURLToPath(import.meta.url));
+  const vectorsPath = join(root, "../../../tools/fixtures/runner-protocol/vectors-v2.json");
+  const { vectors } = JSON.parse(readFileSync(vectorsPath, "utf8")) as {
+    readonly vectors: readonly { readonly id: string; readonly valid: boolean; readonly record: { readonly event: unknown } }[];
+  };
+  const boundaries = vectors.filter((vector) => vector.id.startsWith("gamepad-boundary-"));
+  equal(boundaries.length, 22);
+  for (const vector of boundaries) {
+    const result = validateInputEvent(vector.record.event);
+    equal(result.ok, vector.valid, vector.id);
+    if (result.ok) {
+      deepEqual(result.value, vector.record.event, vector.id);
+    } else {
+      const field = vector.id.includes("-device-") ? "device" : vector.id.includes("-x-") ? "axes.x" : "axes.y";
+      const prefix = vector.id.includes("-host-gamepads-") ? "devices[0]." : "";
+      equal(result.path, prefix + field, vector.id);
+    }
+  }
+});
