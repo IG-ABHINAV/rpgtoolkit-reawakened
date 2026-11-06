@@ -106,7 +106,7 @@ test("pointer geometry keeps the newest queued host display through an advance b
   deepEqual(observed.current(), resized);
   deepEqual(pointerEventToLogical(pointer, host, viewSize, observed.current()), { x: 120, y: 40 });
 });
-test("focused restore re-establishes pointer geometry before stalled-load margin taps", () => {
+test("stalled successful load discards old margin taps and preserves geometry for fresh taps", () => {
   const initial = {
     content: { width: 4, height: 2 },
     game: { x: 1, y: 0, width: 2, height: 2 },
@@ -221,10 +221,13 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
     hostObserver?.dispose();
     restoreGlobals();
   }
+  // Pending inputs precede the load boundary in the live request pump (#1564).
   const restored = engine.advance(1, [
+    ...restoreEvents.slice(0, 4).map((event) => ({ tick: loadReport.tickAfter, event })),
     { tick: loadReport.tickAfter, event: { kind: "blob.loaded", reqId: loadRequest.reqId, bytes: saved } },
-    ...restoreEvents.map((event) => ({ tick: loadReport.tickAfter, event })),
+    ...restoreEvents.slice(4).map((event) => ({ tick: loadReport.tickAfter, event })),
   ]);
+  const consumed = [...restored.consumed];
   let readyReport = restored;
   for (let step = 0; step < 8; step += 1) {
     const assetReplies = readyReport.requests.flatMap((request) => request.kind === "asset"
@@ -232,24 +235,26 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
       : []);
     if (assetReplies.length === 0) break;
     readyReport = engine.advance(1, assetReplies);
+    consumed.push(...readyReport.consumed);
   }
-  equal(readyReport.ticksRun, 1, "the focused loaded game consumes the pending tap on the same advance that completes its load");
-  equal(activatedItem, "margin-go", "the Plane 3 tap activates under its own geometry before the final resize");
-  const consumedKinds = readyReport.consumed.map(({ event }) => event.kind);
+  equal(readyReport.ticksRun, 1, "the focused loaded game completes its resumed tick");
+  equal(activatedItem, null, "a tap observed before successful replacement cannot activate the loaded surface");
+  const consumedKinds = consumed.map(({ event }) => event.kind);
   const pointerAt = consumedKinds.indexOf("pointer");
-  equal(pointerAt > 0, true, "the focused load consumes its pointer events");
-  const finalDisplayAt = consumedKinds.lastIndexOf("host.display");
-  equal(finalDisplayAt > pointerAt + 1, true, "the later display geometry follows both pointer edges");
-  deepEqual(consumedKinds.slice(pointerAt - 1, pointerAt + 2), ["host.display", "pointer", "pointer"]);
-  deepEqual(consumedKinds.slice(finalDisplayAt - 1, finalDisplayAt + 1), ["host.features", "host.display"]);
+  const replyAt = consumedKinds.indexOf("blob.loaded");
+  equal(pointerAt >= 0 && replyAt > pointerAt + 1, true, "both old pointer edges are consumed before the load boundary");
+  deepEqual(consumedKinds.slice(pointerAt, pointerAt + 2), ["pointer", "pointer"]);
+  equal(consumedKinds.filter((kind) => kind === "key").length, 1, "the unrelated key is preserved");
   deepEqual(engine.hostFeatures(), liveFeatures);
-  deepEqual(engine.hostDisplayGeometry(), initial, "final geometry follows the tap at its saved geometry");
+  deepEqual(engine.hostDisplayGeometry(), initial, "the current host geometry wins after replacement");
   const firstFrame = rasterizePresentation(engine.drawList(), engine.hostDisplayGeometry(), new Map());
   equal(firstFrame.error, null);
   equal(firstFrame.width, 4);
   equal(firstFrame.height, 2);
   const loadedState = engineState as GameState | null;
   if (loadedState === null) throw new Error("expected the engine animation phase to expose loaded state");
+  equal(loadedState.input.held.A, true, "the unrelated key remains held in the restored state");
+  equal(loadedState.input.keys.some((key) => key.name === "A" && key.code === "KeyA"), true, "the unrelated key reaches the restored script queue");
   applyUiEffect(loadedState, "uiBegin", [7, "touch", "surface", -2, 0, 1, 2, 1]);
   applyUiEffect(loadedState, "uiItem", [7, "Go", "margin-go", null, 1, null, "confirm", null, 1]);
   applyUiEffect(loadedState, "uiEnd", [7]);
