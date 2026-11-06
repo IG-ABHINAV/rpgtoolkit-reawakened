@@ -3967,10 +3967,10 @@ export function createEngine(init: EngineInit): Engine {
         if (state.engine.video?.reqId === record.event.reqId) state.engine.video = { ...state.engine.video, ended: true };
         consumed.push(record);
       } else if (record.event.kind === "focus") {
-        if (deferred.length > 0 && state.engine.openTick === undefined) {
-          // Keep a focus transition behind any earlier deferred records so host snapshots cannot overtake their input.
+        if (record.event.state === "lost" && deferred.length > 0 && state.engine.openTick === undefined) {
+          // Keep focus loss behind earlier deferred records; focus gain must open the gate so they can be consumed.
           deferred.push(record);
-          inputFocused = record.event.state === "gained";
+          inputFocused = false;
         } else {
           inputFocused = record.event.state === "gained";
           applyRoutedInputEvent(record.event);

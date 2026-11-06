@@ -195,6 +195,15 @@ test("engine applies and records complete host updates on their consuming tick",
   equal(refocus.ticksRun, 1);
   equal(live.state.input.gamepads["0"]?.connected, false, "the empty snapshot after a deferred press is not overtaken by blur");
   equal(live.state.input.actions.right, false, "refocusing cannot apply the superseded controller press as a ghost hold");
+  engine.advance(0, [{ tick: live.state.time.tick, event: { kind: "focus", state: "lost" } }]);
+  const resumedWithPrefix = engine.advance(1, [
+    { tick: live.state.time.tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+    { tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } },
+    { tick: live.state.time.tick, event: { kind: "focus", state: "gained" } },
+  ]);
+  equal(resumedWithPrefix.ticksRun, 1, "focus gain opens the consumer for the ordered queued prefix");
+  equal(live.state.input.gamepads["0"]?.connected, false);
+  equal(live.state.input.actions.right, false, "queued controller input remains ordered with focus gain");
 });
 test("delayed replacement MainFile re-registers external actions before recomputing held gamepad state", () => {
   const encodeMain = (startupPrg: string) => {
