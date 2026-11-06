@@ -3024,17 +3024,18 @@ export function createEngine(init: EngineInit): Engine {
     if (live === undefined || original !== live || ordinal === undefined) return null;
     return { ordinal, className: live.className, hostType: live.hostType ?? null };
   }
-  /** A board thread has no lifetime owner during startup until a board is installed. */
+  /**
+   * A board thread has no lifetime owner during startup until a board is installed; before the first
+   * board is installed, no background thread receives a slice (owner-relayed 3.1-source fact, 2026-11-05):
+   * persistence decides only whether a spawned thread survives long enough to be eligible afterwards.
+   * Once a board is installed during startup (a start-up `send`/`Load`), a real board exists and its
+   * threads and persistent threads become eligible and may run, as everywhere else (a live blocking
+   * thread still owns the phase; see #1167). The blocking program itself never becomes ineligible.
+   */
   function startupThreadEligible(thread: Thread): boolean {
     return state.engine.boot?.stage !== "startup"
       || (state.world.board !== null && state.world.board !== undefined)
-      || thread.kind !== "board";
-  }
-  /** Persistent threads may run during startup before the first board exists, even while the start-up blocking program burns CPU (#1173); everywhere else they obey the live blocking thread rule (#1167). */
-  function startupFreezeExempt(thread: Thread): boolean {
-    return state.engine.boot?.stage === "startup"
-      && (state.world.board === null || state.world.board === undefined)
-      && thread.kind === "persistent";
+      || thread.kind === "blocking";
   }
   function discardUnboardedStartupThreads(): void {
     if (state.world.board === null || state.world.board === undefined) endBoardThreads(state.vm);
@@ -3863,7 +3864,7 @@ export function createEngine(init: EngineInit): Engine {
         const liveBlockingBefore = new Set(
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
-        withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET, startupThreadEligible, startupFreezeExempt));
+        withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET, startupThreadEligible));
         finishScriptThreadPass();
         if (state.engine.pendingEnterThread !== undefined) {
           const enterThread = state.vm.threads.find((thread) => thread.id === state.engine.pendingEnterThread);

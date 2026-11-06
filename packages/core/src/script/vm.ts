@@ -1261,7 +1261,9 @@ export function replyToRequest(vm: VmState, reqId: number, reply: WaitReply): vo
  * The threads phase (AD-26; THR-3, R-32). Ready threads take their turn in
  * ascending id, each for at most `budget` VM steps; a thread that reaches the
  * budget keeps its state and continues next tick. `eligible` filters the
- * threads that may run at all in this context (the start-up pre-board slot).
+ * threads that may run at all in this context (the start-up pre-board slot:
+ * no background slice while the start-up program is live, whatever the
+ * thread kind — the relay of 2026-11-05).
  * A live blocking thread owns the phase (R-32): it takes its turn before any
  * ready background thread, whatever the ids, and background threads take no
  * turn while it is standing by, running or parked in a global wait. A
@@ -1269,10 +1271,7 @@ export function replyToRequest(vm: VmState, reqId: number, reply: WaitReply): vo
  * (the waits phase resolves it like any other), so background threads take
  * their turns as usual. When the blocking thread finishes inside the phase,
  * the remaining ready threads take their turns in the same phase.
- * `freezeExempt` names threads that may still take a turn while a live
- * blocking thread is not parked on a non-global wait; only the engine passes
- * one, for persistent threads created before the first board exists
- * (#1173). Threads started or woken during the phase take their first
+ * Threads started or woken during the phase take their first
  * turn next tick.
  */
 export function runThreadsPhase(
@@ -1280,7 +1279,6 @@ export function runThreadsPhase(
   services: ScriptServices,
   budget: number,
   eligible?: (thread: Thread) => boolean,
-  freezeExempt?: (thread: Thread) => boolean,
 ): void {
   if (!Number.isInteger(budget) || budget < 1) {
     throw new ScriptError("vm.bad-budget", `the step budget must be a positive whole number, got ${budget}`);
@@ -1291,7 +1289,7 @@ export function runThreadsPhase(
   for (const thread of ready) {
     if (thread.status !== "ready") continue;
     const owner = findLiveBlockingThread(vm);
-    if (owner !== null && thread !== owner && !(freezeExempt?.(thread) ?? false)) {
+    if (owner !== null && thread !== owner) {
       const holdingUpWorld = owner.status !== "waiting" || owner.wait === null || owner.wait.global;
       if (holdingUpWorld) break;
     }

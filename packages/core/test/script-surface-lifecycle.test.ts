@@ -353,23 +353,30 @@ test("send and board load reset neither the message window nor the script surfac
   equal(state.ui.message.text, "send test", "message text is unchanged by board load");
 });
 
-test("a thread starting and ending while the outermost program runs neither hides nor resets the message window", () => {
-  // Persistent threads may run during startup before a board exists; board-scope threads may not.
-  // The persistent thread ends while the main program still waits for a key. It takes no turn once
-  // the blocking program parks its wait (the live blocking thread rule, #1167); it runs in the
-  // budget slack before that.
+test("a persistent thread spawned by the start-up program neither runs before it is eligible nor resets the message window", () => {
+  // Persistence decides lifetime, not eligibility: a persistent thread created by the start-up program
+  // receives no slice during the start-up program (whether waiting or not), not during a board-enter
+  // program either — only at the first normal scheduler pass after the game loop starts.
   const game = boot('msg = "bg"\nmwin("main")\ndummy = thread("mwin(msg)", 1)\ni = 0\nwhile (i < 2500) { i = i + 1 }\nwait()\nmwin("after")');
   const list = game.engine.drawList();
   const state = sync(game);
-  ok(state.vm.threads.every((thread) => thread.kind === "blocking" || thread.status === "finished"), "the thread has ended");
-  equal(state.ui.message.text, "main\nbg", "thread start did not reset the text, and the thread's line was added");
-  equal(state.ui.message.visible, true, "thread end did not hide the window");
-  ok(hasText(list, "main") && hasText(list, "bg"), "both lines are composed while the outermost program waits");
+  deepEqual(
+    state.vm.threads.map((thread) => [thread.kind, thread.status]),
+    [["blocking", "waiting"], ["persistent", "ready"]],
+    "the persistent thread was created but received no slice while the start-up program is live",
+  );
+  equal(state.ui.message.text, "main", "the thread did not draw while the program is live");
+  equal(state.ui.message.visible, true, "the open message window stays composed while the program waits");
+  ok(hasText(list, "main") && !hasText(list, "bg"), "only the program's line is composed while it waits");
 
   game.advance(1, ["ENTER"]);
+  const entered = sync(game);
+  equal(entered.ui.message.visible, false, "the outermost program's end hides it");
+  equal(entered.ui.message.text, "main\nafter", "the program's own lines are stored");
+
+  game.advance(2); // the first normal scheduler pass after the game loop starts
   const ended = sync(game);
-  equal(ended.ui.message.visible, false, "the outermost program's end hides it");
-  equal(ended.ui.message.text, "main\nbg\nafter", "the stored text is kept");
+  equal(ended.ui.message.text, "main\nafter\nbg", "the persistent thread's line was added from its first slice, without hiding or resetting anything");
 });
 
 test("a board thread started by an enter program neither runs before it ends nor resets the message window", () => {
