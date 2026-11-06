@@ -187,6 +187,25 @@ test("multiple pointer gestures in one tick retain their own target and click wo
   equal(state.input.pendingClicks.length, 0, "each contextual tap consumes only its own gesture path");
 });
 
+test("an item gesture removes all its movement points without consuming the following ground tap", () => {
+  const world = board([], [item(0, 16, 0, 1)]);
+  const state = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player, collisionBase: { points: rectangle(-8, -8, 32, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor, activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  for (const [x, buttons] of [[12, 1], [14, 1], [16, 1], [16, 0], [120, 1], [120, 0]] as const) {
+    applyInputEvent(state.input, { kind: "pointer", x, y: 0, buttons });
+  }
+  runInputPhase(state);
+  deepEqual(state.input.keys.map((key) => key.target), ["item:0"], "the first gesture confirms its item");
+  const route = state.sprites.players[0]!.queue.moves;
+  ok(route.length > 0, "the independent ground gesture starts a route");
+  deepEqual(route.at(-1)?.target, { x: 120, y: 0 }, "the route goes to the ground, not an item gesture point");
+});
+
 test("pointer target selection refuses a non-key or unreachable item", () => {
   const world = board([], [item(0, 16, 0, 0)]);
   const state = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
