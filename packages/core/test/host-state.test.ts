@@ -205,6 +205,36 @@ test("engine applies and records complete host updates on their consuming tick",
   equal(live.state.input.gamepads["0"]?.connected, false);
   equal(live.state.input.actions.right, false, "queued controller input remains ordered with focus gain");
 });
+
+test("validated boundary gamepad records drive real engine input and snapshot reconciliation", () => {
+  const encoded = writeBoard(createEmptyBoard());
+  if (!encoded.ok) throw new Error(encoded.error.message);
+  const live: { state: GameState | null } = { state: null };
+  const engine = createEngine({
+    seed: 19, assetIndex: createAssetIndex(["Boards/host.brd"]), assetRoot: PACKAGE_ROOT,
+    initialBoard: "host.brd", width: 32, height: 32, maxTicks: 10,
+    phaseRegistrations: [{ phase: "movement", run: (state) => { live.state = state; } }],
+  });
+  const request = engine.advance(0, []).requests[0];
+  if (request?.kind !== "asset") throw new Error("expected board request");
+  engine.advance(0, [{ tick: 0, event: { kind: "asset", reqId: request.reqId, bytes: encoded.value } }]);
+  const sample = { device: 3, axes: { x: 1000, y: -1000 }, buttons: 0 };
+  const input = validateInputEvent(JSON.parse(JSON.stringify({ kind: "gamepad", connected: true, ...sample })));
+  if (!input.ok) throw new Error(input.message);
+  engine.advance(1, [{ tick: 0, event: input.value }]);
+  if (live.state === null) throw new Error("expected live state");
+  equal(live.state.input.actions.right, true);
+  equal(live.state.input.actions.up, true);
+  const snapshot = validateInputEvent(JSON.parse(JSON.stringify({
+    kind: "host.gamepads", devices: [{ ...sample, axes: { x: -1000, y: 1000 } }],
+  })));
+  if (!snapshot.ok) throw new Error(snapshot.message);
+  engine.advance(1, [{ tick: 1, event: snapshot.value }]);
+  equal(live.state.input.actions.right, false);
+  equal(live.state.input.actions.up, false);
+  equal(live.state.input.actions.left, true);
+  equal(live.state.input.actions.down, true);
+});
 test("delayed replacement MainFile re-registers external actions before recomputing held gamepad state", () => {
   const encodeMain = (startupPrg: string) => {
     const result = writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, initBoard: "start.brd", startupPrg });

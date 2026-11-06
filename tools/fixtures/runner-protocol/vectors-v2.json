@@ -4,10 +4,10 @@
   "note": "V2 is the strict two-plane runner contract: every DrawList is {tick,width,height,commands,marginCommands}; both ordered arrays are required, use AD-3 commands, and participate in the draw hash. The v1 schema and vectors remain unchanged. Validate against packages/runner-harness/schema/runner-protocol-v2.schema.json.",
   "counts": {
     "draw": 16,
-    "input": 34,
+    "input": 56,
     "request": 13,
-    "valid": 44,
-    "invalid": 19
+    "valid": 48,
+    "invalid": 37
   },
   "vectors": [
     {
@@ -1159,6 +1159,435 @@
                 "y": 0
               },
               "buttons": 131072
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-minimum",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": -1000,
+            "y": -1000
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-minimum",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": -1000,
+                "y": -1000
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-maximum",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 3,
+          "axes": {
+            "x": 1000,
+            "y": 1000
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-maximum",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 3,
+              "axes": {
+                "x": 1000,
+                "y": 1000
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-device-negative",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": -1,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-device-negative",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": -1,
+              "axes": {
+                "x": 0,
+                "y": 0
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-device-high",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 4,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-device-high",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 4,
+              "axes": {
+                "x": 0,
+                "y": 0
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-device-fractional",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0.5,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-device-fractional",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0.5,
+              "axes": {
+                "x": 0,
+                "y": 0
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-x-low",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": -1001,
+            "y": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-x-low",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": -1001,
+                "y": 0
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-x-high",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": 1001,
+            "y": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-x-high",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 1001,
+                "y": 0
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-x-fractional",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": 0.5,
+            "y": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-x-fractional",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0.5,
+                "y": 0
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-y-low",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": 0,
+            "y": -1001
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-y-low",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0,
+                "y": -1001
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-y-high",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": 0,
+            "y": 1001
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-y-high",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0,
+                "y": 1001
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-gamepad-y-fractional",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": 0,
+            "y": 0.5
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-boundary-host-gamepads-y-fractional",
+      "family": "input",
+      "valid": false,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0,
+                "y": 0.5
+              },
+              "buttons": 0
             }
           ]
         }

@@ -46,6 +46,9 @@ function createSchema() {
   schema.$defs.drawList.required = ["tick", "width", "height", "commands", "marginCommands"];
   schema.$defs.drawList.properties.marginCommands = { type: "array", items: { $ref: "#/$defs/drawCommand" } };
   schema.$defs.gamepadInput.properties.buttons.maximum = 131071;
+  schema.$defs.gamepadInput.properties.device.maximum = 3;
+  schema.$defs.gamepadInput.properties.axes.properties.x = { type: "integer", minimum: -1000, maximum: 1000 };
+  schema.$defs.gamepadInput.properties.axes.properties.y = { type: "integer", minimum: -1000, maximum: 1000 };
   schema.$defs.actionInput = {
     oneOf: [
       {
@@ -133,6 +136,28 @@ function createVectors() {
     { id: "input-host-gamepads-all-physical-buttons", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 131071 }] } } },
     { id: "refuse-host-gamepads-button-range", family: "input", valid: false, why: "physical button mask is a 17-bit value", record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 131072 }] } } }
   );
+  const gamepadBoundaries = [
+    ["minimum", true, 0, -1000, -1000],
+    ["maximum", true, 3, 1000, 1000],
+    ["device-negative", false, -1, 0, 0],
+    ["device-high", false, 4, 0, 0],
+    ["device-fractional", false, 0.5, 0, 0],
+    ["x-low", false, 0, -1001, 0],
+    ["x-high", false, 0, 1001, 0],
+    ["x-fractional", false, 0, 0.5, 0],
+    ["y-low", false, 0, 0, -1001],
+    ["y-high", false, 0, 0, 1001],
+    ["y-fractional", false, 0, 0, 0.5],
+  ];
+  for (const [name, valid, device, x, y] of gamepadBoundaries) {
+    const sample = { device, axes: { x, y }, buttons: 0 };
+    for (const [kind, event] of [
+      ["gamepad", { kind: "gamepad", ...sample, connected: true }],
+      ["host-gamepads", { kind: "host.gamepads", devices: [sample] }],
+    ]) {
+      rows.push({ id: `gamepad-boundary-${kind}-${name}`, family: "input", valid, record: { tick: 8, event } });
+    }
+  }
   return {
     schema: 2,
     protocol: "runner-protocol-v2",
