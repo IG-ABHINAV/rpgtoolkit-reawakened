@@ -111,10 +111,14 @@ export type WaitKind = Wait["kind"];
 export type WaitInputView = {
   readonly nextSeq?: number;
   readonly keys: readonly { readonly seq: number; readonly name: string; readonly code: string; readonly char: string | null; readonly action?: string | null; readonly resolvedActions?: readonly string[] }[];
+  readonly modalActions?: readonly { readonly seq: number; readonly action: "confirm" | "cancel"; readonly modalId: number }[];
   readonly focused: boolean;
   readonly pointer?: { readonly x: number; readonly y: number; readonly buttons: number; readonly downs?: number; readonly ups?: number; readonly downX?: number; readonly downY?: number; readonly button?: number };
 };
-export type WaitUiView = { readonly [name: string]: unknown };
+export type WaitUiView = {
+  readonly [name: string]: unknown;
+  readonly modal?: { readonly modalId: number; readonly kind: "prompt" | "msgbox"; readonly style: number; readonly result: unknown } | null;
+};
 
 export type WaitSpriteView = {
   readonly id: string;

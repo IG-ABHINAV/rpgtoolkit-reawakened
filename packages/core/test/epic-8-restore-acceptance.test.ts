@@ -367,7 +367,7 @@ test("focused Load preserves mixed source edges, live capabilities, and the rest
     const restored = game.engine.advance(1, [
       { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: load.reqId, bytes: captured.saved } },
       { tick: report.tickAfter, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } },
-      { tick: report.tickAfter, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } },
+      { tick: report.tickAfter, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null } },
       { tick: report.tickAfter, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 } },
       { tick: report.tickAfter, event: { kind: "host.features", features } },
       { tick: report.tickAfter, event: { kind: "host.gamepads", devices: [] } },
@@ -379,7 +379,7 @@ test("focused Load preserves mixed source edges, live capabilities, and the rest
     equal(globals(game)["touchbranch"], 1, "the restored continuation observes live host capabilities");
     const released = game.engine.advance(1, [
       { tick: restored.tickAfter, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: false } },
-      { tick: restored.tickAfter, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback" } },
+      { tick: restored.tickAfter, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback", modalId: null } },
     ]);
     deepEqual(released.consumed.map(({ event }) => event.kind), ["key", "action"]);
     equal(game.state()?.input.actions.confirm, false, "confirm releases only after the final independent owner releases");

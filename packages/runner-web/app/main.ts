@@ -360,18 +360,27 @@ function startLiveLoop(
   const displayGeometry = createObservedHostGeometry(session.displayGeometry());
   const fallbackControlKeys = new Set<string>();
   let fallbackActionSequence = 0;
-  const touchControls = createFallbackTouchControls(hostViewport.viewport, displayGeometry.current, (action, down) => {
-    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
+  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean, modalId: number | null = null): number => {
+    let event: InputRecord["event"];
+    if (modalId === null) {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId: null };
+    } else if (action === "confirm" || action === "cancel") {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId };
+    } else {
+      throw new Error("only confirm or cancel may target a modal");
+    }
+    pending.push({ tick: null, event, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
-  });
+  };
+  const touchControls = createFallbackTouchControls(hostViewport.viewport, displayGeometry.current, dispatchFallbackAction);
   const hostObserver = observeHostState(hostViewport, viewSize, (event) => {
     displayGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
   session.setHostRestoreSnapshotProvider(() => {
     const snapshot = hostObserver.snapshotForRestore(pending);
-    for (const event of snapshot) displayGeometry.observe(event);
+    for (const event of snapshot.observations) displayGeometry.observe(event);
     return snapshot;
   });
   const stopPointerInput = attachPointerInput(
@@ -387,6 +396,9 @@ function startLiveLoop(
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
       pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
+    ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
+    dispatchFallbackAction,
+    () => session.engine.surfaceCacheEpoch(),
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (shouldSuppressGameplayKey(event.code, event.repeat, down, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;

@@ -265,6 +265,9 @@ export function createTestEngine(): Engine {
     accessibilityTree() {
       return [];
     },
+    runnerControlPointerPreemption() {
+      return null;
+    },
 
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
       return null;

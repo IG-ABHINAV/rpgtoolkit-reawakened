@@ -1310,30 +1310,72 @@
       }
     },
     "actionInput": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "action",
-        "down",
-        "source"
-      ],
-      "properties": {
-        "kind": {
-          "const": "action"
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "action",
+            "down",
+            "source",
+            "modalId"
+          ],
+          "properties": {
+            "kind": {
+              "const": "action"
+            },
+            "action": {
+              "type": "string",
+              "minLength": 1
+            },
+            "down": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modalId": {
+              "type": "null"
+            }
+          }
         },
-        "action": {
-          "type": "string",
-          "minLength": 1
-        },
-        "down": {
-          "type": "boolean"
-        },
-        "source": {
-          "type": "string",
-          "minLength": 1
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "action",
+            "down",
+            "source",
+            "modalId"
+          ],
+          "properties": {
+            "kind": {
+              "const": "action"
+            },
+            "action": {
+              "enum": [
+                "confirm",
+                "cancel"
+              ]
+            },
+            "down": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modalId": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
         }
-      }
+      ]
     },
     "hostGamepadsInput": {
       "type": "object",

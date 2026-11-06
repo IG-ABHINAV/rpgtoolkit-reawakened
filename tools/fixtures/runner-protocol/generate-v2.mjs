@@ -46,15 +46,32 @@ function createSchema() {
   schema.$defs.drawList.required = ["tick", "width", "height", "commands", "marginCommands"];
   schema.$defs.drawList.properties.marginCommands = { type: "array", items: { $ref: "#/$defs/drawCommand" } };
   schema.$defs.actionInput = {
-    type: "object",
-    additionalProperties: false,
-    required: ["kind", "action", "down", "source"],
-    properties: {
-      kind: { const: "action" },
-      action: { type: "string", minLength: 1 },
-      down: { type: "boolean" },
-      source: { type: "string", minLength: 1 },
-    },
+    oneOf: [
+      {
+        type: "object",
+        additionalProperties: false,
+        required: ["kind", "action", "down", "source", "modalId"],
+        properties: {
+          kind: { const: "action" },
+          action: { type: "string", minLength: 1 },
+          down: { type: "boolean" },
+          source: { type: "string", minLength: 1 },
+          modalId: { type: "null" },
+        },
+      },
+      {
+        type: "object",
+        additionalProperties: false,
+        required: ["kind", "action", "down", "source", "modalId"],
+        properties: {
+          kind: { const: "action" },
+          action: { enum: ["confirm", "cancel"] },
+          down: { type: "boolean" },
+          source: { type: "string", minLength: 1 },
+          modalId: { type: "integer", minimum: 1, maximum: 9007199254740991 },
+        },
+      },
+    ],
   };
   schema.$defs.hostGamepadsInput = {
     type: "object",
@@ -101,11 +118,14 @@ function createVectors() {
     { id: "draw-nonempty-margin-plane", family: "draw", valid: true, record: { tick: 12, width: 640, height: 480, commands: [], marginCommands: [command] } },
     { id: "refuse-draw-missing-margin-plane", family: "draw", valid: false, why: "v2 requires marginCommands, even when empty", record: { tick: 12, width: 640, height: 480, commands: [] } },
     { id: "refuse-draw-v1-extra-key", family: "draw", valid: false, why: "v2 rejects unknown keys", record: { tick: 12, width: 640, height: 480, commands: [], marginCommands: [], legacy: true } },
-    { id: "input-fallback-action-down", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } } },
-    { id: "refuse-action-missing-source", family: "input", valid: false, why: "semantic action records require a source", record: { tick: 8, event: { kind: "action", action: "confirm", down: true } } },
+    { id: "input-fallback-action-down", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null } } },
+    { id: "input-modal-scoped-confirm", family: "input", valid: true, record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 3 } } },
+    { id: "refuse-modal-scoped-game-action", family: "input", valid: false, why: "modal-scoped actions may only confirm or cancel", record: { tick: 8, event: { kind: "action", action: "game.fireball", down: true, source: "runner.fallback", modalId: 3 } } },
+    { id: "refuse-action-missing-source", family: "input", valid: false, why: "semantic action records require a source", record: { tick: 8, event: { kind: "action", action: "confirm", down: true, modalId: null } } },
+    { id: "refuse-action-missing-modal-id", family: "input", valid: false, why: "semantic action records require explicit modal scope or null", record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } } },
     { id: "input-host-gamepads-empty", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [] } } },
     { id: "input-host-gamepads-connected", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } } },
-    { id: "refuse-host-gamepads-button-range", family: "input", valid: false, why: "physical button mask is a 17-bit value", record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 131072 }] } } },
+    { id: "refuse-host-gamepads-button-range", family: "input", valid: false, why: "physical button mask is a 17-bit value", record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 131072 }] } } }
   );
   return {
     schema: 2,

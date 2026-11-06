@@ -213,7 +213,7 @@ export function pollRequest(view: WaitView, wait: Wait): WaitResult | null {
   return null;
 }
 
-/** Resolve the UI's prompt or button result from modal state or a key event. */
+/** Resolve the UI's prompt or button result from modal state, its captured modal action, or a key event. */
 export function pollRenderMsgBox(view: WaitView, wait: Wait): WaitResult | null {
   if (wait.kind !== "render.msgbox") return null;
   const modal = view.ui?.modal;
@@ -223,8 +223,20 @@ export function pollRenderMsgBox(view: WaitView, wait: Wait): WaitResult | null 
   }
   if (view.input === undefined) return null;
   const claimed = new Set(view.claims ?? []);
-  for (const key of view.input.keys) {
-    if (claimed.has(key.seq)) continue;
+  const entries = [
+    ...view.input.keys.map((key) => ({ kind: "key" as const, seq: key.seq, key })),
+    ...(view.input.modalActions ?? []).map((action) => ({ kind: "modal" as const, seq: action.seq, action })),
+  ].sort((left, right) => left.seq - right.seq);
+  for (const entry of entries) {
+    if (claimed.has(entry.seq)) continue;
+    if (entry.kind === "modal") {
+      if (modal?.modalId !== entry.action.modalId) return { value: null, ok: true, claim: entry.seq, keepWaiting: true };
+      if (entry.action.action === "cancel") {
+        return { value: wait.id === "prompt" ? "" : modal.style === 1 ? 7 : 0, ok: true, claim: entry.seq };
+      }
+      return { value: wait.id === "prompt" ? "" : modal.style === 1 ? 6 : 1, ok: true, claim: entry.seq };
+    }
+    const { key } = entry;
     const normalized = (key.action ?? key.name).toLowerCase();
     const resolvedConfirm = key.resolvedActions?.includes("confirm") ?? false;
     if (wait.id === "prompt") {
