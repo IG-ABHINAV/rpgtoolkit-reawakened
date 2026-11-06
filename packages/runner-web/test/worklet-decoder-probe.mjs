@@ -60,9 +60,11 @@ export async function probeWorkletDecoder(url) {
     // Force the measurement window to elapse after the release ack but before the decoder finishes.
     const during = await measure(meter);
     control.port.postMessage({ kind: "finish" });
-    await ready;
-    const after = await measure(meter);
-    const compressedWindows = [after, await measure(meter), await measure(meter)];
+    const voiceReady = await ready;
+    if (voiceReady.lengthTicks !== 120) throw new Error(`unexpected MIDI fixture length: ${voiceReady.lengthTicks}`);
+    // Cover a complete loop, including the fixture's silent tail, regardless of measurement phase.
+    const after = await measure(meter, Math.ceil(context.sampleRate * voiceReady.lengthTicks / 60) + 128);
+    const compressedWindows = [await measure(meter), await measure(meter), await measure(meter)];
     // Compare controls in the same graph without turning a failed compressed-bank assertion green.
     send({ kind: "stop", voice: 1 });
     const wav = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/pcm16-mono-8000.wav")).arrayBuffer());
