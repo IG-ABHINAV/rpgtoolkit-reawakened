@@ -32,9 +32,9 @@ async function setup(url) {
   return { context, control, processor, meter };
 }
 
-async function measure(meter) {
+async function measure(meter, frames = 24000) {
   const result = waitMessage(meter.port, "measured");
-  meter.port.postMessage({ kind: "measure", frames: 24000 });
+  meter.port.postMessage({ kind: "measure", frames });
   return (await result).energy;
 }
 
@@ -171,6 +171,58 @@ export async function probeGraphFallback(url) {
     return { retained, energy, reset, restored: sink.currentBank?.id };
   } finally {
     graph?.disconnect();
+    await context.close();
+  }
+}
+
+/** A decoder that never settles must not hold unrelated voices or a replacement bank hostage. */
+export async function probePendingIsolation(url) {
+  const wav = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/pcm16-mono-8000.wav")).arrayBuffer());
+  const midi = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/midi0-480-default-tempo.mid")).arrayBuffer());
+  const compressed = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf3")).arrayBuffer());
+  const plain = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf2")).arrayBuffer());
+  const { context, processor, meter } = await setup(url);
+  try {
+    const send = (message) => processor.port.postMessage({ kind: "message", message });
+    const fence = async () => {
+      const response = waitMessage(processor.port, "latency");
+      processor.port.postMessage({ kind: "latency" });
+      await response;
+    };
+    const load = (voice) => send({ kind: "load", voice, track: "sfx", asset: "media/test.wav", data: wav });
+    const play = (voice) => send({ kind: "play", voice, cue: voice, loop: true, volume: 100, positionTicks: 0 });
+    load(1); play(1);
+    send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "compressed", sha256: null }, bankBytes: compressed, bankSha: "compressed" });
+    send({ kind: "pause", voice: 1 });
+    await fence();
+    const paused = await measure(meter);
+    send({ kind: "resume", voice: 1 });
+    await fence();
+    const resumed = await measure(meter);
+    send({ kind: "setVolume", scope: "master", voice: null, bus: null, volume: 0 });
+    await fence();
+    const muted = await measure(meter);
+    send({ kind: "setVolume", scope: "master", voice: null, bus: null, volume: 100 });
+    send({ kind: "stop", voice: 1 });
+    await fence();
+    const stopped = await measure(meter);
+    load(2); play(2);
+    await fence();
+    const unrelated = await measure(meter);
+    send({ kind: "stop", voice: 2 });
+    send({ kind: "load", voice: 3, track: "music", asset: "media/test.mid", data: midi });
+    const ready = waitMessage(processor.port, "ready");
+    send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "plain", sha256: null }, bankBytes: plain, bankSha: "plain" });
+    await ready;
+    play(3);
+    await fence();
+    const superseded = await measure(meter, 48000);
+    send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "compressed", sha256: null }, bankBytes: compressed, bankSha: "compressed" });
+    const resetAck = waitMessage(processor.port, "bank.accepted");
+    send({ kind: "setBank", bankKind: "soundfont", bank: null, bankBytes: null, bankSha: null });
+    const reset = (await resetAck).bank === null;
+    return { paused, resumed, muted, stopped, unrelated, superseded, reset };
+  } finally {
     await context.close();
   }
 }

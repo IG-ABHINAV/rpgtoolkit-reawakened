@@ -47,6 +47,11 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
     if (fallback.retained !== "plain" || fallback.energy <= 0.0001 || !fallback.reset || fallback.restored !== "plain") {
       throw new Error(`worklet bank fallback/reset failed: ${JSON.stringify(fallback)}`);
     }
+    const isolation = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probePendingIsolation('/apps/${workletFilename}'))`);
+    if (isolation.paused !== 0 || isolation.muted !== 0 || isolation.stopped !== 0
+      || isolation.resumed <= 0.0001 || isolation.unrelated <= 0.0001 || isolation.superseded <= 0.0001 || !isolation.reset) {
+      throw new Error(`pending decoder blocked independent audio: ${JSON.stringify(isolation)}`);
+    }
 
     // Exercise the actual desktop graph and status display with the decoder rejected in its own realm.
     writeFileSync(liveWorklet, readFileSync(workletOutput));

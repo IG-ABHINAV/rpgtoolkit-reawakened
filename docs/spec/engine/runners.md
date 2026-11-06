@@ -251,8 +251,8 @@ that name the same bytes share one entry and a swap never evicts the bank a voic
 through it in Node and in headless Chromium. Its selection as a *default* remains the owner's listening approval (PB-10),
 so a host that wants the bank off passes no bundled layer.
 
-The AudioWorklet has its own SoundFont decoder instance. It holds compressed-bank messages and the messages following
-them in order until that instance is ready. A voice is ready only when the worklet has opened it, so the cue player can
+The AudioWorklet has its own SoundFont decoder instance. While a compressed bank awaits it, unrelated PCM, existing
+voices and their controls continue; a replacement bank supersedes the pending bank. A voice is ready only when the worklet has opened it, so the cue player can
 apply the late-start rule at the actual ready tick. If worklet decoder initialization fails, the player reports an
 attempt to use a compressed bank and retains the previous bank; uncompressed banks and PCM remain available.
 This does not describe the desktop page's separate decoder initialization, which currently fails the player startup

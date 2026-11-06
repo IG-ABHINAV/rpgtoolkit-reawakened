@@ -35,6 +35,8 @@ type ProcessorMessage = WorkletControlMessage | LatencyRequestMessage;
 class TkrPcmProcessor extends AudioWorkletProcessor {
   private readonly sink: PcmSink;
   private readonly pending: (AudioMessage | WorkletSetBankMessage)[] = [];
+  private pendingBank: WorkletSetBankMessage | null = null;
+  private readonly pendingVoices = new Set<number>();
   private decoderState: "pending" | "ready" | "failed" = "pending";
   private decoderError = "";
   private failureReported = false;
@@ -51,21 +53,22 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
     });
     void soundFontDecoderReady.then(() => {
       this.decoderState = "ready";
-      for (const message of this.pending) this.handle(message);
-      this.pending.length = 0;
+      if (this.pendingBank !== null) this.handle(this.pendingBank);
+      this.pendingBank = null;
+      this.flushPending();
     }, (error: unknown) => {
       this.decoderState = "failed";
       this.decoderError = String(error);
-      for (const message of this.pending) this.handleWithoutDecoder(message);
-      this.pending.length = 0;
+      if (this.pendingBank !== null) this.handleWithoutDecoder(this.pendingBank);
+      this.pendingBank = null;
+      this.flushPending();
     });
     this.port.onmessage = (event: MessageEvent<ProcessorMessage>) => {
       const data = event.data;
       if (data.kind === "message") {
         if (this.decoderState === "ready") this.handle(data.message);
         else if (this.decoderState === "failed") this.handleWithoutDecoder(data.message);
-        else if (this.pending.length > 0 || this.isCompressedBank(data.message)) this.pending.push(data.message);
-        else this.handle(data.message);
+        else this.handleWhilePending(data.message);
       } else if (data.kind === "latency") {
         const global = globalThis as unknown as { renderQuantumSize?: number };
         this.port.postMessage({
@@ -75,6 +78,44 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
         });
       }
     };
+  }
+
+  private flushPending(): void {
+    for (const message of this.pending) this.handle(message);
+    this.pending.length = 0;
+    this.pendingVoices.clear();
+  }
+
+  private handleWhilePending(message: AudioMessage | WorkletSetBankMessage): void {
+    if (message.kind === "setBank" && "bankBytes" in message) {
+      if (this.isCompressedBank(message)) {
+        this.pendingBank = message;
+      } else {
+        this.pendingBank = null;
+        this.handle(message);
+        this.flushPending();
+      }
+      return;
+    }
+    if (message.kind === "load" && this.pendingBank !== null
+      && message.data[0] === 0x4d && message.data[1] === 0x54
+      && message.data[2] === 0x68 && message.data[3] === 0x64) {
+      this.pendingVoices.add(message.voice);
+      this.pending.push(message);
+      return;
+    }
+    if ("voice" in message && message.voice !== null && this.pendingVoices.has(message.voice)) {
+      if (message.kind === "stop") {
+        const voice = message.voice;
+        this.pendingVoices.delete(voice);
+        for (let i = this.pending.length - 1; i >= 0; i--) {
+          const queued = this.pending[i]!;
+          if ("voice" in queued && queued.voice === voice) this.pending.splice(i, 1);
+        }
+      } else this.pending.push(message);
+      return;
+    }
+    this.handle(message);
   }
 
   private isCompressedBank(message: AudioMessage | WorkletSetBankMessage): boolean {
