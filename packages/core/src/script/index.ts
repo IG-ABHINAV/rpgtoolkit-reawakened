@@ -92,6 +92,7 @@ export {
   endBoardThreads,
   endItemThreads,
   findBlockingThread,
+  findLiveBlockingThread,
   hasLiveBlockingThread,
   scriptOwnsInput,
   findThread,
