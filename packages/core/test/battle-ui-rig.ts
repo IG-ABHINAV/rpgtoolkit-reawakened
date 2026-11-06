@@ -712,12 +712,21 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
       nextTickMutation = mutate;
     },
     tick(count = 1) {
+      // A broken host/engine can repeat requests forever without completing a tick.
+      const maxStalledAdvances = 1024;
+      let stalledAdvances = 0;
       for (let remaining = count; remaining > 0;) {
         // One advance computes one state hash, and with canvases in the state a hash is expensive: run in chunks
         // while nothing is loading, a tick at a time while the host answers asset requests.
         const chunk = replies.length > 0 ? 1 : Math.min(remaining, 8);
         const ran = advance([], chunk);
-        if (ran === 0 && replies.length === 0) throw new Error("battle UI rig could not advance and has no asset replies");
+        if (ran === 0) {
+          stalledAdvances += 1;
+          if (replies.length === 0) throw new Error("battle UI rig could not advance and has no asset replies");
+          if (stalledAdvances > maxStalledAdvances) throw new Error("battle UI rig could not advance after repeated asset replies");
+        } else {
+          stalledAdvances = 0;
+        }
         remaining -= ran;
       }
     },
