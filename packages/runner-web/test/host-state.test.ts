@@ -245,9 +245,13 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
   equal(firstFrame.error, null);
   equal(firstFrame.width, 4);
   equal(firstFrame.height, 2);
-  if (engineState === null) throw new Error("expected the engine animation phase to expose loaded state");
-  engineState.ui.surfaceActivated = null;
-  engineState.ui.surfacePointerClaim = null;
+  const loadedState = engineState as GameState | null;
+  if (loadedState === null) throw new Error("expected the engine animation phase to expose loaded state");
+  applyUiEffect(loadedState, "uiBegin", [7, "touch", "surface", -2, 0, 1, 2, 1]);
+  applyUiEffect(loadedState, "uiItem", [7, "Go", "margin-go", null, 1, null, "confirm", null, 1]);
+  applyUiEffect(loadedState, "uiEnd", [7]);
+  loadedState.ui.surfaceActivated = null;
+  loadedState.ui.surfacePointerClaim = null;
   activatedItem = null;
   const pausedRecords: InputRecord[] = [
     { tick: readyReport.tickAfter, event: { kind: "focus", state: "lost" } },

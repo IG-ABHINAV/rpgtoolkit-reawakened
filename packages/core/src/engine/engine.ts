@@ -339,7 +339,6 @@ export function createEngine(init: EngineInit): Engine {
   });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
   state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
-  let preTickSurfaceActivation = false;
   const externallyRegisteredActions: RegisteredAction[] = [];
   function replayExternallyRegisteredActions(): void {
     const registered = new Set(state.input.registeredActions.map((action) => action.name));
@@ -3808,8 +3807,7 @@ export function createEngine(init: EngineInit): Engine {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        if (preTickSurfaceActivation) preTickSurfaceActivation = false;
-        else state.ui.surfaceActivated = null;
+        state.ui.surfaceActivated = null;
         state.ui.surfaceCancelled = false;
         state.ui.surfaceCancelledSeq = null;
         state.ui.surfaceCancelledOwner = null;
@@ -4000,15 +3998,10 @@ export function createEngine(init: EngineInit): Engine {
         consumed.push(record);
       } else if (!inputFocused && hasPointerRecord && (record.event.kind === "host.display" || record.event.kind === "pointer")) {
         deferred.push(record);
-      } else if (!state.input.focused && applyHostStateEvent(record.event)) {
+      } else if (!inputFocused && applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
-        const activationBefore = state.ui.surfaceActivated;
-        applyRoutedInputEvent(record.event);
-        if (record.event.kind === "pointer" && state.ui.surfaceActivated !== null && state.ui.surfaceActivated !== activationBefore) {
-          preTickSurfaceActivation = true;
-        }
-        consumed.push(record);
+        deferred.push(record);
       }
     }
     queuedInputs.unshift(...deferred);
@@ -4319,7 +4312,6 @@ export function createEngine(init: EngineInit): Engine {
       const consumed: InputRecord[] = [];
       const failedAtStart = failed;
       for (const input of inputs) queuedInputs.push(input);
-      preTickSurfaceActivation = false;
       const restoredOpenTick = processPreTickEvents(consumed);
       if (restoredOpenTick) {
         state.engine.phase = "input";
