@@ -90,7 +90,7 @@ function setDirectionOrder(state: InputSection, action: string, pressed: boolean
   else state.directionOrder = state.directionOrder.filter((value) => value !== action);
 }
 
-function updateAction(state: InputSection, action: string, emitEdge: boolean, code: string): void {
+function updateAction(state: InputSection, action: string, emitEdge: boolean, code: string, queuedName?: string, queuedChar: string | null = null): void {
   if (!boundActions(state).has(action)) return;
   const previous = state.actions[action] === true;
   const current = state.keyboardActions[action] === true || actionHeldFromPads(state, action);
@@ -98,7 +98,7 @@ function updateAction(state: InputSection, action: string, emitEdge: boolean, co
   if (current === previous) return;
   setDirectionOrder(state, action, current);
   if (current && emitEdge) {
-    appendKey(state, action, code, null, action);
+    appendKey(state, queuedName ?? action, code, queuedChar, action);
     state.pendingActions.push(action);
   }
 }
@@ -126,14 +126,13 @@ function applyKey(state: InputSection, event: KeyInput): void {
   if (event.code !== event.name) state.held[event.code] = event.down;
   const action = mappedAction(state, event);
   if (action === undefined) {
-    if (Object.keys(state.bindings.keys).length > 0) return;
     if (event.down && !event.repeat && !priorRaw) appendKey(state, event.name, event.code, event.char);
     return;
   }
   state.keyboardActions[action] = event.down;
   if (event.down && event.repeat) return;
   if (event.down && priorRaw) return;
-  updateAction(state, action, true, event.code);
+  updateAction(state, action, true, event.code, event.name, event.char);
 }
 
 /**
