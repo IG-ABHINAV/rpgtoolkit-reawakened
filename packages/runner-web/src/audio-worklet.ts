@@ -37,9 +37,7 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
   private readonly pending: (AudioMessage | WorkletSetBankMessage)[] = [];
   private decoderState: "pending" | "ready" | "failed" = "pending";
   private decoderError = "";
-  private failedBank = false;
   private failureReported = false;
-  private readonly failedVoices = new Set<number>();
 
   constructor() {
     super();
@@ -47,6 +45,9 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
       readAsset: () => null,
       readBank: () => null,
       outputRateHz: sampleRate,
+      onEvent: (event) => {
+        if (event.kind === "ready" || event.kind === "ended" || event.kind === "error") this.port.postMessage(event);
+      },
     });
     void soundFontDecoderReady.then(() => {
       this.decoderState = "ready";
@@ -82,25 +83,11 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
   }
 
   private handleWithoutDecoder(message: AudioMessage | WorkletSetBankMessage): void {
-    if (message.kind === "setBank") {
-      this.failedBank = this.isCompressedBank(message);
-      if (this.failedBank) {
-        if (!this.failureReported) {
-          this.failureReported = true;
-          this.port.postMessage({ kind: "decoder.error", detail: this.decoderError });
-        }
-        return;
+    if (this.isCompressedBank(message)) {
+      if (!this.failureReported) {
+        this.failureReported = true;
+        this.port.postMessage({ kind: "decoder.error", detail: this.decoderError });
       }
-    } else if (message.kind === "load") {
-      const midi = message.data[0] === 0x4d && message.data[1] === 0x54
-        && message.data[2] === 0x68 && message.data[3] === 0x64;
-      if (this.failedBank && midi) {
-        this.failedVoices.add(message.voice);
-        return;
-      }
-      this.failedVoices.delete(message.voice);
-    } else if ("voice" in message && message.voice !== null && this.failedVoices.has(message.voice)) {
-      if (message.kind === "stop") this.failedVoices.delete(message.voice);
       return;
     }
     this.handle(message);
@@ -109,6 +96,7 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
   private handle(message: AudioMessage | WorkletSetBankMessage): void {
     if (message.kind === "setBank" && "bankBytes" in message) {
       this.sink.setBankBytes(message.bank, message.bankBytes, message.bankSha);
+      this.port.postMessage({ kind: "bank.accepted", bank: message.bank });
     } else {
       this.sink.handle(message as AudioMessage);
     }

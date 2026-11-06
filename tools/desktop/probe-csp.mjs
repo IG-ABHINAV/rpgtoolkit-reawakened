@@ -33,10 +33,19 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
     await build({ entryPoints: [join(root, "packages/runner-web/test/worklet-decoder-probe.mjs")], outfile: runnerOutput, bundle: true, format: "esm", platform: "browser", target: "chrome120", logLevel: "silent" });
     const race = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeWorkletDecoder('/apps/${workletFilename}'))`);
     if (race.before !== 0 || race.after <= 0.0001) throw new Error(`worklet decoder race: ${JSON.stringify(race)}`);
+    const cueReadiness = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeCueReadiness('/apps/${workletFilename}'))`);
+    if (cueReadiness.early !== 0 || cueReadiness.scheduled.length !== 1
+      || cueReadiness.scheduled[0].track !== "music" || cueReadiness.scheduled[0].positionTicks !== 30) {
+      throw new Error(`worklet cue readiness/late drop failed: ${JSON.stringify(cueReadiness)}`);
+    }
     const workletFailure = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeWorkletFailure('/apps/${workletFilename}'))`);
     if (!String(workletFailure.detail).includes("worklet-decoder-probe-failure")
       || workletFailure.pcmEnergy <= 0.0001 || workletFailure.plainEnergy <= 0.0001) {
       throw new Error(`worklet decoder failure or ordinary audio: ${JSON.stringify(workletFailure)}`);
+    }
+    const fallback = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeGraphFallback('/apps/${workletFilename}'))`);
+    if (fallback.retained !== "plain" || fallback.energy <= 0.0001 || !fallback.reset || fallback.restored !== "plain") {
+      throw new Error(`worklet bank fallback/reset failed: ${JSON.stringify(fallback)}`);
     }
 
     // Exercise the actual desktop graph and status display with the decoder rejected in its own realm.

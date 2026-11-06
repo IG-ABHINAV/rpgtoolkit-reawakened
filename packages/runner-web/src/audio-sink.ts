@@ -320,6 +320,20 @@ export class PcmSink {
     return energy;
   }
 
+  /** Resolve a worklet bank without replacing the current bank until the worklet accepts it. */
+  prepareWorkletBank(bank: BankRef): { bytes: Uint8Array; sha: string | null } | null {
+    try {
+      const bytes = this.banks.acquire(bank);
+      const sha = this.banks.entries.find((entry) => this.banks.bytesOf(entry.sha256) === bytes)?.sha256 ?? null;
+      if (sha !== null) this.banks.release(sha);
+      return { bytes, sha };
+    } catch (error) {
+      const code = error instanceof BankError ? error.code : "bank.unavailable";
+      this.fail(null, code, error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  }
+
   /**
    * Set the bank: resolve its bytes once through the cache, validate the container and the ceiling, and keep the
    * previous bank on any failure (#soundfont-user-bank item 5). The bank is pinned while it is in use, so a later swap
@@ -382,6 +396,11 @@ export class PcmSink {
   notifyDecoderFailure(detail: string): void {
     this.fail(null, "audio.decoder-unavailable", `SoundFont decoder initialization failed: ${detail}`);
   }
+  /** Forward a load failure from the worklet to the cue player. */
+  notifyWorkletFailure(voice: number, code: string, detail: string): void {
+    this.fail(voice, code, detail);
+  }
+
 
 
   /** Compare a MIDI file's instruments with the current bank's and report each one that needs a substitute, once. */
@@ -469,10 +488,20 @@ export async function connectSinkToGraph(context: AudioContext, sink: PcmSink, o
         channelCount: 2,
         channelCountMode: "explicit",
       });
-      node.port.onmessage = (event: MessageEvent<{ kind: "ended"; voice: number } | { kind: "decoder.error"; detail: string } | { kind: "latency"; sampleRate: number; renderQuantumSize: number }>) => {
+      const pendingLoads = new Map<number, Extract<AudioMessage, { kind: "load" }>>();
+      node.port.onmessage = (event: MessageEvent<SinkEvent | { kind: "bank.accepted"; bank: BankRef | null } | { kind: "decoder.error"; detail: string } | { kind: "latency"; sampleRate: number; renderQuantumSize: number }>) => {
         const data = event.data;
-        if (data.kind === "ended") sink.notifyEnded(data.voice);
-        else if (data.kind === "decoder.error") sink.notifyDecoderFailure(data.detail);
+        if (data.kind === "bank.accepted") sink.handle({ kind: "setBank", bankKind: "soundfont", bank: data.bank });
+        else if (data.kind === "ready") {
+          const load = pendingLoads.get(data.voice);
+          if (load !== undefined) {
+            pendingLoads.delete(data.voice);
+            sink.handle(load);
+          }
+        } else if (data.kind === "ended") sink.notifyEnded(data.voice);
+        else if (data.kind === "error" && data.voice !== null) {
+          if (pendingLoads.delete(data.voice)) sink.notifyWorkletFailure(data.voice, data.code, data.detail);
+        } else if (data.kind === "decoder.error") sink.notifyDecoderFailure(data.detail);
       };
       node.connect(context.destination);
       return {
@@ -481,7 +510,7 @@ export async function connectSinkToGraph(context: AudioContext, sink: PcmSink, o
           node.port.onmessage = null;
           node.disconnect();
         },
-        send: (message) => forwardToWorklet(node, sink, message),
+        send: (message) => forwardToWorklet(node, sink, message, pendingLoads),
         latency: () => workletLatency(context, node),
       };
     } catch (error) {
@@ -508,22 +537,25 @@ export async function connectSinkToGraph(context: AudioContext, sink: PcmSink, o
   };
 }
 
-function forwardToWorklet(node: AudioWorkletNode, sink: PcmSink, message: AudioMessage): void {
-  sink.handle(message);
+function forwardToWorklet(node: AudioWorkletNode, sink: PcmSink, message: AudioMessage, pendingLoads: Map<number, Extract<AudioMessage, { kind: "load" }>>): void {
   if (message.kind === "setBank") {
     if (message.bank === null) {
       node.port.postMessage({ kind: "message", message: { kind: "setBank", bankKind: message.bankKind, bank: null, bankBytes: null, bankSha: null } });
     } else {
-      const bytes = sink.currentBankBytes;
-      const sha = sink.currentBankSha;
-      if (bytes !== null) {
+      const bank = sink.prepareWorkletBank(message.bank);
+      if (bank !== null) {
         node.port.postMessage({
           kind: "message",
-          message: { kind: "setBank", bankKind: message.bankKind, bank: message.bank, bankBytes: bytes, bankSha: sha },
+          message: { kind: "setBank", bankKind: message.bankKind, bank: message.bank, bankBytes: bank.bytes, bankSha: bank.sha },
         });
       }
     }
   } else {
+    if (message.kind === "load") pendingLoads.set(message.voice, message);
+    else {
+      if (message.kind === "stop") pendingLoads.delete(message.voice);
+      sink.handle(message);
+    }
     node.port.postMessage({ kind: "message", message });
   }
 }

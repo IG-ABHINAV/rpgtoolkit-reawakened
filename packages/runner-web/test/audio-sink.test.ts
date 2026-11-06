@@ -327,3 +327,22 @@ test("worklet decoder failures reach the host diagnostic callback", async () => 
     else (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = original;
   }
 });
+
+test("the mirror reports ready only after the worklet opens the voice", async () => {
+  const original = (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode;
+  (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = FakeWorkletNode;
+  try {
+    const events: SinkEvent[] = [];
+    const graph = await connectSinkToGraph(fakeContext(), sink({ onEvent: (event) => events.push(event) }));
+    const node = FakeWorkletNode.last;
+    ok(node !== null && node.port.onmessage !== null);
+    graph.send({ kind: "load", voice: 1, track: "sfx", asset: `media/${MONO}` as AssetKey, data: wav(MONO) });
+    deepEqual(events, []);
+    node.port.onmessage({ data: { kind: "ready", voice: 1, lengthTicks: 15 } } as MessageEvent);
+    deepEqual(events, [{ kind: "ready", voice: 1, lengthTicks: 15 }]);
+    graph.disconnect();
+  } finally {
+    if (original === undefined) delete (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode;
+    else (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = original;
+  }
+});

@@ -252,9 +252,11 @@ through it in Node and in headless Chromium. Its selection as a *default* remain
 so a host that wants the bank off passes no bundled layer.
 
 The AudioWorklet has its own SoundFont decoder instance. It holds compressed-bank messages and the messages following
-them in order until that instance is ready, so compressed samples cannot be opened or played with an uninitialised
-decoder. If initialization fails, the player reports an attempt to use a compressed bank in its visible audio status;
-uncompressed banks and PCM remain available.
+them in order until that instance is ready. A voice is ready only when the worklet has opened it, so the cue player can
+apply the late-start rule at the actual ready tick. If worklet decoder initialization fails, the player reports an
+attempt to use a compressed bank and retains the previous bank; uncompressed banks and PCM remain available.
+This does not describe the desktop page's separate decoder initialization, which currently fails the player startup
+when it cannot initialize.
 
 The **video** half is
 [audio-media.md#video-request](audio-media.md#video-request): `VideoHost` answers every `playVideo` with exactly one `video.ended { reqId }`

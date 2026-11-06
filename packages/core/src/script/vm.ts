@@ -128,6 +128,7 @@ import {
 import {
   cellRef,
   findBlockingThread,
+  findLiveBlockingThread,
   findThread,
   globalRef,
   incrementStepCounter,
@@ -1259,20 +1260,42 @@ export function replyToRequest(vm: VmState, reqId: number, reply: WaitReply): vo
 /**
  * The threads phase (AD-26; THR-3, R-32). Ready threads take their turn in
  * ascending id, each for at most `budget` VM steps; a thread that reaches the
- * budget keeps its state and continues next tick. Nothing runs while a
- * blocking command waits (R-32), and a thread that enters one stops the rest
- * of the phase. Threads started or woken during the phase take their first
+ * budget keeps its state and continues next tick. `eligible` filters the
+ * threads that may run at all in this context (the start-up pre-board slot:
+ * no background slice while the start-up program is live, whatever the
+ * thread kind — the relay of 2026-11-05).
+ * A live blocking thread owns the phase (R-32): it takes its turn before any
+ * ready background thread, whatever the ids, and background threads take no
+ * turn while it is standing by, running or parked in a global wait. A
+ * blocking thread parked in a non-global wait does not hold up the world
+ * (the waits phase resolves it like any other), so background threads take
+ * their turns as usual. When the blocking thread finishes inside the phase,
+ * the remaining ready threads take their turns in the same phase.
+ * Threads started or woken during the phase take their first
  * turn next tick.
  */
-export function runThreadsPhase(vm: VmState, services: ScriptServices, budget: number, eligible?: (thread: Thread) => boolean): void {
+export function runThreadsPhase(
+  vm: VmState,
+  services: ScriptServices,
+  budget: number,
+  eligible?: (thread: Thread) => boolean,
+): void {
   if (!Number.isInteger(budget) || budget < 1) {
     throw new ScriptError("vm.bad-budget", `the step budget must be a positive whole number, got ${budget}`);
   }
   const ready = vm.threads.filter((thread) => thread.status === "ready" && (eligible === undefined || eligible(thread)));
-  ready.sort((left, right) => left.id - right.id);
+  ready.sort((left, right) =>
+    Number(right.kind === "blocking") - Number(left.kind === "blocking") || left.id - right.id);
   for (const thread of ready) {
-    if (findBlockingThread(vm) !== null) break;
     if (thread.status !== "ready") continue;
+    const owner = findLiveBlockingThread(vm);
+    if (owner !== null && thread !== owner) {
+      const holdingUpWorld = owner.status !== "waiting" || owner.wait === null || owner.wait.global;
+      if (holdingUpWorld) break;
+    }
+    // A global wait anywhere freezes the rest of the phase (R-32), whatever
+    // kind of thread holds it (e.g. a host request parked on a board thread).
+    if (findBlockingThread(vm) !== null) break;
     stepThread(thread, vm, services, budget);
     refreshBlock(vm, services.clock.tick());
   }

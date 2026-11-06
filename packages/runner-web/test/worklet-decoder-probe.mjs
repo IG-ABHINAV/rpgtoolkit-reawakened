@@ -1,4 +1,7 @@
 // Real AudioWorklet probe, loaded only by the desktop CSP integration test.
+import { CuePlayer } from "@tk-reawakened/synth";
+import { connectSinkToGraph, PcmSink } from "../src/audio-sink.ts";
+
 const waitMessage = (port, kind) => new Promise((resolve, reject) => {
   const timer = setTimeout(() => {
     port.removeEventListener("message", handler);
@@ -59,6 +62,10 @@ export async function probeWorkletDecoder(url) {
 export async function probeWorkletFailure(url) {
   const { context, control, processor, meter } = await setup(url);
   try {
+    const plainBank = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf2")).arrayBuffer());
+    const accepted = waitMessage(processor.port, "bank.accepted");
+    processor.port.postMessage({ kind: "message", message: { kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "plain", sha256: null }, bankBytes: plainBank, bankSha: "plain" } });
+    await accepted;
     const failure = waitMessage(processor.port, "decoder.error");
     const bank = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf3")).arrayBuffer());
     processor.port.postMessage({ kind: "message", message: { kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "test", sha256: null }, bankBytes: bank, bankSha: "test" } });
@@ -69,14 +76,101 @@ export async function probeWorkletFailure(url) {
     send({ kind: "load", voice: 2, track: "sfx", asset: "media/test.wav", data: wav });
     send({ kind: "play", voice: 2, cue: 2, loop: false, volume: 100, positionTicks: 0 });
     const pcmEnergy = await measure(meter);
-    const plainBank = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf2")).arrayBuffer());
     const midi = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/midi0-480-default-tempo.mid")).arrayBuffer());
-    send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "plain", sha256: null }, bankBytes: plainBank, bankSha: "plain" });
     send({ kind: "load", voice: 3, track: "music", asset: "media/test.mid", data: midi });
     send({ kind: "play", voice: 3, cue: 3, loop: false, volume: 100, positionTicks: 0 });
     const plainEnergy = await measure(meter);
     return { ...error, pcmEnergy, plainEnergy };
   } finally {
+    await context.close();
+  }
+}
+
+/** The real cue player must not receive ready before the actual worklet can open its bank. */
+export async function probeCueReadiness(url) {
+  const bank = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf3")).arrayBuffer());
+  const midi = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/midi0-480-default-tempo.mid")).arrayBuffer());
+  const { context, control, meter } = await setup(url);
+  let graph;
+  try {
+    let player;
+    let readyCount = 0;
+    let resolveReady;
+    const bothReady = new Promise((resolve) => { resolveReady = resolve; });
+    const sink = new PcmSink({
+      outputRateHz: context.sampleRate,
+      readAsset: () => midi,
+      readBank: () => bank,
+      onEvent(event) {
+        if (event.kind === "ready") {
+          queueMicrotask(() => {
+            player.ready(event.voice, event.lengthTicks);
+            if (++readyCount === 2) resolveReady();
+          });
+        }
+      },
+    });
+    graph = await connectSinkToGraph(context, sink, { workletUrl: url });
+    player = new CuePlayer({
+      send: (message) => graph.send(message),
+      readAsset: () => midi,
+      bankLayers: { player: null, runner: null, bundled: { source: "bundled", id: "test", sha256: null } },
+    });
+    const cue = (cueId, kind, track, loop) => ({
+      cueId, tick: 0, kind, track, voice: 0, asset: kind === "soundfont.set" ? null : "media/test.mid",
+      loop, flags: null, positionTicks: 0, volume: 100, targetVolume: null, durationTicks: null,
+    });
+    player.advance([cue(1, "soundfont.set", null, null), cue(2, "media.play", "music", true), cue(3, "media.play", "sfx", false)]);
+    await measure(meter);
+    const early = sink.scheduled.length;
+    player.reach(30);
+    const released = waitMessage(control.port, "released");
+    control.port.postMessage({ kind: "resolve" });
+    await released;
+    await Promise.race([bothReady, new Promise((_, reject) => setTimeout(() => reject(new Error("cue readiness timed out")), 5000))]);
+    return { early, scheduled: sink.scheduled };
+  } finally {
+    graph?.disconnect();
+    await context.close();
+  }
+}
+
+/** A rejected compressed swap retains the old bank in both the graph and its host mirror. */
+export async function probeGraphFallback(url) {
+  const plain = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf2")).arrayBuffer());
+  const compressed = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf3")).arrayBuffer());
+  const midi = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/midi0-480-default-tempo.mid")).arrayBuffer());
+  const { context, control, meter } = await setup(url);
+  let graph;
+  try {
+    const sink = new PcmSink({ outputRateHz: context.sampleRate, readAsset: () => midi, readBank: (bank) => bank.id === "plain" ? plain : compressed });
+    graph = await connectSinkToGraph(context, sink, { workletUrl: url });
+    graph.node.connect(meter);
+    const setBank = (bank) => graph.send({ kind: "setBank", bankKind: "soundfont", bank });
+    const plainRef = { source: "bundled", id: "plain", sha256: null };
+    let accepted = waitMessage(graph.node.port, "bank.accepted");
+    setBank(plainRef);
+    await accepted;
+    const failure = waitMessage(graph.node.port, "decoder.error");
+    setBank({ source: "bundled", id: "compressed", sha256: null });
+    control.port.postMessage({ kind: "reject" });
+    await failure;
+    const retained = sink.currentBank?.id;
+    const ready = waitMessage(graph.node.port, "ready");
+    graph.send({ kind: "load", voice: 4, track: "music", asset: "media/test.mid", data: midi });
+    await ready;
+    graph.send({ kind: "play", voice: 4, cue: 4, loop: false, volume: 100, positionTicks: 0 });
+    const energy = await measure(meter);
+    accepted = waitMessage(graph.node.port, "bank.accepted");
+    setBank(null);
+    await accepted;
+    const reset = sink.currentBank === null;
+    accepted = waitMessage(graph.node.port, "bank.accepted");
+    setBank(plainRef);
+    await accepted;
+    return { retained, energy, reset, restored: sink.currentBank?.id };
+  } finally {
+    graph?.disconnect();
     await context.close();
   }
 }
