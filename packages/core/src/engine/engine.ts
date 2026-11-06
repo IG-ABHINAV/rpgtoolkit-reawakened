@@ -3753,6 +3753,9 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
+    // Preserve the simulation camera at consumption, not the runner's presentation-only interpolation.
+    // Pending world points retain this offset even if the camera moves before they are processed.
+    state.input.camera = positionAt(state.camera, 1);
     if (state.input.primaryPointerSuppressedUntilRelease) {
       applyInputEvent(state.input, event, reportUnknownAction);
       return;
