@@ -499,6 +499,7 @@ function startLiveLoop(
             `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
             player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
             `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
+            ...(session.audioError() === null ? [] : [`audio: ${session.audioError()}`]),
             "Move: arrows or WASD; click the board to walk.",
           ].join("\n");
         }).catch((error: unknown) => {

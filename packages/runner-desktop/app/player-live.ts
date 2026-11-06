@@ -175,7 +175,8 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
       const player = session.playerPosition();
       const result = { tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board: session.boardKey(), player };
       window.__live = result;
-      status.textContent = [`tick ${result.tick}`, `state ${result.stateHash}`, `draw ${result.drawHash}`, player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`, "Move: arrows or WASD; click to walk."].join("\n");
+      const audioError = session.audioError();
+      status.textContent = [`tick ${result.tick}`, `state ${result.stateHash}`, `draw ${result.drawHash}`, player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`, ...(audioError === null ? [] : [`audio: ${audioError}`]), "Move: arrows or WASD; click to walk."].join("\n");
       requestAnimationFrame(draw);
     }).catch((error: unknown) => {
       window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error) };

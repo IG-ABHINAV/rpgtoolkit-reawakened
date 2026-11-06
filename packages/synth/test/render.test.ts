@@ -1,11 +1,11 @@
 import { test } from "node:test";
-import { ok } from "node:assert/strict";
+import { equal, ok } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodeMidi } from "@tk-reawakened/core";
 import { SoundBankLoader } from "spessasynth_core";
-import { createSpessaMidiSource, soundFontDecoderReady } from "../src/index.ts";
+import { createSpessaMidiSource, soundBankHasCompressedSamples, soundFontDecoderReady } from "../src/index.ts";
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const MIDI_PATH = join(TEST_DIR, "../../core/test/fixtures/audio/files/midi0-480-default-tempo.mid");
@@ -56,6 +56,12 @@ test("SpessaSynth renders authored MIDI to non-silent PCM at the core AudioInfo 
   }
   if (!result.ended) throw new Error("SpessaSynth did not finish the finite MIDI voice");
   if (result.absoluteSum <= 1e-4) throw new Error("SpessaSynth rendered silent PCM");
+});
+
+test("SoundFont sample headers distinguish compressed banks and fail closed on invalid data", () => {
+  equal(soundBankHasCompressedSamples(new Uint8Array(readFileSync(BANK_PATH))), false);
+  equal(soundBankHasCompressedSamples(new Uint8Array(readFileSync(join(TEST_DIR, "fixtures/test-minimal.sf3")))), true);
+  equal(soundBankHasCompressedSamples(new Uint8Array([1, 2, 3])), true);
 });
 
 test("compressed SoundFont samples render after decoder initialization", async () => {

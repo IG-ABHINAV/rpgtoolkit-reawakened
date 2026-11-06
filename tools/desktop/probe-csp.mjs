@@ -1,15 +1,76 @@
 // This probe runs in the real Electron page; it is slower than a unit test because it reloads a live game.
 import { build } from "esbuild";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export async function probeDesktopCsp(page, evaluate, root, sleep) {
   const filename = `desktop-csp-probe-${process.pid}.js`;
   const output = join(root, "apps", filename);
+  const workletFilename = `desktop-worklet-probe-${process.pid}.js`;
+  const workletOutput = join(root, "apps", workletFilename);
+  const runnerFilename = `desktop-worklet-runner-${process.pid}.js`;
+  const runnerOutput = join(root, "apps", runnerFilename);
+  const liveWorklet = join(root, "apps", "audio-worklet.js");
+  const originalWorklet = readFileSync(liveWorklet);
+  const waitFor = async (expression) => {
+    for (let n = 0; n < 150; n += 1) {
+      try { if (await evaluate(expression)) return; } catch (error) {
+        if (!/context|navigation/i.test(String(error))) throw error;
+      }
+      await sleep(100);
+    }
+    throw new Error(`desktop CSP probe timed out: ${expression}`);
+  };
   try {
     await build({ entryPoints: [join(root, "packages/synth/test/browser-csp-probe.mjs")], outfile: output, bundle: true, format: "esm", platform: "browser", target: "chrome120", logLevel: "silent" });
     const sound = await evaluate(`import('/apps/${filename}').then(m => m.probeCompressedAudio())`);
     if (!sound.ended || sound.energy <= 0.0001 || !sound.evalBlocked) throw new Error(`desktop CSP/audio probe failed: ${JSON.stringify(sound)}`);
+    await build({
+      entryPoints: [join(root, "packages/runner-web/src/audio-worklet.ts")], outfile: workletOutput,
+      bundle: true, format: "iife", platform: "browser", target: "chrome120", logLevel: "silent",
+      banner: { js: readFileSync(join(root, "packages/runner-web/test/worklet-decoder-banner.js"), "utf8") },
+    });
+    await build({ entryPoints: [join(root, "packages/runner-web/test/worklet-decoder-probe.mjs")], outfile: runnerOutput, bundle: true, format: "esm", platform: "browser", target: "chrome120", logLevel: "silent" });
+    const race = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeWorkletDecoder('/apps/${workletFilename}'))`);
+    if (race.before !== 0 || race.after <= 0.0001) throw new Error(`worklet decoder race: ${JSON.stringify(race)}`);
+    const workletFailure = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeWorkletFailure('/apps/${workletFilename}'))`);
+    if (!String(workletFailure.detail).includes("worklet-decoder-probe-failure")
+      || workletFailure.pcmEnergy <= 0.0001 || workletFailure.plainEnergy <= 0.0001) {
+      throw new Error(`worklet decoder failure or ordinary audio: ${JSON.stringify(workletFailure)}`);
+    }
+
+    // Exercise the actual desktop graph and status display with the decoder rejected in its own realm.
+    writeFileSync(liveWorklet, readFileSync(workletOutput));
+    await page.send("Page.enable");
+    const injection = await page.send("Page.addScriptToEvaluateOnNewDocument", { source: `{
+      const Original = window.AudioWorkletNode;
+      window.AudioWorkletNode = class extends Original {
+        constructor(context, name, options) {
+          super(context, name, options);
+          if (name === 'tkr-pcm-processor') {
+            window.__probeProcessor = this;
+            window.__probeControl = new Original(context, 'decoder-probe-control');
+            window.__probeControl.connect(context.destination);
+            window.__probeContext = context;
+          }
+        }
+      };
+    }` });
+    await page.send("Page.reload");
+    await waitFor("!!window.__probeControl");
+    await evaluate(`fetch('/packages/synth/test/fixtures/test-minimal.sf3').then(r => r.arrayBuffer()).then(bytes => {
+      window.__probeProcessor.port.postMessage({kind:'message', message:{kind:'setBank', bankKind:'soundfont', bank:{source:'bundled',id:'test',sha256:null}, bankBytes:new Uint8Array(bytes), bankSha:'test'}});
+      window.__probeContext.resume();
+      window.__probeControl.port.postMessage({kind:'reject'});
+      return true;
+    })`);
+    await waitFor("document.querySelector('#live-status')?.textContent.includes('worklet-decoder-probe-failure')");
+    await page.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: injection.identifier });
+    writeFileSync(liveWorklet, originalWorklet);
+    await evaluate("delete window.__probeControl; delete window.__live; true");
+    await page.send("Page.reload");
+    await waitFor("window.__live?.tick > 0 || !!window.__live?.error");
+    if (await evaluate("!!window.__live?.error")) throw new Error("desktop failed to restart after worklet failure probe");
 
     // Defer the real WebAssembly initializer before the next document executes. An unguarded player would start
     // immediately and could open a compressed bank before its decoder is ready.
@@ -26,15 +87,6 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
         window.__rejectWasmProbe = () => reject(new Error('decoder-probe-failure'));
       });
     }` });
-    const waitFor = async (expression) => {
-      for (let n = 0; n < 150; n += 1) {
-        try { if (await evaluate(expression)) return; } catch (error) {
-          if (!/context|navigation/i.test(String(error))) throw error;
-        }
-        await sleep(100);
-      }
-      throw new Error(`desktop CSP probe timed out: ${expression}`);
-    };
     await page.send("Page.reload");
     await waitFor("typeof window.__resolveWasmProbe === 'function'");
     if (await evaluate("window.__desktopPassedDecoderGate === true")) throw new Error("desktop game passed its startup gate before decoder readiness");
@@ -52,8 +104,11 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
     await waitFor("!!window.__live?.error");
     const failure = await evaluate("window.__live.error");
     if (!String(failure).includes("decoder-probe-failure")) throw new Error(`decoder failure was not reported: ${failure}`);
-    return { energy: sound.energy, evalBlocked: sound.evalBlocked, readinessWaited: true, failureReported: true };
+    return { energy: sound.energy, evalBlocked: sound.evalBlocked, readinessWaited: true, failureReported: true, workletRace: race, workletFailureVisible: true };
   } finally {
+    writeFileSync(liveWorklet, originalWorklet);
     rmSync(output, { force: true });
+    rmSync(workletOutput, { force: true });
+    rmSync(runnerOutput, { force: true });
   }
 }

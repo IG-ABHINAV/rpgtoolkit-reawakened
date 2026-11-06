@@ -358,6 +358,7 @@ function run(
         player === null ? "player: unavailable" : `player ${player.x}, ${player.y}`,
         moved ? "moved: yes" : "moved: no",
         `save ${savePath}: ${saveLabel}`,
+        ...(session.audioError() === null ? [] : [`audio: ${session.audioError()}`]),
         "Move: arrows or WASD; tap/click to walk.",
       ].join("\n");
       if (!disposed && isCurrent()) frameId = window.requestAnimationFrame(draw);

@@ -251,6 +251,11 @@ that name the same bytes share one entry and a swap never evicts the bank a voic
 through it in Node and in headless Chromium. Its selection as a *default* remains the owner's listening approval (PB-10),
 so a host that wants the bank off passes no bundled layer.
 
+The AudioWorklet has its own SoundFont decoder instance. It holds compressed-bank messages and the messages following
+them in order until that instance is ready, so compressed samples cannot be opened or played with an uninitialised
+decoder. If initialization fails, the player reports an attempt to use a compressed bank in its visible audio status;
+uncompressed banks and PCM remain available.
+
 The **video** half is
 [audio-media.md#video-request](audio-media.md#video-request): `VideoHost` answers every `playVideo` with exactly one `video.ended { reqId }`
 (including every failure), keeps one video outstanding, and holds the other realised voices through the cue player's

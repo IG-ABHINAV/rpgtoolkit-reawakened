@@ -310,3 +310,20 @@ test("connectSinkToGraph loads the worklet and forwards setBank with the resolve
     else (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = original;
   }
 });
+
+test("worklet decoder failures reach the host diagnostic callback", async () => {
+  const original = (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode;
+  (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = FakeWorkletNode;
+  try {
+    const events: SinkEvent[] = [];
+    const graph = await connectSinkToGraph(fakeContext(), sink({ onEvent: (event) => events.push(event) }));
+    const node = FakeWorkletNode.last;
+    ok(node !== null && node.port.onmessage !== null);
+    node.port.onmessage({ data: { kind: "decoder.error", detail: "decoder-probe-failure" } } as MessageEvent);
+    deepEqual(events, [{ kind: "error", voice: null, code: "audio.decoder-unavailable", detail: "SoundFont decoder initialization failed: decoder-probe-failure" }]);
+    graph.disconnect();
+  } finally {
+    if (original === undefined) delete (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode;
+    else (globalThis as { AudioWorkletNode?: unknown }).AudioWorkletNode = original;
+  }
+});

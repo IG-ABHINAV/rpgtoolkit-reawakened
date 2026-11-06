@@ -8,7 +8,7 @@
  * `docs/spec/engine/runners.md#audio` and `docs/spec/engine/audio-media.md#runner-audio-protocol` own the contract.
  */
 
-import type { AudioMessage } from "@tk-reawakened/synth";
+import { soundBankHasCompressedSamples, soundFontDecoderReady, type AudioMessage } from "@tk-reawakened/synth";
 import { PcmSink, type WorkletSetBankMessage } from "./audio-sink.ts";
 
 // The AudioWorklet global scope is not part of TypeScript's DOM lib. Declare the three globals this processor uses.
@@ -34,6 +34,12 @@ type ProcessorMessage = WorkletControlMessage | LatencyRequestMessage;
 
 class TkrPcmProcessor extends AudioWorkletProcessor {
   private readonly sink: PcmSink;
+  private readonly pending: (AudioMessage | WorkletSetBankMessage)[] = [];
+  private decoderState: "pending" | "ready" | "failed" = "pending";
+  private decoderError = "";
+  private failedBank = false;
+  private failureReported = false;
+  private readonly failedVoices = new Set<number>();
 
   constructor() {
     super();
@@ -42,10 +48,23 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
       readBank: () => null,
       outputRateHz: sampleRate,
     });
+    void soundFontDecoderReady.then(() => {
+      this.decoderState = "ready";
+      for (const message of this.pending) this.handle(message);
+      this.pending.length = 0;
+    }, (error: unknown) => {
+      this.decoderState = "failed";
+      this.decoderError = String(error);
+      for (const message of this.pending) this.handleWithoutDecoder(message);
+      this.pending.length = 0;
+    });
     this.port.onmessage = (event: MessageEvent<ProcessorMessage>) => {
       const data = event.data;
       if (data.kind === "message") {
-        this.handle(data.message);
+        if (this.decoderState === "ready") this.handle(data.message);
+        else if (this.decoderState === "failed") this.handleWithoutDecoder(data.message);
+        else if (this.pending.length > 0 || this.isCompressedBank(data.message)) this.pending.push(data.message);
+        else this.handle(data.message);
       } else if (data.kind === "latency") {
         const global = globalThis as unknown as { renderQuantumSize?: number };
         this.port.postMessage({
@@ -55,6 +74,36 @@ class TkrPcmProcessor extends AudioWorkletProcessor {
         });
       }
     };
+  }
+
+  private isCompressedBank(message: AudioMessage | WorkletSetBankMessage): boolean {
+    return message.kind === "setBank" && "bankBytes" in message
+      && message.bankBytes !== null && soundBankHasCompressedSamples(message.bankBytes);
+  }
+
+  private handleWithoutDecoder(message: AudioMessage | WorkletSetBankMessage): void {
+    if (message.kind === "setBank") {
+      this.failedBank = this.isCompressedBank(message);
+      if (this.failedBank) {
+        if (!this.failureReported) {
+          this.failureReported = true;
+          this.port.postMessage({ kind: "decoder.error", detail: this.decoderError });
+        }
+        return;
+      }
+    } else if (message.kind === "load") {
+      const midi = message.data[0] === 0x4d && message.data[1] === 0x54
+        && message.data[2] === 0x68 && message.data[3] === 0x64;
+      if (this.failedBank && midi) {
+        this.failedVoices.add(message.voice);
+        return;
+      }
+      this.failedVoices.delete(message.voice);
+    } else if ("voice" in message && message.voice !== null && this.failedVoices.has(message.voice)) {
+      if (message.kind === "stop") this.failedVoices.delete(message.voice);
+      return;
+    }
+    this.handle(message);
   }
 
   private handle(message: AudioMessage | WorkletSetBankMessage): void {

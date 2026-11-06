@@ -378,6 +378,12 @@ export class PcmSink {
     this.voices.delete(voice);
   }
 
+  /** Surface a decoder failure from the separate AudioWorklet realm to the host diagnostic path. */
+  notifyDecoderFailure(detail: string): void {
+    this.fail(null, "audio.decoder-unavailable", `SoundFont decoder initialization failed: ${detail}`);
+  }
+
+
   /** Compare a MIDI file's instruments with the current bank's and report each one that needs a substitute, once. */
   private reportMissingPatches(asset: AssetKey, bytes: Uint8Array | null): void {
     if (bytes === null || this.bankBytes === null || this.bankSha === null || this.bankRef === null) return;
@@ -463,9 +469,10 @@ export async function connectSinkToGraph(context: AudioContext, sink: PcmSink, o
         channelCount: 2,
         channelCountMode: "explicit",
       });
-      node.port.onmessage = (event: MessageEvent<{ kind: "ended"; voice: number } | { kind: "latency"; sampleRate: number; renderQuantumSize: number }>) => {
+      node.port.onmessage = (event: MessageEvent<{ kind: "ended"; voice: number } | { kind: "decoder.error"; detail: string } | { kind: "latency"; sampleRate: number; renderQuantumSize: number }>) => {
         const data = event.data;
         if (data.kind === "ended") sink.notifyEnded(data.voice);
+        else if (data.kind === "decoder.error") sink.notifyDecoderFailure(data.detail);
       };
       node.connect(context.destination);
       return {
