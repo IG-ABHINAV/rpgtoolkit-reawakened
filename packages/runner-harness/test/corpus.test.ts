@@ -375,17 +375,19 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // UI schema 7 adds author-claim cancellation; UI schema 8 adds deterministic modal identity; UI schema 9 adds the
   // pending one-shot surface-result marker. Input schema 9 adds an empty modal-action queue. These versions enter the
   // canonical hash even when their fields are inactive; corpus inputs, ticks, diagnostics, draws and events stay fixed.
+  // #1600 input schema 10 adds the false restore-gesture suppression latch. Normalizing only input/schema versions
+  // to 9 and removing that field reproduces all previous corpus hashes; behavior and draw assertions are unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "701ffd566a7264ab",
-    "sample-system-demo": "670a1a971551e161",
-    "sample-sys-test-demo": "670a1a971551e161",
-    "sample-win-demo": "39cf56d3a68077f1",
-    "sample-oldman-demo": "76fc91f2cf7b47c0",
-    "sample-man-demo": "da182f505da3e48e",
-    "sample-man-wander-demo": "9bb3f231e28eb879",
-    "sample-start-basic": "9864d59fcc74a217",
-    "sample-system-basic": "670a1a971551e161",
-    "sample-wander-basic": "061deaa4197c8c9d",
+    "sample-start-demo": "165468fdb5b33f30",
+    "sample-system-demo": "4a55feda8958f5aa",
+    "sample-sys-test-demo": "4a55feda8958f5aa",
+    "sample-win-demo": "19dfdb738bc625f6",
+    "sample-oldman-demo": "c5058a11e55080f1",
+    "sample-man-demo": "0b795a35d706f77b",
+    "sample-man-wander-demo": "3a2b9726d53375d0",
+    "sample-start-basic": "28b9d02bd2f7bb58",
+    "sample-system-basic": "4a55feda8958f5aa",
+    "sample-wander-basic": "279ff8afa7b6d7f8",
   };
 
   for (const res of results) {
@@ -408,7 +410,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "061deaa4197c8c9d"); // UI schema 9 adds a pending surface-result marker.
+  equal(hash1, "279ff8afa7b6d7f8"); // Input schema 10 adds the inactive restore-gesture suppression latch.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

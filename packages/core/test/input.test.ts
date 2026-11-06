@@ -513,7 +513,7 @@ test("a focus loss changes values only: the saved input section keeps its shape 
   applyInputEvent(state.input, { kind: "focus", state: "lost" });
 
   deepEqual(Object.keys(state.input).sort(), fresh);
-  equal(state.input.version, 9);
+  equal(state.input.version, 10);
   const restored = restoreGameState(snapshot(state));
   deepEqual(restored.input, state.input);
   deepEqual(Object.keys(restored.input).sort(), fresh);
@@ -567,7 +567,7 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   equal(migrated.nextPointerGestureId, 1);
   applyInputEvent(migrated, { kind: "pointer", x: 9, y: 8, buttons: 0 });
   deepEqual(migrated.pendingPointerUps, [{ gestureId: 0, x: 9, y: 8 }]);
-  equal(migrated.version, 9);
+  equal(migrated.version, 10);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
 });
 

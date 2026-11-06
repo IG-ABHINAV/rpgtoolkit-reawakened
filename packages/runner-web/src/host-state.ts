@@ -2,11 +2,15 @@ import type { HostDisplayGeometry, InputRecord, NormalizedHostFeatures } from "@
 
 export type HostViewport = { readonly canvas: HTMLCanvasElement; readonly viewport: HTMLElement };
 export type HostStateSnapshot = { readonly features: NormalizedHostFeatures; readonly geometry: HostDisplayGeometry };
+export type HostRestoreSnapshot = {
+  readonly pending: readonly InputRecord["event"][];
+  readonly observations: readonly InputRecord["event"][];
+};
 
 export type HostStateObserver = {
   readonly poll: () => void;
   readonly currentFeatures: () => NormalizedHostFeatures;
-  readonly snapshotForRestore: (pending?: PendingInput[]) => readonly InputRecord["event"][];
+  readonly snapshotForRestore: (pending?: PendingInput[]) => HostRestoreSnapshot;
   readonly dispose: () => void;
 };
 
@@ -323,7 +327,7 @@ export function observeHostState(
   for (const item of media) item.addEventListener("change", onResize);
   onResize();
   poll();
-  const snapshotForRestore = (pending: PendingInput[] = []): readonly InputRecord["event"][] => {
+  const snapshotForRestore = (pending: PendingInput[] = []): HostRestoreSnapshot => {
     const geometry = measureHostDisplay(host, view, safeArea.read()) ?? previousGeometry;
     if (geometry !== null) {
       // The successful blob reply replaces the engine's geometry, which is unknown here. Re-establish each pointer's
@@ -356,12 +360,14 @@ export function observeHostState(
       devices.push({ device, axes: { x, y }, buttons });
       previousGamepads[device] = { x, y, buttons };
     }
-    return [
-      ...pendingEvents,
-      { kind: "host.features", features },
-      ...(geometry === null ? [] : [{ kind: "host.display" as const, geometry }]),
-      { kind: "host.gamepads", devices },
-    ];
+    return {
+      pending: pendingEvents,
+      observations: [
+        { kind: "host.features", features },
+        ...(geometry === null ? [] : [{ kind: "host.display" as const, geometry }]),
+        { kind: "host.gamepads", devices },
+      ],
+    };
   };
   return {
     poll,

@@ -106,6 +106,7 @@ export function createInputSection(config: InputConfig = {}): InputSection {
     pendingActions: [],
     pendingClicks: [],
     pointerMovementSuppressed: false,
+    primaryPointerSuppressedUntilRelease: false,
     pointerPlane: config.pointerPlane === undefined ? null : { ...config.pointerPlane },
     nextPointerGestureId: 1,
     pointerGestureId: null,
@@ -433,6 +434,11 @@ function pointerAfter(previous: InputSection["pointer"], event: PointerInput): I
 }
 
 function applyPointer(state: InputSection, event: PointerInput): void {
+  if (state.primaryPointerSuppressedUntilRelease) {
+    state.pointer = { ...state.pointer, x: event.x, y: event.y, buttons: event.buttons & ~1 };
+    if ((event.buttons & 1) === 0) state.primaryPointerSuppressedUntilRelease = false;
+    return;
+  }
   const previous = state.pointer;
   const wasDown = (previous.buttons & 1) !== 0;
   const isDown = (event.buttons & 1) !== 0;

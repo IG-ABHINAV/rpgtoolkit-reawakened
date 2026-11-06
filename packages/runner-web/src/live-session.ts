@@ -1,4 +1,4 @@
-import { createSafeAreaProbe, readHostFeatures, waitForHostDisplay, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
+import { createSafeAreaProbe, readHostFeatures, waitForHostDisplay, type HostRestoreSnapshot, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
 import { fitCanvas } from "./viewport.ts";
 export { fitCanvas } from "./viewport.ts";
 import {
@@ -73,7 +73,7 @@ export type LiveSession = {
   /** The located diagnostics the engine has reported so far, capped like the effect audit. */
   readonly diagnostics: () => readonly { code: string; file: string; line: number; message: string }[];
   readonly advance: (ticks: number, inputs?: readonly InputRecord[]) => Promise<void>;
-  readonly setHostRestoreSnapshotProvider: (provider: (() => readonly InputRecord["event"][]) | null) => void;
+  readonly setHostRestoreSnapshotProvider: (provider: (() => HostRestoreSnapshot) | null) => void;
 };
 type LiveSessionBase = {
   readonly bundled: ClosingFiles;
@@ -375,7 +375,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     }
   };
 
-  let hostRestoreSnapshotProvider: (() => readonly InputRecord["event"][]) | null = null;
+  let hostRestoreSnapshotProvider: (() => HostRestoreSnapshot) | null = null;
   const pump = async (initialTicks: number, initialInputs: readonly InputRecord[]): Promise<void> => {
     let ticks = initialTicks;
     let inputs = [...initialInputs];
@@ -428,10 +428,13 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       if (closed) return;
       inputs = [];
       for (const reply of replies) {
-        inputs.push(reply);
         if (reply.event.kind === "blob.loaded" && hostRestoreSnapshotProvider !== null) {
-          for (const event of hostRestoreSnapshotProvider()) inputs.push({ tick: reply.tick, event });
-        }
+          const snapshot = hostRestoreSnapshotProvider();
+          // Inputs observed while the reply was pending predate its timeline boundary.
+          for (const event of snapshot.pending) inputs.push({ tick: reply.tick, event });
+          inputs.push(reply);
+          for (const event of snapshot.observations) inputs.push({ tick: reply.tick, event });
+        } else inputs.push(reply);
       }
       if (report.loading || replies.length > 0) continue;
       if (ticks > 0 && report.ticksRun > 0) continue;

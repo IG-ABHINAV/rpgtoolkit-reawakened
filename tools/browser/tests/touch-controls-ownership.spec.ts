@@ -240,7 +240,7 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
         return expected === "author" ? claim === "author" : claim === 1;
       }, { screenX: box.x + box.width / 2, screenY: box.y + box.height / 2, expected: fixture === author ? "author" : "modal" }, { timeout: 45_000 });
       await installInputTrace(page);
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await confirm.click();
       if (fixture === modal) {
         await page.waitForFunction(() => (window as Window & { __sessionAudioContext?: AudioContext }).__sessionAudioContext?.state === "running", undefined, { timeout: 10_000 });
         const resumeStates = await page.evaluate(() => (window as Window & { __audioResumeStates?: string[] }).__audioResumeStates ?? []);
@@ -408,6 +408,72 @@ test("an A-scoped fallback release cannot dismiss modal B when Enter is queued i
     expect(proof.sameAdvance, JSON.stringify(proof)).toBe(true);
     expect(proof.claim).toBe(2);
     await page.mouse.up();
+  } finally {
+    await closeLiveSession(page);
+    await context.close();
+  }
+});
+
+test("a held modal fallback pointer cannot claim an author item after a real game Load", async ({ browser }) => {
+  const fixture = packageWithStartup("touch-load-raw-gesture.tpk", [
+    "restored = 0",
+    'Save("slot")',
+    'if (restored == 0) { msgbox("Modal A"); Load("slot") }',
+    "activated = 0",
+    "while (1) {",
+    'uiBegin("loaded", "surface", -1000, -1000, 3000, 3000)',
+    'if (activated == 0) { uiItem("Loaded target", { id: "loaded", bounds: { x: -1000, y: -1000, w: 3000, h: 3000 } }) }',
+    'if (activated > 0) { uiItem("Activated loaded target", { id: "loaded", bounds: { x: -1000, y: -1000, w: 3000, h: 3000 } }) }',
+    "uiEnd()",
+    "if (uiActivated() >= 0) { activated = activated + 1 }",
+    "sleep(1)",
+    "}",
+  ].join("\n"));
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+    const confirm = page.getByRole("button", { name: "Confirm" });
+    await confirm.waitFor({ state: "visible", timeout: 45_000 });
+    await page.waitForFunction(() => window.__session?.engine.runnerControlPointerPreemption(0, 0) === 1);
+    const initialEpoch = await page.evaluate(async () => {
+      const session = window.__session!;
+      const host = window.__blobHost!;
+      const read = host.read.bind(host);
+      host.read = async (area, gameId, path) => {
+        const bytes = await read(area, gameId, path);
+        if (area !== "saves" || gameId !== session.gameId || bytes === null) return bytes;
+        const saved = JSON.parse(new TextDecoder().decode(bytes)) as { vm: { globals: { restored: number } }; input: { pointer: { buttons: number } } };
+        if (saved.input.pointer.buttons !== 0) throw new Error("fixture must save before the pointer is held");
+        // A different saved continuation opens the author screen instead of modal A.
+        saved.vm.globals.restored = 1;
+        return new TextEncoder().encode(JSON.stringify(saved));
+      };
+      return session.engine.surfaceCacheEpoch();
+    });
+    const box = await confirm.boundingBox();
+    if (box === null) throw new Error("Confirm fallback button has no bounds");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.keyboard.press("Enter");
+    await page.waitForFunction((epoch) => (window.__session?.engine.surfaceCacheEpoch() ?? 0) > epoch &&
+      window.__session?.engine.accessibilityTree().some((node) => node.children?.some((item) => item.label === "Loaded target")), initialEpoch);
+    await installInputTrace(page);
+    await page.mouse.move(x + 1, y);
+    await page.mouse.move(x, y);
+    await page.mouse.up();
+    const activated = (): Promise<boolean> => page.evaluate(() =>
+      window.__session!.engine.accessibilityTree().some((node) => node.children?.some((item) => item.label === "Activated loaded target")));
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchInputTrace?: { inputs: TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.some((entry) => entry.inputs.some(({ event }) => event.kind === "pointer" && event.buttons === 0));
+    });
+    expect(await activated()).toBe(false);
+    await page.mouse.click(x, y);
+    await expect.poll(activated).toBe(true);
   } finally {
     await closeLiveSession(page);
     await context.close();

@@ -2052,6 +2052,8 @@ export function createEngine(init: EngineInit): Engine {
     const rng = state.rng;
     const time = state.time;
     const nextModalId = state.ui.nextModalId;
+    let heldPrimary = state.input.primaryPointerSuppressedUntilRelease || (state.input.pointer.buttons & 1) !== 0;
+    for (const record of queuedInputs) if (record.event.kind === "pointer") heldPrimary = (record.event.buttons & 1) !== 0;
     if (nextMain !== undefined) {
       initialCharacterKey = null;
       initialCharacterResolved = true;
@@ -2077,6 +2079,7 @@ export function createEngine(init: EngineInit): Engine {
     state.battle = fresh.battle;
     state.menu = fresh.menu;
     state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+    state.input.primaryPointerSuppressedUntilRelease = heldPrimary;
     state.ui = fresh.ui;
     state.ui.nextModalId = Math.max(state.ui.nextModalId, nextModalId);
     state.camera = createCameraSection(init.width, init.height);
@@ -3741,6 +3744,10 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
+    if (state.input.primaryPointerSuppressedUntilRelease) {
+      applyInputEvent(state.input, event, reportUnknownAction);
+      return;
+    }
     const previousButtons = state.input.pointer.buttons;
     const wasPrimaryDown = (previousButtons & 1) !== 0;
     const isPrimaryDown = (event.buttons & 1) !== 0;
@@ -3986,9 +3993,31 @@ export function createEngine(init: EngineInit): Engine {
             deferred.splice(at, 1);
           }
         }
+        // Records already queued when Load commits still belong to the old physical gesture.
+        let heldPrimary = state.input.primaryPointerSuppressedUntilRelease || (state.input.pointer.buttons & 1) !== 0;
+        for (const pending of deferred) {
+          if (pending.event.kind === "pointer") heldPrimary = (pending.event.buttons & 1) !== 0;
+        }
+        const consumedBeforeReply = consumed.length;
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
+          state.input.primaryPointerSuppressedUntilRelease = heldPrimary;
+          state.input.pointer = { ...state.input.pointer, buttons: state.input.pointer.buttons & ~1 };
+          state.input.pointerGestureId = null;
+          state.input.pressedButtonSlot = null;
+          state.input.pendingClicks = [];
+          state.input.pendingPointerUps = [];
+          state.ui.surfacePointerClaim = null;
+          setPointerMovementSuppressed(state.input, false);
+          let consumedOldPointerAt = consumedBeforeReply;
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (earlier.event.kind === "pointer" || earlier.event.kind === "pointer.cancel") {
+              consumed.splice(consumedOldPointerAt++, 0, earlier);
+              deferred.splice(at, 1);
+            } else at += 1;
+          }
           for (let at = 0; at < deferred.length; at += 1) {
             deferred[at] = { ...deferred[at]!, tick: state.time.tick };
           }

@@ -240,7 +240,7 @@ function run(
   }, session.hostState ?? undefined);
   session.setHostRestoreSnapshotProvider(() => {
     const snapshot = hostObserver.snapshotForRestore(pending);
-    for (const event of snapshot) observedGeometry.observe(event);
+    for (const event of snapshot.observations) observedGeometry.observe(event);
     return snapshot;
   });
   const stage = hostViewport.viewport;
@@ -273,6 +273,7 @@ function run(
     },
     ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
     dispatchFallbackAction,
+    () => session.engine.surfaceCacheEpoch(),
   );
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 

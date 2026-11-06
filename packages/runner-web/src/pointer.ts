@@ -36,6 +36,7 @@ export function attachPointerInput(
   onCancel: () => void,
   preemptionAtFallback: (pointer: LogicalPointer) => number | "author" | null,
   onModalFallbackAction: (action: "confirm" | "cancel", down: boolean, modalId: number) => void,
+  timelineEpoch: () => number,
 ): () => void {
   let primaryPointerId: number | null = null;
   let suppressedPointerId: number | null = null;
@@ -45,6 +46,7 @@ export function attachPointerInput(
   const corePreemptedFallbackPointers = new Set<number>();
   const modalFallbackPointers = new Map<number, { readonly action: "confirm" | "cancel"; readonly button: HTMLButtonElement; readonly modalId: number; cancelled: boolean }>();
   const handledCancels = new WeakSet<Event>();
+  let observedTimelineEpoch = timelineEpoch();
 
   const cancelModalFallback = (pointerId: number): void => {
     const fallback = modalFallbackPointers.get(pointerId);
@@ -58,6 +60,14 @@ export function attachPointerInput(
     routedButtons &= ~1;
   };
   const route = (event: PointerEvent): void => {
+    const currentEpoch = timelineEpoch();
+    const timelineChanged = currentEpoch !== observedTimelineEpoch;
+    if (timelineChanged) {
+      observedTimelineEpoch = currentEpoch;
+      modalFallbackPointers.clear();
+      if (primaryPointerId !== null) suppressedPointerId = primaryPointerId;
+      routedButtons &= ~1;
+    }
     const fallbackTarget = isFallbackTouchControlTarget(event.target);
     if (runnerOwnedPointers.has(event.pointerId)) {
       if (event.type === "pointerdown" && event.button === 0 && (event.buttons & 1) !== 0) {
@@ -102,6 +112,10 @@ export function attachPointerInput(
     const outside = event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom;
     const primaryNow = (event.buttons & 1) !== 0;
     const newPrimaryDown = event.type === "pointerdown" && event.button === 0 && primaryNow;
+    if (newPrimaryDown && !outside && (timelineChanged || suppressedPointerId === event.pointerId)) {
+      // A real new down proves the prior physical press ended, even if its up happened outside the window.
+      onPointer(lastPointer, event.buttons & ~1);
+    }
     const chordedPrimaryMove = event.type === "pointermove" &&
       (event.pointerType === "mouse" || event.pointerType === "pen") &&
       primaryNow &&
@@ -167,6 +181,8 @@ export function attachPointerInput(
     }
     if ((event.buttons & 1) === 0) {
       cancelPrimary(event.pointerId);
+      onPointer(lastPointer, routedButtons & ~1);
+      routedButtons &= ~1;
       primaryPointerId = null;
       suppressedPointerId = null;
       corePreemptedFallbackPointers.delete(event.pointerId);

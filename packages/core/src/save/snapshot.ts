@@ -413,6 +413,9 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
 function migrateInput(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.input;
   if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `input` version");
+  if (version < 10 && typeof record.input === "object" && record.input !== null && !Array.isArray(record.input)) {
+    (record.input as Record<string, unknown>).primaryPointerSuppressedUntilRelease = false;
+  }
   const normalizeKeys = (value: unknown): unknown[] => Array.isArray(value)
     ? value.map((entry: unknown) => {
       if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
@@ -423,6 +426,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     : [];
   if (version >= INPUT_SCHEMA_VERSION) {
     const input = recordAt(record.input, "input");
+    if (typeof input.primaryPointerSuppressedUntilRelease !== "boolean") shapeError("the snapshot's primaryPointerSuppressedUntilRelease must be boolean");
     if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
     if (typeof input.actionPadMasks !== "object" || input.actionPadMasks === null || Array.isArray(input.actionPadMasks)) input.actionPadMasks = {};
     if (typeof input.keyboardActionSources !== "object" || input.keyboardActionSources === null || Array.isArray(input.keyboardActionSources)) input.keyboardActionSources = {};
@@ -455,7 +459,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     rebuildInputActionIndexes(input);
     return;
   }
-  if (version === 8) {
+  if (version === 8 || version === 9) {
     const input = recordAt(record.input, "input");
     input.version = INPUT_SCHEMA_VERSION;
     if (!Array.isArray(input.modalActions)) input.modalActions = [];

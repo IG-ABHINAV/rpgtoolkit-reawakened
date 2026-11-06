@@ -380,7 +380,7 @@ function startLiveLoop(
   }, session.hostState ?? undefined);
   session.setHostRestoreSnapshotProvider(() => {
     const snapshot = hostObserver.snapshotForRestore(pending);
-    for (const event of snapshot) displayGeometry.observe(event);
+    for (const event of snapshot.observations) displayGeometry.observe(event);
     return snapshot;
   });
   const stopPointerInput = attachPointerInput(
@@ -398,6 +398,7 @@ function startLiveLoop(
     },
     ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
     dispatchFallbackAction,
+    () => session.engine.surfaceCacheEpoch(),
   );
   const key = (event: KeyboardEvent, down: boolean): void => {
     if (shouldSuppressGameplayKey(event.code, event.repeat, down, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;

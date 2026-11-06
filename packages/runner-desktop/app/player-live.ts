@@ -105,7 +105,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   }, session.hostState ?? undefined);
   session.setHostRestoreSnapshotProvider(() => {
     const snapshot = hostObserver.snapshotForRestore(pending);
-    for (const event of snapshot) observedGeometry.observe(event);
+    for (const event of snapshot.observations) observedGeometry.observe(event);
     return snapshot;
   });
   const pointerHost = stage;
@@ -124,6 +124,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     },
     ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
     dispatchFallbackAction,
+    () => session.engine.surfaceCacheEpoch(),
   );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
