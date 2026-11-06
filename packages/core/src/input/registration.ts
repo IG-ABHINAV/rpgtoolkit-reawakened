@@ -72,9 +72,8 @@ function heldFacing(state: GameState): Facing | null {
   return FACING_BY_VECTOR[`${x},${y}`] ?? null;
 }
 
-/** Apply input-owned action edges during AD-26's input phase. */
-export function runInputPhase(state: GameState, options: InputPhaseOptions = {}): void {
-  processGamepadEvents(state.input);
+/** Resolve pointer releases at their current display geometry boundary, or in the ordinary input phase. */
+export function routePointerUpActivations(state: GameState): void {
   const pointerUps = state.input.pendingPointerUps;
   state.input.pendingPointerUps = [];
   for (const point of pointerUps) {
@@ -89,6 +88,12 @@ export function runInputPhase(state: GameState, options: InputPhaseOptions = {})
     applySemanticActionEdge(state.input, "confirm", false, "pointer.canvas");
     state.input.pendingClicks = state.input.pendingClicks.filter((click) => click.gestureId !== point.gestureId);
   }
+}
+
+/** Apply input-owned action edges during AD-26's input phase. */
+export function runInputPhase(state: GameState, options: InputPhaseOptions = {}): void {
+  processGamepadEvents(state.input);
+  routePointerUpActivations(state);
   const currentKeySequences = new Set(state.input.pendingKeySequences);
   const currentKeys = state.input.keys.filter((key) => currentKeySequences.has(key.seq));
   const { actions, clicks } = takeInputActions(state.input);

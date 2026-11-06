@@ -595,31 +595,32 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
       : 1;
     migrated.nextModalId = typeof modalId === "number" ? Math.max(nextModalId, modalId + 1) : nextModalId;
     if (!Array.isArray(migrated.authorMarginSurfaces)) migrated.authorMarginSurfaces = [];
-        for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
-          const claim = migrated[key];
-          if (claim !== null && typeof claim === "object" && !Array.isArray(claim)) migrated[key] = { ...claim, cancelled: typeof (claim as Record<string, unknown>).cancelled === "boolean" ? (claim as Record<string, unknown>).cancelled : false };
-        }
+    for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+      const claim = migrated[key];
+      if (claim !== null && typeof claim === "object" && !Array.isArray(claim)) migrated[key] = { ...claim, cancelled: typeof (claim as Record<string, unknown>).cancelled === "boolean" ? (claim as Record<string, unknown>).cancelled : false };
+    }
     record.ui = migrated;
   } else {
     const current = old as Record<string, unknown>;
     if (!Array.isArray(current.authorMarginSurfaces)) current.authorMarginSurfaces = [];
   }
   const currentUi = record.ui as Record<string, unknown>;
-    for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
-      const claim = currentUi[key];
-      if (claim !== null && (typeof claim !== "object" || Array.isArray(claim) || typeof (claim as Record<string, unknown>).cancelled !== "boolean")) shapeError(`the snapshot's UI ${key} must be null or an object with boolean \`cancelled\``);
-    }
-    if (!Number.isSafeInteger(currentUi.nextModalId) || (currentUi.nextModalId as number) < 1) {
-      shapeError("the snapshot's UI nextModalId must be a positive safe integer");
-    }
-    const currentModal = currentUi.modal;
-    if (currentModal !== null && (typeof currentModal !== "object" || Array.isArray(currentModal) ||
-        !Number.isSafeInteger((currentModal as Record<string, unknown>).modalId) ||
-        ((currentModal as Record<string, unknown>).modalId as number) < 1 ||
-        ((currentModal as Record<string, unknown>).modalId as number) >= (currentUi.nextModalId as number))) {
-      shapeError("the snapshot's UI modal must carry an identity below nextModalId");
-    }
-    schema.ui = UI_SCHEMA_VERSION;
+  for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+    const claim = currentUi[key];
+    if (claim !== null && (typeof claim !== "object" || Array.isArray(claim) || typeof (claim as Record<string, unknown>).cancelled !== "boolean")) shapeError(`the snapshot's UI ${key} must be null or an object with boolean \`cancelled\``);
+  }
+  if (!Number.isSafeInteger(currentUi.nextModalId) || (currentUi.nextModalId as number) < 1) {
+    shapeError("the snapshot's UI nextModalId must be a positive safe integer");
+  }
+  const currentModal = currentUi.modal;
+  if (currentModal !== null && (typeof currentModal !== "object" || Array.isArray(currentModal) ||
+      !Number.isSafeInteger((currentModal as Record<string, unknown>).modalId) ||
+      ((currentModal as Record<string, unknown>).modalId as number) < 1 ||
+      ((currentModal as Record<string, unknown>).modalId as number) >= (currentUi.nextModalId as number))) {
+    shapeError("the snapshot's UI modal must carry an identity below nextModalId");
+  }
+  if (typeof currentUi.surfaceResultsPending !== "boolean") shapeError("the snapshot's UI surfaceResultsPending must be a boolean");
+  schema.ui = UI_SCHEMA_VERSION;
 }
 
 

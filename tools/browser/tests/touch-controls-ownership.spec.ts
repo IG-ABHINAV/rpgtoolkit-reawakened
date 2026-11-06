@@ -19,7 +19,13 @@ function packageWithStartup(name: string, startup: string): TouchFixture {
   const parsed = readMainFile(new BinaryReader(mainFile.bytes, main));
   if (!parsed.ok) throw new Error(parsed.error.message);
   const startupPath = "touch-ownership.prg";
-  const rewrittenMain = writeMainFile({ ...parsed.value, startupPrg: startupPath });
+  const rewrittenMain = writeMainFile({
+    ...parsed.value,
+    startupPrg: startupPath,
+    audioSettings: parsed.value.audioSettings === null
+      ? null
+      : { ...parsed.value.audioSettings, defaultSoundFont: null },
+  });
   if (!rewrittenMain.ok) throw new Error(rewrittenMain.error.message);
   const tree = files.map((file) => file.path === main ? { path: file.path, bytes: rewrittenMain.value } : file);
   tree.push({ path: `Prg/${startupPath}`, bytes: new TextEncoder().encode(startup) });
@@ -260,15 +266,34 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
         }, undefined, { timeout: 10_000 });
         expect(input.filter((entry) => entry.event.kind === "action" && entry.event.source === "runner.fallback")).toHaveLength(0);
       } else {
-        await page.waitForFunction((action) => {
-          const target = window as Window & {
-            __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null } };
-            __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[];
-          };
-          return typeof (target.__session?.engine?.runnerControlPointerPreemption(0, 0)) !== "number" &&
-            (target.__touchInputTrace ?? []).flatMap((entry) => entry.inputs).some((entry) =>
-              entry.event.kind === "action" && entry.event.action === action && entry.event.source === "runner.fallback" && entry.event.down === false);
-        }, "confirm", { timeout: 10_000 });
+        try {
+          await page.waitForFunction((action) => {
+            const target = window as Window & {
+              __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null } };
+              __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[];
+            };
+            return typeof (target.__session?.engine?.runnerControlPointerPreemption(0, 0)) !== "number" &&
+              (target.__touchInputTrace ?? []).flatMap((entry) => entry.inputs).some((entry) =>
+                entry.event.kind === "action" && entry.event.action === action && entry.event.source === "runner.fallback" && entry.event.down === false);
+          }, "confirm", { timeout: 10_000 });
+        } catch (cause) {
+          const observed = await page.evaluate(({ x, y }) => {
+            const target = window as Window & {
+              __session?: { readonly tick?: () => number; readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null } };
+              __touchInputTrace?: { readonly inputs: readonly TraceInput[]; readonly consumed: readonly TraceInput[] }[];
+            };
+            const trace = target.__touchInputTrace ?? [];
+            const element = document.elementFromPoint(x, y);
+            return {
+              tick: target.__session?.tick?.(),
+              preemption: target.__session?.engine?.runnerControlPointerPreemption(0, 0),
+              element: element instanceof Element ? { tag: element.tagName, className: element.className, action: (element as HTMLElement).dataset.action } : null,
+              inputs: trace.flatMap((entry) => entry.inputs).map((entry) => entry.event),
+              consumed: trace.flatMap((entry) => entry.consumed).map((entry) => entry.event),
+            };
+          }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+          throw new Error(`modal fallback release was not consumed: ${JSON.stringify(observed)}`, { cause });
+        }
         const modalActions = (await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === "confirm" && entry.event.source === "runner.fallback");
         expect(modalActions.filter((entry) => entry.event.down === true)).toHaveLength(1);
         expect(modalActions.filter((entry) => entry.event.down === false)).toHaveLength(1);
@@ -539,21 +564,45 @@ test("lost fallback capture keeps a held pointer away from gameplay", async ({ b
     await right.waitFor({ state: "visible", timeout: 45_000 });
     await installInputTrace(page);
     await page.evaluate(() => {
-      const target = window as Window & { __fallbackPointerId?: number };
+      const target = window as Window & { __fallbackPointerId?: number; __pointerDomTrace?: unknown[] };
+      target.__pointerDomTrace = [];
       document.addEventListener("pointerdown", (event) => {
-        if ((event.target as Element).closest(".fallback-touch-button") !== null) target.__fallbackPointerId = event.pointerId;
+        const element = event.target instanceof Element ? event.target : null;
+        target.__pointerDomTrace?.push({
+          pointerId: event.pointerId,
+          tag: element?.tagName ?? null,
+          className: typeof element?.className === "string" ? element.className : null,
+          action: element?.closest<HTMLElement>(".fallback-touch-button")?.dataset.action ?? null,
+          x: event.clientX,
+          y: event.clientY,
+        });
+        if (element?.closest(".fallback-touch-button") !== null && element !== null) target.__fallbackPointerId = event.pointerId;
       }, true);
     });
+    await right.hover();
     const button = await right.boundingBox();
     const stage = await page.locator("#stage").boundingBox();
     if (button === null || stage === null) throw new Error("fallback button or game stage has no bounds");
-    await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
+    const hit = await page.evaluate(({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return {
+        tag: element?.tagName ?? null,
+        className: typeof element?.className === "string" ? element.className : null,
+        action: element instanceof Element ? element.closest<HTMLElement>(".fallback-touch-button")?.dataset.action ?? null : null,
+      };
+    }, { x: button.x + button.width / 2, y: button.y + button.height / 2 });
+    expect(hit.action, `fallback button hit test: ${JSON.stringify(hit)}`).toBe("right");
     await page.mouse.down();
-    await page.waitForFunction(() => typeof (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId === "number");
+    try {
+      await page.waitForFunction(() => typeof (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId === "number", undefined, { timeout: 10_000 });
+    } catch (cause) {
+      const observed = await page.evaluate(() => (window as Window & { __pointerDomTrace?: unknown[] }).__pointerDomTrace ?? []);
+      throw new Error(`fallback pointerdown did not reach button: ${JSON.stringify(observed)}`, { cause });
+    }
     const pointerId = await page.evaluate(() => (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId ?? -1);
     expect(await right.evaluate((element, id) => element.hasPointerCapture(id), pointerId)).toBe(true);
     await right.evaluate((element, id) => element.releasePointerCapture(id), pointerId);
-    await page.waitForFunction(({ id }) => !document.querySelector(".fallback-touch-button")?.hasPointerCapture(id), { id: pointerId });
+    await page.waitForFunction(({ id }) => !document.querySelector(".fallback-touch-button")?.hasPointerCapture(id), { id: pointerId }, { timeout: 10_000 });
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
     await page.evaluate(() => {
       const { promise, resolve } = Promise.withResolvers<void>();

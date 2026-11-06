@@ -190,10 +190,16 @@ reason to widen the bound.
 ## Input and focus
 
 A runner turns its host's events into the AD-14 input records and feeds them to `advance` with the tick they belong to:
+The record kinds include:
 `key { code, char, vk, down, repeat? }` — a physical key in the host's own identifier space, the character it produced
 or `null`, its virtual-key number or `null`, and the optional `repeat` flag for host auto-repeat, which is not a new
-press edge; `pointer` in logical integer pixels; `gamepad` with a **physical** standard-layout button bitmask
-([E-112](display-input-audio.md#reawakened-gamepad-contract)); `focus { lost | gained }`.
+press edge; `pointer` in logical integer pixels; `gamepad` with a **physical** standard-layout button bitmask and
+`host.gamepads` with the complete current set of connected normalized standard-layout devices, as specified in
+[E-112](display-input-audio.md#reawakened-gamepad-contract); `host.features`, `host.display`; `focus { lost | gained }`.
+
+When a successful `blob.loaded` installs saved state, the runner MUST append fresh `host.features` and `host.gamepads`
+records after that reply. Core applies them before resumed script execution, even if the request pump performs several
+internal advances. The v2 snapshot lists connected devices sorted by normalized index; an omitted device is disconnected.
 
 **A runner maps, it does not name.** `core` turns each key into its binding control (`key:<code>`,
 [ACT-3](display-input-audio.md#act-3)) and into its legacy queue name, so a script sees `LEFT` and `" "` on every host

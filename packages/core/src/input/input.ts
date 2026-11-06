@@ -512,7 +512,8 @@ export function applyInputEvent(state: InputSection, event: InputEvent, onUnknow
     case "audio.ended":
     case "video.ended":
     case "host.features":
-    case "host.display": return;
+    case "host.display":
+    case "host.gamepads": return;
     default: {
       const neverEvent: never = event;
       return neverEvent;
@@ -577,4 +578,11 @@ export function pruneClaimed(state: InputSection, claimed: readonly number[]): v
   const used = new Set(claimed);
   state.keys = state.keys.filter((key) => !used.has(key.seq));
   state.modalActions = state.modalActions.filter((action) => !used.has(action.seq));
+}
+/** Recompute derived action state after restoring the physical gamepad sample across a lifecycle reset. */
+export function recomputeInputActions(
+  state: InputSection,
+  onActionTransition?: (action: string, down: boolean, firstSeq: number) => void,
+): void {
+  updateAllActions(state, true, "gamepad", onActionTransition);
 }

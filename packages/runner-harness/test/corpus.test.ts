@@ -372,20 +372,20 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // else did; every other hash, tick and diagnostic is unchanged.
   // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
   // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
-  // UI schema 7 adds author-claim cancellation; UI schema 8 adds deterministic modal identity; input schema 9 adds an
-  // empty modal-action queue. The schema versions enter the canonical hash even when these fields are inactive.
-  // Corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
+  // UI schema 7 adds author-claim cancellation; UI schema 8 adds deterministic modal identity; UI schema 9 adds the
+  // pending one-shot surface-result marker. Input schema 9 adds an empty modal-action queue. These versions enter the
+  // canonical hash even when their fields are inactive; corpus inputs, ticks, diagnostics, draws and events stay fixed.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "ab472a9cc2fd6a0f",
-    "sample-system-demo": "e95b225597cf0b1b",
-    "sample-sys-test-demo": "e95b225597cf0b1b",
-    "sample-win-demo": "7c1f9f2d4b2c8033",
-    "sample-oldman-demo": "e761ed20cb339092",
-    "sample-man-demo": "b058d983ce45d5b8",
-    "sample-man-wander-demo": "329262f15a776987",
-    "sample-start-basic": "9d7da05a67efd093",
-    "sample-system-basic": "e95b225597cf0b1b",
-    "sample-wander-basic": "b88e4f8b789bade7",
+    "sample-start-demo": "701ffd566a7264ab",
+    "sample-system-demo": "670a1a971551e161",
+    "sample-sys-test-demo": "670a1a971551e161",
+    "sample-win-demo": "39cf56d3a68077f1",
+    "sample-oldman-demo": "76fc91f2cf7b47c0",
+    "sample-man-demo": "da182f505da3e48e",
+    "sample-man-wander-demo": "9bb3f231e28eb879",
+    "sample-start-basic": "9864d59fcc74a217",
+    "sample-system-basic": "670a1a971551e161",
+    "sample-wander-basic": "061deaa4197c8c9d",
   };
 
   for (const res of results) {
@@ -408,7 +408,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "b88e4f8b789bade7"); // Current schema hashes include the saved modal identity and scoped-action queue versions.
+  equal(hash1, "061deaa4197c8c9d"); // UI schema 9 adds a pending surface-result marker.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

@@ -552,3 +552,54 @@ test("schema 7 UI and schema 8 input migration assign modal identity and empty s
   equal(roundTripped.ui.modal?.modalId, 7, "current saves preserve modal ownership identity");
   equal(roundTripped.ui.nextModalId, 8);
 });
+
+test("UI schema 8 migration preserves the pending result marker and author modal claims", () => {
+  const state = createGameState({ seed: 9 });
+  const raw = JSON.parse(snapshot(state)) as {
+    schema: { ui: number };
+    ui: Record<string, unknown>;
+  };
+  raw.schema.ui = 8;
+  raw.ui.version = 8;
+  raw.ui.surfaceResultsPending = true;
+  raw.ui.nextModalId = 6;
+  raw.ui.modal = {
+    modalId: 5,
+    kind: "msgbox",
+    text: "restored modal",
+    title: "",
+    style: 0,
+    textColor: { r: 255, g: 255, b: 255 },
+    background: { r: 0, g: 0, b: 0 },
+    graphic: "",
+    selected: 0,
+    result: null,
+  };
+  raw.ui.surfacePointerClaim = {
+    owner: 7,
+    surfaceId: "title",
+    itemId: "play",
+    index: 0,
+    action: "confirm",
+    inputSeq: 41,
+    cancelled: true,
+  };
+
+  const restored = restoreGameState(JSON.stringify(raw));
+  equal(restored.schema.ui, 9);
+  equal(restored.ui.surfaceResultsPending, true);
+  equal(restored.ui.modal?.modalId, 5);
+  equal(restored.ui.nextModalId, 6);
+  equal(restored.ui.surfacePointerClaim?.cancelled, true);
+
+  const schema8BeforePendingMarker = JSON.parse(snapshot(state)) as {
+    schema: { ui: number };
+    ui: Record<string, unknown>;
+  };
+  schema8BeforePendingMarker.schema.ui = 8;
+  schema8BeforePendingMarker.ui.version = 8;
+  delete schema8BeforePendingMarker.ui.surfaceResultsPending;
+  const migratedOld8 = restoreGameState(JSON.stringify(schema8BeforePendingMarker));
+  equal(migratedOld8.schema.ui, 9);
+  equal(migratedOld8.ui.surfaceResultsPending, false);
+});

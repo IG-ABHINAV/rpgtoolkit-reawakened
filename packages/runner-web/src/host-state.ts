@@ -1,8 +1,55 @@
-import type { HostDisplayGeometry, NormalizedHostFeatures } from "@tk-reawakened/core";
-import type { InputRecord } from "@tk-reawakened/core";
+import type { HostDisplayGeometry, InputRecord, NormalizedHostFeatures } from "@tk-reawakened/core";
 
 export type HostViewport = { readonly canvas: HTMLCanvasElement; readonly viewport: HTMLElement };
 export type HostStateSnapshot = { readonly features: NormalizedHostFeatures; readonly geometry: HostDisplayGeometry };
+
+export type HostStateObserver = {
+  readonly poll: () => void;
+  readonly currentFeatures: () => NormalizedHostFeatures;
+  readonly snapshotForRestore: (pending?: PendingInput[]) => readonly InputRecord["event"][];
+  readonly dispose: () => void;
+};
+
+type GamepadSample = { readonly x: number; readonly y: number; readonly buttons: number };
+
+/** Convert finite W3C axis values to the specified signed integer scale. */
+function normalizedAxis(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 0;
+  return Math.trunc(Math.max(-1, Math.min(1, value)) * 1000);
+}
+
+function physicalButtons(pad: Gamepad): number {
+  let buttons = 0;
+  for (let index = 0; index <= 16; index += 1) {
+    if (pad.buttons[index]?.pressed === true) buttons |= 1 << index;
+  }
+  return buttons;
+}
+
+/** Normalize the W3C standard layout per docs/spec/engine/display-input-audio.md#reawakened-gamepad-contract. */
+function validGamepad(pad: Gamepad): boolean {
+  return pad.connected && pad.mapping === "standard" && Number.isInteger(pad.index) && pad.index >= 0 && pad.index <= 3;
+}
+
+function sameHostFeatures(left: NormalizedHostFeatures, right: NormalizedHostFeatures): boolean {
+  return left.touch === right.touch && left.pointer === right.pointer && left.keyboard === right.keyboard &&
+    left.gamepad === right.gamepad && left.haptics === right.haptics && left.orientation === right.orientation;
+}
+
+/** Reapply a restored saved feature record from the live observation through an ordinary logged input. */
+export function reconcileObservedHostFeaturesAfterAdvance(
+  engineFeatures: NormalizedHostFeatures,
+  observed: HostStateObserver,
+  pending: PendingInput[],
+): boolean {
+  const latest = observed.currentFeatures();
+  let queued = engineFeatures;
+  for (const input of pending) {
+    if (input.event.kind === "host.features") queued = input.event.features;
+  }
+  if (!sameHostFeatures(queued, latest)) pending.push({ tick: null, event: { kind: "host.features", features: latest }, pointerGeometry: null });
+  return !sameHostFeatures(engineFeatures, latest);
+}
 
 /** Read only host capabilities that can be reported without inferring an operating-system identity. */
 export function readHostFeatures(keyboardObserved = false): NormalizedHostFeatures {
@@ -13,7 +60,13 @@ export function readHostFeatures(keyboardObserved = false): NormalizedHostFeatur
   const pointerFine = window.matchMedia("(pointer: fine)").matches;
   const pointerCoarse = window.matchMedia("(pointer: coarse)").matches;
   const orientation = screen.orientation?.type ?? (window.matchMedia("(orientation: landscape)").matches ? "landscape-primary" : "portrait-primary");
-  const connectedGamepad = Array.from(navigator.getGamepads?.() ?? []).some((pad) => pad !== null && pad.connected);
+  let connectedGamepad = false;
+  const gamepads = navigator.getGamepads?.();
+  if (gamepads !== undefined) {
+    for (let index = 0; index < gamepads.length; index += 1) {
+      if (gamepads[index]?.connected === true) { connectedGamepad = true; break; }
+    }
+  }
   return {
     touch: (nav.maxTouchPoints ?? 0) > 0 || pointerCoarse,
     pointer: pointerFine ? "fine" : pointerCoarse ? "coarse" : "none",
@@ -76,9 +129,10 @@ function sameGeometry(left: HostDisplayGeometry, right: HostDisplayGeometry): bo
 
 /** Restore queued geometry before any pointer normalized with it, keeping unrelated input order intact. */
 function reconcilePendingGeometry(
-  engineGeometry: HostDisplayGeometry,
+  engineGeometry: HostDisplayGeometry | null,
   latest: HostDisplayGeometry,
   pending: PendingInput[],
+  appendLatest = true,
 ): boolean {
   let queuedGeometry = engineGeometry;
   for (let index = 0; index < pending.length; index += 1) {
@@ -87,7 +141,7 @@ function reconcilePendingGeometry(
       queuedGeometry = input.event.geometry;
       continue;
     }
-    if (input.event.kind !== "pointer" || input.pointerGeometry === null || sameGeometry(queuedGeometry, input.pointerGeometry)) continue;
+    if (input.event.kind !== "pointer" || input.pointerGeometry === null || (queuedGeometry !== null && sameGeometry(queuedGeometry, input.pointerGeometry))) continue;
     pending.splice(index, 0, {
       tick: null,
       event: { kind: "host.display", geometry: input.pointerGeometry },
@@ -96,10 +150,10 @@ function reconcilePendingGeometry(
     queuedGeometry = input.pointerGeometry;
     index += 1;
   }
-  if (!sameGeometry(queuedGeometry, latest)) {
+  if (appendLatest && (queuedGeometry === null || !sameGeometry(queuedGeometry, latest))) {
     pending.push({ tick: null, event: { kind: "host.display", geometry: latest }, pointerGeometry: null });
   }
-  return !sameGeometry(engineGeometry, latest);
+  return engineGeometry === null || !sameGeometry(engineGeometry, latest);
 }
 
 /** Reapply the live observation before an incoming pointer is appended. */
@@ -195,12 +249,15 @@ export function observeHostState(
   view: { readonly width: number; readonly height: number },
   enqueue: (event: InputRecord["event"]) => void,
   initial?: HostStateSnapshot,
-): () => void {
+): HostStateObserver {
   const safeArea = createSafeAreaProbe();
   let previousGeometry: HostDisplayGeometry | null = initial?.geometry ?? null;
   let previousFeatures: NormalizedHostFeatures | null = initial?.features ?? null;
+  let latestFeatures = previousFeatures ?? readHostFeatures();
   const send = (event: InputRecord["event"]): void => enqueue(event);
   let keyboardObserved = false;
+  const previousGamepads: (GamepadSample | null)[] = [null, null, null, null];
+  const currentGamepads: (Gamepad | null)[] = [null, null, null, null];
   const updateDisplay = (): void => {
     const next = measureHostDisplay(host, view, safeArea.read());
     if (next === null) return;
@@ -210,36 +267,53 @@ export function observeHostState(
   };
   const updateFeatures = (): void => {
     const next = readHostFeatures(keyboardObserved);
-    if (previousFeatures !== null && JSON.stringify(next) === JSON.stringify(previousFeatures)) return;
+    latestFeatures = next;
+    if (previousFeatures !== null && sameHostFeatures(next, previousFeatures)) return;
     previousFeatures = next;
     send({ kind: "host.features", features: next });
   };
-  const connectedGamepads = new Set(
-    Array.from(navigator.getGamepads?.() ?? [])
-      .filter((pad): pad is Gamepad => pad !== null && pad.connected && pad.index < 4)
-      .map((pad) => pad.index),
-  );
   const onResize = (): void => { updateDisplay(); updateFeatures(); };
+  const poll = (): void => {
+    currentGamepads.fill(null);
+    const gamepads = navigator.getGamepads?.();
+    if (gamepads !== undefined) {
+      for (let index = 0; index < gamepads.length; index += 1) {
+        const pad = gamepads[index];
+        if (pad !== null && pad !== undefined && validGamepad(pad)) currentGamepads[pad.index] = pad;
+      }
+    }
+    let gamepadConnectionChanged = false;
+    for (let device = 0; device <= 3; device += 1) {
+      const pad = currentGamepads[device];
+      const prior = previousGamepads[device];
+      if (pad == null) {
+        if (prior != null) {
+          send({ kind: "gamepad", device, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+          previousGamepads[device] = null;
+          gamepadConnectionChanged = true;
+        }
+        continue;
+      }
+      const x = normalizedAxis(pad.axes[0]);
+      const y = normalizedAxis(pad.axes[1]);
+      const buttons = physicalButtons(pad);
+      if (prior == null || prior.x !== x || prior.y !== y || prior.buttons !== buttons) {
+        send({ kind: "gamepad", device, connected: true, axes: { x, y }, buttons });
+        previousGamepads[device] = { x, y, buttons };
+        if (prior == null) gamepadConnectionChanged = true;
+      }
+    }
+    if (gamepadConnectionChanged) updateFeatures();
+  };
+  const onGamepadConnected = (): void => { poll(); updateFeatures(); };
+  const onGamepadDisconnected = (): void => { poll(); updateFeatures(); };
   const onKeyDown = (event: KeyboardEvent): void => {
     if (keyboardObserved || !event.isTrusted || event.code === "" || event.code === "Unidentified" || event.key === "Unidentified") return;
     keyboardObserved = true;
     updateFeatures();
   };
-  const onGamepadConnected = (event: GamepadEvent): void => {
-    const pad = event.gamepad;
-    if (pad.index >= 4 || connectedGamepads.has(pad.index)) return;
-    connectedGamepads.add(pad.index);
-    updateFeatures();
-    send({ kind: "gamepad", device: pad.index, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
-  };
-  const onGamepadDisconnected = (event: GamepadEvent): void => {
-    const index = event.gamepad.index;
-    if (index >= 4 || !connectedGamepads.delete(index)) return;
-    send({ kind: "gamepad", device: index, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
-    updateFeatures();
-  };
-  const observer = new ResizeObserver(onResize);
-  observer.observe(host.viewport);
+  const resizeObserver = new ResizeObserver(onResize);
+  resizeObserver.observe(host.viewport);
   window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("resize", onResize);
   window.addEventListener("orientationchange", onResize);
@@ -248,16 +322,61 @@ export function observeHostState(
   const media = ["(pointer: fine)", "(pointer: coarse)", "(orientation: landscape)"].map((query) => window.matchMedia(query));
   for (const item of media) item.addEventListener("change", onResize);
   onResize();
-  for (const device of connectedGamepads) send({ kind: "gamepad", device, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
-  return () => {
-    observer.disconnect();
-    window.removeEventListener("resize", onResize);
-    window.removeEventListener("orientationchange", onResize);
-    window.removeEventListener("gamepadconnected", onGamepadConnected);
-    window.removeEventListener("keydown", onKeyDown, true);
-    window.removeEventListener("gamepaddisconnected", onGamepadDisconnected);
-    for (const item of media) item.removeEventListener("change", onResize);
-    safeArea.dispose();
+  poll();
+  const snapshotForRestore = (pending: PendingInput[] = []): readonly InputRecord["event"][] => {
+    const geometry = measureHostDisplay(host, view, safeArea.read()) ?? previousGeometry;
+    if (geometry !== null) {
+      // The successful blob reply replaces the engine's geometry, which is unknown here. Re-establish each pointer's
+      // normalization geometry in the ordered reply records before moving metadata out of the host queue.
+      reconcilePendingGeometry(null, geometry, pending, false);
+    }
+    const pendingEvents = pending.splice(0).map((input) => input.event);
+    const features = readHostFeatures(keyboardObserved);
+    latestFeatures = features;
+    previousFeatures = features;
+    if (geometry !== null) previousGeometry = geometry;
+    currentGamepads.fill(null);
+    const gamepads = navigator.getGamepads?.();
+    if (gamepads !== undefined) {
+      for (let index = 0; index < gamepads.length; index += 1) {
+        const pad = gamepads[index];
+        if (pad != null && validGamepad(pad)) currentGamepads[pad.index] = pad;
+      }
+    }
+    const devices: { device: number; axes: { x: number; y: number }; buttons: number }[] = [];
+    for (let device = 0; device <= 3; device += 1) {
+      const pad = currentGamepads[device];
+      if (pad == null) {
+        previousGamepads[device] = null;
+        continue;
+      }
+      const x = normalizedAxis(pad.axes[0]);
+      const y = normalizedAxis(pad.axes[1]);
+      const buttons = physicalButtons(pad);
+      devices.push({ device, axes: { x, y }, buttons });
+      previousGamepads[device] = { x, y, buttons };
+    }
+    return [
+      ...pendingEvents,
+      { kind: "host.features", features },
+      ...(geometry === null ? [] : [{ kind: "host.display" as const, geometry }]),
+      { kind: "host.gamepads", devices },
+    ];
+  };
+  return {
+    poll,
+    snapshotForRestore,
+    currentFeatures: () => ({ ...latestFeatures }),
+    dispose() {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      window.removeEventListener("gamepadconnected", onGamepadConnected);
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("gamepaddisconnected", onGamepadDisconnected);
+      for (const item of media) item.removeEventListener("change", onResize);
+      safeArea.dispose();
+    },
   };
 }
 

@@ -3,28 +3,28 @@
   "programs": [
     {
       "id": "zelda",
-      "finalHash": "1ab2d5d5b7b3a05b",
+      "finalHash": "7b544a3243be3fef",
       "ticks": [
-        "0a77a47d304e3109",
-        "ab2c9d4452a1ea12",
-        "468fe7038e8dc900",
-        "3d5ceb8098a705a2",
-        "92e4a51f7b429fcb",
-        "bd5a945330349098",
-        "1ab2d5d5b7b3a05b"
+        "d3a33d9593808b9d",
+        "5b418c9f484d285e",
+        "4aa482da4a225c60",
+        "6ed97ad276c3d922",
+        "eab3d255b54c36bf",
+        "4fa760128dbf0a58",
+        "7b544a3243be3fef"
       ]
     },
     {
       "id": "ff",
-      "finalHash": "bdc11127467c872e",
+      "finalHash": "fa6c9b96059e393e",
       "ticks": [
-        "bf7e613fe14e848f",
-        "4930a4e474e23ee2",
-        "ce6ac5937be14104",
-        "4767c9ab817afe94",
-        "6c77511f89ddeafe",
-        "f63d5932b1b9257e",
-        "bdc11127467c872e"
+        "de9edccd95ed5cb3",
+        "898f8d8058f5d872",
+        "e70f97e7527ccfd0",
+        "eada05d9965e4210",
+        "569a25820873226e",
+        "990e2708dd8e006a",
+        "fa6c9b96059e393e"
       ]
     }
   ]

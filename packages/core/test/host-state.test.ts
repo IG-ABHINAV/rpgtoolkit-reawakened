@@ -1,6 +1,8 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
+import { TextEncoder } from "node:util";
 import { test } from "node:test";
-import { createAssetIndex, createEmptyBoard, createEngine, IR_VERSION, PACKAGE_ROOT, startThread, writeBoard, type GameState } from "../src/index.ts";
+import { assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, IR_VERSION, PACKAGE_ROOT, startThread, writeBoard, writeMainFile } from "../src/index.ts";
+import type { GameState, InputRecord } from "../src/index.ts";
 import type { HostFeatures } from "../src/ports/host.ts";
 import { validateInputEvent } from "../src/validate/input-event.ts";
 import { hashGameState } from "../src/save/hash.ts";
@@ -92,6 +94,7 @@ test("engine applies and records complete host updates on their consuming tick",
   if (!encoded.ok) throw new Error(encoded.error.message);
   const observed: { current: { readonly features: GameState["features"]; readonly geometry: GameState["display"]["geometry"] } | null } = { current: null };
   const live: { state: GameState | null } = { state: null };
+  let inputEdges: string[] = [];
   const engine = createEngine({
     seed: 19,
     assetIndex: createAssetIndex(["Boards/host.brd"]),
@@ -99,8 +102,11 @@ test("engine applies and records complete host updates on their consuming tick",
     initialBoard: "host.brd",
     width: 32,
     height: 32,
-    maxTicks: 4,
-    phaseRegistrations: [{ phase: "movement", run: (state) => { live.state = state; observed.current = { features: state.features, geometry: state.display.geometry }; } }],
+    maxTicks: 10,
+    phaseRegistrations: [
+      { phase: "input", run: (state) => { inputEdges = [...state.input.pendingActions]; } },
+      { phase: "movement", run: (state) => { live.state = state; observed.current = { features: state.features, geometry: state.display.geometry }; } },
+    ],
   });
   const initial = engine.advance(0, []);
   const boardRequest = initial.requests[0];
@@ -111,9 +117,10 @@ test("engine applies and records complete host updates on their consuming tick",
   const changed = engine.advance(1, [
     { tick: 0, event: { kind: "host.features", features } },
     { tick: 0, event: { kind: "host.display", geometry } },
+    { tick: 0, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } },
   ]);
   equal(changed.ticksRun, 1);
-  deepEqual(changed.consumed.map((input) => input.event.kind), ["host.features", "host.display"]);
+  deepEqual(changed.consumed.map((input) => input.event.kind), ["host.features", "host.display", "host.gamepads"]);
   deepEqual(observed.current?.features, features);
   deepEqual(observed.current?.geometry, geometry);
   const ordered = engine.advance(1, [
@@ -138,11 +145,130 @@ test("engine applies and records complete host updates on their consuming tick",
   deepEqual(reverseBlur.consumed.map((input) => input.event.kind), ["focus", "host.features", "host.display"]);
   deepEqual(live.state.features, features);
   engine.advance(0, [{ tick: ordered.tickAfter, event: { kind: "focus", state: "gained" } }]);
+  equal(engine.registerGameAction({
+    name: "game.fireball",
+    label: "Fireball",
+    icon: null,
+    group: null,
+    controls: ["pad:0"],
+    locked: false,
+    hidden: false,
+  }), true);
+  engine.advance(1, [{
+    tick: live.state.time.tick,
+    event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 1 }] },
+  }]);
+  equal(live.state.input.actions["game.fireball"], true, "the package action is held by a real mapped pad button");
   live.state.vm.globals["resetSentinel"] = 7;
   startThread(live.state.vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
   engine.advance(1, []);
   equal(live.state.vm.globals["resetSentinel"], undefined, "the reset actually ran");
   deepEqual(live.state.features, features, "reset keeps the current host features");
   deepEqual(live.state.display.geometry, geometry, "reset keeps the current display geometry");
+  equal(live.state.input.gamepads["0"]?.connected, true, "reset preserves the latest logged physical controller connection");
+  equal(live.state.input.actions.right, true, "reset restores the held controller action");
+  equal(live.state.input.actions["game.fireball"], true, "reset re-registers package actions before recomputing held inputs");
+  engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } }]);
+  equal(live.state.input.gamepads["0"]?.connected, false, "an omitted physical device releases the restored saved sample");
+  equal(live.state.input.actions.right, false, "a disconnected saved direction cannot remain held");
+  engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } }]);
+  equal(live.state.input.actions.right, true, "a currently held physical direction is applied from the live snapshot");
+  engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } }]);
+  equal(live.state.input.actions.right, false, "the initial device disconnect is consumed");
+  live.state.input.pendingActions = [];
+  inputEdges = [];
+  const orderedSnapshot = engine.advance(1, [
+    { tick: live.state.time.tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+    { tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } },
+  ]);
+  deepEqual(orderedSnapshot.consumed.map((input) => input.event.kind), ["gamepad", "host.gamepads"]);
+  equal(live.state.input.actions.right, false, "the complete snapshot disconnect is applied after the same-tick press");
+  ok(inputEdges.includes("right"), "the press edge is preserved before the snapshot's disconnect");
+  const orderedBlur = engine.advance(1, [
+    { tick: live.state.time.tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+    { tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } },
+    { tick: live.state.time.tick, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(orderedBlur.ticksRun, 0, "focus loss stops the tick after consuming its ordered input prefix");
+  deepEqual(orderedBlur.consumed.map((input) => input.event.kind), ["gamepad", "host.gamepads", "focus"]);
+  const refocus = engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "focus", state: "gained" } }]);
+  equal(refocus.ticksRun, 1);
+  equal(live.state.input.gamepads["0"]?.connected, false, "the empty snapshot after a deferred press is not overtaken by blur");
+  equal(live.state.input.actions.right, false, "refocusing cannot apply the superseded controller press as a ghost hold");
+  engine.advance(0, [{ tick: live.state.time.tick, event: { kind: "focus", state: "lost" } }]);
+  const resumedWithPrefix = engine.advance(1, [
+    { tick: live.state.time.tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+    { tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } },
+    { tick: live.state.time.tick, event: { kind: "focus", state: "gained" } },
+  ]);
+  equal(resumedWithPrefix.ticksRun, 1, "focus gain opens the consumer for the ordered queued prefix");
+  equal(live.state.input.gamepads["0"]?.connected, false);
+  equal(live.state.input.actions.right, false, "queued controller input remains ordered with focus gain");
+});
+test("delayed replacement MainFile re-registers external actions before recomputing held gamepad state", () => {
+  const encodeMain = (startupPrg: string) => {
+    const result = writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, initBoard: "start.brd", startupPrg });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.value;
+  };
+  const encodedBoard = writeBoard(createEmptyBoard());
+  if (!encodedBoard.ok) throw new Error(encodedBoard.error.message);
+  const files = new Map([
+    [assetKey("main.gam"), encodeMain("start.prg")],
+    [assetKey("replacement.gam"), encodeMain("")],
+    [assetKey("boards/start.brd"), encodedBoard.value],
+    [assetKey("prg/start.prg"), new TextEncoder().encode('mainFile("replacement.gam")\nend()\n')],
+  ]);
+  const latest: { state: GameState | null } = { state: null };
+  const engine = createEngine({
+    seed: 29,
+    assetIndex: createAssetIndex([...files.keys()]),
+    assetRoot: PACKAGE_ROOT,
+    mainFile: "main.gam",
+    gameIdentity: "delayed-mainfile-gamepad-registration",
+    width: 32,
+    height: 32,
+    maxTicks: 20,
+    startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    phaseRegistrations: [{ phase: "events", run: (state) => { latest.state = state; } }],
+  });
+  equal(engine.registerGameAction({
+    name: "game.fireball",
+    label: "Fireball",
+    icon: null,
+    group: null,
+    controls: ["pad:0"],
+    locked: false,
+    hidden: false,
+  }), true);
+  const initial = engine.advance(0, []);
+  const mainRequest = initial.requests.find((request) => request.kind === "asset");
+  if (mainRequest?.kind !== "asset") throw new Error("expected the delayed initial MainFile request");
+  let replies: InputRecord[] = [{
+    tick: initial.tickAfter,
+    event: { kind: "asset", reqId: mainRequest.reqId, bytes: files.get(mainRequest.key) ?? null },
+  }];
+  let queuedPad = false;
+  const replacementKey = assetKey("replacement.gam");
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const report = engine.advance(1, replies);
+    replies = [];
+    const current = latest.state;
+    if (current?.engine.boot?.main === replacementKey && current.engine.boot?.stage === "running") {
+      equal(queuedPad, true, "the physical controller sample preceded the delayed mainfile replacement");
+      equal(current.input.gamepads["0"]?.mask, 1, "the held physical controller survived the replacement boot");
+      equal(current.input.actions["game.fireball"], true, "the re-registered external action observes the held control without a new hardware edge");
+      return;
+    }
+    for (const request of report.requests) {
+      if (request.kind !== "asset") continue;
+      replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: files.get(request.key) ?? null } });
+      if (request.key === assetKey("prg/start.prg") && !queuedPad) {
+        replies.push({ tick: report.tickAfter, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 1 }] } });
+        queuedPad = true;
+      }
+    }
+  }
+  throw new Error(`replacement MainFile did not reach running state: ${JSON.stringify(latest.state?.engine.boot)}`);
 });
 

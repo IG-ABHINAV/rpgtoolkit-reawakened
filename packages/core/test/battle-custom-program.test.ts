@@ -330,7 +330,7 @@ test("custom fight seed and mid-battle save restore preserve state and drawing",
   equal(drawHash, hashDrawList(drawListFor(repeated.state)));
   equal(stateHash === hashState(differentSeed.state), false);
   equal(drawHash === hashDrawList(drawListFor(differentSeed.state)), false);
-  equal(stateHash, "dcedda9c2b8b06c2"); // UI schema 8 persists modal identities; input schema 9 stores scoped modal actions.
+  equal(stateHash, "797735733ab88212"); // UI schema 9 adds the saved pending-result marker.
   equal(drawHash, "480086a70fb486bb"); // DrawList v2 includes the explicit marginCommands layer.
 
   const restoredState = restoreGameState(snapshot(first.state));

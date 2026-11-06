@@ -10,7 +10,7 @@ import { test } from "node:test";
 import { TextDecoder, TextEncoder } from "node:util";
 import {
   addActor, assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState,
-  createSurface, hashGameState, hashState, IR_VERSION, registerActorObjects, restoreGameSave, restoreGameState,
+  createSurface, hashGameState, hashState, IR_VERSION, registerActorObjects, restoreGameSave, restoreGameState, snapshotGameSave,
   snapshot, startThread, tagNonFinite, writeBoard, writeMainFile,
   type AssetKey, type AudioCue, type Engine, type GameState, type InputRecord, type PlainData,
 } from "../src/index.ts";
@@ -62,7 +62,7 @@ function seedStore(state: GameState): void {
   registerActorObjects(state.vm, state.events, state.actors);
 }
 
-function boot(program: string): Game {
+function boot(program: string, afterSeed?: (state: GameState) => void, observeInput?: (state: GameState) => void): Game {
   const main = writeMainFile({ ...createEmptyMainFile(), major: 2, minor: 9, startupPrg: "start.prg", initBoard: "start.brd" });
   if (!main.ok) throw new Error(main.error.message);
   const board = writeBoard({ ...createEmptyBoard(), properties: { ...createEmptyBoard().properties, start: { x: 32, y: 32, layer: 1 } } });
@@ -79,11 +79,14 @@ function boot(program: string): Game {
     seed: SEED, assetIndex: createAssetIndex(paths), assetRoot: { kind: "package" },
     mainFile: "main.gam", gameIdentity: "epic-8-restore-acceptance", width: 64, height: 64, maxTicks: 400,
     startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
-    phaseRegistrations: [{ phase: "events", run: (state) => {
+    phaseRegistrations: [
+      ...(observeInput === undefined ? [] : [{ phase: "input" as const, run: observeInput }]),
+      { phase: "events", run: (state) => {
       latest = state;
       if (started || state.engine.boot?.stage !== "running") return;
       started = true;
       seedStore(state);
+      afterSeed?.(state);
       startThread(state.vm, { ref: { kind: "inline", text: program, ir: IR_VERSION }, kind: "board", owner: "script" });
     } }],
   });
@@ -99,7 +102,7 @@ type Run = {
   /** The live cue counter when the Load request went out, before its reply: the load's prior live counter. */
   readonly liveCueIdAtLoad: number | null;
 };
-function run(game: Game, loadBytes: Uint8Array | null, ticks = 40): Run {
+function run(game: Game, loadBytes: Uint8Array | null, ticks = 40, initialInputs: readonly InputRecord[] = []): Run {
   let replies: InputRecord[] = [];
   let saved: Uint8Array | null = null;
   let liveCueIdAtLoad: number | null = null;
@@ -107,7 +110,7 @@ function run(game: Game, loadBytes: Uint8Array | null, ticks = 40): Run {
   const codes: string[] = [];
   const cues: AudioCue[] = [];
   for (let i = 0; i < ticks; i++) {
-    const report = game.engine.advance(1, replies);
+    const report = game.engine.advance(1, [...(i === 0 ? initialInputs : []), ...replies]);
     replies = [];
     cues.push(...report.audioCues);
     codes.push(...report.diagnostics.map(({ code }) => code));
@@ -304,7 +307,7 @@ test("full-engine Load refuses newer IR and restarts an older-IR saved thread", 
 });
 
 // Full boot and a real save/load are needed to exercise the request boundary and timeline rewind.
-test("host changes before a load reply do not survive as future inputs", () => {
+test("host records preceding a load reply preserve their order after restore", () => {
   const saved = capture();
   const game = boot('sleep(30)\nLoad("slot")\nend()\n');
   let replies: InputRecord[] = [];
@@ -317,20 +320,128 @@ test("host changes before a load reply do not survive as future inputs", () => {
       } else if (request.kind === "loadBlob") {
         const before = { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: null } as const;
         const result = game.engine.advance(0, [
+          { tick: report.tickAfter, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+          { tick: report.tickAfter, event: { kind: "host.gamepads", devices: [] } },
           { tick: report.tickAfter, event: { kind: "host.features", features: before } },
           { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: saved } },
         ]);
-        deepEqual(result.consumed.map(({ event }) => event.kind), ["host.features", "blob.loaded"]);
+        deepEqual(result.consumed.map(({ event }) => event.kind), ["blob.loaded"]);
         ok(result.tickAfter < report.tickAfter, `the real load rewound the timeline: ${report.tickAfter} -> ${result.tickAfter}; ${JSON.stringify(result.diagnostics)}`);
         const later = { ...before, touch: false } as const;
         const update = game.engine.advance(1, [{ tick: result.tickAfter, event: { kind: "host.features", features: later } }]);
-        equal(update.consumed.filter(({ event }) => event.kind === "host.features").length, 1);
+        equal(game.state()?.input.gamepads["0"]?.connected, false, "the load-time full snapshot follows the earlier controller edge");
+        equal(game.state()?.input.actions.right, false, "load cannot leave the earlier controller direction held");
+        deepEqual(update.consumed.map(({ event }) => event.kind), ["gamepad", "host.gamepads", "host.features", "host.features"]);
+        equal(update.consumed.filter(({ event }) => event.kind === "host.features").length, 2);
         const continuation = game.engine.advance(80, []);
         ok(continuation.tickAfter > report.tickAfter, "the continuation passed the old input tick");
         equal(continuation.consumed.some(({ event }) => event.kind === "host.features"), false, "old host input was not replayed at its former tick");
         return;
       }
     }
+  }
+  throw new Error("expected the real load request");
+});
+
+test("focused Load preserves mixed source edges, live capabilities, and the restored continuation", () => {
+  const captured = run(
+    boot('Save("slot")\nif (hasFeature("touch")) {\n  touchBranch = 1\n} else {\n  touchBranch = 0\n}\nend()\n', (state) => { state.input.pendingActions = []; }),
+    null,
+    40,
+    [{ tick: 0, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } }],
+  );
+  ok(captured.saved !== null, "the real Engine produced a save containing the branch continuation");
+  const game = boot('Load("slot")\nend()\n');
+  let requests: InputRecord[] = [];
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const report = game.engine.advance(1, requests);
+    requests = [];
+    const load = report.requests.find((request) => request.kind === "loadBlob");
+    if (load === undefined || load.kind !== "loadBlob") {
+      for (const request of report.requests) {
+        if (request.kind === "asset") requests.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      }
+      continue;
+    }
+    const features = { touch: true, pointer: "coarse", keyboard: true, gamepad: true, haptics: false, orientation: "portrait" } as const;
+    const restored = game.engine.advance(1, [
+      { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: load.reqId, bytes: captured.saved } },
+      { tick: report.tickAfter, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } },
+      { tick: report.tickAfter, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null } },
+      { tick: report.tickAfter, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 } },
+      { tick: report.tickAfter, event: { kind: "host.features", features } },
+      { tick: report.tickAfter, event: { kind: "host.gamepads", devices: [] } },
+    ]);
+    deepEqual(restored.consumed.map(({ event }) => event.kind), ["blob.loaded", "key", "action", "gamepad", "host.features", "host.gamepads"]);
+    equal(game.state()?.input.gamepads["0"]?.connected, false, "the full snapshot releases the saved physical controller");
+    equal(game.state()?.input.actions.confirm, true, "keyboard and runner fallback claims take over the saved controller claim");
+    equal(game.state()?.input.pendingActions.includes("confirm"), false, "source transfer does not synthesize a second confirm press");
+    equal(globals(game)["touchbranch"], 1, "the restored continuation observes live host capabilities");
+    const released = game.engine.advance(1, [
+      { tick: restored.tickAfter, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: false } },
+      { tick: restored.tickAfter, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback", modalId: null } },
+    ]);
+    deepEqual(released.consumed.map(({ event }) => event.kind), ["key", "action"]);
+    equal(game.state()?.input.actions.confirm, false, "confirm releases only after the final independent owner releases");
+    return;
+  }
+  throw new Error("expected the real load request");
+});
+test("restored open-tick input routing preserves saved UI results without repeating tick effects", () => {
+  const source = boot("end()\n");
+  run(source, null, 20);
+  const sourceState = source.state();
+  ok(sourceState !== null);
+  const continuation = startThread(sourceState.vm, {
+    ref: { kind: "inline", text: 'if (uiActivated() == 0) {\n  activationresume = 1\n} else {\n  activationresume = 0\n}\nif (uiCancelled() == 1) {\n  cancellationresume = 1\n} else {\n  cancellationresume = 0\n}\nif (hasFeature("touch")) {\n  touchbranch = 1\n} else {\n  touchbranch = 0\n}\nend()\n', ir: IR_VERSION },
+    kind: "board",
+    owner: "script",
+  });
+  sourceState.engine.openTick = {
+    readyThreads: [continuation.id],
+    readyIndex: 0,
+    currentThread: continuation.id,
+    stepsUsed: 0,
+  };
+  sourceState.ui.surfaceActivated = {
+    owner: continuation.id, surfaceId: "saved", itemId: "play", index: 0, action: "confirm", inputSeq: 41, cancelled: false,
+  };
+  sourceState.ui.surfaceCancelled = true;
+  sourceState.ui.surfaceCancelledSeq = 42;
+  sourceState.ui.surfaceCancelledOwner = continuation.id;
+  sourceState.ui.surfaceResultsPending = true;
+  sourceState.input.nextSeq = 43;
+  const saved = encoder.encode(snapshotGameSave(sourceState));
+  source.engine.advance(1, []);
+  const uninterrupted = globals(source);
+  const game = boot('Load("slot")\nend()\n');
+  let requests: InputRecord[] = [];
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const report = game.engine.advance(1, requests);
+    requests = [];
+    const load = report.requests.find((request) => request.kind === "loadBlob");
+    if (load === undefined || load.kind !== "loadBlob") {
+      for (const request of report.requests) {
+        if (request.kind === "asset") requests.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      }
+      continue;
+    }
+    const features = { touch: true, pointer: "coarse", keyboard: false, gamepad: true, haptics: false, orientation: "portrait" } as const;
+    const restored = game.engine.advance(1, [
+      { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: load.reqId, bytes: saved } },
+      { tick: report.tickAfter, event: { kind: "host.features", features } },
+      { tick: report.tickAfter, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 1 }] } },
+    ]);
+    equal(restored.ticksRun, 1, "the saved open tick completes");
+    deepEqual(restored.consumed.map(({ event }) => event.kind), ["blob.loaded", "host.features", "host.gamepads"]);
+    equal(game.state()?.input.actions.confirm, true, "the live controller snapshot is applied before the open tick resumes");
+    equal(globals(game)["activationresume"], uninterrupted["activationresume"], "the restored open-tick continuation matches uninterrupted saved author activation");
+    equal(globals(game)["cancellationresume"], uninterrupted["cancellationresume"], "the restored open-tick continuation matches uninterrupted saved author cancellation");
+    equal(globals(game)["activationresume"], 1);
+    equal(globals(game)["cancellationresume"], 1);
+    equal(game.state()?.ui.surfaceResultsPending, false, "the saved preservation marker clears at thread-pass completion");
+    equal(globals(game)["touchbranch"], 1, "the resumed script sees reconciled host capabilities");
+    return;
   }
   throw new Error("expected the real load request");
 });

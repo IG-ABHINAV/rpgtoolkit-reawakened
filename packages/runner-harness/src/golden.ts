@@ -90,10 +90,9 @@ export function parseEvent(raw: unknown, recordIndex: number): InputEventV1 {
         : `${prefix}${result.path}: ${result.message}`,
     );
   }
-  if (result.value.kind === "action") {
+  if (result.value.kind === "action" || result.value.kind === "host.gamepads") {
     throw new Error(`run.json: record ${recordIndex}: kind: unknown input event`);
   }
-
   if (result.value.kind === "gamepad" && result.value.buttons > 0x7f) {
     throw new Error(`run.json: record ${recordIndex}: buttons: expected a 7-bit legacy button mask`);
   }

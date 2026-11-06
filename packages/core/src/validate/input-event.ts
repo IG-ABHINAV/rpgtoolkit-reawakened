@@ -40,6 +40,7 @@ const KINDS = [
   "action",
   "host.features",
   "host.display",
+  "host.gamepads",
   "asset",
   "blob.loaded",
   "blob.saved",
@@ -61,6 +62,7 @@ const KEY_SETS: { readonly [kind in EventKind]: readonly string[] } = {
   focus: ["kind", "state"],
   "host.features": ["kind", "features"],
   "host.display": ["kind", "geometry"],
+  "host.gamepads": ["kind", "devices"],
   asset: ["kind", "reqId", "bytes"],
   "blob.loaded": ["kind", "reqId", "bytes"],
   "blob.saved": ["kind", "reqId", "ok"],
@@ -194,6 +196,32 @@ function validateHostFeatures(record: UnknownRecord): InputEventValidation {
   }
 }
 
+function validateHostGamepads(record: UnknownRecord): InputEventValidation {
+  const devices = record["devices"];
+  if (!Array.isArray(devices)) return invalid("devices", "expected an array");
+  let previous = -1;
+  for (let index = 0; index < devices.length; index += 1) {
+    const device = devices[index];
+    if (typeof device !== "object" || device === null || Array.isArray(device)) return invalid(`devices[${index}]`, "expected an object");
+    const sample = device as UnknownRecord;
+    const expected = ["device", "axes", "buttons"];
+    for (const key of Object.keys(sample)) if (!expected.includes(key)) return invalid(`devices[${index}].${key}`, "unexpected key");
+    for (const key of expected) if (!Object.hasOwn(sample, key)) return invalid(`devices[${index}].${key}`, "missing required key");
+    const number = sample["device"];
+    if (!isInteger(number) || number < 0 || number > 3) return invalid(`devices[${index}].device`, "expected an integer from 0 through 3");
+    if (number <= previous) return invalid(`devices[${index}].device`, "devices must be unique and sorted by index");
+    previous = number;
+    const axes = sample["axes"];
+    if (typeof axes !== "object" || axes === null || Array.isArray(axes)) return invalid(`devices[${index}].axes`, "expected an object");
+    const axisRecord = axes as UnknownRecord;
+    if (Object.keys(axisRecord).some((key) => key !== "x" && key !== "y") || !Object.hasOwn(axisRecord, "x") || !Object.hasOwn(axisRecord, "y"))
+      return invalid(`devices[${index}].axes`, "expected exactly x and y axes");
+    if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid(`devices[${index}].axes.x`, "expected an integer from -1000 through 1000");
+    if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid(`devices[${index}].axes.y`, "expected an integer from -1000 through 1000");
+    if (!isNonNegativeInteger(sample["buttons"]) || sample["buttons"] > 0x1ffff) return invalid(`devices[${index}].buttons`, "expected a 17-bit non-negative physical button mask");
+  }
+  return accept(record);
+}
 function validateHostDisplay(record: UnknownRecord): InputEventValidation {
   const geometry = record["geometry"];
   if (typeof geometry !== "object" || geometry === null || Array.isArray(geometry)) return invalid("geometry", "expected an object");
@@ -300,6 +328,8 @@ export function validateInputEvent(raw: unknown): InputEventValidation {
         return validateHostFeatures(record);
       case "host.display":
         return validateHostDisplay(record);
+      case "host.gamepads":
+        return validateHostGamepads(record);
       case "asset":
       case "blob.loaded":
         return validateBytesReply(record);
