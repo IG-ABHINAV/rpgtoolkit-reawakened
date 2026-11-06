@@ -201,6 +201,10 @@ export function check({ schema: schemaOverride, committed, vectors: vectorsOverr
     }
   }
 
+  // This v2-only event is not added to the frozen v1 vector kit.
+  const action = input({ kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null });
+  if (schemaErrors(schema, action).length === 0) problems.push("v1 schema must reject semantic action input");
+
   // 4. The kit covers every kind the schema lists.
   const expected = coveredKinds(schema);
   const actual = actualKinds(vectorList);
