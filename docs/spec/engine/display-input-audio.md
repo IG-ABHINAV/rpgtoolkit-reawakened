@@ -287,7 +287,7 @@ A game may disable the controller in its own file, and a player may disable it i
 
 Restore rules:
 
-1. Older input sections, including v2, migrate to schema 9 with deterministic defaults; restore is never refused for version alone. Older UI sections migrate to schema 8, assigning an identity to a saved active modal and preserving a monotonic next-modal id.
+1. Older input sections, including v2, migrate to schema 9 with deterministic defaults; restore is never refused for version alone. Older UI sections migrate to schema 9: schema 8 preserves `surfaceResultsPending` when present, schema 8 from before that field defaults it to false, and older sections receive that same deterministic default while assigning an identity to a saved active modal and preserving a monotonic next-modal id.
 2. Runtime snapshots store and hash registry definitions, registration order, and held claims. Game-save projection omits the runtime registry and rebuilds it from startup registrations while preserving registrations made through the engine's public API; saved bindings remain identified by action name.
 3. A saved binding whose action is not registered after restore is kept as inert data with one `input.unknown-action` diagnostic; the save still loads and every other action still works. A save MUST NOT be refused, and no binding MUST be silently dropped, because either would lose data on a game update.
 4. A surface's saved slot layout is the game's, not the save's, unless the game provides a layout action; the bar's order does not depend on the player's bindings, so a rebind never rearranges a spell bar.
