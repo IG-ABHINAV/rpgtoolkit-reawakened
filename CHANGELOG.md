@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Author-surface routing carries the originating input sequence directly instead of repeatedly searching a shared key's resolved actions; large shared bindings retain their activation and key-claim behavior without quadratic scans (#1631; `docs/spec/engine/display-input-audio.md#act-2`).
 - Engine keyboard and semantic-action routing now visits only changed actions instead of scanning the entire action registry for each event; author-surface action ordering and input claims are preserved (#1435; `docs/spec/engine/display-input-audio.md#act-2`).
 - Runtime input validation rejects gamepad axis objects with extra fields, matching the v2 schema and host snapshots; missing and extra axis keys are covered by published vectors (#1625; `docs/spec/engine/display-input-audio.md#e-112`).
 - The desktop AudioWorklet race probe waits for the worklet voice to become ready before measuring output, and tests a delayed decoder release instead of relying on how quickly initialization finishes (#1619).

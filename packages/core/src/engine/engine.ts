@@ -2134,7 +2134,7 @@ export function createEngine(init: EngineInit): Engine {
     }
     state.input.gamepads = { ...hostGamepads };
     recomputeInputActions(state.input, (action, down, firstSeq) => {
-      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+      routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
     });
     audio.retry();
   }
@@ -2681,7 +2681,7 @@ export function createEngine(init: EngineInit): Engine {
       if (!startupServicesReady) {
         services = makeServices(activePlugins, loader, true);
         recomputeInputActions(state.input, (action, down, firstSeq) => {
-          routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+          routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
         });
       }
       if (failed) return false;
@@ -3686,9 +3686,6 @@ export function createEngine(init: EngineInit): Engine {
     applySemanticActionEdge(state.input, claim.action, false, source);
     return state.input.nextSeq > inputSeq ? inputSeq : null;
   }
-  function actionInputSequence(action: string, firstSeq: number): number | null {
-    return state.input.keys.find((key) => key.seq >= firstSeq && (key.action === action || key.resolvedActions.includes(action)))?.seq ?? null;
-  }
   function routeAuthorSurfaceAction(action: string, down: boolean, inputSeq: number | null = null): void {
     if (!down || state.ui.modal !== null) return;
     const surfaces = state.ui.actionSurfaces ?? [];
@@ -3728,14 +3725,14 @@ export function createEngine(init: EngineInit): Engine {
       const firstSeq = state.input.nextSeq;
       applyInputEvent(state.input, event, reportUnknownAction);
       const down = state.input.actions[event.action] === true;
-      if (event.modalId === null && before !== down) routeAuthorSurfaceAction(event.action, down, actionInputSequence(event.action, firstSeq));
+      if (event.modalId === null && before !== down) routeAuthorSurfaceAction(event.action, down, down ? firstSeq : null);
       return;
     }
     if (event.kind !== "pointer") {
       if (event.kind === "key") {
         const firstSeq = state.input.nextSeq;
         applyInputEvent(state.input, event, reportUnknownAction, (action, down) => {
-          routeAuthorSurfaceAction(action, down, actionInputSequence(action, firstSeq));
+          routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
         });
       } else {
         applyInputEvent(state.input, event, reportUnknownAction);
@@ -3819,7 +3816,7 @@ export function createEngine(init: EngineInit): Engine {
         type: "gamepad",
       });
     }, (action, down, firstSeq) => {
-      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+      routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
     });
   }
   function applyQueuedInputRecords(consumed: InputRecord[]): void {
