@@ -11,6 +11,15 @@ import type { MidiSynth } from "./midi.ts";
 /** Resolves once compressed SoundFont samples can be decoded; rejects if decoder initialization fails. */
 export const soundFontDecoderReady: Promise<void> = BasicSoundBank.isSF3DecoderReady;
 
+/** Inspect sample headers without decoding them; malformed banks fail closed until the decoder is ready. */
+export function soundBankHasCompressedSamples(bytes: Uint8Array): boolean {
+  try {
+    return SoundBankLoader.fromArrayBuffer(asArrayBuffer(bytes)).samples.some((sample) => sample.isCompressed);
+  } catch {
+    return true;
+  }
+}
+
 export interface SpessaSynthOptions {
   readonly bank?: Uint8Array | ArrayBuffer;
   readonly bankResolver?: (bank: BankRef) => Uint8Array | ArrayBuffer | null;
