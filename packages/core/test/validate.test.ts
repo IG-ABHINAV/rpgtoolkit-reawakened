@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateInputEvent } from "../src/index.ts";
-import { encodeLog } from "../src/canon/log.ts";
+import { decodeLog, encodeLog } from "../src/canon/log.ts";
 
 test("validateInputEvent accepts one valid event of each kind", () => {
   const valid: readonly (readonly [string, unknown])[] = [
@@ -269,6 +269,24 @@ test("gamepad axes require plain enumerable data fields safe for the log codec",
       if (!result.ok) throw new Error(result.message);
       const encoded = encodeLog(result.value);
       deepEqual(JSON.parse(JSON.stringify(encoded)), JSON.parse(JSON.stringify(event(axes))), kind);
+      deepEqual(decodeLog(JSON.parse(JSON.stringify(encoded))), JSON.parse(JSON.stringify(event(axes))), kind);
     }
   }
 });
+
+for (const kind of ["gamepad", "host.gamepads"] as const) {
+  test(`${kind} rejects stateful axes accessor before validation or logging`, () => {
+    let reads = 0;
+    const sample = Object.defineProperty({ device: 0, buttons: 0 }, "axes", {
+      enumerable: true,
+      get: () => ++reads === 1 ? { x: 0, y: 0 } : { x: 0, y: 0, z: 1 },
+    });
+    const event = kind === "gamepad"
+      ? Object.assign(sample, { kind, connected: true })
+      : { kind, devices: [sample] };
+    const result = validateInputEvent(event);
+    equal(result.ok, false);
+    if (!result.ok) equal(result.path, kind === "gamepad" ? "axes" : "devices[0].axes");
+    equal(reads, 0, "validation must not invoke the getter");
+  });
+}

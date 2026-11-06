@@ -167,7 +167,10 @@ function validateGamepad(record: UnknownRecord): InputEventValidation {
   const device = record["device"];
   if (!isInteger(device) || device < 0 || device > 3) return invalid("device", "expected an integer from 0 through 3");
   if (typeof record["connected"] !== "boolean") return invalid("connected", "expected a boolean");
-  const axes = record["axes"];
+  const axesDescriptor = Object.getOwnPropertyDescriptor(record, "axes");
+  if (axesDescriptor === undefined || !axesDescriptor.enumerable || !("value" in axesDescriptor))
+    return invalid("axes", "expected an enumerable data property");
+  const axes: unknown = axesDescriptor.value;
   if (typeof axes !== "object" || axes === null || Array.isArray(axes)) return invalid("axes", "expected an object");
   const axisRecord = axes as UnknownRecord;
   if (!isPlainAxes(axisRecord))
@@ -225,7 +228,10 @@ function validateHostGamepads(record: UnknownRecord): InputEventValidation {
     if (!isInteger(number) || number < 0 || number > 3) return invalid(`devices[${index}].device`, "expected an integer from 0 through 3");
     if (number <= previous) return invalid(`devices[${index}].device`, "devices must be unique and sorted by index");
     previous = number;
-    const axes = sample["axes"];
+    const axesDescriptor = Object.getOwnPropertyDescriptor(sample, "axes");
+    if (axesDescriptor === undefined || !axesDescriptor.enumerable || !("value" in axesDescriptor))
+      return invalid(`devices[${index}].axes`, "expected an enumerable data property");
+    const axes: unknown = axesDescriptor.value;
     if (typeof axes !== "object" || axes === null || Array.isArray(axes)) return invalid(`devices[${index}].axes`, "expected an object");
     const axisRecord = axes as UnknownRecord;
     if (!isPlainAxes(axisRecord))
