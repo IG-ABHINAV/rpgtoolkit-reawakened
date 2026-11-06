@@ -151,6 +151,18 @@ function validatePointer(record: UnknownRecord): InputEventValidation {
   return accept(record);
 }
 
+function isPlainAxes(axes: object): boolean {
+  const prototype = Object.getPrototypeOf(axes);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  const keys = Reflect.ownKeys(axes);
+  if (keys.length !== 2 || !keys.includes("x") || !keys.includes("y")) return false;
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(axes, key);
+    if (descriptor === undefined || !descriptor.enumerable || !("value" in descriptor)) return false;
+  }
+  return true;
+}
+
 function validateGamepad(record: UnknownRecord): InputEventValidation {
   const device = record["device"];
   if (!isInteger(device) || device < 0 || device > 3) return invalid("device", "expected an integer from 0 through 3");
@@ -158,7 +170,7 @@ function validateGamepad(record: UnknownRecord): InputEventValidation {
   const axes = record["axes"];
   if (typeof axes !== "object" || axes === null || Array.isArray(axes)) return invalid("axes", "expected an object");
   const axisRecord = axes as UnknownRecord;
-  if (Object.keys(axisRecord).some((key) => key !== "x" && key !== "y") || !Object.hasOwn(axisRecord, "x") || !Object.hasOwn(axisRecord, "y"))
+  if (!isPlainAxes(axisRecord))
     return invalid("axes", "expected exactly x and y axes");
   if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid("axes.x", "expected an integer from -1000 through 1000");
   if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid("axes.y", "expected an integer from -1000 through 1000");
@@ -216,7 +228,7 @@ function validateHostGamepads(record: UnknownRecord): InputEventValidation {
     const axes = sample["axes"];
     if (typeof axes !== "object" || axes === null || Array.isArray(axes)) return invalid(`devices[${index}].axes`, "expected an object");
     const axisRecord = axes as UnknownRecord;
-    if (Object.keys(axisRecord).some((key) => key !== "x" && key !== "y") || !Object.hasOwn(axisRecord, "x") || !Object.hasOwn(axisRecord, "y"))
+    if (!isPlainAxes(axisRecord))
       return invalid(`devices[${index}].axes`, "expected exactly x and y axes");
     if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid(`devices[${index}].axes.x`, "expected an integer from -1000 through 1000");
     if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid(`devices[${index}].axes.y`, "expected an integer from -1000 through 1000");

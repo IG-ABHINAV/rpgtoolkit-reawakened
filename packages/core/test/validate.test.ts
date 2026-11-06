@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateInputEvent } from "../src/index.ts";
+import { encodeLog } from "../src/canon/log.ts";
 
 test("validateInputEvent accepts one valid event of each kind", () => {
   const valid: readonly (readonly [string, unknown])[] = [
@@ -240,5 +241,34 @@ test("runtime and published v2 gamepad axis shapes reject missing and extra keys
     const result = validateInputEvent(vector.record.event);
     equal(result.ok, false, vector.id);
     if (!result.ok) equal(result.path, vector.id.includes("-host-gamepads-") ? "devices[0].axes" : "axes", vector.id);
+  }
+});
+
+test("gamepad axes require plain enumerable data fields safe for the log codec", () => {
+  const symbolExtra = { x: 0, y: 0, [Symbol("z")]: 1 };
+  const hiddenExtra = Object.defineProperty({ x: 0, y: 0 }, "z", { value: 1, enumerable: false });
+  const hiddenX = Object.defineProperty({ y: 0 }, "x", { value: 0, enumerable: false });
+  const accessor = Object.defineProperty({ y: 0 }, "x", { get: () => 0, enumerable: true });
+  const customPrototype = Object.assign(Object.create({}), { x: 0, y: 0 }) as object;
+  const nullPrototype = Object.assign(Object.create(null), { x: -1000, y: 1000 }) as object;
+  for (const kind of ["gamepad", "host.gamepads"] as const) {
+    const event = (axes: object): unknown => kind === "gamepad"
+      ? { kind, device: 0, connected: true, axes, buttons: 0 }
+      : { kind, devices: [{ device: 0, axes, buttons: 0 }] };
+    for (const [label, axes] of [
+      ["symbol extra", symbolExtra], ["hidden extra", hiddenExtra], ["hidden x", hiddenX],
+      ["accessor", accessor], ["custom prototype", customPrototype],
+    ] as const) {
+      const result = validateInputEvent(event(axes));
+      equal(result.ok, false, `${kind}: ${label}`);
+      if (!result.ok) equal(result.path, kind === "gamepad" ? "axes" : "devices[0].axes", `${kind}: ${label}`);
+    }
+    for (const axes of [{ x: 0, y: 0 }, nullPrototype]) {
+      const result = validateInputEvent(event(axes));
+      equal(result.ok, true, kind);
+      if (!result.ok) throw new Error(result.message);
+      const encoded = encodeLog(result.value);
+      deepEqual(JSON.parse(JSON.stringify(encoded)), JSON.parse(JSON.stringify(event(axes))), kind);
+    }
   }
 });
