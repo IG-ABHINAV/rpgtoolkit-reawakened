@@ -1383,6 +1383,62 @@
         }
       ]
     },
+    "hostGamepadIndex0": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 0
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
+    "hostGamepadIndex1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 1
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
+    "hostGamepadIndex2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 2
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
+    "hostGamepadIndex3": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 3
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
     "hostGamepadsInput": {
       "type": "object",
       "additionalProperties": false,
@@ -1396,6 +1452,198 @@
         },
         "devices": {
           "type": "array",
+          "oneOf": [
+            {
+              "minItems": 0,
+              "maxItems": 0
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                }
+              ]
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                }
+              ]
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 4,
+              "maxItems": 4,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            }
+          ],
           "items": {
             "type": "object",
             "additionalProperties": false,
