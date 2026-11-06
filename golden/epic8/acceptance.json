@@ -1,0 +1,279 @@
+{
+  "schema": 1,
+  "checkpoints": [
+    {
+      "id": "main-opened",
+      "stateHash": "12ffe676cb2eb1bb",
+      "drawHash": "c7fb0219e7f9545b",
+      "events": [
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 1,
+            "source": "item/potion.itm",
+            "handle": "Potion",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 1,
+            "source": "item/potion.itm",
+            "handle": "Potion",
+            "amount": 1,
+            "previousQuantity": 1,
+            "currentQuantity": 2
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 2,
+            "source": "item/sword.itm",
+            "handle": "Iron sword",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 3,
+            "source": "item/key.itm",
+            "handle": "Brass key",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 4,
+            "source": "item/amulet.itm",
+            "handle": "Amulet",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 5,
+            "source": "item/axe.itm",
+            "handle": "Iron axe",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "goldChanged",
+          "emitter": "inventory",
+          "detail": {
+            "previous": 0,
+            "current": 120,
+            "delta": 120
+          },
+          "cancelable": false,
+          "canceled": false
+        }
+      ]
+    },
+    {
+      "id": "items-opened",
+      "stateHash": "ec1429e148bfa44b",
+      "drawHash": "ef9e282ef04c23ff",
+      "events": []
+    },
+    {
+      "id": "item-used",
+      "stateHash": "68c0737e05a031c0",
+      "drawHash": "6c3a78fea9e8350e",
+      "events": [
+        {
+          "type": "itemRemoved",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 1,
+            "source": "item/potion.itm",
+            "handle": "Potion",
+            "amount": 1,
+            "previousQuantity": 2,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        }
+      ]
+    },
+    {
+      "id": "equip-opened",
+      "stateHash": "6a78cc99f097bc0d",
+      "drawHash": "cc018ebd350b1683",
+      "events": [
+        {
+          "type": "itemRemoved",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 1,
+            "source": "item/potion.itm",
+            "handle": "Potion",
+            "amount": 1,
+            "previousQuantity": 1,
+            "currentQuantity": 0
+          },
+          "cancelable": false,
+          "canceled": false
+        }
+      ]
+    },
+    {
+      "id": "sword-equipped",
+      "stateHash": "ef3876bfd1b9e0f9",
+      "drawHash": "d21eecc6de19d256",
+      "events": [
+        {
+          "type": "itemRemoved",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 2,
+            "source": "item/sword.itm",
+            "handle": "Iron sword",
+            "amount": 1,
+            "previousQuantity": 1,
+            "currentQuantity": 0
+          },
+          "cancelable": false,
+          "canceled": false
+        }
+      ]
+    },
+    {
+      "id": "sword-replaced",
+      "stateHash": "daf2f1f71b326787",
+      "drawHash": "efc8c7d369c83b88",
+      "events": [
+        {
+          "type": "itemRemoved",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 5,
+            "source": "item/axe.itm",
+            "handle": "Iron axe",
+            "amount": 1,
+            "previousQuantity": 1,
+            "currentQuantity": 0
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 2,
+            "source": "item/sword.itm",
+            "handle": "Iron sword",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        }
+      ]
+    },
+    {
+      "id": "accessory-equipped",
+      "stateHash": "a699c31e0cb15947",
+      "drawHash": "ed03fba7fe4bab2f",
+      "events": [
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 5,
+            "source": "item/axe.itm",
+            "handle": "Iron axe",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        },
+        {
+          "type": "itemRemoved",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 4,
+            "source": "item/amulet.itm",
+            "handle": "Amulet",
+            "amount": 1,
+            "previousQuantity": 1,
+            "currentQuantity": 0
+          },
+          "cancelable": false,
+          "canceled": false
+        }
+      ]
+    },
+    {
+      "id": "equipment-removed",
+      "stateHash": "c4ac9302a4564691",
+      "drawHash": "a6ded9db71df1cce",
+      "events": [
+        {
+          "type": "itemAdded",
+          "emitter": "inventory",
+          "detail": {
+            "entryId": 4,
+            "source": "item/amulet.itm",
+            "handle": "Amulet",
+            "amount": 1,
+            "previousQuantity": 0,
+            "currentQuantity": 1
+          },
+          "cancelable": false,
+          "canceled": false
+        }
+      ]
+    },
+    {
+      "id": "abilities-opened",
+      "stateHash": "db5a3d44719585a2",
+      "drawHash": "0b09b66908311ac9",
+      "events": []
+    },
+    {
+      "id": "ability-used",
+      "stateHash": "27811c15dd0b5ab0",
+      "drawHash": "fa96bc2d39d7e2b7",
+      "events": []
+    }
+  ]
+}

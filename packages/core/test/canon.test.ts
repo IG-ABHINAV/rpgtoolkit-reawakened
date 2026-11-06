@@ -141,6 +141,7 @@ function drawList(surfaceRev: number): DrawList {
     tick: 0,
     width: 320,
     height: 200,
+    marginCommands: [],
     commands: [
       {
         kind: "blit",
@@ -168,6 +169,20 @@ test("canon serialises RFC 8785 literals and strings", () => {
   equal(canon("/"), '"/"');
   equal(canon("\u20ac"), '"\u20ac"');
   equal(canon("\u0000\u001f"), '"\\u0000\\u001f"');
+});
+
+test("long escaped strings keep canonical bytes and reject invalid UTF-16", () => {
+  for (const length of [126, 127, 128, 129, 4096]) {
+    for (const suffix of ["\n", "\n\t\"\\\u0000", "\u00e9\u2028", "🚀"]) {
+      const text = "x".repeat(length) + suffix;
+      equal(canon(text), JSON.stringify(text), `length ${length}, suffix ${JSON.stringify(suffix)}`);
+      equal(canon({ [text]: text }), `{${JSON.stringify(text)}:${JSON.stringify(text)}}`);
+    }
+    for (const suffix of ["\ud800", "\udc00", "\ud800x"]) {
+      throws(() => canon("x".repeat(length) + suffix), TypeError);
+      throws(() => canon({ ["x".repeat(length) + suffix]: 1 }), TypeError);
+    }
+  }
 });
 
 test("canon formats numbers per RFC 8785 Appendix B table and preserves hand-written cases", () => {
@@ -432,6 +447,7 @@ test("hashDrawList matches fixed external Python vector", () => {
     tick: 1,
     width: 320,
     height: 240,
+    marginCommands: [],
     commands: [
       {
         kind: "fill",
@@ -451,9 +467,9 @@ test("hashDrawList matches fixed external Python vector", () => {
     ],
   };
   const expectedCanon =
-    '{"commands":[{"kind":"fill","rgb":{"b":0,"g":0,"r":0}},{"alpha":255,"blend":"normal","dst":{"h":16,"w":16,"x":32,"y":64},"iso2d":false,"key":null,"kind":"blit","source":{"rev":3,"surface":1},"src":{"h":16,"w":16,"x":0,"y":0},"tint":{"b":0,"g":0,"r":0}}],"height":240,"tick":1,"width":320}';
+    '{"commands":[{"kind":"fill","rgb":{"b":0,"g":0,"r":0}},{"alpha":255,"blend":"normal","dst":{"h":16,"w":16,"x":32,"y":64},"iso2d":false,"key":null,"kind":"blit","source":{"rev":3,"surface":1},"src":{"h":16,"w":16,"x":0,"y":0},"tint":{"b":0,"g":0,"r":0}}],"height":240,"marginCommands":[],"tick":1,"width":320}';
   equal(canon(dl), expectedCanon);
-  equal(hashDrawList(dl), "8205b04436cb3ce0");
+  equal(hashDrawList(dl), "649ff89c98f2fdae");
 });
 
 test("encodeLog writes a lowercase-hex tag for bytes", () => {

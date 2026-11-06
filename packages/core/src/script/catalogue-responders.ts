@@ -24,6 +24,7 @@ import { RENDER_PLUGIN } from "./packs/render.ts";
 import { toNumberValue, toStringValue } from "./values.ts";
 import { INVENTORY_COMMANDS, INVENTORY_COMMAND_NAMES } from "./packs/inventory.ts";
 import { BATTLE_COMMAND_NAMES } from "./packs/battle.ts";
+import { STOCK_MENU_COMMANDS, STOCK_MENU_COMMAND_NAMES } from "./packs/menu.ts";
 const MENU_SCREENS = ["main", "items", "equipment", "abilities"] as const;
 const MENU_COMMANDS: readonly BuiltinSpec[] = [
   ...MENU_SCREENS.map((screen) => ({
@@ -72,10 +73,10 @@ const TICKET_4_29_DOCS: Readonly<Record<string, BuiltinDoc>> = {
     see: ["docs/spec/engine/rpgcode-functions.md#reawakened-message-window-defaults"],
   },
   msgbox: {
-    summary: "Display a message box containing one or two buttons, handled using a cursor map (keyboard input only).",
-    behaviour: "Shows a question box as large as its wrapped text needs, with 80 by 28 pixel buttons, and waits for the player's choice. Technically, the title is merged into the body, an OK box has one OK button, a question box has Yes then No, and the call yields until a cursor-map key selects a button, then returns 1 (OK), 6 (Yes) or 7 (No).",
+    summary: "Display a message box with one or two buttons. Toolkit 3.1 used cursor maps for some choices; this does not establish that Reawakened msgbox uses cursor maps.",
+    behaviour: "Shows a centred wrapped panel, merges the title as its first body line, then blocks until a button is selected; it returns 1 (OK), 6 (Yes) or 7 (No). Toolkit 3.1's cursor-map behavior is legacy evidence, not a claim about Reawakened usage.",
     groups: ["message-window-text-fonts-30"],
-    waits: { kind: "until-input", summary: "Yields until a cursor-map key selects a button." },
+    waits: { kind: "until-input", summary: "Yields until a button is selected." },
     see: ["docs/spec/engine/rpgcode-functions.md#reawakened-msgbox-layout"],
   },
   animation: {
@@ -121,7 +122,7 @@ const TICKET_4_29_DOCS: Readonly<Record<string, BuiltinDoc>> = {
     see: ["docs/spec/engine/rpgcode-functions.md#reawakened-zoom"],
   },
   cursormaphand: {
-    summary: "Change the cursor used everywhere cursors are used (e.g. cursor maps, the menu, the battle system), optionally not stretching it to 32 by 32 pixels.",
+    summary: "Choose the image used for the cursor-map hand.",
     behaviour: "Changes the pointing hand used by cursor maps. Technically, the bundled hand is 32 by 32 pixels with no hot spot and is drawn at an offset of (-40, -10) from the cursor-map point; the stretch option scales a supplied image to 32 by 32; the call does not wait.",
     groups: ["mouse-buttons-cursor-maps-11"],
     waits: { kind: "never", summary: "Does not wait." },
@@ -505,6 +506,7 @@ const CATALOGUE_OWNED_NAMES = new Set([
   ...CATALOGUE_RESPONDERS_PLUGIN.commands.map((command) => command.name).filter((name) => !CATALOGUE_GRAPHICS_NAMES.has(name)),
   ...INVENTORY_COMMAND_NAMES,
   ...BATTLE_COMMAND_NAMES,
+  ...STOCK_MENU_COMMAND_NAMES,
 ]);
 const CORE_FILE_COMMANDS = new Set(["save", "load", "openfileinput", "openfileoutput", "openfileappend", "openfilebinary", "fileinput", "fileprint", "fileget", "fileput"]);
 const MOVEMENT_PACK_NAMES: Record<string, true> = {
@@ -515,7 +517,7 @@ const MOVEMENT_PACK_NAMES: Record<string, true> = {
   newplyr: true, newplayer: true,
   playerdirection: true, itemdirection: true, playerspeed: true, itemspeed: true, playerstance: true,
   itemstance: true, wander: true, wait: true, get: true, clearbuffer: true, setbutton: true,
-  checkbutton: true, clearbuttons: true, mousemove: true, mouseclick: true,
+  checkbutton: true, clearbuttons: true, mousemove: true, mouseclick: true, pixelmovement: true,
 };
 const CORE_PURE_COMMANDS = new Set(PURE_SPECS.flatMap((command) => [command.name, ...command.aliases]));
 /** The default catalogue layer combines safe stubs and responders not owned by CORE_PLUGIN. */
@@ -523,12 +525,13 @@ export const CATALOGUE_PLUGIN: PluginDefinition = {
   id: "catalogue",
   version: "1.0.0",
   commands: [
-    ...documentCommands(CATALOGUE_STUBS_PLUGIN.commands.filter((command) => command.name !== "internalmenu" && MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name))),
+    ...documentCommands(CATALOGUE_STUBS_PLUGIN.commands.filter((command) => command.name !== "internalmenu" && MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name) && !STOCK_MENU_COMMAND_NAMES.has(command.name))),
     ...CATALOGUE_RESPONDERS_PLUGIN.commands.filter(
-      (command) => MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !CORE_FILE_COMMANDS.has(command.name) && !CORE_PURE_COMMANDS.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name),
+      (command) => MOVEMENT_PACK_NAMES[command.name] !== true && !CATALOGUE_GRAPHICS_NAMES.has(command.name) && MEDIA_PACK_NAMES[command.name] !== true && !BATTLE_COMMAND_NAMES.has(command.name) && !CORE_FILE_COMMANDS.has(command.name) && !CORE_PURE_COMMANDS.has(command.name) && !INVENTORY_COMMAND_NAMES.has(command.name) && !STOCK_MENU_COMMAND_NAMES.has(command.name),
     ),
     ...INVENTORY_COMMANDS,
     ...MENU_COMMANDS,
+    ...STOCK_MENU_COMMANDS,
     ...PACK_CATALOGUE_FALLBACKS.filter((command) => !CATALOGUE_OWNED_NAMES.has(command.name)),
     ...documentCommands(RENDER_PACK_FALLBACKS.filter((command) => !CATALOGUE_OWNED_NAMES.has(command.name))),
   ],

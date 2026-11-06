@@ -20,7 +20,9 @@
 
 import { canon, encodeLog } from "../canon/index.ts";
 import type { PortData } from "../ports/bytes.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import type { InputEvent } from "../ports/input.ts";
+import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 
 /** The result of validating one candidate input event. */
 export type InputEventValidation =
@@ -32,8 +34,13 @@ type UnknownRecord = { readonly [key: string]: unknown };
 const KINDS = [
   "key",
   "pointer",
+  "pointer.cancel",
   "gamepad",
   "focus",
+  "action",
+  "host.features",
+  "host.display",
+  "host.gamepads",
   "asset",
   "blob.loaded",
   "blob.saved",
@@ -49,8 +56,13 @@ type EventKind = (typeof KINDS)[number];
 const KEY_SETS: { readonly [kind in EventKind]: readonly string[] } = {
   key: ["kind", "name", "code", "char", "down", "repeat"],
   pointer: ["kind", "x", "y", "buttons"],
+  "pointer.cancel": ["kind"],
+  action: ["kind", "action", "down", "source"],
   gamepad: ["kind", "device", "connected", "axes", "buttons"],
   focus: ["kind", "state"],
+  "host.features": ["kind", "features"],
+  "host.display": ["kind", "geometry"],
+  "host.gamepads": ["kind", "devices"],
   asset: ["kind", "reqId", "bytes"],
   "blob.loaded": ["kind", "reqId", "bytes"],
   "blob.saved": ["kind", "reqId", "ok"],
@@ -148,13 +160,74 @@ function validateGamepad(record: UnknownRecord): InputEventValidation {
   const axisRecord = axes as UnknownRecord;
   if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid("axes.x", "expected an integer from -1000 through 1000");
   if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid("axes.y", "expected an integer from -1000 through 1000");
-  if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 127) return invalid("buttons", "expected a 7-bit non-negative integer");
+  if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 0x1ffff) return invalid("buttons", "expected a 17-bit non-negative physical button mask");
   return accept(record);
 }
 
+function validateAction(record: UnknownRecord): InputEventValidation {
+  if (!isNonEmptyString(record["action"])) return invalid("action", "expected a non-empty action name");
+  if (typeof record["down"] !== "boolean") return invalid("down", "expected a boolean");
+  if (!isNonEmptyString(record["source"])) return invalid("source", "expected a non-empty source name");
+  return accept(record);
+}
 function validateFocus(record: UnknownRecord): InputEventValidation {
   if (!isFocusState(record["state"])) return invalid("state", "expected 'lost' or 'gained'");
   return accept(record);
+}
+
+function validateHostFeatures(record: UnknownRecord): InputEventValidation {
+  const features = record["features"];
+  if (typeof features !== "object" || features === null || Array.isArray(features)) return invalid("features", "expected an object");
+  try {
+    const normalized = normalizeHostFeatures(features as HostFeatures);
+    const keys = ["touch", "pointer", "keyboard", "gamepad", "haptics", "orientation"];
+    if (Object.keys(features).length !== keys.length || keys.some((key) => !Object.hasOwn(features, key))) {
+      return invalid("features", "expected a complete normalized host feature record");
+    }
+    if (Object.keys(normalized).some((key) => !Object.hasOwn(features, key))) {
+      return invalid("features", "expected a complete normalized host feature record");
+    }
+    return accept(record);
+  } catch (error) {
+    return invalid("features", error instanceof Error ? error.message : "invalid host features");
+  }
+}
+
+function validateHostGamepads(record: UnknownRecord): InputEventValidation {
+  const devices = record["devices"];
+  if (!Array.isArray(devices)) return invalid("devices", "expected an array");
+  let previous = -1;
+  for (let index = 0; index < devices.length; index += 1) {
+    const device = devices[index];
+    if (typeof device !== "object" || device === null || Array.isArray(device)) return invalid(`devices[${index}]`, "expected an object");
+    const sample = device as UnknownRecord;
+    const expected = ["device", "axes", "buttons"];
+    for (const key of Object.keys(sample)) if (!expected.includes(key)) return invalid(`devices[${index}].${key}`, "unexpected key");
+    for (const key of expected) if (!Object.hasOwn(sample, key)) return invalid(`devices[${index}].${key}`, "missing required key");
+    const number = sample["device"];
+    if (!isInteger(number) || number < 0 || number > 3) return invalid(`devices[${index}].device`, "expected an integer from 0 through 3");
+    if (number <= previous) return invalid(`devices[${index}].device`, "devices must be unique and sorted by index");
+    previous = number;
+    const axes = sample["axes"];
+    if (typeof axes !== "object" || axes === null || Array.isArray(axes)) return invalid(`devices[${index}].axes`, "expected an object");
+    const axisRecord = axes as UnknownRecord;
+    if (Object.keys(axisRecord).some((key) => key !== "x" && key !== "y") || !Object.hasOwn(axisRecord, "x") || !Object.hasOwn(axisRecord, "y"))
+      return invalid(`devices[${index}].axes`, "expected exactly x and y axes");
+    if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid(`devices[${index}].axes.x`, "expected an integer from -1000 through 1000");
+    if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid(`devices[${index}].axes.y`, "expected an integer from -1000 through 1000");
+    if (!isNonNegativeInteger(sample["buttons"]) || sample["buttons"] > 0x1ffff) return invalid(`devices[${index}].buttons`, "expected a 17-bit non-negative physical button mask");
+  }
+  return accept(record);
+}
+function validateHostDisplay(record: UnknownRecord): InputEventValidation {
+  const geometry = record["geometry"];
+  if (typeof geometry !== "object" || geometry === null || Array.isArray(geometry)) return invalid("geometry", "expected an object");
+  try {
+    normalizeDisplayGeometry(geometry as HostDisplayGeometry);
+    return accept(record);
+  } catch (error) {
+    return invalid("geometry", error instanceof Error ? error.message : "invalid display geometry");
+  }
 }
 
 function validateBytesReply(record: UnknownRecord): InputEventValidation {
@@ -240,10 +313,20 @@ export function validateInputEvent(raw: unknown): InputEventValidation {
         return validateKey(record);
       case "pointer":
         return validatePointer(record);
+      case "pointer.cancel":
+        return accept(record);
       case "gamepad":
         return validateGamepad(record);
+      case "action":
+        return validateAction(record);
       case "focus":
         return validateFocus(record);
+      case "host.features":
+        return validateHostFeatures(record);
+      case "host.display":
+        return validateHostDisplay(record);
+      case "host.gamepads":
+        return validateHostGamepads(record);
       case "asset":
       case "blob.loaded":
         return validateBytesReply(record);

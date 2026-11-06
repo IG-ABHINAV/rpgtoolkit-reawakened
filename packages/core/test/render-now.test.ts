@@ -17,10 +17,15 @@ import {
   PACKAGE_ROOT,
   readSurfacePixels,
   renderNowEnabled,
+  SINGLE_TILE_MAGIC,
+  TILE_BITMAP_MAGIC,
   writeAnimation,
   writeBoard,
   writeCharacter,
   writeMainFile,
+  writeTileBitmap,
+  writeSingleTile,
+  writeTileset,
   type Engine,
   type GameState,
 } from "../src/index.ts";
@@ -38,6 +43,8 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
 
 type Game = {
   readonly engine: Engine;
+  readonly requests: { readonly key: string; readonly tick: number }[];
+  readonly animationReadiness: { readonly tick: number; readonly id: number; readonly loaded: boolean }[];
   state(): GameState;
   advance(ticks: number, keys?: readonly string[]): void;
   frame(): { readonly w: number; readonly h: number; readonly rgba: Uint8Array };
@@ -57,6 +64,7 @@ function boot(program: string, extra: Readonly<Record<string, Uint8Array>> = {},
   files.set(assetKey("prg/start.prg"), encoder.encode(program));
   for (const [path, bytes] of Object.entries(extra)) files.set(assetKey(path), bytes);
   let latest: GameState | null = null;
+  const animationReadiness: { readonly tick: number; readonly id: number; readonly loaded: boolean }[] = [];
   const engine = createEngine({
     seed: 1,
     assetIndex: createAssetIndex(paths),
@@ -69,11 +77,18 @@ function boot(program: string, extra: Readonly<Record<string, Uint8Array>> = {},
     maxTicks: 1000,
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
     ...(eager ? { scriptObservers: {} } : {}),
-    phaseRegistrations: [{ phase: "audio", run: (state) => { latest = state; } }],
+    phaseRegistrations: [
+      { phase: "input", run: (state) => {
+        for (const animation of state.fx.animations ?? []) animationReadiness.push({ tick: state.time.tick, id: animation.id, loaded: animation.loaded });
+      } },
+      { phase: "audio", run: (state) => { latest = state; } },
+    ],
   });
   let replies: { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: null; readonly down: boolean } }[] = [];
   const game: Game = {
     engine,
+    requests: [],
+    animationReadiness,
     state() {
       if (latest === null) throw new Error("no tick has run");
       return latest;
@@ -91,7 +106,10 @@ function boot(program: string, extra: Readonly<Record<string, Uint8Array>> = {},
         replies = [];
         if (report.diagnostics.length > 0) throw new Error(`diagnostics: ${JSON.stringify(report.diagnostics)}`);
         for (const request of report.requests) {
-          if (request.kind === "asset") replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: files.get(request.key) ?? null } });
+          if (request.kind === "asset") {
+            game.requests.push({ key: request.key, tick: report.tickAfter });
+            replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: files.get(request.key) ?? null } });
+          }
         }
       }
     },
@@ -176,6 +194,23 @@ test("text and pixelText with a canvas draw into that canvas, not the screen tex
   equal(game.state().ui.draws.length, 0, "the screen text layer got nothing");
 });
 
+test("canvas cell text keeps a fractional cell coordinate and truncates the scaled origin (E-56)", () => {
+  const game = boot('rendernow(1)\nc = cnvrendernow\ncolorrgb(255,255,255)\ntext(1.5,5.9,"A",c)\nend()\n');
+  const handle = game.state().surfaces.renderNow ?? 0;
+  ok(handle > 0);
+  let leftHalf = 0;
+  let glyph = 0;
+  for (let y = 39; y < 47; y += 1) {
+    for (let x = 0; x < 4; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) leftHalf += 1;
+    for (let x = 4; x < 12; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) glyph += 1;
+  }
+  equal(leftHalf, 0, "the fractional 1.5 keeps its half cell: x is trunc(0.5 × 8) = 4, not cell 0");
+  ok(glyph > 3, `the glyphs start at x=4, y=trunc(4.9 × 8)=39 (${glyph} pixels)`);
+  let truncatedRow = 0;
+  for (let y = 32; y < 39; y += 1) for (let x = 4; x < 12; x += 1) if (canvasPixel(game, handle, x, y)[3] === 255) truncatedRow += 1;
+  equal(truncatedRow, 0, "truncating the cell first would put the glyphs at y=32; the scaled pixel origin is 39");
+});
+
 test("canvas text interleaved with graphics and rendernow has eager and batched pixel parity", () => {
   const program = 'rendernow(1)\nc = cnvrendernow\ncolorrgb(10,20,30)\nfillrect(0,0,63,63,c)\ncolorrgb(255,255,255)\npixelText(2,8,"HI",c)\nsetpixel(63,63,c)\ntext(1,4,"A",c)\nrendernow(0)\nrendernow(1)\nend()\n';
   const batched = boot(program);
@@ -207,6 +242,130 @@ function redGreen(delay: number): Record<string, Uint8Array> {
   }));
   return { "Misc/blink.anm": animation, "Bitmap/red.png": encodePng(16, 16, solid(255, 0, 0)), "Bitmap/green.png": encodePng(16, 16, solid(0, 255, 0)) };
 }
+
+/** A wide canvas whose first frame names a smaller picture or a single tileset cell. */
+function wideAnimation(image: string): Uint8Array {
+  return unwrap(writeAnimation({
+    magic: "RPGTLKIT ANIM", major: 2, minor: 3, width: 64, height: 32,
+    frames: [{ image, transparent: { r: 255, g: 0, b: 255 }, sound: "" }],
+    delay: 1, residue: new Uint8Array(),
+  }));
+}
+
+function wideFiles(image: string): Record<string, Uint8Array> {
+  const rgba = new Uint8Array(32 * 32 * 4);
+  for (let at = 0; at < rgba.length; at += 4) rgba.set([20, 40, 220, 255], at);
+  const tile = (r: number, g: number, b: number): Uint8Array => {
+    const pixels = new Uint8Array(32 * 32 * 3);
+    for (let at = 0; at < pixels.length; at += 3) pixels.set([r, g, b], at);
+    return pixels;
+  };
+  return {
+    ...redGreen(1),
+    "Misc/wide.anm": wideAnimation(image),
+    "Bitmap/blue.png": encodePng(32, 32, rgba),
+    "Tiles/two.tst": unwrap(writeTileset({
+      version: 20, detail: { code: 1, size: 32, bytesPerPixel: 3, isometric: false },
+      tiles: [{ pixels: tile(220, 30, 30) }, { pixels: tile(30, 200, 60) }], residue: new Uint8Array(),
+    })),
+    "Tiles/one.gph": encoder.encode(writeSingleTile({
+      magic: SINGLE_TILE_MAGIC, major: 2, minor: 0, detail: 1, compression: 0,
+      width: 32, height: 32, pixels: Array(32 * 32).fill(220 + 30 * 256 + 30 * 65536),
+    })),
+    "Bitmap/one.tbm": unwrap(writeTileBitmap({
+      magic: TILE_BITMAP_MAGIC, major: 3, minor: 0, width: 1, height: 1,
+      cells: [{ tile: "two.tst1", r: 0, g: 0, b: 0 }, ...Array.from({ length: 3 }, () => ({ tile: "", r: 0, g: 0, b: 0 }))],
+      residue: new Uint8Array(),
+    })),
+    "Bitmap/multi.tbm": unwrap(writeTileBitmap({
+      magic: TILE_BITMAP_MAGIC, major: 3, minor: 0, width: 2, height: 1,
+      cells: [
+        { tile: "two.tst1", r: 0, g: 0, b: 0 }, { tile: "", r: 0, g: 0, b: 0 },
+        { tile: "one.gph", r: 0, g: 0, b: 0 }, ...Array.from({ length: 3 }, () => ({ tile: "", r: 0, g: 0, b: 0 })),
+      ], residue: new Uint8Array(),
+    })),
+  };
+}
+
+for (const command of ["animation", "pinnedanimation"] as const) {
+  test(`${command} samples the picture, fills its canvas and permits later draws (#1271)`, () => {
+    const game = boot(`id = ${command}("wide.anm", 0, 0, 1)\nother = pinnedanimation("blink.anm", 48, 48, 1)\nthreadSleep(getThreadId(), 120)\nend()\n`, wideFiles("blue.png"));
+    const commands = game.engine.drawList(0, { shading: true, images: true, sprites: true }).commands;
+    const picture = commands.find((entry) => entry.kind === "blit" && "asset" in entry.source && entry.source.asset === "bitmap/blue.png");
+    ok(picture?.kind === "blit");
+    deepEqual(picture.src, { x: 0, y: 0, w: 32, h: 32 });
+    deepEqual(picture.dst, { x: 0, y: 0, w: 64, h: 32 });
+    deepEqual([picture.key, picture.tint, picture.alpha, picture.blend], [{ r: 255, g: 0, b: 255 }, { r: 0, g: 0, b: 0 }, 255, "normal"]);
+    const screen = game.frame();
+    deepEqual(pixel(screen, 8, 8), [20, 40, 220, 255]);
+    deepEqual(pixel(screen, 56, 8), [20, 40, 220, 255]);
+    deepEqual(pixel(screen, 56, 56), [255, 0, 0, 255], "the subsequent animation was rasterised");
+  });
+}
+
+test("a script animation samples one tileset cell, not its neighbour (#1271)", () => {
+  const game = boot('id = animation("wide.anm", 0, 0, 1)\nthreadSleep(getThreadId(), 120)\nend()\n', wideFiles("two.tst1"));
+  const command = game.engine.drawList(0, { shading: true, images: true, sprites: true }).commands
+    .find((entry) => entry.kind === "blit" && "asset" in entry.source && entry.source.asset === "tiles/two.tst");
+  ok(command?.kind === "blit");
+  deepEqual(command.src, { x: 0, y: 0, w: 32, h: 32 });
+  deepEqual(command.dst, { x: 0, y: 0, w: 64, h: 32 });
+  const screen = game.frame();
+  deepEqual(pixel(screen, 8, 8), [220, 30, 30, 255]);
+  deepEqual(pixel(screen, 56, 8), [220, 30, 30, 255], "the adjacent green cell is never sampled");
+});
+
+test("a script animation samples a single tile at its own size (#1271)", () => {
+  const game = boot('id = animation("wide.anm", 0, 0, 1)\nthreadSleep(getThreadId(), 120)\nend()\n', wideFiles("one.gph"));
+  const command = game.engine.drawList(0, { shading: true, images: true, sprites: true }).commands
+    .find((entry) => entry.kind === "blit" && "asset" in entry.source && entry.source.asset === "tiles/one.gph");
+  ok(command?.kind === "blit");
+  deepEqual(command.src, { x: 0, y: 0, w: 32, h: 32 });
+  deepEqual(command.dst, { x: 0, y: 0, w: 64, h: 32 });
+  deepEqual(pixel(game.frame(), 56, 8), [220, 30, 30, 255]);
+});
+
+test("a sized script animation samples a composed tile bitmap at its own size (#1271)", () => {
+  const game = boot('id = sizedanimation("wide.anm", 0, 0, 24, 48, 1)\nthreadSleep(getThreadId(), 120)\nend()\n', wideFiles("one.tbm"));
+  const command = game.engine.drawList(0, { shading: true, images: true, sprites: true }).commands
+    .find((entry) => entry.kind === "blit" && "asset" in entry.source && entry.source.asset === "bitmap/one.tbm");
+  ok(command?.kind === "blit");
+  deepEqual(command.src, { x: 0, y: 0, w: 32, h: 32 });
+  deepEqual(command.dst, { x: 0, y: 0, w: 48, h: 24 });
+  deepEqual(pixel(game.frame(), 40, 12), [220, 30, 30, 255]);
+});
+
+test("tile-bitmap animation waits for every picture dependency before its clock starts (#1321)", () => {
+  const game = boot('id = animation("wide.anm", 0, 0, 1)\nthreadSleep(getThreadId(), 120)\nend()\n', wideFiles("multi.tbm"));
+  const first = game.requests.find((entry) => entry.key === "tiles/two.tst");
+  const second = game.requests.find((entry) => entry.key === "tiles/one.gph");
+  ok(first !== undefined && second !== undefined);
+  equal(second.tick, first.tick, "no simulation tick runs while either picture dependency is pending");
+  const animation = game.state().fx.animations[0];
+  ok(animation !== undefined && animation.loaded);
+  ok(animation.originTick >= second.tick, "the animation starts after both picture dependencies are available");
+  deepEqual(pixel(game.frame(), 56, 8), [220, 30, 30, 255]);
+});
+
+test("a pinned animation with one picture keeps its original animation-phase start tick", () => {
+  const animation = unwrap(writeAnimation({
+    magic: "RPGTLKIT ANIM", major: 2, minor: 3, width: 16, height: 16,
+    frames: [
+      { image: "red.png", transparent: { r: 255, g: 0, b: 255 }, sound: "" },
+      { image: "red.png", transparent: { r: 255, g: 0, b: 255 }, sound: "" },
+    ],
+    delay: 0.017, residue: new Uint8Array(),
+  }));
+  const game = boot('id = pinnedanimation("timing.anm", 4, 4, 1)\nthreadSleep(getThreadId(), 120)\nend()\n', {
+    "Misc/timing.anm": animation,
+    "Bitmap/red.png": encodePng(16, 16, solid(255, 0, 0)),
+  });
+  const loaded = game.state().fx.animations[0];
+  ok(loaded !== undefined && loaded.loaded);
+  const firstLoadedPhase = game.animationReadiness.find((sample) => sample.id === loaded.id && sample.loaded);
+  ok(firstLoadedPhase !== undefined);
+  equal(firstLoadedPhase.tick, loaded.originTick + 1, "a single-picture animation becomes loaded in the animation phase, not pre-tick drive");
+});
 
 const PAINT_CANVAS_WHITE = "rendernow(1)\nc = cnvrendernow\ncolorrgb(255,255,255)\nfillrect(0,0,40,40,c)\n";
 

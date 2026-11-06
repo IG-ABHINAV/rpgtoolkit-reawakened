@@ -267,6 +267,7 @@ function drawListFor(state: GameState): DrawList {
     tick: state.time.tick,
     width: 640,
     height: 480,
+    marginCommands: [],
     commands: composeUi(state.ui, 640, 480, state.input, false),
   };
 }
@@ -329,8 +330,8 @@ test("custom fight seed and mid-battle save restore preserve state and drawing",
   equal(drawHash, hashDrawList(drawListFor(repeated.state)));
   equal(stateHash === hashState(differentSeed.state), false);
   equal(drawHash === hashDrawList(drawListFor(differentSeed.state)), false);
-  equal(stateHash, "95cc9b44656c2ca5");
-  equal(drawHash, "3fa17af6365a9ba5");
+  equal(stateHash, "980948088315f2ef"); // UI schema 8 adds the hashed surface-result thread-boundary marker; the draw hash is unchanged.
+  equal(drawHash, "480086a70fb486bb"); // DrawList v2 includes the explicit marginCommands layer.
 
   const restoredState = restoreGameState(snapshot(first.state));
   const restoredRig: Rig = {

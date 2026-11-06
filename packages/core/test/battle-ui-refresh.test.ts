@@ -128,6 +128,66 @@ test("charge refresh covers every bar scan phase and repeated charge changes", (
     deepEqual(rig.diagnostics, []);
   }
 });
+test("a fighter-stat fast-path redraw synchronizes an unrelated party charge bar", () => {
+  const rig = bootUiRig({
+    watchFastPathCompletion: true,
+    party: [
+      { key: "hero", hp: 42, smp: 12 },
+      { key: "mage", hp: 30, smp: 3 },
+      { key: "rogue", hp: 42, smp: 6 },
+      { key: "hero", hp: 42, smp: 12 },
+      { key: "mage", hp: 30, smp: 3 },
+    ],
+  });
+  awaitMenu(rig);
+  rig.tick(8);
+  rig.until(() => ui(rig)["barscan"] === 1 && ui(rig)["controlsig"] === ui(rig)["nextcontrolsig"], 120);
+  equal(ui(rig)["on"], 1);
+  const state = rig.state();
+  const changedStatActorId = state.battle!.parties[1][0]!.actorId;
+  const fighterId = state.battle!.parties[1][4]!.actorId;
+  const oldSceneSignature = ui(rig)["staticsig"];
+  const layout = ui(rig)["layout"] as Record<string, number>;
+  const chargeRegion = {
+    x1: layout["chargex"]! + 1,
+    y1: layout["rowy"]! + 4 * layout["rowdy"]! + 1,
+    x2: layout["chargex"]! + layout["chargew"]! - 1,
+    y2: layout["rowy"]! + 4 * layout["rowdy"]! + layout["barh"]! - 2,
+  };
+  const before = regionHash(rig, chargeRegion);
+  const previousFill = (ui(rig)["bars"] as Record<string, number>)["4"];
+  rig.mutateNextTick((live) => {
+    const fighter = live.battle!.parties[1][4]!;
+    equal(fighter.actorId, fighterId);
+    fighter.charge = 60;
+    const partyActor = live.actors.actors.find((entry) => entry.id === changedStatActorId);
+    ok(partyActor !== undefined);
+    partyActor.stats.hp -= 1;
+    const uiValue = live.vm.globals.stockbattleui as { handle: number };
+    const uiRecord = live.vm.objects.find((object) => object.handle === uiValue.handle);
+    ok(uiRecord !== undefined);
+    uiRecord.members.testfastpathwatch = 1;
+    uiRecord.members.barscan = 3;
+  });
+  const expected = Math.floor(60 * 100 / 75);
+  let fastPathCompleted = false;
+  for (let tick = 1; tick <= 16; tick += 1) {
+    rig.tick(1);
+    const currentUi = ui(rig);
+    if (currentUi["testfastpathcompleted"] === 1) {
+      fastPathCompleted = true;
+      equal(currentUi["barscan"], 3, "fast-path returns with the test-held scanner before party slot 4");
+      equal(currentUi["staticsig"] === oldSceneSignature, false, "changed fighter stats reached the fast-path redraw");
+      break;
+    }
+    equal(currentUi["barscan"], 3, "the test-owned pass hook keeps ordinary scanning before party slot 4");
+  }
+  ok(fastPathCompleted, "the instrumented fast-path return is observed by single-tick stepping");
+  equal((ui(rig)["bars"] as Record<string, number>)["4"], expected);
+  ok(expected !== previousFill, "the fighter charge changed during the fast-path redraw");
+  ok(regionHash(rig, chargeRegion) !== before, "the unrelated party bar reaches pixels before ordinary scanning can mask it");
+  deepEqual(rig.diagnostics, []);
+});
 
 test("target picker and message update a renamed target without cursor movement", () => {
   const rig = ready("target");

@@ -7,6 +7,7 @@ import type { CommandEffect, CommandResult, PluginDefinition } from "../plugin.t
 import { applyWorldEffect } from "../../world/effects.ts";
 import { applyCameraEffect } from "../../world/camera.ts";
 import { MOVEMENT_COMMANDS, applyInputEffect, applySpriteEffect } from "./movement.ts";
+import { resolvePixelMovement } from "../../world/movement-settings.ts";
 
 function numberArg(args: readonly Arg[], index: number, fallback = 0): number {
   const value = args[index]?.value;
@@ -187,7 +188,7 @@ const SEND: BuiltinSpec = {
   name: "send", aliases: [], params: [{ name: "file", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "layer", optional: true, byRef: false, variadic: false }],
   doc: {
     summary: "Send the player to a new board.",
-    behaviour: "Move the player to another board of your game, at the tile you name, and carry on there: the old board's background threads stop, the new board's threads and its enter program start, and the camera jumps straight to the player with no scrolling. Technically, x and y are one-based tile coordinates and layer is one-based (omitted or below 1 means layer 1). The call records the request and parks the calling thread until the next tick; between the two ticks the engine loads the board (time stands still while its files arrive), places the player, re-aligns the camera without smoothing, deactivates the program under the player, switches the board music and starts the board threads and enter program, so the script resumes on the new board. A second send in the same tick replaces the first, and a board name that is not in the game raises a located diagnostic and changes nothing.",
+    behaviour: "Move the player to another board of your game, at the position you name, and carry on there: the old board's background threads stop, the new board's threads and its enter program start, and the camera jumps straight to the player with no scrolling. Technically, x and y name a position on the board you are going to, in that board's own coordinate mode: when the board sets the editor's \"Use pixel coordinates\" option they are board pixels, and otherwise they are one-based tile coordinates. layer is one-based (omitted or below 1 means layer 1). The call records the request and parks the calling thread until the next tick; between the two ticks the engine loads the board (time stands still while its files arrive), places the player, re-aligns the camera without smoothing, deactivates the program under the player, switches the board music and starts the board threads and enter program, so the script resumes on the new board. A second send in the same tick replaces the first, and a board name that is not in the game raises a located diagnostic and changes nothing.",
     groups: ["board-tiles-vectors-screen-effects-33"],
     tags: ["legacy"],
     waits: { kind: "ticks", summary: "Parks the calling thread for one tick while the engine swaps boards." },
@@ -198,7 +199,7 @@ const SEND: BuiltinSpec = {
     if (typeof file !== "string" || file.trim() === "") throw new ScriptError("builtin.bad-arg", '"send" expects a board file name as its first argument');
     const x = args[1]?.value;
     const y = args[2]?.value;
-    if (typeof x !== "number" || !Number.isFinite(x) || typeof y !== "number" || !Number.isFinite(y)) throw new ScriptError("builtin.bad-arg", '"send" expects numeric x and y tile coordinates');
+    if (typeof x !== "number" || !Number.isFinite(x) || typeof y !== "number" || !Number.isFinite(y)) throw new ScriptError("builtin.bad-arg", '"send" expects numeric x and y coordinates');
     const layer = Math.max(1, numberArg(args, 3, 1));
     return {
       value: null,
@@ -243,9 +244,32 @@ const LIFECYCLE_COMMANDS: readonly BuiltinSpec[] = [
   noArgs("start", [{ name: "file", optional: false, byRef: false, variadic: false }]),
   noArgs("godos", [{ name: "command", optional: false, byRef: false, variadic: false }]),
 ];
+const PIXEL_MOVEMENT: BuiltinSpec = {
+  name: "pixelmovement",
+  aliases: [],
+  params: [{ name: "settings", optional: true, byRef: false, variadic: true }],
+  doc: {
+    summary: "Choose whether walking and scripted pushes use pixel steps.",
+    behaviour: "Returns the current walking setting as 1 or 0 when called without arguments. A one- or two-argument setter returns the new walking setting immediately. One argument sets walking; two set walking and pushing independently, except tile walking forces 32-pixel pushes. Numeric zero is false and other numbers are true; a string is false only when exactly \"off\" ignoring case. More than two arguments change nothing. Settings apply immediately without cancelling or rebuilding queued movement.",
+    groups: ["players-party-sprite-movement-31"],
+    waits: { kind: "never", summary: "Does not wait." },
+    tags: ["legacy"],
+  },
+  call: (view, args) => {
+    const current = view.state?.world.movement ?? { walking: 0, pushing: 0 };
+    const updated = resolvePixelMovement(current, args.map((arg) => arg.value));
+    return {
+      value: (updated ?? current).walking === 1 ? 1 : 0,
+      effects: updated === null
+        ? []
+        : [{ kind: "state-write", section: "world", args: args.map((arg) => arg.value as never) }],
+    };
+  },
+};
+
 
 const WORLD_COMMANDS: readonly BuiltinSpec[] = [
-  GET_NAME, PUT, LAYER_PUT, tileGetter("getboardtile", "boardgettile"), TILE_TYPE_GET, TILE_TYPE,
+  GET_NAME, PUT, LAYER_PUT, tileGetter("getboardtile", "boardgettile"), TILE_TYPE_GET, TILE_TYPE, PIXEL_MOVEMENT,
   noArgs("animatedtiles", [{ name: "list", optional: true, byRef: true, variadic: false }]),
   noArgs("parallax", [{ name: "setting", optional: false, byRef: false, variadic: false }]), AMBIENT,
   GET_VECTOR, SET_VECTOR, GET_VECTOR_POINT, SET_VECTOR_POINT, GET_PROGRAM, SET_PROGRAM, GET_PROGRAM_POINT, SET_PROGRAM_POINT, PRG,

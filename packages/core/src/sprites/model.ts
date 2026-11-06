@@ -8,6 +8,7 @@ import { actorId, type ActorId, type ActorRecord, type ActorsSection } from "../
 import type { Character, Item } from "../formats/actor/index.ts";
 import type { ProgramRef } from "../script/program.ts";
 import type { VmState } from "../script/state.ts";
+import { foldAscii } from "../script/values.ts";
 import type { WorldBoard, WorldItem } from "../world/model.ts";
 
 export const SPRITES_SCHEMA_VERSION = 2;
@@ -43,6 +44,8 @@ export type SpriteMove = {
   readonly facing: Facing | null;
   readonly pathMode?: 1 | 2 | 3;
   readonly deferredComplete?: boolean;
+  /** Queued by a pointer click or held button; such moves pause while a script owns the key queue. */
+  readonly pointer?: true;
 };
 export type WaypointLink = {
   points: SpritePoint[];
@@ -68,6 +71,7 @@ export type SpriteActiveMove = {
   readonly tried: boolean;
   readonly pathMode?: 1 | 2 | 3;
   readonly deferredComplete?: boolean;
+  readonly pointer?: true;
 };
 
 /** Fixed-tick movement state stored with the actor for snapshot/restore. */
@@ -215,7 +219,7 @@ export function actorFromSource(source: SpriteActorSource, board: WorldBoard | n
   const actor = source.character ?? source.item;
   const fallback = defaultBases(board !== null && (board.coordType & 3) !== 0);
   const item = source.boardItem;
-  const multitask = source.item?.multitaskProgram ?? (item?.multitaskPrg || null);
+  const multitask = item?.multitaskPrg || source.item?.multitaskProgram || null;
   const link = source.actorId === undefined
     ? {}
     : { actorId: source.actorId === null ? null : actorId(source.actorId) };
@@ -283,15 +287,25 @@ export function boardItemSources(
   actors?: ActorsSection,
   actorIds?: Readonly<Record<string, ActorId | number | null>>,
 ): SpriteActorSource[] {
-  return (board.items ?? []).filter((item) => item.itemFile !== "").map((item) => {
+  const boardItems = (board.items ?? []).filter((item) => item.itemFile !== "");
+  const placementsByFile = new Map<string, number>();
+  for (const item of boardItems) placementsByFile.set(item.itemFile, (placementsByFile.get(item.itemFile) ?? 0) + 1);
+  const seenByFile = new Map<string, number>();
+  return boardItems.map((item) => {
+    const occurrence = seenByFile.get(item.itemFile) ?? 0;
+    seenByFile.set(item.itemFile, occurrence + 1);
+    const id = (placementsByFile.get(item.itemFile) ?? 0) > 1 && occurrence > 0
+      ? `${item.itemFile}#board-slot:${item.slot}`
+      : item.itemFile;
     const actor = actorFiles.get(item.itemFile);
-    const condition = item.loadingVar === "" || String(variables[item.loadingVar] ?? "") === item.loadingValue;
+    const conditionName = foldAscii(item.loadingVar.replace(/[!$]$/, ""));
+    const condition = item.loadingVar === "" || String(variables[conditionName] ?? "") === item.loadingValue;
     const explicit = actorIds?.[item.itemFile];
     const link = explicit === undefined
       ? actorLinkForSource({ source: item.itemFile }, actors)
       : actorLinkForSource({ source: item.itemFile, actorId: explicit === null ? null : actorId(explicit) }, actors);
     return {
-      id: item.itemFile,
+      id,
       kind: "item",
       source: item.itemFile,
       ...(link === undefined ? {} : { actorId: link }),

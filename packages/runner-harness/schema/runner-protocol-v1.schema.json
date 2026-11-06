@@ -527,10 +527,19 @@
           "$ref": "#/$defs/pointerInput"
         },
         {
+          "$ref": "#/$defs/pointerCancelInput"
+        },
+        {
           "$ref": "#/$defs/gamepadInput"
         },
         {
           "$ref": "#/$defs/focusInput"
+        },
+        {
+          "$ref": "#/$defs/hostFeaturesInput"
+        },
+        {
+          "$ref": "#/$defs/hostDisplayInput"
         },
         {
           "$ref": "#/$defs/assetReply"
@@ -620,6 +629,16 @@
         }
       }
     },
+    "pointerCancelInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "const": "pointer.cancel"
+        }
+      }
+    },
     "gamepadInput": {
       "type": "object",
       "additionalProperties": false,
@@ -679,6 +698,55 @@
             "lost",
             "gained"
           ]
+        }
+      }
+    },
+    "hostFeaturesInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "features"],
+      "properties": {
+        "kind": { "const": "host.features" },
+        "features": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["touch", "pointer", "keyboard", "gamepad", "haptics", "orientation"],
+          "properties": {
+            "touch": { "type": "boolean" },
+            "pointer": { "enum": ["fine", "coarse", "none"] },
+            "keyboard": { "type": "boolean" },
+            "gamepad": { "type": "boolean" },
+            "haptics": { "type": "boolean" },
+            "orientation": { "oneOf": [{ "enum": ["landscape", "portrait"] }, { "type": "null" }] }
+          }
+        }
+      }
+    },
+    "hostDisplayInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "geometry"],
+      "properties": {
+        "kind": { "const": "host.display" },
+        "geometry": {
+          "description": "The game rectangle must also fit within content: x + width <= content.width and y + height <= content.height. Validate these cross-field constraints in addition to this schema (docs/spec/engine/host-capabilities-and-viewports.md#state-and-input-records).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["content", "game", "safeArea"],
+          "properties": {
+            "content": {
+              "type": "object", "additionalProperties": false, "required": ["width", "height"],
+              "properties": { "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 } }
+            },
+            "game": {
+              "type": "object", "additionalProperties": false, "required": ["x", "y", "width", "height"],
+              "properties": { "x": { "type": "number", "minimum": 0 }, "y": { "type": "number", "minimum": 0 }, "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 } }
+            },
+            "safeArea": {
+              "type": "object", "additionalProperties": false, "required": ["top", "right", "bottom", "left"],
+              "properties": { "top": { "type": "number", "minimum": 0 }, "right": { "type": "number", "minimum": 0 }, "bottom": { "type": "number", "minimum": 0 }, "left": { "type": "number", "minimum": 0 } }
+            }
+          }
         }
       }
     },

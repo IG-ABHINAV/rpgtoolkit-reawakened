@@ -39,6 +39,7 @@ import {
   type ResolvedPlugin,
   type ScriptError,
 } from "../src/index.ts";
+import { slotLocation, slotTokenAt } from "../src/menu/equipment.ts";
 import { createScriptServices } from "./script-test-services.ts";
 import { writeItem } from "../src/formats/actor/item.ts";
 import { INVENTORY_COMMANDS } from "../src/script/packs/inventory.ts";
@@ -71,14 +72,32 @@ function fixture(name: string): string {
   return readFileSync(join(saveFixtureDirectory, name), "utf8");
 }
 
-test("fresh party, inventory and menu sections are exact v2 plain JSON values", () => {
-  equal(PARTY_SCHEMA_VERSION, 2);
+test("every editor equipment location names its slot token and back, and no other value names a slot", () => {
+  const expected = ["head", "neck", "right-hand", "left-hand", "body", "legs",
+    "accessory-7", "accessory-8", "accessory-9", "accessory-10", "accessory-11", "accessory-12",
+    "accessory-13", "accessory-14", "accessory-15", "accessory-16"];
+  for (const [index, token] of expected.entries()) {
+    const location = index + 1;
+    equal(slotTokenAt(location), token, `${location} names ${token}`);
+    equal(slotLocation(token), location, `${token} is location ${location}`);
+    equal(slotLocation(slotTokenAt(location)!), location, `${location} round-trips`);
+  }
+  for (const location of [0, 17, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    equal(slotTokenAt(location), null, `${location} names no slot`);
+  }
+  for (const token of ["", "head ", "accessory-6", "accessory-17", "accessory", "accessory-x"]) {
+    equal(slotLocation(token), null, `"${token}" names no location`);
+  }
+});
+
+test("fresh party, inventory and menu sections are exact plain JSON values", () => {
+  equal(PARTY_SCHEMA_VERSION, 3);
   equal(INVENTORY_SCHEMA_VERSION, 2);
   equal(MENU_SCHEMA_VERSION, 2);
   const party = createPartySection();
   const inventory = createInventorySection();
   const menu = createMenuSection();
-  deepEqual(party, { version: 2, members: [], selected: null, steps: 0 });
+  deepEqual(party, { version: 3, members: [], selected: null, steps: 0, stepRemainder: 0 });
   deepEqual(inventory, { version: 2, nextId: 1, items: [], equipment: [], gold: 0 });
   deepEqual(menu, { version: 2, screens: [], graphic: null });
   deepEqual(JSON.parse(JSON.stringify(party)), party);
@@ -94,12 +113,14 @@ test("validators reject malformed fields, duplicates and dead actor or item refe
   const menu = createMenuSection();
 
   issue(validatePartySection({ members: [actorIds[0], actorIds[0]], selected: actorIds[0], steps: 0 }, state.actors));
-  issue(validatePartySection({ version: 2, members: [999], selected: 999, steps: 0 }, state.actors));
+  issue(validatePartySection({ ...party, members: [999], selected: 999 }, state.actors));
   const sixIds = [...actorIds, ...Array.from({ length: 4 }, (_, index) =>
     addActor(state.actors, { kind: "party", source: `extra-${index}.tem` }).id)];
-  issue(validatePartySection({ version: 2, members: sixIds, selected: sixIds[0], steps: 0 }, state.actors));
-  issue(validatePartySection({ version: 2, members: [], selected: undefined, steps: 0 }, state.actors));
-  issue(validatePartySection({ version: 2, members: [], selected: null, steps: -1 }, state.actors));
+  issue(validatePartySection({ ...party, members: sixIds, selected: sixIds[0] }, state.actors));
+  issue(validatePartySection({ ...party, selected: undefined }, state.actors));
+  issue(validatePartySection({ ...party, steps: -1 }, state.actors));
+  issue(validatePartySection({ ...party, stepRemainder: -1 }, state.actors));
+  issue(validatePartySection({ ...party, stepRemainder: 8192 }, state.actors));
   issue(validateInventorySection({ ...inventory, items: [{ id: 1, source: "a.itm", handle: "A", quantity: -1 }] }, state.actors));
   issue(validateInventorySection({ ...inventory, items: [{ id: 1, source: "a.itm", handle: "A", quantity: 0 }, { id: 1, source: "b.itm", handle: "B", quantity: 1 }] }, state.actors));
   issue(validateInventorySection({ ...inventory, items: [{ id: 1, source: "a.itm", handle: "A", quantity: 0 }, { id: 2, source: "a.itm", handle: "A", quantity: 1 }], nextId: 3 }, state.actors));
@@ -692,7 +713,7 @@ test("existing ports follow section replacement and restored sections", () => {
   equal(ports.inventory.read().gold, 0);
   equal(ports.menu.read().graphic, null);
   const restored = restoreGameState(snapshot(state));
-  restored.party = { version: 2, members: [actorId], selected: actorId, steps: 8 };
+  restored.party = { version: 3, members: [actorId], selected: actorId, steps: 8, stepRemainder: 0 };
   restored.inventory = { version: 2, nextId: 2, items: [{ id: 1, source: "potion.itm", handle: "Potion", quantity: 1 }], equipment: [], gold: 12 };
   restored.menu = { version: 2, screens: [{ screen: "status", actorId, selection: 0 }], graphic: "menu.png" };
   state.party = restored.party;
@@ -986,11 +1007,11 @@ test("RPGCode equipment locations map and clamp to all canonical inventory slots
       { value: "Hero", ref: null },
       { value: location, ref: null },
     ], () => ({ value: null }));
-    deepEqual(result.effects?.[0]?.args?.[0], {
-      type: "unequip",
-      actorId: actor.id,
-      slot: expected[location],
-    });
+    deepEqual(result.effects?.[0]?.args, [
+      "itemAction.start",
+      { kind: "removeEquipment", actorId: actor.id, slot: expected[location] },
+      "remove",
+    ]);
   }
 });
 test("RPGCode CallShop rejects empty and unavailable stock before opening", () => {
@@ -1030,8 +1051,10 @@ test("RPGCode CallShop rejects empty and unavailable stock before opening", () =
     { value: 1, ref: null }, { value: secondBytes, ref: null }, { value: "Elixir.itm", ref: null },
     { value: JSON.stringify(paths), ref: null }, { value: JSON.stringify(["item/potion.itm"]), ref: null },
   ], next);
-  deepEqual(opened.effects?.[0]?.args?.[0], { type: "shop.open", sources: ["item/potion.itm", "item/elixir.itm"] });
-  equal(opened.wait?.kind, "menu.screen");
+  // The resolved stock reaches the VM's own control, which activates it and either enters a registered `shop`
+  // provider or leaves the standalone `menu.screen` wait (docs/spec/engine/rpgcode-functions.md#e-83).
+  deepEqual(opened.effects?.[0], { kind: "vm.control", args: ["menu.open", "shop", ["item/potion.itm", "item/elixir.itm"]] });
+  equal(opened.wait, undefined);
   deepEqual(firstContinuation.request, { kind: "asset", area: "items", path: "Elixir.itm" });
   throws(() => continuation.call(services.view, [
     { value: 0, ref: null }, { value: "", ref: null }, { value: "Elixir.itm", ref: null },

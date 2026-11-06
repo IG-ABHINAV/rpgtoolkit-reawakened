@@ -4,8 +4,8 @@
  * and nothing else; the window chrome, launch resolution and library are the player application's (entry 9.10).
  */
 
-import { assetKey, DEFAULT_FONT_ASSET, rasterize, type AssetKey, type DrawList } from "@tk-reawakened/core";
-import { createWebgl2Renderer, presentationFrame } from "@tk-reawakened/render-webgl2";
+import { assetKey, DEFAULT_FONT_ASSET, rasterizePresentation, type AssetKey, type DrawList, type HostDisplayGeometry, type RasterAsset, type RasterSurfaces, type SurfaceId } from "@tk-reawakened/core";
+import { createWebgl2Renderer } from "@tk-reawakened/render-webgl2";
 import { decodeAssetTexture, parseClosingPlan, runClosingFrames } from "@tk-reawakened/runner-harness";
 import { fontProvider, packageFiles, PcmSink } from "@tk-reawakened/runner-web";
 
@@ -88,9 +88,14 @@ export async function bootPlayerPage(bridge: PlayerHost | undefined): Promise<Pl
       if (decoded !== null) textures.set(key, { w: decoded.w, h: decoded.h, rgba: decoded.rgba });
     }
     const fonts = fontProvider(bundled);
-    const renderer = createWebgl2Renderer(gl, { mode: "letterbox", scale: 1 });
+    const renderer = createWebgl2Renderer(gl);
     const list = frame.drawList as DrawList;
-    const stats = renderer.render(list, {
+    const geometry: HostDisplayGeometry = {
+      content: { width: list.width, height: list.height },
+      game: { x: 0, y: 0, width: list.width, height: list.height },
+      safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+    };
+    const stats = renderer.render(list, geometry, {
       textures: (asset) => textures.get(asset) ?? null,
       surfaces: (id, rev) => {
         const pixels = frame.surfaces.get(`${id}:${rev}`);
@@ -104,12 +109,18 @@ export async function bootPlayerPage(bridge: PlayerHost | undefined): Promise<Pl
     const stride = list.width * 4;
     const topFirst = new Uint8Array(pixels.length);
     for (let row = 0; row < list.height; row += 1) topFirst.set(pixels.subarray(row * stride, (row + 1) * stride), (list.height - 1 - row) * stride);
-    const assets = new Map<AssetKey, unknown>([...textures, ...fonts]);
-    const reference = rasterize(list, assets as never, new Map());
+    const assets = new Map<AssetKey, RasterAsset>([...textures, ...fonts]);
+    const surfaces = new Map<SurfaceId, { readonly w: number; readonly h: number; readonly rgba: Uint8Array }>() as RasterSurfaces;
+    surfaces.get = (id: SurfaceId, rev?: number) => {
+      const surface = frame.surfaces.get(`${id}:${rev ?? 0}`);
+      return surface === null || surface === undefined ? undefined : { w: surface.w, h: surface.h, rgba: surface.rgba };
+    };
+    const reference = rasterizePresentation(list, geometry, assets, surfaces);
     let worst = 0;
     if (reference.error === null) {
       for (let index = 0; index < reference.rgba.length; index += 1) worst = Math.max(worst, Math.abs(reference.rgba[index]! - topFirst[index]!));
     }
+    renderer.dispose();
 
     // Measurement 2: the D-7 blend bound, on the committed vector that exercises the blend arithmetic.
     const kit = (await (await fetch("/tools/fixtures/conformance/raster/vectors.json")).json()) as {
@@ -129,8 +140,13 @@ export async function bootPlayerPage(bridge: PlayerHost | undefined): Promise<Pl
           blendTextures.set(texture.asset as AssetKey, { w: texture.w, h: texture.h, rgba: bytes });
         }
         const blendRenderer = createWebgl2Renderer(blendGl);
-        const blendList: DrawList = { tick: 0, width: blend.width, height: blend.height, commands: blend.commands as DrawList["commands"] };
-        blendRenderer.render(blendList, { textures: (asset) => blendTextures.get(asset) ?? null });
+        const blendList: DrawList = { tick: 0, width: blend.width, height: blend.height, commands: blend.commands as DrawList["commands"], marginCommands: [] };
+        const blendGeometry: HostDisplayGeometry = {
+          content: { width: blend.width, height: blend.height },
+          game: { x: 0, y: 0, width: blend.width, height: blend.height },
+          safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+        };
+        blendRenderer.render(blendList, blendGeometry, { textures: (asset) => blendTextures.get(asset) ?? null });
         const out = new Uint8Array(blend.width * blend.height * 4);
         blendGl.readPixels(0, 0, blend.width, blend.height, blendGl.RGBA, blendGl.UNSIGNED_BYTE, out);
         const expected = new Uint8Array(blend.rgba.length / 2);
@@ -183,8 +199,6 @@ export async function bootPlayerPage(bridge: PlayerHost | undefined): Promise<Pl
     report.frame = { worst, width: list.width, height: list.height };
     report.save = { gameId, path: savePath, written: written && readBack !== null && readBack.length === saveBytes.length, bytes: saveBytes.length };
     report.error = null;
-    // `presentationFrame` is exercised here too: the same letterbox geometry the browser lane asserts.
-    void presentationFrame({ mode: "letterbox", scale: 1 }, { width: list.width, height: list.height });
     void stats;
     void frame.pixels;
   } catch (error) {

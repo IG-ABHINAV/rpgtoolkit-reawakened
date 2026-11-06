@@ -660,3 +660,16 @@ entry that replaces them with numbers.
 | entry 12 | Capacitor wrapper on a device | D-6 flipped: native port and vector binding |
 | entry 13 | refactor sweep | nothing here changes it |
 | entry 14 | closing suite and the CAP-12 signal | D-1 flipped: the desktop limb runs the Tauri app; D-7 flipped: agreement claim weakens |
+
+## Close-out record
+
+Owner-approved rulings were recorded as one `## Notes` envelope, merged in PR
+#962 (merge commit `5a676ca0e`, 2026-10-31). The docs amendments — `docs/adr/`
+(ADR 0013) and `docs/spec/engine/runners.md` — are a separate docs commit, PR
+#968 (merge commit `ff7a65045`, 2026-10-31, "land the eleven approved D-1
+rulings and drop the EXE export"), which landed before the first code PR of the
+epic, so nothing precedes the docs commit in G7 terms: the docs-only ordering
+claim stands and PR #962 itself touched only `_bmad-output/`. The eleven
+rulings and the four `Source conflict:` lines carry their dated owner lines in
+the `## Notes` envelope above. Ledger entry reconciled to closed issue #926 in
+the 2026-11-03 ticket audit.

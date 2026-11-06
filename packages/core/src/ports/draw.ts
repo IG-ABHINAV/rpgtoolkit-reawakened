@@ -86,9 +86,11 @@ export type GlyphAdvance = {
 
 /**
  * Copy `src` of `source` to `dst`, nearest-neighbour sampled. `key` is the
- * colour key skipped on the untinted source (`null` for none); `alpha` is
- * 0–255; `tint` is the pre-summed per-channel offset; `iso2d` is the 2D-on-iso
- * projection flag (AD-3).
+ * colour key skipped on the sampled pixels before they are tinted (`null` for
+ * none) — for a composed picture those pixels already include their authored
+ * cell shade; `alpha` is 0–255; `tint` is the pre-summed world shading and
+ * ambient offset; `iso2d` is the 2D-on-iso projection flag (AD-3,
+ * docs/spec/engine/runners.md#blit-pipeline).
  */
 export type BlitCommand = {
   readonly kind: "blit";
@@ -171,10 +173,22 @@ export type DrawCommand =
   | PushTargetCommand
   | PopTargetCommand;
 
-/** One frame's replay: `tick`, logical resolution and ordered commands (AD-3). */
-export type DrawList = {
+/** Strict protocol-v1 frame, retained for its immutable schema and vectors. */
+export type DrawListV1 = {
   readonly tick: number;
   readonly width: number;
   readonly height: number;
   readonly commands: DrawCommand[];
 };
+
+/** Strict protocol-v2 frame with a separate author-owned Plane 3 command layer. */
+export type DrawListV2 = {
+  readonly tick: number;
+  readonly width: number;
+  readonly height: number;
+  readonly commands: DrawCommand[];
+  readonly marginCommands: DrawCommand[];
+};
+
+/** Current runner/core draw-list contract: strict v2. */
+export type DrawList = DrawListV2;

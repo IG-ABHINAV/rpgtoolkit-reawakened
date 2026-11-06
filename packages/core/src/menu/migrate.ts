@@ -22,8 +22,9 @@ export function migrateMenuSections(record: Record<string, unknown>, schema: Rec
   ] as const;
   for (const [name, currentVersion, create, validate] of owners) {
     const version = schema[name];
-    if (typeof version !== "number" || !Number.isInteger(version) || (version !== 1 && version !== currentVersion)) {
-      shapeError(`the snapshot's schema.${name} must be exactly 1 or ${currentVersion}`);
+    const previousVersion = name === "party" ? 2 : -1;
+    if (typeof version !== "number" || !Number.isInteger(version) || (version !== 1 && version !== previousVersion && version !== currentVersion)) {
+      shapeError(`the snapshot's schema.${name} must be exactly 1${previousVersion < 0 ? "" : `, ${previousVersion}`} or ${currentVersion}`);
     }
     const section = record[name];
     if (version === 1) {
@@ -33,6 +34,15 @@ export function migrateMenuSections(record: Record<string, unknown>, schema: Rec
       record[name] = create();
       schema[name] = currentVersion;
       continue;
+    }
+    if (version === 2 && name === "party") {
+      const party = recordAt(section, "party");
+      if (party.version !== 2 || Object.hasOwn(party, "stepRemainder")) {
+        shapeError("the snapshot's party section is invalid for schema version 2");
+      }
+      party.stepRemainder = 0;
+      party.version = currentVersion;
+      schema.party = currentVersion;
     }
     const issue = validate(section, actors);
     if (issue !== null) shapeError(`${issue.path}: ${issue.message}`);

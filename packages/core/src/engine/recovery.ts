@@ -198,9 +198,23 @@ function restoreTriggers(state: GameState, ledger: GameLedgerV1): void {
 export function applyRecoveryLedger(
   state: GameState,
   ledger: GameLedgerV1,
+  movementDefaults: { readonly walking: number; readonly pushing: number },
   listenerHandles: ReadonlyMap<number, number> = new Map(),
 ): void {
-  state.party = { ...state.party, members: [...ledger.party.members], selected: ledger.party.selected, steps: ledger.party.steps };
+  state.world = {
+    ...state.world,
+    movement: {
+      walking: ledger.world.movement.walking ?? movementDefaults.walking,
+      pushing: ledger.world.movement.pushing ?? movementDefaults.pushing,
+    },
+  };
+  state.party = {
+    ...state.party,
+    members: [...ledger.party.members],
+    selected: ledger.party.selected,
+    steps: ledger.party.steps,
+    stepRemainder: ledger.party.stepRemainder,
+  };
   restoreActors(state, ledger);
   state.inventory = {
     ...state.inventory,

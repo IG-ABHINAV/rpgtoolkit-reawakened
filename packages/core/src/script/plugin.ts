@@ -36,7 +36,15 @@
  * docs/adr/0004 (decisions 2 and 6); AD-8, AD-10.
  */
 
-import type { MenuOwnerPorts } from "../menu/ports.ts";
+import type {
+  InventoryAction,
+  ItemActionRequest,
+  ItemActionResult,
+  MenuAction,
+  PartyAction,
+  SectionOwnerPort,
+} from "../menu/ports.ts";
+import type { InventorySection, MenuSection, MenuStateResult, PartySection } from "../menu/model.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { RngPort } from "../ports/rng.ts";
 import type { ClockPort } from "../ports/time.ts";
@@ -74,6 +82,8 @@ export type CommandView = {
   readonly rng: RngPort;
   readonly clock: ClockPort;
   readonly state?: GameState;
+  /** Main-file mode: 0 queues whole-tile script pushes, pixel modes queue quarter-tile pushes. */
+  readonly pixelMovement?: number;
   /** Refresh the composed screen before a script-visible pixel read; host polling never invokes it. */
   readonly refreshScreen?: () => void;
   /** The script-facing media owner (MEDIA-1): `mediaPlay`, track/voice objects and their operations. */
@@ -109,6 +119,8 @@ export type CommandView = {
    * threading a position through its arguments, which the language has no
    * expression for (TOOL-5).
    */
+  /** Configured logical viewport, distinct from current physical display geometry. */
+  readonly logicalViewport?: { readonly width: number; readonly height: number };
   readonly pos?: SourcePos;
   /** Main-file game-over program selected by the boot owner. */
   readonly gameOverProgram?: string | null;
@@ -187,22 +199,66 @@ export type PluginDoc = {
   readonly requires?: readonly string[];
 };
 
-/** Menu facade screen identifiers (E-80, #588). */
-export type MenuScreenId = "main" | "items" | "equipment" | "abilities";
+/** Menu screen identifiers (E-80, #588; `shop` presents a `CallShop` session, #1234). */
+export type MenuScreenId = "main" | "items" | "equipment" | "abilities" | "shop";
+/** Every token a `menuProviders` dictionary may key; the four facade screens first, in facade order. */
+export const MENU_SCREEN_IDS: readonly MenuScreenId[] = ["main", "items", "equipment", "abilities", "shop"];
 export type MenuProviderEvent =
   | { readonly type: "enter" }
   | { readonly type: "input"; readonly key: string }
-  | { readonly type: "child.closed"; readonly screen: MenuScreenId };
+  | {
+    readonly type: "pointer";
+    readonly x: number;
+    readonly y: number;
+    readonly buttons: number;
+    readonly downs: number;
+    readonly ups: number;
+    readonly downX: number;
+    readonly downY: number;
+    readonly button: number;
+    /** 1 when the position differs from the one the provider last handled. */
+    readonly moved: number;
+    /** Press and release edges since the provider last handled the pointer. */
+    readonly newDowns: number;
+    readonly newUps: number;
+  }
+  | { readonly type: "child.closed"; readonly screen: MenuScreenId }
+  | { readonly type: "item.action.completed"; readonly result: ItemActionCompletion };
+export type ItemActionCommand = ItemActionRequest;
+export type ItemActionCompletion = ItemActionResult;
+export type ItemActionProviderResult = {
+  readonly kind: "item.action";
+  readonly state: PlainData;
+  readonly action: ItemActionCommand;
+};
+/**
+ * The menu context a native provider may use. It exposes the same owner sections a script provider
+ * sees, but not the VM's item-action preflight/commit operations: a native provider requests an
+ * `item.action` transition and the VM runs the composed operation on the calling thread.
+ */
+export type MenuProviderContext = {
+  readonly party: SectionOwnerPort<PartySection, PartyAction>;
+  readonly menu: SectionOwnerPort<MenuSection, MenuAction> & {
+    updateCurrent(input: { readonly actorId: number | null; readonly selection: number }): MenuStateResult;
+  };
+  readonly shop: {
+    readonly stock: () => readonly string[];
+    activate(sources: unknown): MenuStateResult;
+    close(): void;
+  };
+  readonly inventory: SectionOwnerPort<InventorySection, InventoryAction>;
+};
 export type MenuProviderInput = {
   readonly providerId: string;
-  readonly context: MenuOwnerPorts;
+  readonly context: MenuProviderContext;
   readonly state: PlainData;
   readonly event: MenuProviderEvent;
 };
 export type MenuProviderResult =
   | { readonly kind: "wait"; readonly state: PlainData; readonly wait: Wait }
   | { readonly kind: "open"; readonly state: PlainData; readonly screen: MenuScreenId }
-  | { readonly kind: "complete" };
+  | { readonly kind: "complete" }
+  | ItemActionProviderResult;
 export type MenuProvider = (input: MenuProviderInput) => MenuProviderResult;
 
 /** Package-scoped actor behaviour registration available during start-up. */

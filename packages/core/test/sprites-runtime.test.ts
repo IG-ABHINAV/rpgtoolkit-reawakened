@@ -1,5 +1,6 @@
-import { deepEqual, equal } from "node:assert/strict";
+import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { test } from "node:test";
+import { discardMenuFrames, type ScriptServices } from "../src/script/vm.ts";
 import {
   addActor,
   createActorService,
@@ -22,6 +23,10 @@ import {
   type Diagnostic,
   type ResolvedPlugin,
   type WorldBoard,
+  createSpriteRuntime,
+  coordLayout,
+  tileToPixel,
+  boardPixelSize,
 } from "../src/index.ts";
 
 function board(): WorldBoard {
@@ -145,9 +150,76 @@ test("hydrates compact actors, owns item threads, and keeps draw ids stable", ()
   equal(vm.threads.length, 1);
 });
 
+test("hiding an item discards its menu frames before ending its item thread", () => {
+  const vm = createVmState();
+  const runtime = createSpriteRuntime({
+    vm,
+    programRef: () => ({ kind: "inline", text: "mainmenu()\n", ir: "1" }),
+  });
+  runtime.hydrate({
+    board: board(),
+    players: [{ id: "hero", kind: "player", source: "hero.tem", x: 48, y: 63, layer: 1, controlled: true }],
+    vm,
+    programRef: () => ({ kind: "inline", text: "mainmenu()\n", ir: "1" }),
+  });
+  const thread = vm.threads[0];
+  if (thread === undefined || thread.frames[0] === undefined) throw new Error("item multitask thread was not started");
+  thread.frames[0].menuContinuation = { menuBaseDepth: 0 };
+
+  let screens = ["main", "items"];
+  const services = {
+    menuOwners: {
+      menu: {
+        read: () => ({ screens }),
+        apply: (action: { readonly screens: string[] }) => { screens = action.screens; },
+      },
+    },
+  } as unknown as ScriptServices;
+  runtime.bindItemThreadCleanup?.((itemThread) => discardMenuFrames(services, itemThread));
+
+  equal(runtime.hideItem("clerk"), true);
+  deepEqual(screens, []);
+  equal(vm.threads.some((active) => active.id === thread.id), false);
+
+  equal(runtime.showItem("clerk"), true);
+  const restarted = vm.threads[0];
+  if (restarted === undefined || restarted.frames[0] === undefined) throw new Error("item multitask thread did not restart");
+  restarted.frames[0].menuContinuation = { menuBaseDepth: 0 };
+  screens = ["main", "items"];
+  equal(runtime.removeItem("clerk"), true);
+  deepEqual(screens, []);
+  equal(vm.threads.some((active) => active.id === restarted.id), false);
+});
+
 test("sprites survive snapshot restore with an equal canonical hash", () => {
   const game = createGameState({ seed: 7 });
   game.sprites = hydrateSprites({ board: board(), players: [{ id: "hero", kind: "player", source: "hero.tem", x: 48, y: 63, layer: 1, controlled: true }] });
   const json = snapshot(game);
   equal(snapshot(restoreGameState(json)), json);
+});
+
+test("the effect applier converts tile placements through the effect's own coordType and sizeX", () => {
+  // The engine posts the board's coordType and sizeX with tile placements; a host-side sprites runtime
+  // consuming the effect must land the player on the same pixel for every layout.
+  for (const [coordType, x, y] of [[0, 2, 2], [1, 4, 4], [2, 5, 3]] as const) {
+    const layout = coordLayout(coordType);
+    const world = {
+      ...board(),
+      coordType,
+      sizeX: 32,
+      sizeY: 32,
+      width: boardPixelSize(layout, 32, 32).width,
+      height: boardPixelSize(layout, 32, 32).height,
+    } as WorldBoard;
+    const runtime = createSpriteRuntime({ section: createSpritesSection() });
+    runtime.hydrate({ board: world, players: [{ id: "hero", kind: "player", source: "hero.tem", x: 48, y: 63, layer: 1, controlled: true }] });
+    ok(runtime.applyEffect({ name: "placeplayer", args: [x, y, 1, "tile", coordType, 32] }), "the effect applied");
+    deepEqual(
+      { x: runtime.section.players[0]!.x, y: runtime.section.players[0]!.y },
+      tileToPixel(layout, 32, x, y),
+      `${layout}: the placed pixel`,
+    );
+    ok(runtime.applyEffect({ name: "placeplayer", args: [48, 63, 1, "pixel"] as never }), "a pixel effect applies as its own position");
+    deepEqual({ x: runtime.section.players[0]!.x, y: runtime.section.players[0]!.y }, { x: 48, y: 63 }, `${layout}: a pixel placement is verbatim`);
+  }
 });

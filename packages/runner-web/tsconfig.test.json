@@ -6,7 +6,7 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "rootDir": ".",
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "ES2024.Promise"],
     "types": []
   },
   "include": ["src", "test", "../../types/node-test.d.ts", "test/node-modules.d.ts"],

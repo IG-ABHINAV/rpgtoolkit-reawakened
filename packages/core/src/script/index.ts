@@ -93,6 +93,8 @@ export {
   endItemThreads,
   findBlockingThread,
   findLiveBlockingThread,
+  hasLiveBlockingThread,
+  scriptOwnsInput,
   findThread,
   cellRef,
   globalRef,
@@ -174,6 +176,11 @@ export type {
   CommandRequest,
   CommandResult,
   CommandView,
+  MenuProvider,
+  MenuProviderContext,
+  MenuProviderEvent,
+  MenuProviderInput,
+  MenuProviderResult,
   PackageCatalogueEntry,
   PluginDefinition,
   PluginDoc,
@@ -240,6 +247,7 @@ export {
   advanceScriptTick,
   collectGarbage,
   drainDiagnostics,
+  discardMenuFrames,
   createScriptServices,
   replyToRequest,
   runThreadsPhase,
@@ -276,4 +284,6 @@ export { THREAD_SPECS } from "./builtins/threads.ts";
 export { ERROR_SPECS } from "./builtins/errors.ts";
 export { FILE_SPECS } from "./builtins/files.ts";
 export { PURE_SPECS } from "./builtins/pure.ts";
+export { HOST_SPECS } from "./builtins/host.ts";
 export { createCollectingSink, createLogger, LOG_LEVELS, NULL_LOGGER } from "./logging.ts";
+export { HOST_METHOD_NAMES } from "./host-methods.ts";

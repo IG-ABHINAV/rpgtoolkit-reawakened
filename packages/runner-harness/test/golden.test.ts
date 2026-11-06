@@ -9,10 +9,10 @@ import {
 } from "../src/golden.ts";
 
 const GAMEPAD = { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 } as const;
-test("parseRun parses valid run with all 11 event kinds including non-BMP char and bytes", () => {
+test("parseRun parses v1 events with non-BMP char and bytes", () => {
   const runText = JSON.stringify({
     schema: 1,
-    ticks: 12,
+    ticks: 13,
     log: [
       {
         tick: 0,
@@ -67,7 +67,7 @@ test("parseRun parses valid run with all 11 event kinds including non-BMP char a
 
   const run = parseRun(runText);
   equal(run.schema, 1);
-  equal(run.ticks, 12);
+  equal(run.ticks, 13);
   equal(run.log.length, 12);
 
   const keyEv = run.log[0]!.event;
@@ -87,6 +87,8 @@ test("parseRun parses valid run with all 11 event kinds including non-BMP char a
   }
 });
 
+
+
 test("parseRun rejects bad files and root schema", () => {
   const badFiles: readonly { name: string; text: string }[] = [
     { name: "not json", text: "invalid-json" },
@@ -99,7 +101,7 @@ test("parseRun rejects bad files and root schema", () => {
     { name: "ticks fractional", text: JSON.stringify({ schema: 1, ticks: 3.5, log: [] }) },
     { name: "ticks string", text: JSON.stringify({ schema: 1, ticks: "3", log: [] }) },
     { name: "log not array", text: JSON.stringify({ schema: 1, ticks: 1, log: "bad" }) },
-    { name: "root extra key", text: JSON.stringify({ schema: 1, ticks: 1, log: [], extra: true }) },
+    { name: "semantic action is v2-only", text: JSON.stringify({ schema: 1, ticks: 1, log: [{ tick: 0, event: { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" } }] }) },
   ];
 
   for (const { name, text } of badFiles) {
@@ -191,6 +193,12 @@ test("parseRun rejects bad records naming record index and field", () => {
       record: [{ tick: 0, event: { ...GAMEPAD, extra: 1 } }],
       fieldSnippet: "extra: unexpected key",
     },
+    {
+      name: "legacy gamepad masks reject bits outside the historical seven-bit shape",
+      record: [{ tick: 0, event: { ...GAMEPAD, buttons: 0x80 } }],
+      fieldSnippet: "buttons: expected a 7-bit legacy button mask",
+    },
+
     {
       name: "invalid hex digits zz",
       record: [{ tick: 0, event: { kind: "asset", reqId: 1, bytes: { t: "bytes", hex: "zz" } } }],

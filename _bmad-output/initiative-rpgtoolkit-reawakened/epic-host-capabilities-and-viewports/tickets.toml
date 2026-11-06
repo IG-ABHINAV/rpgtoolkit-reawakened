@@ -1,0 +1,79 @@
+# tickets.toml — planned entries for epic-host-capabilities-and-viewports, in build order.
+
+[[entry]]
+id = 1
+tracker_id = "#1349"
+type = "story"
+title = "The HostFeatures and HostDisplayGeometry contracts and core state snapshotting"
+description = "Extends EngineInit with optional features (HostFeatures) and displayGeometry (HostDisplayGeometry) as plain JSON data. Stores them in state.features and state.display, integrating them into snapshot, restore, and state hashing (G1, G3)."
+verify = "Headless engine sessions initialize with custom feature records, snapshot and restore identically, and prove that unknown properties do not perturb the state hash."
+covers = ["CAP-12"]
+after = []
+hitl = false
+risk = "low"
+references = ["spec - docs/spec/engine/host-capabilities-and-viewports.md#host-features", "spec - docs/spec/engine/host-capabilities-and-viewports.md#display-planes"]
+
+[[entry]]
+id = 2
+tracker_id = "#1350"
+type = "story"
+title = "RPGCode built-in query functions and viewport event emitter"
+description = "Implements the author-facing RPGCode functions: hasFeature, pointerType, viewWidth, viewHeight, marginWidth, safeAreaInset, and displayAspect. Connects the AD-14 viewport.resized event to script event listeners."
+verify = "RPGCode unit tests prove that hasFeature('touch') returns expected 1/0, unknown features return 0 without error, and listening to viewportResized receives updated margin and safe area values."
+covers = ["CAP-12"]
+after = [1]
+hitl = false
+risk = "low"
+references = ["spec - docs/spec/engine/host-capabilities-and-viewports.md#display-planes"]
+
+[[entry]]
+id = 3
+tracker_id = "#1351"
+type = "story"
+title = "Runner window metrics, safe-area probe and mid-session device transition events"
+description = "Implements the host runner probe that computes physical content dimensions, safe-area insets (env(safe-area-inset-*)), and letterbox margins. Emits AD-14 device.* events when controllers connect/disconnect and viewport.resized when windows resize or rotate."
+verify = "Runner-web and desktop integration tests verify that resizing the window recalculates marginWidth and dispatches viewport.resized events to the engine."
+covers = ["CAP-12"]
+after = [1]
+hitl = false
+risk = "medium"
+references = ["spec - docs/spec/engine/host-capabilities-and-viewports.md#display-planes"]
+
+[[entry]]
+id = 4
+tracker_id = "#1352"
+type = "story"
+title = "Tier 1 author-owned touch HUD integration and margin positioning"
+description = "Validates that author-drawn UI elements using the ADR 0017 Surface API (uiBegin, uiItem, uiEnd) can be positioned inside Plane 3 letterbox margins and dispatch semantic actions on pointer release without runner chrome interference."
+verify = "Golden scene and interactive test proves that tapping custom buttons placed in letterbox margins triggers confirm and game.* actions while leaving the 4:3 gameplay viewport untouched."
+covers = ["CAP-12"]
+after = [2, 3]
+hitl = false
+risk = "medium"
+references = ["spec - docs/spec/engine/host-capabilities-and-viewports.md#touch-controls", "ruling - docs/adr/0017-input-actions-devices-and-accessibility.md"]
+
+[[entry]]
+id = 5
+tracker_id = "#1353"
+type = "story"
+title = "Tier 2 runner fallback virtual gamepad and contextual tap-to-walk"
+description = "Builds the fallback virtual D-pad and action buttons in runner-web when touch is available without an explicit custom-control declaration, using safe margins when sufficient and a translucent gameplay overlay otherwise, and dispatches movement on ground taps."
+verify = "Interactive tests cover sufficient and insufficient margins, show that a touch capability query alone retains fallback controls, and show that an explicit custom-control declaration suppresses them."
+covers = ["CAP-12"]
+after = [4]
+hitl = false
+risk = "medium"
+references = ["spec - docs/spec/engine/host-capabilities-and-viewports.md#touch-controls"]
+
+[[entry]]
+id = 6
+tracker_id = "#1354"
+type = "story"
+title = "Conformance and headless replay suite across capability variations"
+description = "Creates a headless replay suite across touch-only, gamepad-only and keyboard-only profiles, recording each profile and its subsequent changes as deterministic inputs."
+verify = "For each profile, identical game data, seed, initial host data and input log produce identical per-tick state hashes across repeated replays; differing hashed capability data is not required to produce identical hashes."
+covers = ["CAP-12"]
+after = [5]
+hitl = true
+risk = "medium"
+references = ["spec - docs/spec/engine/host-capabilities-and-viewports.md"]

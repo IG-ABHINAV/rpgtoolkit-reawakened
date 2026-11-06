@@ -189,6 +189,8 @@ Hook result objects are closed plain-data patches. `revive` accepts only `hp`; `
 
 For a stat or equipment operation, the core applies its operation-specific hook and then `statsChanged`; if the final proposed HP is positive after those patches and the actor was fallen, it invokes `revive` exactly once. The resulting `revived` transition is returned only when the final committed HP is positive; a revive patch that leaves HP non-positive produces no `revived` transition. An XP award invokes `statsChanged` only when at least one non-legacy level-up applies core stat growth; XP-only, max-level, and legacy-handoff awards do not invoke that hook.
 
+**Item-action boundary (#589; TKR engineering rule).** For the composed inventory/equipment transaction only, preparation stages hook-emitted queued events and the actor patch until inventory and actor state can commit together. Its final equipped references and bonuses must match the canonical inventory-derived projection; a conflicting valid hook patch refuses that transaction rather than changing inventory behind the hook. Failed preparation discards staged events; prior committed item-program effects and arbitrary native external side effects are not rolled back. Success publishes hook events, actor transitions and inventory events in the order specified by the [item-action contract](plugins-and-battle.md#epic-85-item-action-proposal). This restriction does not change independent actor operations.
+
 ## Standard actor and board events
 
 Notifications use past-tense lowerCamelCase names. Core actor and board events are:

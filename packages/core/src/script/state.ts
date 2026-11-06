@@ -108,6 +108,8 @@ export type Frame = {
   menuScreen?: string;
   /** Plain-data native parent continuation waiting for this RPGCode child. */
   menuContinuation?: PlainData;
+  /** Composable native/script item-action phases owned by this invocation frame. */
+  itemActions?: PlainData[];
   /** Object freed after a destructor frame returns. */
   releaseHandle?: number;
 };
@@ -137,7 +139,7 @@ export type FileHandle = {
 };
 
 /** One sprite move collected by `multiRun` before the one `movement` wait is entered (E-33). */
-export type CollectedMove = { sprite: string; until: number };
+export type CollectedMove = { sprite: string; until: number; actual?: true };
 
 /** One RPGCode thread (AD-7, AD-26). */
 export type Thread = {
@@ -402,6 +404,20 @@ export function findBlockingThread(state: Pick<VmState, "threads">): Thread | nu
     if (found === null || thread.id < found.id) found = thread;
   }
   return found;
+}
+
+/** True while any `blocking`-kind thread (an outermost program) has not finished, whether it is waiting, sleeping or ready. */
+export function hasLiveBlockingThread(state: Pick<VmState, "threads">): boolean {
+  return findLiveBlockingThread(state) !== null;
+}
+
+/**
+ * Whether a script owns the key queue (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement):
+ * a live outermost program, or any thread holding a `global` wait (a message window, prompt, menu, `wait()`,
+ * `Get()`-style key wait, battle). Gameplay input, keys and pointer clicks alike, does not move the player while this holds.
+ */
+export function scriptOwnsInput(state: Pick<VmState, "threads">): boolean {
+  return findBlockingThread(state) !== null || hasLiveBlockingThread(state);
 }
 
 /** Recompute `vm.block` from the threads; the VM calls this after every wait change. */

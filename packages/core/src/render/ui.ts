@@ -1,5 +1,7 @@
+import type { AccessibilityNode } from "../ports/accessibility.ts";
 import { assetKey } from "../formats/resolver/resolver.ts";
 import type { DrawCommand, FontRef, Rgb } from "../ports/draw.ts";
+import type { AssetKey } from "../ports/keys.ts";
 import { renderNowEnabled } from "../raster/surfaces.ts";
 import type { InputSection } from "../save/sections/input.ts";
 import type { SurfacesSection } from "../save/sections/surfaces.ts";
@@ -67,13 +69,28 @@ function background(
   }
 }
 
-function drawMessage(commands: DrawCommand[], ui: UiSection, width: number): void {
+function drawMessage(commands: DrawCommand[], ui: UiSection, width: number, graphic: AssetKey | null): void {
   if (ui.message === undefined || !ui.message.visible) return;
   const x = Math.floor((width - WINDOW_WIDTH) / 2);
   const clippedX = Math.max(0, x);
   const clippedWidth = Math.min(width, x + WINDOW_WIDTH) - clippedX;
   if (clippedWidth <= 0) return;
-  background(commands, ui, clippedX, 0, clippedWidth, WINDOW_HEIGHT, ui.message.background, ui.message.translucency);
+  if (graphic === null) background(commands, ui, clippedX, 0, clippedWidth, WINDOW_HEIGHT, ui.message.background, ui.message.translucency);
+  else {
+    // The image replaces the colour and sits 1:1 in the window from its top-left pixel
+    // (docs/spec/engine/rpgcode-functions.md#reawakened-message-window-image).
+    commands.push({
+      kind: "blit",
+      source: { asset: graphic, tile: null },
+      src: { x: clippedX - x, y: 0, w: clippedWidth, h: WINDOW_HEIGHT },
+      dst: { x: clippedX, y: 0, w: clippedWidth, h: WINDOW_HEIGHT },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: alpha(ui.message.translucency),
+      blend: "translucent",
+      iso2d: false,
+    });
+  }
   commands.push(...textCommands(ui.message.text, clippedX, 0, ui.message.color, fontOf(ui), WINDOW_WIDTH, ui.underline));
 }
 
@@ -142,12 +159,12 @@ function cursorCommand(cursor: UiCursorImage, pointer: { readonly x: number; rea
   };
 }
 
-function drawCursor(commands: DrawCommand[], ui: UiSection, input: InputSection | undefined, selection?: number): void {
+function drawCursor(commands: DrawCommand[], ui: UiSection, input: InputSection | undefined, selection?: number, cursorMapRunnerActive = true): void {
   const pointer = input?.pointer ?? { x: 0, y: 0, buttons: 0 };
   if (ui.mouseCursor !== undefined && ui.mouseCursor !== null) {
     commands.push(cursorCommand(ui.mouseCursor, pointer));
-    return;
   }
+  if (!cursorMapRunnerActive) return;
   const point = cursorMapPoint(ui, selection);
   if (point === null) return;
   const hand = ui.cursorHand ?? { asset: "media/cursors/tkr-hand.png", stretch: true, width: 32, height: 32 };
@@ -176,25 +193,80 @@ export function renderNowBlit(surfaces: SurfacesSection): DrawCommand | null {
   };
 }
 
-/** Append the deterministic UI overlay after board composition (E-55/E-60). */
-export function composeUi(ui: UiSection, width: number, height: number, input?: InputSection, includeCursor = true, cursorSelection?: number): DrawCommand[] {
+/**
+ * Append the deterministic UI overlay after board composition (E-55/E-60). `messageGraphic` is the host-resolved asset
+ * key of the message window's background image, or null while `winGraphic` is unset or its texture is not decoded yet.
+ */
+function surfaceFocusCommands(ui: UiSection): DrawCommand[] {
+  if (ui.modal != null) return [];
+  const commands: DrawCommand[] = [];
+  for (const surface of ui.actionSurfaces ?? []) {
+    const item = surface.items[surface.selection];
+    if (item === undefined || !item.enabled) continue;
+    commands.push({ kind: "rect", rect: item.bounds, rgb: { r: 255, g: 255, b: 255 }, filled: false });
+    if (item.bounds.w > 2 && item.bounds.h > 2) {
+      commands.push({ kind: "rect", rect: { x: item.bounds.x + 1, y: item.bounds.y + 1, w: item.bounds.w - 2, h: item.bounds.h - 2 }, rgb: { r: 0, g: 0, b: 0 }, filled: false });
+    }
+  }
+  return commands;
+}
+export function composeUi(ui: UiSection, width: number, height: number, input?: InputSection, includeCursor = true, cursorSelection?: number, messageGraphic: AssetKey | null = null): DrawCommand[] {
   const commands: DrawCommand[] = [];
   if (Array.isArray(ui.draws)) {
     for (const draw of ui.draws) {
       commands.push(...textCommands(draw.text, draw.x, draw.y, draw.rgb, draw.font, undefined, draw.underline, draw.cell));
     }
   }
-  drawMessage(commands, ui, width);
+  drawMessage(commands, ui, width, messageGraphic);
   drawModal(commands, ui, width, height);
   drawButtons(commands, input);
+  commands.push(...surfaceFocusCommands(ui));
   if (includeCursor) drawCursor(commands, ui, input, cursorSelection);
   return commands;
 }
 
-/** Compose only the cursor so the engine can append it after post-processing effects. */
-export function composeUiCursor(ui: UiSection, input?: InputSection, cursorSelection?: number): DrawCommand[] {
+/** Author text that crosses the game viewport is duplicated into Plane 3; hosts clip it to eligible margin cells. */
+export function composeUiMargins(ui: UiSection, width: number, height: number): DrawCommand[] {
   const commands: DrawCommand[] = [];
-  drawCursor(commands, ui, input, cursorSelection);
+  commands.push(...(ui.authorMarginCommands ?? []));
+  for (const draw of ui.draws ?? []) {
+    const layout = layoutText(draw.text, draw.font, draw.cell ? { lineHeight: draw.font.size } : undefined);
+    if (draw.x >= 0 && draw.y >= 0 && draw.x + layout.width <= width && draw.y + layout.height <= height) continue;
+    commands.push(...textCommands(draw.text, draw.x, draw.y, draw.rgb, draw.font, undefined, draw.underline, draw.cell));
+  }
+  commands.push(...surfaceFocusCommands(ui).filter((command) => {
+    if (command.kind !== "rect") return false;
+    const rect = command.rect;
+    return rect.x < 0 || rect.y < 0 || rect.x + rect.w > width || rect.y + rect.h > height;
+  }));
+  return commands;
+}
+export function uiAccessibilityTree(ui: UiSection): readonly AccessibilityNode[] {
+  return (ui.actionSurfaces ?? []).map((surface) => ({
+    id: `surface:${surface.owner}:${surface.id}`,
+    role: surface.role,
+    label: surface.id,
+    value: null,
+    state: { disabled: false, selected: false, checked: null },
+    focused: false,
+    bounds: { ...surface.bounds },
+    children: surface.items.map((item, index) => ({
+      id: `${surface.owner}:${surface.id}:${item.id}`,
+      role: item.role,
+      label: item.label,
+      value: item.value,
+      state: { disabled: !item.enabled, selected: index === surface.selection, checked: null },
+      focused: index === surface.selection && item.enabled,
+      bounds: { ...item.bounds },
+      children: [],
+    })),
+  }));
+}
+
+/** Compose the pointer and, only during its blocking runner, the cursor-map hand. */
+export function composeUiCursor(ui: UiSection, input: InputSection | undefined, cursorSelection: number | undefined, cursorMapRunnerActive: boolean): DrawCommand[] {
+  const commands: DrawCommand[] = [];
+  drawCursor(commands, ui, input, cursorSelection, cursorMapRunnerActive);
   return commands;
 }
 

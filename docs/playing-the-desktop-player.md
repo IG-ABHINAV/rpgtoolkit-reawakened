@@ -9,6 +9,7 @@ The desktop player is a small Electron window that opens a packaged game and run
 | What works | Limits |
 |---|---|
 | `pnpm desktop:run --package <your.tpk>` opens any packaged game that has its `.tpk.json` descriptor beside it. A macOS launch of a small authored package showed that package's own board on the canvas, with the status reporting a player position. | This is one observed package, not a claim that every game is playable. |
+| Closing the game window ends the game: the window, the player process and the `pnpm desktop:run` command all stop, including on macOS, where an application usually stays open after its last window closes. | — |
 | Keyboard movement works in the Electron window: `pnpm desktop:input` sends a trusted right-arrow key event to the running player and the reported position moves one 32-pixel step (`208, 191` → `240, 191` on the authored probe package). | Pointer input (click to walk) is wired but not yet proven the same way. |
 | The window shows the game at the resolution its own main file asks for — 640×480, 800×600, 1024×768 or a custom size. The whole frame fits and is centred on black. | The window starts at 960×720 and can be resized. The picture normally uses whole-number scaling; if 1× cannot fit, it shrinks fractionally to keep the whole frame visible. |
 | A board larger than the frame scrolls: the camera follows the player and clamps to the board's edges. A smaller board is centred. | — |
@@ -75,7 +76,7 @@ These are the current expected values committed in `golden/regression/closing.js
 
 A macOS launch showed the room on the attached canvas, with the title/menu text still overlaid. The status showed a player position. The browser interaction test, rather than that desktop observation, proves the right-arrow movement described above.
 
-`pnpm desktop:run` builds the `demo` package for you when you leave `--package` off, and passes the player's other flags through unchanged (`--serve <dir>`, `--page <path>`, `--devtools`, `--quit-after`, `--report <file>`).
+`pnpm desktop:run` builds the `demo` package for you when you leave `--package` off, and passes the player's other flags through unchanged (`--serve <dir>`, `--page <path>`, `--devtools`, `--report <file>`). Close the window to quit: the game does not keep running in the background, and the command you started exits with it.
 
 ## Operating-system notes
 

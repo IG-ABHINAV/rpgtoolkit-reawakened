@@ -4,7 +4,7 @@ import { AUDIO_SCHEMA_VERSION, createAudioSection, createTrack, type AudioStateV
 import { ScriptError } from "../script/errors.ts";
 import { isRecord } from "../script/cells.ts";
 import type { Diagnostic } from "../ports/engine.ts";
-import { refuseNewerFrameIr, refuseNewerIr, restoreGameState } from "./snapshot.ts";
+import { refuseNewerFrameIr, refuseNewerIr, restoreGameState, type RestoreOptions } from "./snapshot.ts";
 import { SCHEMA_VERSIONS } from "./state.ts";
 import type { GameState } from "./state.ts";
 
@@ -92,11 +92,10 @@ function parseRecoveryAssetManifest(value: unknown): RecoveryAssetManifest {
 /** Serialize an engine checkpoint with asset fingerprints for the later recovery launch. */
 export function snapshotRecoveryCandidate(state: GameState, recoveryAssets: RecoveryAssetManifest): string {
   const manifest = parseRecoveryAssetManifest(recoveryAssets);
-  const root = JSON.parse(snapshotGameSave(state)) as Record<string, unknown>;
-  return canon({ ...root, recoveryAssets: manifest } as never);
+  return canon({ ...gameSaveRoot(state), recoveryAssets: manifest } as never);
 }
 
-function restoreGameSaveEnvelope(json: string, currentAudio: AudioStateV2, recovery = false): {
+function restoreGameSaveEnvelope(json: string, currentAudio: AudioStateV2, recovery = false, restoreOptions: RestoreOptions = {}): {
   readonly save: RestoredGameSave;
   readonly recoveryAssets: RecoveryAssetManifest | null;
 } {
@@ -167,28 +166,38 @@ function restoreGameSaveEnvelope(json: string, currentAudio: AudioStateV2, recov
     settings: currentAudio.settings,
   };
   const diagnostics: Diagnostic[] = [];
-  const state = restoreGameState(canon(tagNonFinite(root) as never), diagnostics, recovery ? { requireCurrentIr: true } : {});
+  const state = restoreGameState(canon(tagNonFinite(root) as never), diagnostics, { ...restoreOptions, ...(recovery ? { requireCurrentIr: true } : {}) });
   if (state.time.tick !== tick) shape("audio.tick must match time.tick");
   state.audio = resetPlayback(currentAudio);
   return { save: { state, audio: projection as unknown as AudioSaveProjection, diagnostics }, recoveryAssets };
 }
 
 /** Validate and migrate an untrusted canonical game save against the live game's audio configuration. */
-export function restoreGameSave(json: string, currentAudio: AudioStateV2): RestoredGameSave {
-  return restoreGameSaveEnvelope(json, currentAudio).save;
+export function restoreGameSave(json: string, currentAudio: AudioStateV2, options: RestoreOptions = {}): RestoredGameSave {
+  return restoreGameSaveEnvelope(json, currentAudio, false, options).save;
 }
 
 /** Validate a checkpoint candidate and its recovery-only asset fingerprints. */
-export function restoreRecoveryCandidate(json: string, currentAudio: AudioStateV2): RestoredRecoveryCandidate {
-  const restored = restoreGameSaveEnvelope(json, currentAudio, true);
+export function restoreRecoveryCandidate(json: string, currentAudio: AudioStateV2, options: RestoreOptions = {}): RestoredRecoveryCandidate {
+  const restored = restoreGameSaveEnvelope(json, currentAudio, true, options);
   if (restored.recoveryAssets === null) throw new ScriptError("recovery.assets-missing", "the recovery candidate has no asset fingerprint manifest");
   return { ...restored.save, recoveryAssets: restored.recoveryAssets };
 }
 
+/** Build the same projection for normal saves and recovery candidates. */
+function gameSaveRoot(state: GameState): Record<string, unknown> {
+  const root = tagNonFinite(state) as Record<string, unknown>;
+  const input = { ...(root.input as Record<string, unknown>) };
+  delete input.registeredActions;
+  delete input.actionRegistry;
+  delete input.actionOrder;
+  delete input.controlActions;
+  return { ...root, input, audio: audioSaveProjection(state.audio, state.time.tick) };
+}
+
 /** Serialize the complete canonical game state while keeping only audio playback in a game save. */
 export function snapshotGameSave(state: GameState): string {
-  const root = tagNonFinite(state) as Record<string, unknown>;
-  return canon({ ...root, audio: audioSaveProjection(state.audio, state.time.tick) } as never);
+  return canon(gameSaveRoot(state) as never);
 }
 
 function shape(path: string): never {

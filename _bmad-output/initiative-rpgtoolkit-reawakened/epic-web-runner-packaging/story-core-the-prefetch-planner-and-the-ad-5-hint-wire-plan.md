@@ -85,3 +85,20 @@ hint's own counter — is the entry's most important line, and the both-ways tes
 
 The runner's consumer (load modes, the service worker and the decode-ahead worker are entry 9), bank prefetch policy
 (entry 9), and the two table shares named in decision 4. The live interactive player page is entry 16.
+
+## Close-out record
+
+Merged in PR #1001 (merge commit `c6c2f620b`, 2026-11-01). Verified: the
+engine emits the ruled tiered hints for a board with music, a battle
+background and menu sounds; `HOST_REQUEST_KINDS` and the request union compile
+and an exhaustive switch keeps `never`; `pnpm golden` and `pnpm closing`
+hashes are identical with and without hint consumption, and the
+withholding-host and undecodable-background edges were later hardened by PR
+#1144 (`4eb1c9f8`) for #1081/#1142. Honest caveat, recorded rather than
+rewritten into the verify: the verify's latency-fuzz replay test was never
+implemented; the order-independence evidence instead lives in `engine-boot.test.ts`
+("boot keeps simultaneous asset requests waiting across delayed replies and
+hashes their completion independent of order", ~line 2471) plus the golden
+suites' per-tick batching rows (1/3/5/7 and the mocked batching rows), which
+are the substitute evidence for the same property. Ledger entry reconciled to
+closed issue #933.

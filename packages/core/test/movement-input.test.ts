@@ -23,7 +23,8 @@ function fixture(): Fixture {
 
 function eventOf(raw: Record<string, unknown>): InputEvent | null {
   if (raw.kind === "key") return { kind: "key", name: String(raw.code), code: String(raw.code), char: null, down: raw.down === true, ...(raw.repeat === true ? { repeat: true } : {}) };
-  if (raw.kind === "pointer") return { kind: "pointer", x: Number(raw.x), y: Number(raw.y), buttons: 1 };
+  if (raw.kind === "pointer") return { kind: "pointer", x: Number(raw.x), y: Number(raw.y), buttons: Number(raw.buttons ?? (raw.phase === "up" ? 0 : 1)) };
+  if (raw.kind === "pointer.cancel") return { kind: "pointer.cancel" };
   if (raw.kind === "gamepad") return raw as unknown as InputEvent;
   return null;
 }
@@ -62,9 +63,9 @@ test("input-replay-button-slots drives every recorded case through core input st
       const held = ["up", "down", "left", "right", "confirm", "cancel", "menu"].filter((action) => state.actions[action] === true);
       deepEqual(held, expected.held ?? [], `${inputCase.setup.bindings.keys} tick ${tick} held`);
       equal(intent(state), expected.intent ?? null, `tick ${tick} intent`);
-      const queue = state.keys.slice(previousKeys).map((key) => key.action === undefined ? { seq: key.seq, key: key.name } : key.action.startsWith("slot:") ? { seq: key.seq, key: key.name, via: key.action } : { seq: key.seq, key: key.name });
+      const queue = state.keys.slice(previousKeys).map((key) => key.action !== null && key.action.startsWith("slot:") ? { seq: key.seq, key: key.name, via: key.action } : { seq: key.seq, key: key.name });
       previousKeys = state.keys.length;
-      const clicks = state.pendingClicks.slice(previousClicks);
+      const clicks = state.pendingClicks.slice(previousClicks).map(({ x, y }) => ({ x, y }));
       previousClicks = state.pendingClicks.length;
       if (expected.click === undefined) equal(clicks.length, 0, `tick ${tick} click`);
       else deepEqual(clicks, [{ x: expected.click.board[0], y: expected.click.board[1] }], `tick ${tick} click`);

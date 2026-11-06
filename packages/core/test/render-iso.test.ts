@@ -121,17 +121,6 @@ test("shading is read from the stored grid, which is (sizeX + sizeY) wide on rot
   deepEqual(hit, [{ at: `${centre.x - 32},${centre.y - 16 + 100}`, tint: { r: 9, g: 8, b: 7 } }]);
 });
 
-test("a tile-built sprite on an isometric board takes its shade from the tile under its cell", () => {
-  const stacked = board("stacked", () => null, {
-    shadeLayers: [{ castLayer: 0, records: [{ runCount: 7, r: 0, g: 0, b: 0 }, { runCount: 1, r: 5, g: 6, b: 7 }, { runCount: 7, r: 0, g: 0, b: 0 }] }],
-  });
-  // Cell centre (96, 32) is the centre of stacked tile (2, 3), stored cell 2*3 + 1 = 7.
-  const sprite: SpriteDraw = { id: "p", key: "player", layer: 1, x: 96, y: 48, drawId: 1, cells: [{ x: 0, y: 0, tile: { asset: assetKey("tiles/art.tst"), tile: 1 } }] };
-  const drawn = blits(composeBoard(view(stacked, { sprites: [sprite], camera: { x: 0, y: 0 } })).commands);
-  equal(drawn.length, 1);
-  deepEqual(drawn[0]?.tint, { r: 5, g: 6, b: 7 });
-});
-
 test("sprites keep strict (layer, projected y, drawId) order on isometric boards", () => {
   const b = board("rotated", () => null);
   const sprites: SpriteDraw[] = [

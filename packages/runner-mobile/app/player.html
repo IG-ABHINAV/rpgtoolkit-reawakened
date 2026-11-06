@@ -2,13 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:;" />
     <title>player</title>
   </head>
-  <body style="margin:0;height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;color:#fff;font-family:system-ui,sans-serif;overflow:hidden">
-    <canvas id="screen" style="display:block;flex:0 0 auto;max-width:100%;max-height:100%"></canvas>
-    <pre id="live-status" style="position:fixed;bottom:0;left:0;right:0;margin:0;padding:8px;background:rgba(0,0,0,0.7);font-size:12px;z-index:1"></pre>
+  <body style="box-sizing:border-box;margin:0;height:100dvh;display:grid;grid-template-rows:minmax(0,1fr) auto;background:#000;color:#fff;font-family:system-ui,sans-serif;overflow:hidden">
+    <div id="viewport" style="display:grid;place-items:center;min-width:0;min-height:0;overflow:hidden">
+      <canvas id="screen" style="display:block;width:100%;height:100%;touch-action:none" aria-label="Game screen"></canvas>
+    </div>
+    <pre id="live-status" style="min-width:0;min-height:0;max-height:20dvh;overflow:auto;margin:0;padding:8px;background:rgba(0,0,0,0.7);font-size:12px"></pre>
     <script src="/apps/player-mobile.js"></script>
   </body>
 </html>

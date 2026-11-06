@@ -236,7 +236,7 @@ test("an empty batch changes nothing and maxTicks clamps the advance", () => {
 test("drawList is a pure function of state and has no commands", () => {
   const host = tracerHost();
   const before = host.drawList(0);
-  deepEqual(before, { tick: 0, width: 320, height: 240, commands: [] });
+  deepEqual(before, { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] });
 
   host.advance(1, []);
   deepEqual(host.drawList(0), host.drawList(1));

@@ -83,6 +83,26 @@ test("the mobile live page reaches a board, moves on input, and writes a save", 
 
   // The demo package has a start-up program/title sequence; feed Enter until it reaches a board.
   await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 90_000 });
+  const title = await page.evaluate(() => {
+    const report = window.__live;
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    if (report === undefined || canvas === null) return null;
+    const gl = canvas.getContext("webgl2");
+    if (gl === null) return null;
+    const pixels = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+    gl.readPixels(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let nonBlackPixels = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index] !== 0 || pixels[index + 1] !== 0 || pixels[index + 2] !== 0) nonBlackPixels += 1;
+    }
+    return { report, width: gl.drawingBufferWidth, height: gl.drawingBufferHeight, nonBlackPixels };
+  });
+  expect(title).not.toBeNull();
+  expect(title!.report.board).toBeNull();
+  expect(title!.report.render).toMatchObject({ drawn: expect.any(Number), deferred: 0, diagnostics: [] });
+  expect(title!.report.render!.drawn).toBeGreaterThan(0);
+  expect(Object.values(title!.report.render!.deferredByKind).every((count) => count === 0)).toBe(true);
+  expect(title!.nonBlackPixels).toBeGreaterThanOrEqual(Math.max(64, Math.ceil(title!.width * title!.height * 0.001)));
   for (let presses = 0; presses < 10; presses += 1) {
     const onBoard = await page.evaluate(() => {
       const live = window.__live;

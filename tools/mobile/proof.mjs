@@ -9,12 +9,12 @@
 // rotates the device, then relaunches and checks the page's host-blob-presence
 // probe. The field records existence, not game-state restoration.
 
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
+import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -53,38 +53,8 @@ function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
 
 mkdirSync(output, { recursive: true });
 
-function runAdbWithTimeout(timeoutMs, ...args) {
-  try {
-    return {
-      status: 0,
-      stdout: execFileSync("adb", args, {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        timeout: timeoutMs,
-        maxBuffer: 20 * 1024 * 1024,
-      }).trim(),
-      stderr: "",
-    };
-  } catch (error) {
-    return {
-      status: error.status ?? null,
-      stdout: String(error.stdout ?? "").trim(),
-      stderr: String(error.stderr ?? error.message ?? "").trim(),
-    };
-  }
-}
-
 function runAdb(...args) {
   return runAdbWithTimeout(ADB_COMMAND_TIMEOUT_MS, ...args);
-}
-
-function adbWithTimeout(timeoutMs, ...args) {
-  const result = runAdbWithTimeout(timeoutMs, ...args);
-  if (result.status !== 0) {
-    const status = result.status === null ? "" : ` (exit ${result.status})`;
-    throw new Error(`adb ${args.join(" ")} failed${status}: ${result.stderr || result.stdout || "no output"}`);
-  }
-  return result.stdout;
 }
 
 function adb(...args) {
@@ -148,6 +118,60 @@ async function captureReading(page, label, options) {
   assertDocumentTitle(pageReport, captured.documentTitle, label);
   return { report: pageReport, documentTitle: captured.documentTitle };
 }
+async function captureCanvasContent(page) {
+  return protocolCall("reading rendered mobile canvas pixels", () => page.evaluate(() => {
+    const canvas = document.querySelector("#screen");
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error("the mobile screen canvas is absent");
+    const gl = canvas.getContext("webgl2");
+    if (gl === null) throw new Error("the mobile screen has no WebGL2 context");
+    const width = gl.drawingBufferWidth;
+    const height = gl.drawingBufferHeight;
+    if (width <= 0 || height <= 0) throw new Error(`the mobile drawing buffer is empty: ${width}x${height}`);
+    const pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let nonBlackPixels = 0;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index] === 0 && pixels[index + 1] === 0 && pixels[index + 2] === 0) continue;
+      nonBlackPixels += 1;
+      const pixel = index / 4;
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+    return {
+      width,
+      height,
+      nonBlackPixels,
+      nonBlackRatio: nonBlackPixels / (width * height),
+      bounds: nonBlackPixels === 0 ? null : { minX, minY, maxX, maxY },
+    };
+  }));
+}
+
+function assertTitleRendering(reading, canvasContent) {
+  const render = reading.report.render;
+  if (render === null || typeof render !== "object" ||
+    !Number.isSafeInteger(render.drawn) || render.drawn <= 0 ||
+    !Number.isSafeInteger(render.deferred) || render.deferred !== 0 ||
+    render.deferredByKind === null || typeof render.deferredByKind !== "object" ||
+    Array.isArray(render.deferredByKind) ||
+    Object.values(render.deferredByKind).some((count) => !Number.isSafeInteger(count) || count !== 0) ||
+    !Array.isArray(render.diagnostics) || render.diagnostics.length !== 0) {
+    throw new Error(`title frame did not render completely: ${JSON.stringify(render)}`);
+  }
+  const minimumContentPixels = Math.max(64, Math.ceil(canvasContent.width * canvasContent.height * 0.001));
+  if (canvasContent.nonBlackPixels < minimumContentPixels) {
+    throw new Error(`title canvas is black or lacks visible content: ${JSON.stringify({ canvasContent, minimumContentPixels })}`);
+  }
+}
+
 
 async function screenshot(page, name) {
   const path = join(output, `${name}.png`);
@@ -405,7 +429,7 @@ function captureFailureEvidence(error) {
 }
 async function main() {
   adb("wait-for-device");
-  adb("install", "-r", apk);
+  installApk(apk);
   if (process.env.CI === "true") {
     const cleared = adb("shell", "pm", "clear", appId);
     if (cleared !== "Success") throw new Error(`could not clear Android app data for a fresh CI proof: ${cleared}`);
@@ -414,9 +438,14 @@ async function main() {
   let browser = initial.browser;
   let page = initial.page;
   try {
-    const titleCandidate = await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the live title report");
+    const titleCandidate = await waitFor(page,
+      (value) => value !== null && value.tick > 30 && value.render !== undefined,
+      "waiting for the live rendered title report");
     if (titleCandidate.board !== null) throw new Error(`title checkpoint unexpectedly already has a board: ${JSON.stringify(titleCandidate)}`);
     const titleReading = await captureReading(page, "title", { needsBoard: false, needsSave: false });
+    const titleCanvas = await captureCanvasContent(page);
+    assertTitleRendering(titleReading, titleCanvas);
+    titleReading.canvas = titleCanvas;
     if (titleReading.report.save?.blobPresent !== false) {
       throw new Error(`first launch found an existing host blob; the proof requires clean app data: ${JSON.stringify(titleReading.report.save)}`);
     }

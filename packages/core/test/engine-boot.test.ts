@@ -14,14 +14,19 @@ import { TextDecoder, TextEncoder } from "node:util";
 import {
   actorFromSource,
   addActor,
-  assetKey,
+  applyInputEvent,
   createAssetIndex,
   createSpriteRuntime,
+  createVmState,
   createEmptyBoard,
+  createEmptyItem,
   createEmptyCharacter,
   enqueueDirectionMove,
   IR_VERSION,
   BATTLE_BACKGROUND_MAGIC,
+  BinaryReader,
+  readBoard,
+  readMainFile,
   createEmptyMainFile,
   ENGINE_DEFAULT_MANIFEST,
   hashDrawList,
@@ -30,6 +35,9 @@ import {
   nextUint32,
   createEngine,
   PACKAGE_ROOT,
+  inputPhaseRegistration,
+  movementPhaseRegistration,
+  triggerPhaseRegistration,
   runMovementPhase,
   writeBattleBackground,
   writeBoard,
@@ -40,9 +48,21 @@ import {
   projectGameLedger,
   registerActorObject,
   restoreRecoveryCandidate,
+  registerGameAction,
+  restoreGameState,
+  snapshot,
   snapshotGameSave,
   startProgram,
   startThread,
+  assetKey,
+  placeplayerPixel,
+  coordLayout,
+  tileToPixel,
+  fileProgramRef,
+  resolveProgram,
+  type AssetKey,
+  loadPackage,
+  writeDistributionPackage,
 } from "../src/index.ts";
 import { engineEffect, pluginManifestFor, resolveManifestPlugins } from "../src/engine/boot.ts";
 import { hashWithRequestCounter } from "./hash-projections.ts";
@@ -52,13 +72,14 @@ import type { AudioCue } from "../src/ports/audio.ts";
 import { BUILTIN_TRACKS } from "../src/audio/model.ts";
 import { createAudioRuntime } from "../src/audio/runtime.ts";
 import { queueNativeEvent } from "../src/events/emitter.ts";
+import { BUNDLED as stockMenuAssets, catalogue as stockMenuCatalogue } from "./stock-menu-rig.ts";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(testDir, "..", "..", "..");
 const encoder = new TextEncoder();
 
 type Files = Map<string, Uint8Array>;
-type BoardSpec = { readonly music?: string; readonly enter?: string; readonly threads?: readonly string[]; readonly tiles?: readonly [number, number]; readonly start?: readonly [number, number]; readonly battleBackground?: string };
+type BoardSpec = { readonly music?: string; readonly enter?: string; readonly threads?: readonly string[]; readonly tiles?: readonly [number, number]; readonly start?: readonly [number, number]; readonly battleBackground?: string; readonly keyTrigger?: boolean; readonly coordType?: number; /** A step-on region centred on the arrival tile's own-layout pixel, to pin send-arrival deactivation. */ readonly arrivalRegion?: { readonly tile: readonly [number, number] } };
 type GameSpec = {
   readonly startup?: string;
   readonly initChar?: string;
@@ -70,6 +91,7 @@ type GameSpec = {
   /** The TKR package names of the main file's package-list extension, in order. */
   readonly packages?: readonly string[];
   readonly audioSettings?: MainFileAudioSettings | null;
+  readonly pixelMovement?: number;
   readonly soundFonts?: readonly string[];
   /** Battle background files by filename; they are added under `Bkrounds/`. */
   readonly battleBackgrounds?: Readonly<Record<string, { readonly music: string; readonly menuMoveSound: string; readonly menuChooseSound: string; readonly readySound: string; readonly cantDoSound: string }>>;
@@ -86,17 +108,39 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
 
 function boardBytes(spec: BoardSpec): Uint8Array {
   const [sizeX, sizeY] = spec.tiles ?? [40, 30];
-  const cells = sizeX * sizeY;
   const empty = createEmptyBoard();
+  const layout = coordLayout(spec.coordType ?? 0);
+  // Isometric boards store the projected grid, which is (sizeX + sizeY) square for both layouts.
+  const cells = layout === "2d" ? sizeX * sizeY : (sizeX + sizeY) ** 2;
+  const arrivalRegion = spec.arrivalRegion === undefined ? [] : (() => {
+    const centre = tileToPixel(layout, sizeX, spec.arrivalRegion.tile[0], spec.arrivalRegion.tile[1]);
+    return [{
+      program: "arrival.prg", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+      activate: 0, activationType: 0, repeatDistance: 0, layer: 1,
+      // A square no bigger than the player's base around the destination tile's own-layout pixel.
+      points: [{ x: centre.x - 6, y: centre.y - 6 }, { x: centre.x + 6, y: centre.y - 6 }, { x: centre.x + 6, y: centre.y + 6 }, { x: centre.x - 6, y: centre.y + 6 }],
+      closed: 1, handle: "arrival-region",
+    }];
+  })();
   return unwrap(writeBoard({
     ...empty,
     sizeX,
     sizeY,
     sizeL: 1,
+    coordType: spec.coordType ?? 0,
     tileMatrix: Array.from({ length: cells }, () => 0),
     tileRuns: [{ lutIndex: 0, count: cells, marker: true }],
     threads: [...(spec.threads ?? [])],
     layerTitles: ["", ""],
+    programs: [
+      ...(spec.keyTrigger ? [{
+        program: "trigger.prg", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+        activate: 0, activationType: 1, repeatDistance: 0, layer: 1,
+        points: [{ x: 32, y: 32 }, { x: 96, y: 32 }, { x: 96, y: 96 }, { x: 32, y: 96 }],
+        closed: 1, handle: "start-trigger",
+      }] : []),
+      ...arrivalRegion,
+    ],
     properties: {
       ...empty.properties,
       backgroundMusic: spec.music ?? "",
@@ -126,6 +170,7 @@ function authorGame(spec: GameSpec): AuthoredGame {
     projectPath: spec.project ?? "",
     startupPrg: spec.startup ?? "",
     initBoard: spec.initBoard ?? "start.brd",
+    pixelMovement: spec.pixelMovement ?? 0,
     initChar: spec.initChar ?? "",
     plugins: (spec.plugins ?? []).map((pluginFile) => ({ enabled: 0, pluginFile })),
     audioSettings: spec.audioSettings ?? null,
@@ -199,8 +244,8 @@ function makeDoubles(
             sprites.push(effect);
             if (effect.name === "createplayer") players.push(effect.args[0] ?? null);
             if (effect.name === "placeplayer") {
-              const [x, y, , unit] = effect.args as [number, number, number, string];
-              position = unit === "tile" ? { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 } : { x, y };
+              const [x, y, , unit, coordType, sizeX] = effect.args as [number, number, number, string, number, number];
+              position = placeplayerPixel(x, y, unit, coordType, sizeX);
             }
           },
         },
@@ -249,7 +294,7 @@ function run(engine: Engine, files: Files, ticks: number, inputs: readonly Input
   throw new Error("the host loop did not settle");
 }
 
-function bootEngine(game: AuthoredGame, doubles: Doubles, packageCatalogue?: readonly PackageCatalogueEntry[], plugins?: readonly ResolvedPlugin[], recoveryCandidate?: Uint8Array, spriteRuntime?: SpriteRuntime): Engine {
+function bootEngine(game: AuthoredGame, doubles: Doubles, packageCatalogue?: readonly PackageCatalogueEntry[], plugins?: readonly ResolvedPlugin[], recoveryCandidate?: Uint8Array, spriteRuntime?: SpriteRuntime, bundled?: EngineInit["bundled"]): Engine {
   return createEngine({
     seed: 11,
     assetIndex: game.index,
@@ -264,6 +309,7 @@ function bootEngine(game: AuthoredGame, doubles: Doubles, packageCatalogue?: rea
     ...(plugins === undefined ? {} : { plugins: [...resolveManifestPlugins(ENGINE_DEFAULT_MANIFEST).plugins, ...plugins] }),
     ...(recoveryCandidate === undefined ? {} : { recoveryCandidate }),
     ...(spriteRuntime === undefined ? {} : { spriteRuntime }),
+    ...(bundled === undefined ? {} : { bundled }),
     ...doubles.options,
   });
 }
@@ -283,6 +329,626 @@ const SCRIPTED: GameSpec = {
     "bg.prg": "threadsleep(getthreadid(), 0)\n",
   },
 };
+for (const [pixelMovement, expectedDistance] of [[0, 64], [1, 64], [2, 16]] as const) {
+  test(`RPGCode push and pushitem use the loaded main-file mode with queued directions (${pixelMovement}) (#1283)`, () => {
+    const game = authorGame({
+      initChar: "hero.tem",
+      pixelMovement,
+      boards: { "start.brd": { enter: "enter.prg" } },
+      programs: { "enter.prg": 'scriptRan = 1\nwait()\npush("E,E")\npushitem(0, "S,S")\nend()\n' },
+    });
+    const runtime = createSpriteRuntime();
+    let state: GameState | null = null;
+    const engine = createEngine({
+      seed: 11,
+      assetIndex: game.index,
+      assetRoot: game.root,
+      mainFile: game.main,
+      gameIdentity: "push-mode-test",
+      startup: { presence: { hasPlayer: () => runtime.hasPlayer() }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+      width: 320,
+      height: 240,
+      maxTicks: 1200,
+      spriteRuntime: runtime,
+      phaseRegistrations: [
+        inputPhaseRegistration({ pixelMovement }),
+        movementPhaseRegistration({ pixelMovement }),
+        { phase: "audio", run: (nextState) => { state = nextState; } },
+      ],
+    });
+    const currentState = (): GameState | null => state;
+    const boot = run(engine, game.files, 1);
+    deepEqual(boot.diagnostics, []);
+    let parked = false;
+    for (let guard = 0; guard < 300 && !parked; guard += 1) {
+      const boot = run(engine, game.files, 1);
+      deepEqual(boot.diagnostics, []);
+      parked = currentState()?.vm.threads.some((thread) => thread.wait?.kind === "input.key") ?? false;
+    }
+    const runningState = currentState();
+    if (runningState === null) throw new Error("the engine did not advance");
+    equal(runningState.engine.boot?.stage, "running", "the actual board finished loading before the script starts");
+    equal(runningState.vm.globals.scriptran, 1, "the board enter program ran");
+    ok(parked, "RPGCode is parked at wait before the movement commands");
+    const item = actorFromSource({
+      id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+    }, runningState.world.board ?? null, 0, 0);
+    runningState.sprites.items = [item];
+    runtime.section.items = [item];
+    const pressed = run(engine, game.files, 1, [{
+      tick: runningState.time.tick,
+      event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true },
+    }]);
+    deepEqual(pressed.diagnostics, []);
+    const player = runningState.sprites.players[0];
+    ok(player !== undefined && (player.queue.moves.length > 0 || player.movement.active !== null), "push queued its first scripted direction");
+    const settled = run(engine, game.files, 600);
+    deepEqual(settled.diagnostics, []);
+    equal(runningState.sprites.players[0]?.x, 64 + expectedDistance, "the player follows both scripted east steps");
+    equal(runningState.sprites.items[0]?.y, 160 + expectedDistance, "the item follows both scripted south steps");
+  });
+}
+function pushFixture(program: string, pixelMovement: number) {
+  const game = authorGame({
+    initChar: "hero.tem",
+    pixelMovement,
+    boards: { "start.brd": { enter: "enter.prg" } },
+    programs: { "enter.prg": `wait()\n${program}\n` },
+  });
+  const runtime = createSpriteRuntime();
+  let state: GameState | null = null;
+  const engine = createEngine({
+    seed: 11,
+    assetIndex: game.index,
+    assetRoot: game.root,
+    mainFile: game.main,
+    gameIdentity: "scripted-push-contract-test",
+    startup: { presence: { hasPlayer: () => runtime.hasPlayer() }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    width: 320,
+    height: 240,
+    maxTicks: 1200,
+    spriteRuntime: runtime,
+    phaseRegistrations: [
+      inputPhaseRegistration({ pixelMovement }),
+      movementPhaseRegistration({ pixelMovement }),
+      { phase: "audio", run: (nextState) => { state = nextState; } },
+    ],
+  });
+  const currentState = (): GameState => {
+    if (state === null) throw new Error("the engine did not advance");
+    return state;
+  };
+  deepEqual(run(engine, game.files, 1).diagnostics, []);
+  let parked = false;
+  for (let guard = 0; guard < 300 && !parked; guard += 1) {
+    deepEqual(run(engine, game.files, 1).diagnostics, []);
+    parked = currentState().vm.threads.some((thread) => thread.wait?.kind === "input.key");
+  }
+  equal(currentState().engine.boot?.stage, "running");
+  ok(parked, "the real board-entry program is parked at wait()");
+  const pressA = () => {
+    const current = currentState();
+    return run(engine, game.files, 1, [{
+      tick: current.time.tick,
+      event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true },
+    }]);
+  };
+  return { game, engine, runtime, state: currentState, pressA };
+}
+
+
+for (const flags of [0, 4]) {
+  test(`RPGCode push moves its explicitly named player and waits for that player (${flags}) (#1295)`, () => {
+    const fixture = pushFixture(`push("E", "ally", ${flags})\ncontinued = 1\nend()`, 2);
+    const state = fixture.state();
+    const hero = state.sprites.players[0];
+    if (hero === undefined) throw new Error("the hero was not hydrated");
+    const ally = {
+      ...hero,
+      id: "ally",
+      index: 1,
+      x: 160,
+      queue: { moves: [], waypoint: null },
+      movement: { ...hero.movement, active: null, waitTicks: 0 },
+      state: "waiting" as const,
+    };
+    state.sprites.players = [hero, ally];
+    fixture.runtime.section.players = [hero, ally];
+
+    deepEqual(fixture.pressA().diagnostics, []);
+    const pushed = fixture.state();
+    const wait = pushed.vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+    equal(wait?.kind, "sprite.movement");
+    if (wait?.kind === "sprite.movement") equal(wait.actor, "ally");
+    equal(pushed.sprites.players.find((value) => value.id === hero.id)?.x, hero.x, "the selected hero does not receive the named ally's push");
+    const allyMove = pushed.sprites.players.find((value) => value.id === "ally");
+    equal(allyMove?.movement.active?.target.x ?? allyMove?.queue.moves[0]?.target.x, 168);
+    deepEqual(run(fixture.engine, fixture.game.files, 40).diagnostics, []);
+    equal(fixture.state().sprites.players.find((value) => value.id === "ally")?.x, 168);
+    equal(fixture.state().vm.globals.continued, 1, "the script resumes after the named actor's movement completes");
+  });
+}
+
+test("RPGCode push and pushitem append after active and queued targets (#1296)", () => {
+  const fixture = pushFixture('pushitem(0, "E", 4)\npush("E", 0, 4)\ncontinued = 1\nend()', 2);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  const heroActive = {
+    source: "direction" as const,
+    start: { x: 52, y: 63 },
+    target: { x: 80, y: 63 },
+    facing: "E" as const,
+    cadence: 0,
+    ignoreBoard: false,
+    tried: false,
+  };
+  const movingHero = {
+    ...hero,
+    x: 52,
+    y: 63,
+    state: "moving" as const,
+    queue: { moves: [], waypoint: null },
+    movement: { ...hero.movement, active: heroActive, waitTicks: 0 },
+  };
+  state.sprites.players = [movingHero];
+  fixture.runtime.section.players = [movingHero];
+  const item = actorFromSource({
+    id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+  }, state.world.board ?? null, 0, 0);
+  const itemActive = {
+    source: "direction" as const,
+    start: { x: 160, y: 160 },
+    target: { x: 168, y: 160 },
+    facing: "E" as const,
+    cadence: 0,
+    ignoreBoard: false,
+    tried: false,
+  };
+  const movingItem = {
+    ...item,
+    state: "moving" as const,
+    queue: { moves: [{ source: "direction" as const, target: { x: 176, y: 160 }, facing: "E" as const }], waypoint: null },
+    movement: { ...item.movement, active: itemActive, waitTicks: 0 },
+  };
+  state.sprites.items = [movingItem];
+  fixture.runtime.section.items = [movingItem];
+
+  deepEqual(fixture.pressA().diagnostics, []);
+  const firstWait = fixture.state().vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+  equal(firstWait?.kind === "sprite.movement" ? firstWait.actor : undefined, movingItem.id);
+  deepEqual(run(fixture.engine, fixture.game.files, 3).diagnostics, []);
+  const ongoingWait = fixture.state().vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+  equal(ongoingWait?.kind === "sprite.movement" ? ongoingWait.actor : undefined, movingItem.id, "pushitem still waits while its prior queue and pushed target remain");
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  equal(fixture.state().sprites.items[0]?.x, 184, "pushitem appends after the queued target");
+  equal(fixture.state().sprites.players[0]?.x, 88, "push appends after the active target, not the current position");
+  equal(fixture.state().vm.globals.continued, 1);
+});
+
+test("a pause push waits for all earlier queued directions and its own step (#1297)", () => {
+  const fixture = pushFixture('push("E", 0, 4)\ncontinued = 1\nend()', 0);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  for (let index = 0; index < 3; index += 1) ok(enqueueDirectionMove(state.sprites, hero.id, "E", 0));
+  fixture.runtime.section.players = state.sprites.players;
+
+  deepEqual(fixture.pressA().diagnostics, []);
+  const wait = fixture.state().vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+  equal(wait?.kind === "sprite.movement" ? wait.actor : undefined, hero.id);
+  deepEqual(run(fixture.engine, fixture.game.files, 30).diagnostics, []);
+  ok(fixture.state().vm.threads.some((thread) => thread.wait?.kind === "sprite.movement"), "the wait remains parked while earlier queued steps are still moving");
+  equal(fixture.state().vm.globals.continued, undefined);
+  deepEqual(run(fixture.engine, fixture.game.files, 120).diagnostics, []);
+  equal(fixture.state().sprites.players[0]?.x, hero.x + 128);
+  equal(fixture.state().vm.globals.continued, 1, "the script resumes only when the full queue is idle");
+});
+
+for (const [pixelMovement, distance] of [[0, 32], [1, 32], [2, 8]] as const) {
+  for (const flags of [0, 4] as const) {
+    for (const targetKind of ["player", "item"] as const) {
+      test(`RPGCode push waits on numeric-string ${targetKind} handles (${pixelMovement}, flags ${flags}) (#1302)`, () => {
+        const command = targetKind === "player"
+          ? `push("E", "1", ${flags})`
+          : `pushitem("0", "E", ${flags})`;
+        const fixture = pushFixture(`${command}\ncontinued = 1\nend()`, pixelMovement);
+        const state = fixture.state();
+        const hero = state.sprites.players[0];
+        if (hero === undefined) throw new Error("the hero was not hydrated");
+        let targetId: string;
+        if (targetKind === "player") {
+          const ally = {
+            ...hero,
+            id: "ally",
+            index: 1,
+            x: 160,
+            queue: { moves: [], waypoint: null },
+            movement: { ...hero.movement, active: null, waitTicks: 0 },
+            state: "waiting" as const,
+          };
+          state.sprites.players = [hero, ally];
+          fixture.runtime.section.players = [hero, ally];
+          targetId = ally.id;
+        } else {
+          const item = actorFromSource({
+            id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+          }, state.world.board ?? null, 0, 0);
+          state.sprites.items = [item];
+          fixture.runtime.section.items = [item];
+          targetId = item.id;
+        }
+
+        deepEqual(fixture.pressA().diagnostics, []);
+        const afterPush = fixture.state();
+        const wait = afterPush.vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+        equal(wait?.kind, "sprite.movement");
+        if (wait?.kind === "sprite.movement") equal(wait.actor, targetId);
+        equal(afterPush.vm.globals.continued, undefined, "the actual target's movement keeps the script parked");
+        const target = [...afterPush.sprites.players, ...afterPush.sprites.items].find((actor) => actor.id === targetId);
+        equal(target?.movement.active?.target.x ?? target?.queue.moves[0]?.target.x, 160 + distance);
+        deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+        const settled = fixture.state();
+        equal([...settled.sprites.players, ...settled.sprites.items].find((actor) => actor.id === targetId)?.x, 160 + distance);
+        equal(settled.vm.globals.continued, 1);
+        if (targetKind === "player") equal(settled.sprites.players[0]?.x, hero.x, "the selected player stays still when index 1 is named");
+      });
+    }
+  }
+}
+for (const [label, command] of [
+  ["playerpath numeric-string", 'playerpath("1", 4, 192, 64)'],
+  ["playerstep numeric-string", 'playerstep("1", 192, 64, 4)'],
+  ["playerpath stable id", 'playerpath("ally", 4, 192, 64)'],
+  ["playerstep stable id", 'playerstep("ally", 192, 64, 4)'],
+] as const) {
+  test(`${label} waits on the same nonselected player it moves (#1306)`, () => {
+    const fixture = pushFixture("end()", 0);
+    deepEqual(fixture.pressA().diagnostics, []);
+    const state = fixture.state();
+    const hero = state.sprites.players[0];
+    if (hero === undefined) throw new Error("the hero was not hydrated");
+    const ally = {
+      ...hero,
+      id: "ally",
+      index: 1,
+      x: 160,
+      queue: { moves: [], waypoint: null },
+      movement: { ...hero.movement, active: null, waitTicks: 0 },
+      state: "waiting" as const,
+    };
+    state.sprites.players = [hero, ally];
+    fixture.runtime.section.players = [hero, ally];
+    startThread(state.vm, {
+      ref: { kind: "inline", text: `${command}\ncontinued = 1\nend()`, ir: IR_VERSION },
+      kind: "persistent",
+      owner: "script",
+    });
+
+    deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+    const queued = fixture.state();
+    const wait = queued.vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+    equal(wait?.kind, "sprite.movement");
+    if (wait?.kind === "sprite.movement") equal(wait.actor, ally.id);
+    equal(queued.vm.globals.continued, undefined, "the nonblocking pause waits for the target ally");
+    equal(queued.sprites.players[0]?.x, hero.x, "the selected hero is not moved");
+    equal(queued.sprites.players[1]?.movement.active?.target.x ?? queued.sprites.players[1]?.queue.moves[0]?.target.x, 192);
+
+    deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+    const settled = fixture.state();
+    equal(settled.sprites.players[1]?.x, 192);
+    equal(settled.vm.globals.continued, 1);
+  });
+}
+
+for (const [name, makeCommand] of [
+  ["push", (handle: string) => `push("E", ${handle}, 4)`],
+  ["playerstep", (handle: string) => `playerstep(${handle}, 192, 64, 4)`],
+  ["playerpath", (handle: string) => `playerpath(${handle}, 4, 192, 64)`],
+] as const) {
+  for (const handle of ['"item:0"', '"missing"', '99', '"99"']) {
+    test(`${name} rejects invalid player handle ${handle} without moving anyone (#1308)`, () => {
+      const fixture = pushFixture("end()", 0);
+      deepEqual(fixture.pressA().diagnostics, []);
+      const state = fixture.state();
+      const hero = state.sprites.players[0];
+      if (hero === undefined) throw new Error("the hero was not hydrated");
+      const item = actorFromSource({
+        id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+      }, state.world.board ?? null, 0, 0);
+      state.sprites.items = [item];
+      fixture.runtime.section.items = [item];
+      startThread(state.vm, {
+        ref: { kind: "inline", text: `${makeCommand(handle)}\ncontinued = 1\nend()`, ir: IR_VERSION },
+        kind: "persistent", owner: "script",
+      });
+      const result = run(fixture.engine, fixture.game.files, 1);
+      ok(result.diagnostics.some((diagnostic) => diagnostic.code === "builtin.bad-arg"));
+      equal(fixture.state().sprites.players[0]?.x, hero.x);
+      equal(fixture.state().sprites.items[0]?.x, 160);
+      ok(!fixture.state().vm.threads.some((thread) => thread.wait?.kind === "sprite.movement"));
+      equal(fixture.state().vm.globals.continued, 1);
+    });
+  }
+}
+test("blocking push cancels a suspended click route before moving (#1312)", () => {
+  const fixture = pushFixture('push("E")\ncontinued = 1\nend()', 0);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  hero.queue.moves.push({ source: "points", target: { x: hero.x + 32, y: hero.y }, facing: "E", pointer: true });
+  hero.queue.moves.push({ source: "points", target: { x: hero.x + 64, y: hero.y }, facing: "E", pointer: true });
+  deepEqual(fixture.pressA().diagnostics, []);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  equal(fixture.state().sprites.players[0]?.x, hero.x + 32);
+  equal(fixture.state().vm.globals.continued, 1);
+  ok(!fixture.state().sprites.players[0]?.queue.moves.some((move) => move.pointer === true));
+});
+
+for (const [name, command, kind] of [
+  ["push", 'push("E", 0, 4)', "player"],
+  ["playerstep", 'playerstep(0, 192, 64, 4)', "player"],
+  ["playerpath", 'playerpath(0, 4, 192, 64)', "player"],
+  ["pushitem", 'pushitem(0, "E", 4)', "item"],
+  ["itemstep", 'itemstep(0, 192, 64, 4)', "item"],
+  ["itempath", 'itempath(0, 4, 192, 64)', "item"],
+] as const) {
+  test(`${name} rejects a hidden target before queuing (#1314)`, () => {
+    const fixture = pushFixture("end()", 0);
+    deepEqual(fixture.pressA().diagnostics, []);
+    const state = fixture.state();
+    const hero = state.sprites.players[0];
+    if (hero === undefined) throw new Error("the hero was not hydrated");
+    if (kind === "player") {
+      state.sprites.players = [{ ...hero, visible: false }];
+      fixture.runtime.section.players = state.sprites.players;
+    } else {
+      const item = actorFromSource({ id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem() }, state.world.board ?? null, 0, 0);
+      state.sprites.items = [{ ...item, visible: false }];
+      fixture.runtime.section.items = state.sprites.items;
+    }
+    startThread(state.vm, { ref: { kind: "inline", text: `${command}\ncontinued = 1\nend()`, ir: IR_VERSION }, kind: "persistent", owner: "script" });
+    const result = run(fixture.engine, fixture.game.files, 1);
+    ok(result.diagnostics.some((diagnostic) => diagnostic.code === "builtin.bad-arg"));
+    const target = kind === "player" ? fixture.state().sprites.players[0] : fixture.state().sprites.items[0];
+    equal(target?.queue.moves.length, 0);
+    ok(!fixture.state().vm.threads.some((thread) => thread.wait?.kind === "sprite.movement"));
+    equal(fixture.state().vm.globals.continued, 1);
+  });
+}
+
+test("multiRun starts both actual sprite moves before waiting for both (#1311)", () => {
+  const fixture = pushFixture('multirun()\npush("E")\npushitem(0, "E")\nmultirun()\ncontinued = 1\nend()', 0);
+  const state = fixture.state();
+  const item = actorFromSource({ id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem() }, state.world.board ?? null, 0, 0);
+  state.sprites.items = [item];
+  fixture.runtime.section.items = [item];
+  deepEqual(fixture.pressA().diagnostics, []);
+  const current = fixture.state();
+  const wait = current.vm.threads.find((thread) => thread.wait?.kind === "movement")?.wait;
+  equal(wait?.kind, "movement");
+  if (wait?.kind === "movement") deepEqual(wait.moves.map((move) => move.sprite), [current.sprites.players[0]?.id, item.id]);
+  ok(current.sprites.players[0]?.movement.active !== null || (current.sprites.players[0]?.queue.moves.length ?? 0) > 0);
+  ok(current.sprites.items[0]?.movement.active !== null || (current.sprites.items[0]?.queue.moves.length ?? 0) > 0);
+  equal(current.vm.globals.continued, undefined);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  equal(fixture.state().vm.globals.continued, 1);
+  equal(fixture.state().sprites.items[0]?.x, 192);
+});
+
+
+test("pushitem cannot resolve a player ID as an item (#1307)", () => {
+  const fixture = pushFixture("end()", 0);
+  deepEqual(fixture.pressA().diagnostics, []);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  const item = actorFromSource({
+    id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+  }, state.world.board ?? null, 0, 0);
+  state.sprites.items = [item];
+  fixture.runtime.section.items = [item];
+  state.vm.globals.target = hero.id;
+  startThread(state.vm, {
+    ref: { kind: "inline", text: 'pushitem(target, "E", 4)\ncontinued = 1\nend()', ir: IR_VERSION },
+    kind: "persistent",
+    owner: "script",
+  });
+
+  deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+  const settled = fixture.state();
+  equal(settled.sprites.players[0]?.x, hero.x, "an item command cannot move the player");
+  equal(settled.sprites.items[0]?.x, 160, "an unknown item handle is a no-op");
+  equal(settled.vm.globals.continued, 1);
+});
+
+test("player and item numeric handle 0 resolve to their own movement queues (#1307)", () => {
+  const fixture = pushFixture("end()", 0);
+  deepEqual(fixture.pressA().diagnostics, []);
+  const state = fixture.state();
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  const item = actorFromSource({
+    id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+  }, state.world.board ?? null, 0, 0);
+  state.sprites.items = [item];
+  fixture.runtime.section.items = [item];
+  startThread(state.vm, {
+    ref: { kind: "inline", text: 'push("E", "0", 4)\npushitem("0", "E", 4)\ncontinued = 1\nend()', ir: IR_VERSION },
+    kind: "persistent",
+    owner: "script",
+  });
+
+  deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+  const firstWait = fixture.state().vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+  equal(firstWait?.kind, "sprite.movement");
+  if (firstWait?.kind === "sprite.movement") equal(firstWait.actor, hero.id);
+  equal(fixture.state().sprites.items[0]?.x, 160);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+  const settled = fixture.state();
+  equal(settled.sprites.players[0]?.x, hero.x + 32);
+  equal(settled.sprites.items[0]?.x, 192);
+  equal(settled.vm.globals.continued, 1);
+});
+
+
+for (const [targetKind, command] of [
+  ["player", 'push("E, ", 0, 4)'],
+  ["item", 'pushitem(0, "E, ", 4)'],
+] as const) {
+  test(`RPGCode ${targetKind} push ignores empty trailing directions consistently (#1304)`, () => {
+    const fixture = pushFixture(`${command}\ncontinued = 1\nend()`, 0);
+    const state = fixture.state();
+    const hero = state.sprites.players[0];
+    if (hero === undefined) throw new Error("the hero was not hydrated");
+    let targetId = hero.id;
+    if (targetKind === "item") {
+      const item = actorFromSource({
+        id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+      }, state.world.board ?? null, 0, 0);
+      state.sprites.items = [item];
+      fixture.runtime.section.items = [item];
+      targetId = item.id;
+    }
+
+    deepEqual(fixture.pressA().diagnostics, []);
+    deepEqual(run(fixture.engine, fixture.game.files, 50).diagnostics, []);
+    const settled = fixture.state();
+    equal([...settled.sprites.players, ...settled.sprites.items].find((actor) => actor.id === targetId)?.x, targetKind === "player" ? hero.x + 32 : 160 + 32);
+    equal(settled.vm.globals.continued, 1);
+  });
+}
+
+for (const [flags, source] of [[12, "waypoint-path"], [20, "waypoint-link"]] as const) {
+  test(`RPGCode ${source} pause waits through every finite segment (#1303)`, () => {
+    const fixture = pushFixture(`playerpath(0, ${flags}, "patrol", 1)\ncontinued = 1\nend()`, 1);
+    const state = fixture.state();
+    const board = state.world.board;
+    if (board === null || board === undefined) throw new Error("the board was not hydrated");
+    Object.assign(board, { vectors: [{ points: [{ x: 160, y: 64 }, { x: 200, y: 64 }], attributes: 0, closed: 0, layer: 1, type: 0, handle: "patrol" }] });
+
+    deepEqual(fixture.pressA().diagnostics, []);
+    let guard = 0;
+    while (fixture.state().sprites.players[0]?.x !== 160 && guard < 300) {
+      deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+      guard += 1;
+    }
+    let actor = fixture.state().sprites.players[0];
+    equal(actor?.x, 160, "the first waypoint is reached before the second");
+    equal(fixture.state().vm.globals.continued, undefined, "the script remains parked at the segment boundary");
+    deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+    actor = fixture.state().sprites.players[0];
+    equal(actor?.movement.active?.source, source);
+    equal(actor?.movement.active?.target.x, 200);
+    equal(fixture.state().vm.globals.continued, undefined, "the second waypoint is still active");
+    guard = 0;
+    while (fixture.state().vm.globals.continued !== 1 && guard < 300) {
+      deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+      guard += 1;
+    }
+    equal(fixture.state().sprites.players[0]?.x, 200);
+    equal(fixture.state().sprites.players[0]?.queue.waypoint, null);
+    equal(fixture.state().vm.globals.continued, 1);
+  });
+}
+
+test("an infinite waypoint wait releases after its first traversal instead of hanging (#1303)", () => {
+  const fixture = pushFixture('playerpath(0, 12, "patrol", 0)\ncontinued = 1\nend()', 1);
+  const state = fixture.state();
+  const board = state.world.board;
+  if (board === null || board === undefined) throw new Error("the board was not hydrated");
+  Object.assign(board, { vectors: [{ points: [{ x: 160, y: 64 }, { x: 200, y: 64 }], attributes: 0, closed: 0, layer: 1, type: 0, handle: "patrol" }] });
+
+  deepEqual(fixture.pressA().diagnostics, []);
+  let guard = 0;
+  while (fixture.state().vm.globals.continued !== 1 && guard < 500) {
+    deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+    guard += 1;
+  }
+  const settled = fixture.state();
+  equal(settled.vm.globals.continued, 1, "the waiter completes after one finite traversal");
+  equal(settled.sprites.players[0]?.queue.waypoint?.cycles, 0, "the movement itself continues as an infinite cycle");
+});
+
+test("a paused push waits through a pending finite waypoint without waking between segments (#1303)", () => {
+  const fixture = pushFixture('push("E", 0, 4)\ncontinued = 1\nend()', 1);
+  const state = fixture.state();
+  const board = state.world.board;
+  if (board === null || board === undefined) throw new Error("the board was not hydrated");
+  Object.assign(board, { vectors: [{ points: [{ x: 160, y: 64 }, { x: 200, y: 64 }], attributes: 0, closed: 0, layer: 1, type: 0, handle: "patrol" }] });
+  const hero = state.sprites.players[0];
+  if (hero === undefined) throw new Error("the hero was not hydrated");
+  hero.queue.waypoint = { points: [{ x: 160, y: 64 }, { x: 200, y: 64 }], cycles: 1, cycle: 0, cursor: 0, live: false };
+  fixture.runtime.section.players = state.sprites.players;
+
+  deepEqual(fixture.pressA().diagnostics, []);
+  let guard = 0;
+  while (fixture.state().sprites.players[0]?.x !== 160 && guard < 300) {
+    deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+    guard += 1;
+  }
+  equal(fixture.state().sprites.players[0]?.x, 160, "the waypoint's first target is reached");
+  deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+  equal(fixture.state().sprites.players[0]?.movement.active?.target.x, 200);
+  equal(fixture.state().vm.globals.continued, undefined, "the paused push does not wake while its finite waypoint queue remains");
+  guard = 0;
+  while (fixture.state().vm.globals.continued !== 1 && guard < 300) {
+    deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+    guard += 1;
+  }
+  equal(fixture.state().sprites.players[0]?.x, 200);
+  equal(fixture.state().vm.globals.continued, 1);
+});
+
+
+
+for (const targetKind of ["player", "item"] as const) {
+  for (const flags of [0, 4] as const) {
+    test(`nonblocking ${targetKind} push respects pause flag ${flags} (#1305)`, () => {
+      const fixture = pushFixture("end()", 0);
+      deepEqual(fixture.pressA().diagnostics, []);
+      const state = fixture.state();
+      const hero = state.sprites.players[0];
+      if (hero === undefined) throw new Error("the hero was not hydrated");
+      let targetId = hero.id;
+      let startX = hero.x;
+      if (targetKind === "item") {
+        const item = actorFromSource({
+          id: "item:0", kind: "item", source: "crate", x: 160, y: 160, layer: 1, handle: 0, item: createEmptyItem(),
+        }, state.world.board ?? null, 0, 0);
+        state.sprites.items = [item];
+        fixture.runtime.section.items = [item];
+        targetId = item.id;
+        startX = item.x;
+      }
+      const command = targetKind === "player" ? `push("E", 0, ${flags})` : `pushitem(0, "E", ${flags})`;
+      startThread(state.vm, {
+        ref: { kind: "inline", text: `${command}\ncontinued = 1\nend()`, ir: IR_VERSION },
+        kind: "persistent",
+        owner: "script",
+      });
+
+      deepEqual(run(fixture.engine, fixture.game.files, 1).diagnostics, []);
+      const afterPush = fixture.state();
+      const target = targetKind === "player" ? afterPush.sprites.players[0] : afterPush.sprites.items[0];
+      if (flags === 0) {
+        equal(afterPush.vm.globals.continued, 1, "a nonblocking call without the pause flag returns immediately");
+        ok(target !== undefined && (target.movement.active !== null || target.queue.moves.length !== 0), "movement is still in progress");
+      } else {
+        equal(afterPush.vm.globals.continued, undefined, "the pause flag parks the nonblocking thread");
+        const wait = afterPush.vm.threads.find((thread) => thread.wait?.kind === "sprite.movement")?.wait;
+        equal(wait?.kind, "sprite.movement");
+        if (wait?.kind === "sprite.movement") equal(wait.actor, targetId);
+        deepEqual(run(fixture.engine, fixture.game.files, 100).diagnostics, []);
+        const settled = fixture.state();
+        const finalTarget = targetKind === "player" ? settled.sprites.players[0] : settled.sprites.items[0];
+        equal(finalTarget?.x, startX + 32);
+        equal(settled.vm.globals.continued, 1);
+      }
+    });
+  }
+}
 
 test("a scripted game boots from start.prg to its first board with the ruled effects and state", () => {
   const game = authorGame(SCRIPTED);
@@ -303,10 +969,289 @@ test("a scripted game boots from start.prg to its first board with the ruled eff
   equal(state.vm.globals.startdone, 1);
   equal(state.vm.globals.entered, 1);
   deepEqual(doubles.sprites.map((effect) => [effect.name, ...effect.args]), [["createplayer", "chrs/hero.tem"], ["placeplayer", 64, 64, 1, "pixel"]]);
-  deepEqual(doubles.triggers.map((effect) => [effect.name, ...effect.args]), [["deactivateat", 64, 64, 1, "pixel"]]);
+  deepEqual(doubles.triggers, [], "boot does not deactivate the program at the start position");
   deepEqual(doubles.audio.map((effect) => [effect.name, effect.kind, ...effect.args]), [["music.play", "draw-audio-cue", "media/theme.mid", true, null, "board"]]);
   deepEqual({ x: state.camera.x, y: state.camera.y }, { x: 0, y: 0 });
   equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
+});
+test("unboarded startup board threads wait until first-board entry; persistent threads survive", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": { threads: ["bg.prg"] } },
+    programs: {
+      "start.prg": 'temporary = thread("temporaryran = 1", 0)\npersistent = thread("persistentran = 1; threadsleep(getthreadid(), 0)", 1)\nsleep(2)\nstartupdone = 1\nend()\n',
+      "bg.prg": "boardthreadran = 1\nthreadsleep(getthreadid(), 0)\n",
+    },
+  });
+  const doubles = makeDoubles(false);
+  const result = run(bootEngine(game, doubles), game.files, 30);
+  deepEqual(result.diagnostics, []);
+  const state = doubles.state();
+  equal(state.vm.globals.startupdone, 1);
+  equal(state.vm.globals.temporaryran, undefined);
+  equal(state.vm.threads.some((thread) => thread.id === state.vm.globals.temporary), false, "startup board thread was destroyed");
+  equal(state.vm.globals.persistentran, 1, "the persistent startup thread executed");
+  equal(state.vm.threads.some((thread) => thread.kind === "persistent" && thread.status !== "finished"), true);
+  equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
+  equal(state.vm.globals.boardthreadran, 1);
+});
+
+test("startup-loaded board threads end before the initial board replaces them", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": { threads: ["new.prg"] }, "other.brd": { threads: ["old.prg"] } },
+    programs: {
+      "start.prg": 'send("other.brd", 20, 20, 1)\nthreadsleep(getthreadid(), 0.05)\nend()\n',
+      "old.prg": "oldid = getthreadid()\nthreadsleep(getthreadid(), 0)\n",
+      "new.prg": "newran = 1\nthreadsleep(getthreadid(), 0)\n",
+    },
+  });
+  const doubles = makeDoubles(false);
+  const result = run(bootEngine(game, doubles), game.files, 30);
+  deepEqual(result.diagnostics, []);
+  const state = doubles.state();
+  equal(state.world.board?.key, "boards/start.brd");
+  ok(typeof state.vm.globals.oldid === "number", "startup-loaded board thread ran");
+  equal(state.vm.threads.some((thread) => thread.frames.some((frame) => frame.program.kind === "file" && frame.program.path === "old.prg")), false, "replaced board thread ended");
+  equal(state.vm.globals.newran, 1, "initial board thread started");
+});
+
+test("debug stepping excludes a startup board child from the ready snapshot", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": { threads: ["bg.prg"] } },
+    programs: {
+      "start.prg": 'temporary = thread("temporaryran = 1", 0)\npersistent = thread("persistentran = 1; threadsleep(getthreadid(), 0)", 1)\nsleep(2)\nstartupdone = 1\nend()\n',
+      "bg.prg": "boardthreadran = 1\nthreadsleep(getthreadid(), 0)\n",
+    },
+  });
+  const doubles = makeDoubles(false);
+  const engine = bootEngine(game, doubles);
+  let ticks = 0;
+  let replies: InputRecord[] = [];
+  const diagnostics: RunResult["diagnostics"][number][] = [];
+  for (let step = 0; step < 10_000 && ticks < 30; step += 1) {
+    const report = engine.advance(1, replies, undefined, "step");
+    replies = [];
+    ticks += report.ticksRun;
+    diagnostics.push(...report.diagnostics);
+    replies = report.requests.flatMap((request) => request.kind === "asset"
+      ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: game.files.get(request.key) ?? null } }]
+      : []);
+  }
+  equal(ticks, 30, "debug stepping completed the requested ticks");
+  deepEqual(diagnostics, []);
+  const state = doubles.state();
+  equal(state.vm.globals.startupdone, 1);
+  equal(state.vm.globals.temporaryran, undefined);
+  equal(state.vm.threads.some((thread) => thread.id === state.vm.globals.temporary), false, "startup board thread was destroyed");
+  equal(state.vm.globals.persistentran, 1, "the persistent startup thread executed");
+  equal(state.vm.threads.some((thread) => thread.kind === "persistent" && thread.status !== "finished"), true);
+  equal(state.vm.threads.some((thread) => thread.kind === "board" && thread.status !== "finished"), true);
+  equal(state.vm.globals.boardthreadran, 1);
+});
+
+test("debug resume rechecks a deserialized ready cursor containing a startup board thread", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": {} },
+    programs: { "start.prg": 'temporary = thread("temporaryran = 1", 0)\nsleep(2)\nend()\n' },
+  });
+  const doubles = makeDoubles(false);
+  const engine = bootEngine(game, doubles);
+  deepEqual(run(engine, game.files, 1).diagnostics, []);
+  const state = doubles.state();
+  equal(state.engine.boot?.stage, "startup");
+  const child = state.vm.threads.find((thread) => thread.kind === "board");
+  ok(child, "startup created a board child before the cursor was saved");
+  state.engine.openTick = JSON.parse(JSON.stringify({
+    readyThreads: [child.id], readyIndex: 0, currentThread: child.id, stepsUsed: 0,
+  }));
+  for (let step = 0; step < 20 && state.engine.openTick !== undefined; step += 1) {
+    engine.advance(1, [], undefined, "step");
+  }
+  equal(state.engine.openTick, undefined, "the saved cursor was consumed");
+  equal(state.vm.globals.temporaryran, undefined, "the restored cursor did not run the board child");
+});
+
+test("engine services discard an item thread's open menu before hiding it", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    packages: ["stock_menu"],
+    boards: { "start.brd": {} },
+    programs: { "start.prg": "mainmenu()\n" },
+  });
+  const runtime = createSpriteRuntime();
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles, stockMenuCatalogue(), undefined, undefined, runtime, stockMenuAssets);
+  deepEqual(run(engine, game.files, 20).diagnostics, []);
+  ok(doubles.state().menu.screens.length > 0, "startup opened a menu screen");
+
+  const vm = doubles.state().vm;
+  runtime.section.items = [{ id: "clerk", source: "clerk", handle: null, visible: true } as never];
+  const thread = startThread(vm, {
+    ref: { kind: "inline", text: "mainmenu()\n", ir: IR_VERSION },
+    kind: "item",
+    owner: "world",
+    source: "clerk",
+    target: "clerk",
+  });
+  thread.frames[0]!.menuContinuation = { menuBaseDepth: 0 };
+
+  equal(runtime.hideItem("clerk"), true);
+  equal(doubles.state().menu.screens.length, 0);
+  equal(vm.threads.some((active) => active.id === thread.id), false);
+});
+
+test("boot first free-roam frame polls held and queued activation without arrival deactivation (#1176)", () => {
+  for (const scenario of ["held", "queued", "none", "direction", "queued-direction", "deactivated", "enter"] as const) {
+    const game = authorGame({
+      startup: "start.prg", initChar: "hero.tem",
+      boards: { "start.brd": { keyTrigger: true, ...(scenario === "enter" ? { enter: "enter.prg" } : {}) } },
+      programs: { "start.prg": "wait()\ndelay(0.5)\nend()", "trigger.prg": "wait()\nend()", "enter.prg": "delay(0.3)\nend()" },
+    });
+    let latest: GameState | null = null;
+    const engine = createEngine({
+      seed: 11, assetIndex: game.index, assetRoot: game.root, mainFile: game.main,
+      gameIdentity: "boot-activation-test", width: 320, height: 240, maxTicks: 600,
+      startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+      spriteRuntime: createSpriteRuntime(),
+      input: { bindings: { keys: { Enter: "ENTER", ArrowRight: "right" } } },
+      phaseRegistrations: [
+        inputPhaseRegistration(), movementPhaseRegistration(),
+        triggerPhaseRegistration({ programRef: () => ({ kind: "inline", text: "wait()\nend()", ir: IR_VERSION }) }),
+        { phase: "audio", run: (state) => { latest = state; } },
+      ],
+    });
+    const current = (): GameState => {
+      if (latest === null) throw new Error("no tick has run");
+      return latest;
+    };
+    run(engine, game.files, 5);
+    let state = current();
+    ok(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"), scenario);
+    const direction = scenario === "direction";
+    const name = direction ? "RIGHT" : "ENTER";
+    const code = direction ? "ArrowRight" : "Enter";
+    const key = (tick: number, down: boolean): InputRecord => ({
+      tick, event: { kind: "key", name, code, char: null, down },
+    });
+    run(engine, game.files, 1, [key(state.time.tick, true)]);
+    if (scenario === "none" || scenario === "queued" || scenario === "queued-direction") {
+      run(engine, game.files, 1, [key(state.time.tick, false)]);
+    }
+    if (scenario === "queued") {
+      run(engine, game.files, 2, [key(state.time.tick, true), key(state.time.tick + 1, false)]);
+    }
+    if (scenario === "queued-direction") {
+      run(engine, game.files, 1, [{
+        tick: state.time.tick, event: { kind: "key", name: "RIGHT", code: "ArrowRight", char: null, down: true },
+      }]);
+    }
+    for (let guard = 0; state.world.board == null && guard < 100; guard += 1) {
+      run(engine, game.files, 1);
+      state = current();
+    }
+    ok(state.world.board != null, `${scenario}: boot arrived`);
+    equal(state.triggers.active, null, `${scenario}: no trigger before the first board frame`);
+    if (scenario === "held" || scenario === "deactivated" || scenario === "direction" || scenario === "enter") {
+      equal(state.input.keys.length, 0, `${scenario}: title consumed the key`);
+    }
+    if (scenario === "queued") equal(state.input.keys.length, 1, "second key remains queued");
+    if (scenario === "queued-direction") deepEqual(state.input.keys.map((entry) => entry.name), ["right"]);
+    if (scenario === "deactivated") state.triggers.deactivateAt = { x: 64, y: 64, layer: 1 };
+    const beforeX = state.sprites.players[0]!.x;
+    run(engine, game.files, 1);
+    state = current();
+    if (scenario === "enter") {
+      equal(state.triggers.active, null, "the blocking enter program owns the first board frames");
+      for (let guard = 0; state.triggers.active === null && guard < 100; guard += 1) {
+        ok(state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished"), "the poll stays pending while enter runs");
+        run(engine, game.files, 1);
+        state = current();
+      }
+    }
+    if (scenario === "held" || scenario === "queued" || scenario === "enter") {
+      equal(state.triggers.active?.key, "region:0", `${scenario}: trigger starts on the first free-roam frame`);
+      ok(state.vm.threads.some((thread) => thread.id === state.triggers.active?.thread && thread.kind === "blocking"));
+    } else {
+      equal(state.triggers.active, null, `${scenario}: trigger does not start`);
+    }
+    if (scenario === "direction" || scenario === "queued-direction") ok(state.sprites.players[0]!.x > beforeX, "held direction starts walking immediately");
+    if (scenario === "deactivated") deepEqual(state.triggers.deactivated, ["region:0"], "restoring boot deactivation suppresses the held key");
+  }
+});
+
+test("wait drops mid-delay keys before the same thread's following get (#1174, docs/spec/engine/display-input-audio.md#e-110)", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": {} },
+    programs: { "start.prg": "delay(3)\nkeyAfter = wait()\nkeyAfterGet = get()\nend()\n" },
+  });
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 40);
+
+  const sendKey = (tick: number, name: string): InputRecord => ({
+    tick,
+    event: { kind: "key", name, code: name, char: null, down: true },
+  });
+  const duringDelay = doubles.state().time.tick;
+  run(engine, game.files, 3, [sendKey(duringDelay, "A"), sendKey(duringDelay + 2, "B")]);
+  deepEqual(doubles.state().input.keys.map((key) => key.name), ["A", "B"]);
+
+  for (let tick = 0; tick < 240; tick += 1) {
+    const wait = doubles.state().vm.threads.find((thread) => thread.status !== "finished")?.wait;
+    if (wait?.kind === "input.key" && wait.parkSeq !== undefined) break;
+    run(engine, game.files, 1);
+  }
+  const waiting = doubles.state().vm.threads.find((thread) => thread.status !== "finished")?.wait;
+  ok(waiting?.kind === "input.key" && waiting.parkSeq !== undefined, "wait must park after the delay");
+  deepEqual(doubles.state().input.keys.map((key) => key.name), ["A", "B"]);
+
+  startThread(doubles.state().vm, {
+    ref: { kind: "inline", text: "otherThreadKey = get()\nend()\n", ir: IR_VERSION },
+    kind: "persistent",
+    owner: "script",
+  });
+
+  const afterPark = doubles.state().time.tick;
+  run(engine, game.files, 1, [sendKey(afterPark, "C"), sendKey(afterPark, "D")]);
+  equal(doubles.state().vm.globals.keyafter, "C");
+  equal(doubles.state().vm.globals.keyafterget, "D", "get must skip A and B while retaining the later post-park key");
+  equal(doubles.state().vm.globals.otherthreadkey, "", "the shared backlog is gone before another thread can call get");
+});
+test("wait captures its floor while the queue is empty and accepts the first later key (#1174, docs/spec/engine/display-input-audio.md#e-110)", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: { "start.brd": {} },
+    programs: { "start.prg": "pressed = wait()\nend()\n" },
+  });
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 1);
+  for (let tick = 0; tick < 240; tick += 1) {
+    if (doubles.state().vm.threads.some((thread) => thread.wait?.kind === "input.key")) break;
+    run(engine, game.files, 1);
+  }
+  const state = doubles.state();
+  const waiting = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  if (waiting?.wait?.kind !== "input.key") throw new Error("script did not park on wait()");
+  equal(state.input.keys.length, 0, "the queue is empty when wait parks");
+  equal(waiting.wait.parkSeq, state.input.nextSeq, "the floor is captured when the wait is created");
+
+  run(engine, game.files, 1, [{
+    tick: state.time.tick,
+    event: { kind: "key", name: "A", code: "KeyA", char: "a", down: true },
+  }]);
+  equal(doubles.state().vm.globals.pressed, "A", "the first key appended after the park is eligible");
 });
 
 test("E-02 requests initChar and creates its real party actor and sprite before startup and board entry", () => {
@@ -878,6 +1823,110 @@ test("a project folder's RPGCode package layers an engine command and is rebuilt
   equal(doubles.state().vm.globals.wrapped, 1, "reset rebuilt the package layer");
 });
 
+test("public game-action registrations survive same-game reset and load", () => {
+  const game = authorGame(SCRIPTED);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 20);
+  const action = {
+    name: "game.resetproof",
+    label: "Reset proof",
+    icon: null,
+    group: null,
+    controls: ["key:KeyF"],
+    locked: false,
+    hidden: false,
+  };
+  equal(engine.registerGameAction(action), true);
+  ok(engine.registeredActionNames().includes("game.resetproof"));
+
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: "reset()\nend()", ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  run(engine, game.files, 20);
+  ok(engine.registeredActionNames().includes("game.resetproof"));
+  engine.advance(1, [{
+    tick: doubles.state().time.tick,
+    event: { kind: "key", name: "F", code: "KeyF", char: "f", down: true },
+  }]);
+  equal(doubles.state().input.actions["game.resetproof"], true, "the external action is held before the save projection is captured");
+  doubles.state().inventory.gold = 1234;
+  const savedBytes = encoder.encode(snapshotGameSave(doubles.state()));
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: 'load("slot")\nend()', ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  let replies: InputRecord[] = [];
+  let loadReplyQueued = false;
+  let loadReplyApplied = false;
+  for (let guard = 0; guard < 100 && !loadReplyApplied; guard += 1) {
+    loadReplyApplied = loadReplyQueued;
+    loadReplyQueued = false;
+    const report = engine.advance(1, replies);
+    replies = [];
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "loadBlob") {
+        loadReplyQueued = true;
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: savedBytes } });
+      }
+    }
+  }
+  ok(loadReplyApplied, "the same-game load consumed its saved projection");
+  equal(doubles.state().inventory.gold, 1234, "the saved game state really loaded after reset");
+  equal(doubles.state().input.actions["game.resetproof"], true, "loading restores the held claim for an externally registered action");
+  engine.advance(1, [{
+    tick: doubles.state().time.tick,
+    event: { kind: "key", name: "F", code: "KeyF", char: "f", down: false },
+  }]);
+  equal(doubles.state().input.actions["game.resetproof"], false, "the loaded action claim releases on the matching physical key-up");
+  ok(engine.registeredActionNames().includes("game.resetproof"), "loading preserves public API registrations omitted from the game-save projection");
+});
+
+test("loading reconciles the keyboard claim index before releasing removed game actions", () => {
+  const game = authorGame(SCRIPTED);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles);
+  run(engine, game.files, 20);
+  const action = {
+    name: "game.removed",
+    label: "Removed",
+    icon: null,
+    group: null,
+    controls: ["key:KeyF"],
+    locked: false,
+    hidden: false,
+  };
+  equal(registerGameAction(doubles.state().input, action), true);
+  applyInputEvent(doubles.state().input, { kind: "key", name: "F", code: "KeyF", char: "f", down: true });
+  equal(doubles.state().input.actions["game.removed"], true);
+  const savedBytes = encoder.encode(snapshotGameSave(doubles.state()));
+  startThread(doubles.state().vm, { ref: { kind: "inline", text: 'load("slot")\nend()', ir: IR_VERSION }, kind: "persistent", owner: "script" });
+  let replies: InputRecord[] = [];
+  let loadReplyQueued = false;
+  let loadReplyApplied = false;
+  for (let guard = 0; guard < 100 && !loadReplyApplied; guard += 1) {
+    loadReplyApplied = loadReplyQueued;
+    loadReplyQueued = false;
+    const report = engine.advance(1, replies);
+    replies = [];
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "loadBlob") {
+        loadReplyQueued = true;
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: savedBytes } });
+      }
+    }
+  }
+  ok(loadReplyApplied, "the game load completed");
+  const loaded = doubles.state();
+  equal(Object.hasOwn(loaded.input.actionRegistry, "game.removed"), false);
+  equal(Object.hasOwn(loaded.input.keyboardActionSources, "game.removed"), false);
+  const replay = restoreGameState(snapshot(loaded));
+  const keyUp = { kind: "key", name: "F", code: "KeyF", char: "f", down: false } as const;
+  applyInputEvent(loaded.input, keyUp);
+  applyInputEvent(replay.input, keyUp);
+  equal(Object.hasOwn(loaded.input.keyboardActionSources, "game.removed"), false, "stale held claims were not reconstructed on key-up");
+  equal(hashGameState(loaded), hashGameState(replay), "identical key-up replay and snapshot restore preserve the same canonical state");
+});
+
 test("a package startup that waits is rejected by the lifecycle clock guard", () => {
   const game = authorGame({ ...SCRIPTED, packages: ["weather"] });
   const catalogue: readonly PackageCatalogueEntry[] = [{
@@ -1036,7 +2085,7 @@ test("send leaves the ruled state: old board threads dead, a persistent thread a
   equal(state.engine.transition, undefined);
   // Tile (30, 20) is pixel (944, 639) on a 2D board (E-11): the camera centres on it without smoothing.
   deepEqual({ x: state.camera.x, y: state.camera.y, prevX: state.camera.prevX, prevY: state.camera.prevY }, { x: 784, y: 519, prevX: 784, prevY: 519 });
-  deepEqual(doubles.sprites.map((effect) => [effect.name, ...effect.args]).slice(-1), [["placeplayer", 30, 20, 1, "tile"]]);
+  deepEqual(doubles.sprites.map((effect) => [effect.name, ...effect.args]).slice(-1), [["placeplayer", 30, 20, 1, "tile", 0, 50]]);
   deepEqual(doubles.triggers.map((effect) => [effect.name, ...effect.args]).slice(-1), [["deactivateat", 30, 20, 1, "tile"]]);
   // Both boards name theme.mid and every arrival posts its music; the audio applier, not the engine, decides to carry on (E-16).
   deepEqual(doubles.audio.map((effect) => [effect.name, ...effect.args]), [
@@ -1077,6 +2126,125 @@ test("send validates its arguments with a catchable script error", () => {
   equal(result.diagnostics.some((diagnostic) => diagnostic.message.includes("send")), true, JSON.stringify(result.diagnostics));
 });
 
+/** The demo's door copies (#1246): a flag-4 destination names board pixels, a plain destination names one-based tiles. */
+const COORDINATE_MODE_SEND_GAME: GameSpec = {
+  startup: "start.prg",
+  initChar: "hero.tem",
+  boards: {
+    "start.brd": { enter: "enter.prg", tiles: [20, 11], coordType: 4 },
+    "out.brd": { tiles: [20, 15], coordType: 4 },
+    "plain.brd": { tiles: [20, 15] },
+  },
+  programs: {
+    "start.prg": "end()\n",
+    "enter.prg": "end()\n",
+  },
+};
+
+test("send names a position in the destination board's coordinate mode (#1246)", () => {
+  for (const spec of [
+    // The shipped demo's own door: 112,192 on the 20x15 out.brd, just below its return region (x 83-140, y 148-170).
+    { board: "out.brd", coordType: 4, x: 112, y: 192, unit: "pixel", placed: { x: 112, y: 192 } },
+    // A board without the pixel flag keeps one-based tiles: tile (4,6) has its bottom-centre at pixel (112,191).
+    { board: "plain.brd", coordType: 0, x: 4, y: 6, unit: "tile", placed: { x: 112, y: 191 } },
+  ] as const) {
+    const game = authorGame({
+      ...COORDINATE_MODE_SEND_GAME,
+      programs: { ...COORDINATE_MODE_SEND_GAME.programs, "enter.prg": `send("${spec.board}", ${spec.x}, ${spec.y}, 1)\nend()` },
+    });
+    const doubles = makeDoubles();
+    const result = run(bootEngine(game, doubles), game.files, 6);
+    deepEqual(result.diagnostics, [], `${spec.board}: diagnostics`);
+    equal(doubles.state().world.board?.key, `boards/${spec.board}`, `${spec.board}: the board swapped`);
+    const placement = spec.unit === "tile" ? [spec.x, spec.y, 1, "tile", spec.coordType, 20] : [spec.x, spec.y, 1, "pixel"];
+    deepEqual(doubles.sprites.filter((effect) => effect.name === "placeplayer").map((effect) => [effect.name, ...effect.args]).slice(-1), [
+      ["placeplayer", ...placement],
+    ], `${spec.board}: the placeplayer effect`);
+    deepEqual(doubles.triggers.map((effect) => [effect.name, ...effect.args]).slice(-1), [
+      ["deactivateat", spec.x, spec.y, 1, spec.unit],
+    ], `${spec.board}: the deactivateat effect`);
+    // The camera is centred on the placed pixel where the 640x480 board allows it; a tile reading of the demo's
+    // 112,192 would place the player at 3568,6143 and clamp the camera to the board's far corner (320,240).
+    deepEqual({ x: doubles.state().camera.x, y: doubles.state().camera.y }, {
+      x: Math.max(0, Math.min(640 - 320, spec.placed.x - 160)),
+      y: Math.max(0, Math.min(480 - 240, spec.placed.y - 120)),
+    }, `${spec.board}: the camera`);
+  }
+});
+
+/** Destination boards for the send-arrival layout rule: a stacked and a rotated 32x32 board, each with a region exactly under the arrival tile. */
+const ISO_SEND_GAME: GameSpec = {
+  startup: "start.prg",
+  initChar: "hero.tem",
+  boards: {
+    "start.brd": { enter: "enter.prg" },
+    "stacked.brd": { coordType: 1, tiles: [32, 32], arrivalRegion: { tile: [4, 4] } },
+    "rotated.brd": { coordType: 2, tiles: [32, 32], arrivalRegion: { tile: [5, 3] } },
+  },
+  programs: {
+    "start.prg": "end()\n",
+    "enter.prg": "end()\n",
+    "arrival.prg": "arrived = 1\nend()\n",
+  },
+};
+
+test("send arrival places the destination-layout pixel and deactivates the region under it on iso boards", () => {
+  for (const spec of [
+    { board: "stacked.brd", coordType: 1, x: 4, y: 4 },
+    { board: "rotated.brd", coordType: 2, x: 5, y: 3 },
+  ]) {
+    const game = authorGame({
+      ...ISO_SEND_GAME,
+      programs: { ...ISO_SEND_GAME.programs, "enter.prg": `send("${spec.board}", ${spec.x}, ${spec.y}, 1)\nend()` },
+    });
+    const layout = coordLayout(spec.coordType);
+    const destination = tileToPixel(layout, 32, spec.x, spec.y);
+    const loader = { index: game.index, root: PACKAGE_ROOT, read: (key: AssetKey) => game.files.get(key) };
+    const spriteRuntime = createSpriteRuntime();
+    const stateRef: { current: GameState | null } = { current: null };
+    const engine = createEngine({
+      seed: 11,
+      assetIndex: game.index,
+      assetRoot: game.root,
+      mainFile: game.main,
+      gameIdentity: "engine-boot-iso-send",
+      startup: {
+        presence: { hasPlayer: () => spriteRuntime.hasPlayer() },
+        savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+      },
+      width: 320,
+      height: 240,
+      maxTicks: 600,
+      spriteRuntime,
+      phaseRegistrations: [
+        { phase: "audio", run: (state) => { stateRef.current = state; } },
+        triggerPhaseRegistration({
+          programRef: (name) => resolveProgram(loader, name) === undefined ? null : fileProgramRef(loader, name),
+        }),
+      ],
+    });
+    const result = run(engine, game.files, 12);
+    const state = stateRef.current;
+    if (state === null) throw new Error("no tick ran");
+    const label = `the ${layout} board`;
+    deepEqual(result.diagnostics, []);
+    deepEqual(state.world.board?.key, `boards/${spec.board}`);
+    // The placed player is the destination board's own-layout pixel (E-11), and the `placeplayer`
+    // effect carries the board's coordType and sizeX so every consumer can convert the same way.
+    deepEqual({ x: state.sprites.players[0]!.x, y: state.sprites.players[0]!.y }, destination, `${label}: the placed pixel`);
+    deepEqual(state.vm.effects.filter((effect) => effect.name === "placeplayer" && effect.args[3] === "tile").map((effect) => effect.args), [
+      [spec.x, spec.y, 1, "tile", spec.coordType, 32],
+    ], `${label}: the placeplayer effect args`);
+    deepEqual(state.vm.effects.filter((effect) => effect.name === "deactivateat").map((effect) => effect.args), [
+      [spec.x, spec.y, 1, "tile"],
+    ], `${label}: the deactivateat effect args`);
+    // The trigger phase consumed the arrival between ticks, so the region under the destination is deactivated.
+    ok(state.triggers.deactivated.includes("region:0"), `${label}: the arrival region is deactivated`);
+    equal(state.triggers.active, null, `${label}: nothing fires on the arrival`);
+    equal(state.vm.globals.arrived, undefined, `${label}: the region program did not run`);
+  }
+});
+
 // The sample games: their start.prg boots through the real engine with the doubles above.
 const legacyRoot = join(repoRoot, "fixtures", "legacy");
 const haveLegacy = existsSync(legacyRoot);
@@ -1113,6 +2281,295 @@ function sampleGame(name: string): { readonly files: Files; readonly index: Asse
   for (const path of relativePaths) files.set(assetKey(path), new Uint8Array(readFileSync(join(root, path))));
   return { files, index: createAssetIndex(paths), startup: "start.prg", initBoard, initChar };
 }
+
+// The fetched demo has no main file. Exercise its real boards and scripts with authored pixel-mode
+// main files; these settings are not a claim about the original demo's missing configuration.
+// These full-engine cases may exceed one second: packaging the fetched game and running its real
+// startup and both board transitions is necessary to prove the authored pixel-mode door route.
+for (const pixelMovement of [1, 2]) test(`packaged demo returns through its door after wall contact in authored pixel mode ${pixelMovement} (#1274)`, { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
+  const sample = sampleGame("demo");
+  if (sample === null) throw new Error("demo fixture is missing");
+  const mainKey = assetKey("main.gam");
+  const authoredMain = unwrap(readMainFile(new BinaryReader(sample.files.get(mainKey)!)));
+  sample.files.set(mainKey, unwrap(writeMainFile({ ...authoredMain, pixelMovement })));
+  const inputFiles = [...sample.files].map(([path, bytes]) => ({ path, bytes }));
+  const archive = unwrap(writeDistributionPackage({
+    files: inputFiles,
+    manifest: { schema: 1, main: "main.gam", index: inputFiles.map(({ path }) => path) },
+  }));
+  const packaged = unwrap(loadPackage({ kind: "tpk", name: "demo.tpk", bytes: archive }));
+  const files = new Map(packaged.files.filter(({ path }) => path !== "manifest.json").map(({ path, bytes }) => [assetKey(path), bytes]));
+  const index = createAssetIndex(packaged.files.map(({ path }) => path));
+  const packagedMain = unwrap(readMainFile(new BinaryReader(files.get(mainKey)!)));
+  equal(packagedMain.pixelMovement, pixelMovement, "the packaged main selects the authored pixel mode");
+  const boardBytes = files.get(assetKey("boards/out.brd"));
+  if (boardBytes === undefined) throw new Error("demo out board missing");
+  const door = unwrap(readBoard(new BinaryReader(boardBytes))).programs[0];
+  ok(door !== undefined);
+  equal(door.activationType, 1, "the return is a key-press region, not a step-on region");
+  equal(door.program, 'send("start.brd", 306, 306, 1);');
+  deepEqual(door.points, [{ x: 83, y: 148 }, { x: 140, y: 148 }, { x: 140, y: 170 }, { x: 83, y: 170 }]);
+  let latest: GameState | null = null;
+  const runtime = createSpriteRuntime();
+  const loader = { index, root: PACKAGE_ROOT, read: (key: AssetKey) => files.get(key) };
+  const engine = createEngine({
+    seed: 0, assetIndex: index, assetRoot: PACKAGE_ROOT, mainFile: "main.gam", gameIdentity: "demo-door-regression",
+    startup: { presence: { hasPlayer: () => runtime.hasPlayer() }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    width: 640, height: 480, maxTicks: 10000, spriteRuntime: runtime,
+    input: { bindings: { keys: { Enter: "ENTER", ArrowUp: "up", ArrowDown: "down", ArrowRight: "right", ArrowLeft: "left", Space: " " } } },
+    phaseRegistrations: [
+      inputPhaseRegistration({ pixelMovement: packagedMain.pixelMovement }), movementPhaseRegistration({ pixelMovement: packagedMain.pixelMovement }),
+      triggerPhaseRegistration({ programRef: (name) => resolveProgram(loader, name) === undefined ? null : fileProgramRef(loader, name) }),
+      { phase: "audio", run: (state) => { latest = state; } },
+    ],
+  });
+  const current = (): GameState => {
+    if (latest === null) throw new Error("demo has not advanced");
+    return latest;
+  };
+  const advance = (ticks: number): void => { run(engine, files, ticks); };
+  const key = (code: string, down: boolean): void => {
+    run(engine, files, 1, [{ tick: current().time.tick, event: { kind: "key", name: code === "Enter" ? "ENTER" : code, code, char: null, down } }]);
+  };
+  const position = (): readonly [number | undefined, number | undefined] => [current().sprites.players[0]?.x, current().sprites.players[0]?.y];
+  advance(30);
+  key("Enter", true); key("Enter", false); advance(5);
+  key("Enter", true); key("Enter", false); advance(30);
+  equal(current().world.board?.key, "boards/start.brd");
+  equal(current().sprites.items.length, 1, "the real demo board creates its placed item");
+  equal(current().sprites.items[0]?.source, "oldman.itm");
+  deepEqual(position(), [213, 146]);
+  deepEqual(current().sprites.players[0]?.collisionBase.points, [{ x: -15, y: -15 }, { x: 15, y: -15 }, { x: 15, y: 0 }, { x: -15, y: 0 }]);
+  key("ArrowRight", true); advance(24); key("ArrowRight", false);
+  key("ArrowDown", true); advance(45); key("ArrowDown", false); advance(10);
+  deepEqual(position(), [249, 190], "the player remains at the wall after moving down");
+  key("ArrowRight", true); advance(39); key("ArrowRight", false);
+  deepEqual(position(), [301, 190]);
+  key("ArrowDown", true);
+  for (let guard = 0; guard < 160 && current().world.board?.key !== "boards/out.brd"; guard += 1) advance(1);
+  equal(current().world.board?.key, "boards/out.brd");
+  deepEqual(position(), [112, 192], "the authored send uses destination-board pixels");
+  key("ArrowDown", false); advance(5);
+  key("ArrowRight", true); advance(14); key("ArrowRight", false); advance(6);
+  deepEqual(position(), [136, 192], "approach is intentionally away from the doorway centre");
+  key("ArrowUp", true); advance(40); key("ArrowUp", false); advance(5);
+  equal(current().world.board?.key, "boards/out.brd", "walking into the wall cannot fire a key-press region");
+  deepEqual(position(), [136, 176], "the base touches the solid wall and still overlaps the return region");
+  key("Enter", true); key("Enter", false); advance(10);
+  equal(current().world.board?.key, "boards/start.brd");
+  deepEqual(position(), [306, 306], "activation runs the real return send without snapping");
+});
+
+test("demo item activation starts the real oldman program after walking into its polygon", { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
+  const sample = sampleGame("demo");
+  if (sample === null) throw new Error("demo fixture is missing");
+  ok(sample.files.has(assetKey("item/oldman.itm")), "the fetched demo contains item/oldman.itm");
+  let latest: GameState | null = null;
+  const runtime = createSpriteRuntime();
+  const loader = { index: sample.index, root: PACKAGE_ROOT, read: (key: AssetKey) => sample.files.get(key) };
+  const engine = createEngine({
+    seed: 0, assetIndex: sample.index, assetRoot: PACKAGE_ROOT, mainFile: "main.gam", gameIdentity: "demo-oldman-activation",
+    startup: { presence: { hasPlayer: () => runtime.hasPlayer() }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    width: 640, height: 480, maxTicks: 10000, spriteRuntime: runtime,
+    input: { bindings: { keys: { Enter: "ENTER", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" } } },
+    phaseRegistrations: [
+      inputPhaseRegistration(), movementPhaseRegistration(),
+      triggerPhaseRegistration({ programRef: (name) => resolveProgram(loader, name) === undefined ? null : fileProgramRef(loader, name) }),
+      { phase: "audio", run: (state) => { latest = state; } },
+    ],
+  });
+  const current = (): GameState => {
+    if (latest === null) throw new Error("demo has not advanced");
+    return latest;
+  };
+  const key = (code: string, down: boolean): void => {
+    const name = code === "Enter" ? "ENTER" : code;
+    run(engine, sample.files, 1, [{
+      tick: current().time.tick,
+      event: { kind: "key", name, code, char: null, down },
+    }]);
+  };
+  const oldmanProgramStarted = (): boolean => current().vm.threads.some((thread) =>
+    thread.frames.some((frame) => frame.program.kind === "file" && frame.program.path.toLowerCase().endsWith("oldman.prg")));
+  run(engine, sample.files, 30);
+  key("Enter", true); key("Enter", false); run(engine, sample.files, 5);
+  key("Enter", true); key("Enter", false); run(engine, sample.files, 30);
+  equal(current().world.board?.key, "boards/start.brd");
+  const item = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
+  ok(item, "the real demo board places oldman.itm");
+  ok(item.multitaskThread !== null, "the demo item's inline wander program started");
+  const activationType = current().world.board?.items?.find((candidate) => candidate.itemFile.toLowerCase() === "oldman.itm")?.activationType;
+  ok(activationType !== undefined && ((activationType & 3) === 0 || (activationType & 3) === 2), "oldman's item activates on a step");
+  const initialItemPosition = [item.x, item.y];
+  run(engine, sample.files, 90);
+  const movedItem = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
+  ok(movedItem, "oldman remains on the board while its wander program runs");
+  ok(movedItem.x !== initialItemPosition[0] || movedItem.y !== initialItemPosition[1], "the real demo item wanders to a different position");
+  let held: string | null = null;
+  let forcedAxis: "x" | "y" | null = null;
+  let stuck = 0;
+  for (let guard = 0; guard < 500 && !oldmanProgramStarted(); guard += 1) {
+    const player = current().sprites.players[0];
+    const wanderingItem = current().sprites.items.find((candidate) => candidate.source === "oldman.itm");
+    if (player === undefined || wanderingItem === undefined) throw new Error("demo player or oldman disappeared");
+    const dx = wanderingItem.x - player.x;
+    const dy = wanderingItem.y - player.y;
+    const axis: "x" | "y" = forcedAxis ?? (Math.abs(dx) >= Math.abs(dy) ? "x" : "y");
+    const direction = axis === "x"
+      ? (dx >= 0 ? "ArrowRight" : "ArrowLeft")
+      : (dy >= 0 ? "ArrowDown" : "ArrowUp");
+    if (held !== direction) {
+      if (held !== null) key(held, false);
+      key(direction, true);
+      held = direction;
+    }
+    const before = [player.x, player.y];
+    run(engine, sample.files, 8);
+    const after = current().sprites.players[0];
+    if (after === undefined) throw new Error("demo player disappeared");
+    if (after.x === before[0] && after.y === before[1]) {
+      stuck += 1;
+      if (stuck >= 3) {
+        forcedAxis = axis === "x" ? "y" : "x";
+        stuck = 0;
+      }
+    } else {
+      stuck = 0;
+      forcedAxis = null;
+    }
+  }
+  if (held !== null) key(held, false);
+  ok(
+    oldmanProgramStarted(),
+    `walking into the moving item's activation polygon did not start oldman.prg: ${JSON.stringify({ item: current().sprites.items[0], player: current().sprites.players[0], threads: current().vm.threads.map((thread) => ({ kind: thread.kind, status: thread.status, frames: thread.frames })) })}`,
+  );
+});
+
+test("demo start region responds to the held title key on its first free-roam frame (#1176)", { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
+  const sample = sampleGame("demo");
+  if (sample === null) throw new Error("demo fixture is missing");
+  sample.files.set(assetKey("prg/start.prg"), encoder.encode("wait()\ndelay(0.5)\nend()"));
+  const boardKey = assetKey(`boards/${sample.initBoard}`);
+  const boardBytes = sample.files.get(boardKey);
+  if (boardBytes === undefined) throw new Error("demo board missing");
+  const board = unwrap(readBoard(new BinaryReader(boardBytes)));
+  sample.files.set(boardKey, unwrap(writeBoard({
+    ...board,
+    programs: [{
+      program: "wait()", graphic: "", initialVar: "", initialValue: "", finalVar: "", finalValue: "",
+      activate: 0, activationType: 1, repeatDistance: 0, layer: 1,
+      points: [{ x: 180, y: 110 }, { x: 250, y: 110 }, { x: 250, y: 180 }, { x: 180, y: 180 }],
+      closed: 1, handle: "boot-key-region",
+    }],
+  })));
+  let latest: GameState | null = null;
+  const engine = createEngine({
+    seed: 3, assetIndex: sample.index, assetRoot: PACKAGE_ROOT, mainFile: "main.gam",
+    gameIdentity: "demo-boot-activation-test", width: 320, height: 240, maxTicks: 600,
+    startup: { presence: { hasPlayer: () => true }, savedGame: { load: () => ({ kind: "missing" }), restored: () => false } },
+    spriteRuntime: createSpriteRuntime(), input: { bindings: { keys: { Enter: "ENTER", ArrowRight: "right", Space: " " } } },
+    phaseRegistrations: [
+      inputPhaseRegistration(), movementPhaseRegistration(),
+      triggerPhaseRegistration({ programRef: () => ({ kind: "inline", text: "wait()\nend()", ir: IR_VERSION }) }),
+      { phase: "audio", run: (state) => { latest = state; } },
+    ],
+  });
+  const current = (): GameState => {
+    if (latest === null) throw new Error("no tick has run");
+    return latest;
+  };
+  run(engine, sample.files, 5);
+  let state = current();
+  ok(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"));
+  run(engine, sample.files, 1, [{ tick: state.time.tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } }]);
+  for (let guard = 0; state.world.board == null && guard < 100; guard += 1) {
+    run(engine, sample.files, 1);
+    state = current();
+  }
+  ok(state.world.board != null);
+  deepEqual([state.sprites.players[0]?.x, state.sprites.players[0]?.y], [213, 146]);
+  equal(state.input.keys.length, 0, "the title consumed the activation key");
+  equal(state.triggers.active, null);
+  run(engine, sample.files, 1);
+  equal(current().triggers.active?.key, "region:0");
+});
+
+test("a region naming an absent .prg reports one located program.missing and the engine keeps running", () => {
+  const game = authorGame({
+    startup: "start.prg",
+    initChar: "hero.tem",
+    boards: {
+      "start.brd": { keyTrigger: true },
+    },
+    programs: {
+      "start.prg": "end()\n",
+      // keyTrigger authors a key region whose trigger.prg is not part of the game.
+    },
+  });
+  const loader = { index: game.index, root: PACKAGE_ROOT, read: (key: AssetKey) => game.files.get(key) };
+  const spriteRuntime = createSpriteRuntime();
+  const stateRef: { current: GameState | null } = { current: null };
+  const engine = createEngine({
+    seed: 11,
+    assetIndex: game.index,
+    assetRoot: game.root,
+    mainFile: game.main,
+    gameIdentity: "engine-boot-long-running",
+    startup: {
+      presence: { hasPlayer: () => spriteRuntime.hasPlayer() },
+      savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+    },
+    width: 320,
+    height: 240,
+    maxTicks: 600,
+    spriteRuntime,
+    input: { bindings: { keys: { Enter: "ENTER", ArrowRight: "right" } } },
+    phaseRegistrations: [
+      inputPhaseRegistration(),
+      movementPhaseRegistration(),
+      triggerPhaseRegistration({
+        programRef: (name) => resolveProgram(loader, name) === undefined ? null : fileProgramRef(loader, name),
+      }),
+      { phase: "audio", run: (state) => { stateRef.current = state; } },
+    ],
+  });
+  interface RunFold { readonly diagnostics: RunResult["diagnostics"]; }
+  const play = (ticks: number, inputs: readonly InputRecord[] = []): RunFold => {
+    let remaining = ticks;
+    const diagnostics: RunResult["diagnostics"] = [];
+    let replies = [...inputs];
+    for (let guard = 0; guard < 400; guard += 1) {
+      const report = engine.advance(remaining, replies);
+      replies = [];
+      remaining -= report.ticksRun;
+      diagnostics.push(...report.diagnostics);
+      if (report.loading) { replies = report.requests.flatMap((request) => (request.kind === "asset" ? [{ tick: report.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: game.files.get(request.key) ?? null } }] : [])); continue; }
+      if (remaining <= 0 || report.ticksRun === 0) return { diagnostics };
+    }
+    throw new Error("the host loop did not settle");
+  };
+  play(5);
+  const state = stateRef.current;
+  if (state === null) throw new Error("no tick ran");
+  ok(state.world.board !== null, "boot reached its board");
+  const pressed = play(2, [{ tick: state.time.tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } }]);
+  // The region's trigger starts, reports the missing program once through the engine's own
+  // diagnostic routing, and the game keeps running afterwards.
+  const missing = (pressed as { readonly diagnostics: RunResult["diagnostics"] }).diagnostics.filter((diagnostic) => diagnostic.code === "program.missing");
+  equal(missing.length, 1, "exactly one located report");
+  equal(missing[0]?.file, "boards/start.brd", "the report locates the authored board");
+  equal(missing[0]?.line, 0);
+  equal(state.triggers.active, null, "no trigger runs");
+  ok(state.time.tick > 0, "ticks ran past the diagnostic");
+  const afterTick = stateRef.current?.time.tick ?? 0;
+  const after = play(12, [{ tick: afterTick, event: { kind: "key", name: "ArrowRight", code: "ArrowRight", char: null, down: true } }]);
+  equal(after.diagnostics.filter((diagnostic) => diagnostic.code === "program.missing").length, 0, "one held press reports once, never per frame");
+  const afterState = stateRef.current;
+  if (afterState === null) throw new Error("no tick ran");
+  ok(afterState.time.tick > afterTick, "the engine keeps ticking after the diagnostic");
+  // The vm effect audit carries the diagnostic record this report came from.
+  equal(state.vm.effects.filter((effect) => effect.name === "diagnostic").length, 1, "one engine diagnostic effect");
+});
 
 for (const name of ["demo", "Basic"]) {
   test(`the ${name} sample game's start.prg boots through the real engine`, { skip: haveLegacy ? false : "run pnpm fixtures:fetch" }, () => {
@@ -1539,6 +2996,40 @@ test("serialization failure returns null and consumes the explicit checkpoint re
   delete globals.unserializable;
   equal(engine.recoveryCandidate(), null);
 });
+test("recovery defaults each missing movement setting from its associated main file after startup mutation", () => {
+  const cases = [
+    { name: "both omitted", saved: { walking: 0, pushing: 0 }, omitted: ["walking", "pushing"], expected: { walking: 1, pushing: 1 } },
+    { name: "walking present", saved: { walking: 0, pushing: 0 }, omitted: ["pushing"], expected: { walking: 0, pushing: 1 } },
+    { name: "pushing present", saved: { walking: 0, pushing: 0 }, omitted: ["walking"], expected: { walking: 1, pushing: 0 } },
+    { name: "both present", saved: { walking: 0, pushing: 0 }, omitted: [], expected: { walking: 0, pushing: 0 } },
+  ] as const;
+  for (const scenario of cases) {
+    const spec: GameSpec = {
+      ...PAUSED_RECOVERY_GAME,
+      pixelMovement: 2,
+      programs: { ...PAUSED_RECOVERY_GAME.programs, "start.prg": "end()\n" },
+    };
+    const { game, candidate } = recoveryCandidateWithDurableState(spec, [], (state) => {
+      state.world = { ...state.world, movement: scenario.saved };
+    });
+    game.files.set(assetKey("Prg/start.prg"), encoder.encode("pixelmovement(0, 0)\nstartupWalking = pixelmovement()\nend()\n"));
+    const serialized = JSON.parse(new TextDecoder().decode(candidate)) as { world: { movement: Record<string, unknown> } };
+    for (const field of scenario.omitted) delete serialized.world.movement[field];
+    const recoveryBytes = encoder.encode(JSON.stringify(serialized));
+    const doubles = makeDoubles();
+    const engine = bootEngine(game, doubles, undefined, undefined, recoveryBytes);
+    deepEqual(run(engine, game.files, 30).diagnostics, [], scenario.name);
+    equal(engine.recoveryStatus(), "paused", scenario.name);
+    equal(doubles.state().vm.globals.startupwalking, 0, "startup changes walking before recovery installs saved state");
+    deepEqual(doubles.state().world.movement, scenario.expected, scenario.name);
+    equal(doubles.state().sprites.items[0]?.multitaskThread, null, "recovered items stay paused");
+    equal(engine.resumeRecovery(), true, scenario.name);
+    deepEqual(run(engine, game.files, 1).diagnostics, [], scenario.name);
+    deepEqual(doubles.state().world.movement, scenario.expected, "resuming item threads preserves restored movement settings");
+    equal(doubles.state().vm.globals.itemcount, 1, "the restored item-owned program runs after resume");
+  }
+});
+
 test("recovery boots startup first, stages durable state paused, and resumes entry exactly once", () => {
   const { game, candidate, savedTick } = recoveryCandidateWithDurableState();
   const doubles = makeDoubles();
@@ -1604,6 +3095,27 @@ test("recovery boots startup first, stages durable state paused, and resumes ent
   equal(state.vm.globals.boardcount, 1);
   equal(state.vm.globals.itemcount, 1);
   equal(state.time.tick, savedTick + 1);
+});
+
+test("recovery resumes extensionless indexed board and entry programs as files (#1373)", () => {
+  const spec: GameSpec = {
+    ...PAUSED_RECOVERY_GAME,
+    boards: { "start.brd": { enter: "enter", threads: ["board"] } },
+    programs: {
+      ...PAUSED_RECOVERY_GAME.programs,
+      enter: "entryCount = entryCount + 1\nend()\n",
+      board: "boardCount = boardCount + 1\nend()\n",
+    },
+  };
+  const { game, candidate } = recoveryCandidateWithDurableState(spec);
+  const doubles = makeDoubles();
+  const engine = bootEngine(game, doubles, undefined, undefined, candidate);
+  deepEqual(run(engine, game.files, 30).diagnostics, []);
+  equal(engine.recoveryStatus(), "paused");
+  equal(engine.resumeRecovery(), true);
+  deepEqual(run(engine, game.files, 3).diagnostics, []);
+  equal(doubles.state().vm.globals.entrycount, 1);
+  equal(doubles.state().vm.globals.boardcount, 1);
 });
 
 test("declining recovery by supplying no candidate follows ordinary boot", () => {

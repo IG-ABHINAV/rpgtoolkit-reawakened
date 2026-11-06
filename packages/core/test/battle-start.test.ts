@@ -122,6 +122,7 @@ function startState(seed = 17): GameState {
   state.party.members = [hero.id, fallen.id];
   state.party.selected = hero.id;
   state.world = {
+    ...state.world,
     board: {
       key: assetKey("boards/field.brd"),
       coordType: 0,

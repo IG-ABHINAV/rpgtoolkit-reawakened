@@ -66,10 +66,10 @@ so the two pixel defects can never return silently.
 
 ## The lane's own result
 
-`demo` at tick 120 — previous state hash (current closing baseline `91172695de52cfd6`), draw `9a40be8a0b5ca816`, 128 commands, **123 drawn / 5 deferred
+`demo` at tick 120 — previous state hash (later E-02 baseline `91172695de52cfd6`), draw `9a40be8a0b5ca816`, 128 commands, **123 drawn / 5 deferred
 (text)**, boot about 0.45 s, all seven conformance vectors exact.
 
-**Historical browser result (pre-E-02):** The recorded previous demo state hash is superseded by the current closing baseline `91172695de52cfd6`; its draw hash remains `9a40be8a0b5ca816`. The lane result and merge checks below are historical evidence, not a post-E-02 run.
+**Historical browser result (pre-E-02):** The recorded previous demo state hash and the later E-02 baseline `91172695de52cfd6` / `9a40be8a0b5ca816` are historical. See `golden/regression/closing.json` for current values. The lane result and merge checks below are not a post-E-02 run.
 
 ## Gates at the merge
 
@@ -80,3 +80,15 @@ test:strict` (2506/2506, none skipped), `pnpm closing` (8/8), `pnpm browser:test
 (runner-web)` shard and the coverage `gate`.
 
 No golden, state hash, draw hash or snapshot moved.
+
+## Close-out record
+
+Merged in PR #977 (merge commit `892fff188`, 2026-10-31). Honest caveat on the
+verify text: its literal demo tick-120 hash was the current baseline when this
+landed but is retired; the committed baseline is the `demo` game's `board`
+frame at tick 120 in `golden/regression/closing.json`, and the browser lane
+reads that committed baseline at test time, so the equality check kept its
+force (satisfied, not fossilised). The
+lane is a required `gate` dependency and the VP9+Opus / no-WebAssembly probes
+run in the committed `tracer.spec.ts`. Ledger entry reconciled to closed issue
+#928 in the 2026-11-03 ticket audit.

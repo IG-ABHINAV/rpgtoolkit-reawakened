@@ -104,16 +104,18 @@ function tilePixel(x: number, y: number, sizeX: number, coordType: number): Boar
 }
 
 /**
- * The closed pixel polygon of the horizontal run of tiles `x…xEnd` at row `y`
+ * The closed pixel polygon of the merged block of tiles `x…xEnd` × `y…yEnd`
  * on a 2D board, in the winding order (top-left, top-right, bottom-right,
  * bottom-left). The pre-vector layout's program rectangle `((x−1)·32, (y−1)·32)`–`(x·32, y·32)`
- * is the single-tile case (`xEnd === x`), and [coordinates](../../../../../../docs/spec/formats/board.md#coordinates) fixes the 32×32 extent.
+ * is the single-cell case (`xEnd === x`, `yEnd === y`), and [coordinates](../../../../../../docs/spec/formats/board.md#coordinates) fixes the 32×32 extent.
+ * The original emits the opposite winding. Current collision code can choose
+ * a different edge at a corner for the two orders (#1284); parity is unknown.
  */
-function tileCellRect(x: number, y: number, xEnd: number): BoardPoint[] {
+function tileCellRect(x: number, y: number, xEnd: number, yEnd: number): BoardPoint[] {
   const left = (x - 1) * 32;
   const top = (y - 1) * 32;
   const right = xEnd * 32;
-  const bottom = y * 32;
+  const bottom = yEnd * 32;
   return [
     { x: left, y: top },
     { x: right, y: top },
@@ -193,53 +195,99 @@ function passageEdges(type: number, x: number, y: number, layer: number, board: 
  * polygons with the background attribute, passages open polylines along their
  * blocking edges, and stairs closed polygons carrying the target layer.
  *
- * Per the pre-vector layout's "Merge" rule, a 2D board merges each **maximal horizontal run
- * of one type within one layer** into one polygon; an iso-stacked board emits
- * one diamond per tile, because the horizontal-run rule has no diamond
- * analogue. Unlisted tile types (5…10 and values above 18) emit nothing
- * rather than an invented shape.
+ * Per the pre-vector layout's "Merge" rule a 2D board merges **greedy
+ * rectangles**: scan column by column (x ascending, then y), take the first
+ * unconsumed non-zero cell, grow down and then right over unconsumed matching
+ * cells, and consume the block. The scan order fixes the seams.
+ * An iso-stacked board emits one diamond per tile: the original merges in the
+ * rotated grid instead, which is unverified and recorded as Unknown in the
+ * docs. Unlisted tile types (5…10 and values above 18) emit nothing rather
+ * than an invented shape.
  */
 function buildTileVectors(board: PreVectorBoard): BoardVector[] {
   const vectors: BoardVector[] = [];
   const cellsPerLayer = board.sizeX * board.sizeY;
   const iso = (board.coordType & 1) !== 0;
+  const typeAt = (base: number, x: number, y: number): number =>
+    board.tileMatrix[base + (y - 1) * board.sizeX + (x - 1)]?.tileType ?? 0;
+  const pushBlock = (type: number, x: number, y: number, xEnd: number, yEnd: number, layer: number): void => {
+    const isUnder = type === TILE_UNDER;
+    const isStairs = type >= TILE_STAIRS_FIRST;
+    vectors.push({
+      points: tileCellRect(x, y, xEnd, yEnd),
+      attributes: isUnder ? TA_BRD_BACKGROUND : isStairs ? type - 10 : 0,
+      closed: -1,
+      layer,
+      type: isUnder ? TT_UNDER : isStairs ? TT_STAIRS : TT_SOLID,
+      handle: "",
+    });
+  };
   for (let layer = 1; layer <= board.sizeL; layer += 1) {
     const base = (layer - 1) * cellsPerLayer;
-    for (let y = 1; y <= board.sizeY; y += 1) {
-      let x = 1;
-      while (x <= board.sizeX) {
-        const type = board.tileMatrix[base + (y - 1) * board.sizeX + (x - 1)]?.tileType ?? 0;
+    if (iso) {
+      for (let y = 1; y <= board.sizeY; y += 1) {
+        for (let x = 1; x <= board.sizeX; x += 1) {
+          const type = typeAt(base, x, y);
+          if (type === TILE_PASSAGE_NS || type === TILE_PASSAGE_EW) {
+            for (const vector of passageEdges(type, x, y, layer, board)) {
+              vectors.push(vector);
+            }
+            continue;
+          }
+          if (type !== TILE_SOLID && type !== TILE_UNDER && (type < TILE_STAIRS_FIRST || type > TILE_STAIRS_LAST)) {
+            continue;
+          }
+          const isUnder = type === TILE_UNDER;
+          const isStairs = type >= TILE_STAIRS_FIRST;
+          vectors.push({
+            points: tileDiamond(x, y, board.sizeX),
+            attributes: isUnder ? TA_BRD_BACKGROUND : isStairs ? type - 10 : 0,
+            closed: -1,
+            layer,
+            type: isUnder ? TT_UNDER : isStairs ? TT_STAIRS : TT_SOLID,
+            handle: "",
+          });
+        }
+      }
+      continue;
+    }
+    const consumed = new Uint8Array(cellsPerLayer);
+    for (let x = 1; x <= board.sizeX; x += 1) {
+      for (let y = 1; y <= board.sizeY; y += 1) {
+        const type = typeAt(base, x, y);
+        if (type === 0 || consumed[(y - 1) * board.sizeX + (x - 1)] === 1) continue;
         if (type === TILE_PASSAGE_NS || type === TILE_PASSAGE_EW) {
           for (const vector of passageEdges(type, x, y, layer, board)) {
             vectors.push(vector);
           }
-          x += 1;
+          consumed[(y - 1) * board.sizeX + (x - 1)] = 1;
           continue;
         }
         if (type !== TILE_SOLID && type !== TILE_UNDER && (type < TILE_STAIRS_FIRST || type > TILE_STAIRS_LAST)) {
-          x += 1;
           continue;
         }
+        let yEnd = y;
+        while (yEnd < board.sizeY && consumed[yEnd * board.sizeX + (x - 1)] === 0 && typeAt(base, x, yEnd + 1) === type) {
+          yEnd += 1;
+        }
         let xEnd = x;
-        if (!iso) {
-          while (
-            xEnd < board.sizeX &&
-            (board.tileMatrix[base + (y - 1) * board.sizeX + xEnd]?.tileType ?? 0) === type
-          ) {
-            xEnd += 1;
+        while (xEnd < board.sizeX) {
+          let columnMatches = true;
+          for (let yy = y; yy <= yEnd; yy += 1) {
+            if (consumed[(yy - 1) * board.sizeX + xEnd] !== 0 || typeAt(base, xEnd + 1, yy) !== type) {
+              columnMatches = false;
+              break;
+            }
+          }
+          if (!columnMatches) break;
+          xEnd += 1;
+        }
+        for (let cx = x; cx <= xEnd; cx += 1) {
+          for (let cy = y; cy <= yEnd; cy += 1) {
+            consumed[(cy - 1) * board.sizeX + (cx - 1)] = 1;
           }
         }
-        const isUnder = type === TILE_UNDER;
-        const isStairs = type >= TILE_STAIRS_FIRST;
-        vectors.push({
-          points: iso ? tileDiamond(x, y, board.sizeX) : tileCellRect(x, y, xEnd),
-          attributes: isUnder ? TA_BRD_BACKGROUND : isStairs ? type - 10 : 0,
-          closed: -1,
-          layer,
-          type: isUnder ? TT_UNDER : isStairs ? TT_STAIRS : TT_SOLID,
-          handle: "",
-        });
-        x = xEnd + 1;
+        pushBlock(type, x, y, xEnd, yEnd, layer);
       }
     }
   }
@@ -428,7 +476,7 @@ export function convertPreVectorBoard(board: PreVectorBoard): Result<Board> {
       layer: program.layer,
       points: iso
         ? tileDiamond(program.x, program.y, board.sizeX)
-        : tileCellRect(program.x, program.y, program.x),
+        : tileCellRect(program.x, program.y, program.x, program.y),
       closed: -1,
       handle: "",
     }));

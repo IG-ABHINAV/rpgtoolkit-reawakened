@@ -31,7 +31,20 @@ import {
 } from "@tk-reawakened/synth";
 import type { PreparedAudio } from "./decode-types.ts";
 
-/** What the sink tells the cue player, in the protocol's event vocabulary. */
+/**
+ * What the sink tells the cue player, in the protocol's event vocabulary.
+ *
+ * `WorkletSetBankMessage` is the same `setBank` record with the bank bytes attached: the AudioWorklet cannot read
+ * assets synchronously, so the main thread resolves them and forwards them.
+ */
+export type WorkletSetBankMessage = {
+  readonly kind: "setBank";
+  readonly bankKind: string;
+  readonly bank: BankRef | null;
+  readonly bankBytes: Uint8Array | null;
+  readonly bankSha: string | null;
+};
+
 export type SinkEvent =
   | { readonly kind: "ready"; readonly voice: number; readonly lengthTicks: number | null }
   | { readonly kind: "ended"; readonly voice: number }
@@ -146,6 +159,11 @@ export class PcmSink {
   /** The cache entry the current bank pins, or `null`: the key a lane compares across two games. */
   get currentBankSha(): string | null {
     return this.bankSha;
+  }
+
+  /** The validated bytes of the current bank, or `null`: what the AudioWorklet needs to render MIDI. */
+  get currentBankBytes(): Uint8Array | null {
+    return this.bankBytes;
   }
 
   /** The voices the sink holds, open or ended. */
@@ -328,6 +346,38 @@ export class PcmSink {
     this.bankBytes = validateBankBytes(bytes);
   }
 
+  /**
+   * Set the bank from bytes the host already resolved. Used by the AudioWorklet processor, which cannot read assets
+   * synchronously. On validation failure the previous bank is kept; the main-thread sink already reported the error.
+   */
+  setBankBytes(bank: BankRef | null, bytes: Uint8Array | null, sha256: string | null): void {
+    if (bank === null || bytes === null) {
+      this.releaseBank();
+      return;
+    }
+    const previousRef = this.bankRef;
+    const previousSha = this.bankSha;
+    const previousBytes = this.bankBytes;
+    try {
+      this.bankRef = bank;
+      this.bankSha = sha256;
+      this.bankBytes = validateBankBytes(bytes);
+    } catch {
+      this.bankRef = previousRef;
+      this.bankSha = previousSha;
+      this.bankBytes = previousBytes;
+    }
+  }
+
+  /** Report that a voice has finished, used when the renderer lives in an AudioWorklet. */
+  notifyEnded(voice: number): void {
+    const entry = this.voices.get(voice);
+    if (entry === undefined || entry.ended) return;
+    entry.ended = true;
+    this.event({ kind: "ended", voice });
+    this.voices.delete(voice);
+  }
+
   /** Compare a MIDI file's instruments with the current bank's and report each one that needs a substitute, once. */
   private reportMissingPatches(asset: AssetKey, bytes: Uint8Array | null): void {
     if (bytes === null || this.bankBytes === null || this.bankSha === null || this.bankRef === null) return;
@@ -375,12 +425,65 @@ function clampVolume(volume: number): number {
   return Math.max(0, Math.min(100, Math.round(volume)));
 }
 
+/** The shipped AudioWorklet module URL: same-origin, so the strict CSP's `script-src 'self'` covers it. */
+export function defaultWorkletUrl(): string {
+  if (typeof location !== "undefined" && location.protocol === "app:") return "app://player/apps/audio-worklet.js";
+  return "/apps/audio-worklet.js";
+}
+
+export type GraphConnection = {
+  readonly node: AudioNode;
+  readonly disconnect: () => void;
+  /** Forward one protocol message to the graph's renderer (and the local mirror). */
+  readonly send: (message: AudioMessage) => void;
+  /** Report the graph's own onset latency in seconds (base latency + render quantum/buffer). */
+  readonly latency: () => Promise<number>;
+};
+
+export type ConnectSinkOptions = {
+  /** URL for the AudioWorklet module; defaults to `defaultWorkletUrl()`. */
+  readonly workletUrl?: string;
+  /** Buffer size for the ScriptProcessorNode fallback; defaults to 2048. */
+  readonly fallbackBufferSize?: number;
+};
+
 /**
- * Attach a sink to a browser `AudioContext`: a `ScriptProcessorNode` pulls it, a master `GainNode` feeds the graph. The
- * sink is the only thing that knows about voices, so the graph node is three lines and no policy.
+ * Attach a sink to a browser `AudioContext`. Prefer AudioWorklet; fall back to `ScriptProcessorNode` only when the
+ * platform genuinely lacks AudioWorklet or `addModule` fails, and log the fallback explicitly.
  */
-export function connectSinkToGraph(context: AudioContext, sink: PcmSink, frames = 8192): { readonly node: ScriptProcessorNode; readonly disconnect: () => void } {
-  const node = context.createScriptProcessor(frames, 2, 2);
+export async function connectSinkToGraph(context: AudioContext, sink: PcmSink, options: ConnectSinkOptions = {}): Promise<GraphConnection> {
+  const workletUrl = options.workletUrl ?? defaultWorkletUrl();
+  const fallbackBufferSize = options.fallbackBufferSize ?? 2048;
+
+  if (context.audioWorklet !== undefined) {
+    try {
+      await context.audioWorklet.addModule(workletUrl);
+      const node = new AudioWorkletNode(context, "tkr-pcm-processor", {
+        outputChannelCount: [2],
+        channelCount: 2,
+        channelCountMode: "explicit",
+      });
+      node.port.onmessage = (event: MessageEvent<{ kind: "ended"; voice: number } | { kind: "latency"; sampleRate: number; renderQuantumSize: number }>) => {
+        const data = event.data;
+        if (data.kind === "ended") sink.notifyEnded(data.voice);
+      };
+      node.connect(context.destination);
+      return {
+        node,
+        disconnect: () => {
+          node.port.onmessage = null;
+          node.disconnect();
+        },
+        send: (message) => forwardToWorklet(node, sink, message),
+        latency: () => workletLatency(context, node),
+      };
+    } catch (error) {
+      console.warn(`audio: AudioWorklet failed to load (${String(error)}); falling back to ScriptProcessorNode`);
+    }
+  }
+
+  console.warn("audio: using ScriptProcessorNode fallback because AudioWorklet is unavailable");
+  const node = context.createScriptProcessor(fallbackBufferSize, 2, 2);
   node.onaudioprocess = (event: AudioProcessingEvent): void => {
     const left = event.outputBuffer.getChannelData(0);
     const right = event.outputBuffer.getChannelData(1);
@@ -393,7 +496,43 @@ export function connectSinkToGraph(context: AudioContext, sink: PcmSink, frames 
       node.onaudioprocess = null;
       node.disconnect();
     },
+    send: (message) => sink.handle(message),
+    latency: async () => node.bufferSize / context.sampleRate + context.baseLatency,
   };
+}
+
+function forwardToWorklet(node: AudioWorkletNode, sink: PcmSink, message: AudioMessage): void {
+  sink.handle(message);
+  if (message.kind === "setBank") {
+    if (message.bank === null) {
+      node.port.postMessage({ kind: "message", message: { kind: "setBank", bankKind: message.bankKind, bank: null, bankBytes: null, bankSha: null } });
+    } else {
+      const bytes = sink.currentBankBytes;
+      const sha = sink.currentBankSha;
+      if (bytes !== null) {
+        node.port.postMessage({
+          kind: "message",
+          message: { kind: "setBank", bankKind: message.bankKind, bank: message.bank, bankBytes: bytes, bankSha: sha },
+        });
+      }
+    }
+  } else {
+    node.port.postMessage({ kind: "message", message });
+  }
+}
+
+async function workletLatency(context: AudioContext, node: AudioWorkletNode): Promise<number> {
+  const { promise, resolve } = Promise.withResolvers<number>();
+  const handler = (event: MessageEvent<{ kind: "latency"; renderQuantumSize: number }>) => {
+    if (event.data.kind === "latency") {
+      node.port.removeEventListener("message", handler);
+      resolve(event.data.renderQuantumSize);
+    }
+  };
+  node.port.addEventListener("message", handler);
+  node.port.postMessage({ kind: "latency" });
+  const size = await promise;
+  return size / context.sampleRate + context.baseLatency;
 }
 
 /** The runner's ceiling for a user or CDN bank, re-exported so a settings screen rejects early. */

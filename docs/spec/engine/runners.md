@@ -30,6 +30,8 @@ A runner is everything outside `core` that makes a game visible and audible. It 
 The core never waits on a runner except through a blocking request, never reads anything back except an AD-14 input, and
 never learns a runner's name. Everything a runner sends the core is an input `{ tick, event }`; everything the core
 sends a runner is plain data — structured-cloneable, fixed keys, absent values `null` (AD-1, AD-14).
+<a id="quit-request-order"></a>
+**Quit and blob-write ordering (OWNER; ruled 2026-11-02).** Quit does not cancel a blob write issued before it. The core and runner MUST preserve each write's position relative to quit even when a game save is not serialized until later: the core MUST settle post-quit writes as failed without publishing them, and MUST publish a pre-quit game save only after the in-flight requests that affect its snapshot have settled. The runner MUST complete every `saveBlob` request before quit in `TickReport.requests` before disposing session resources or notifying `onQuit`, and MUST NOT dispatch writes after quit. The core MUST order writes on the appropriate side of quit by when the script requested them, not when deferred request bytes become available; it does not order two writes on the same side of quit.
 
 <a id="runner-may-decide"></a>
 ## What a runner may decide, and what it may not
@@ -38,9 +40,8 @@ sends a runner is plain data — structured-cloneable, fixed keys, absent values
 which sources and banks are installed, presentation scaling and letterboxing (AD-33), where a save physically lives
 (AD-17), and the player-facing preferences of [audio-media.md#soundfont-layers](audio-media.md#soundfont-layers).
 
-**May not:** change the meaning of a record, drop or invent a reply the core expects (AD-5, AD-14), feed device state
-into the simulation, depend on how ticks were batched (AD-1), or keep anything caches hold observable: discarding a
-cache at any moment must change no pixel, no sound and no hash (G4 rule 3).
+- **May not:** change the meaning of a record, drop or invent a reply the core expects (AD-5, AD-14), feed raw device or display observations directly into simulation, depend on how ticks were batched (AD-1), or keep anything caches hold observable: discarding a cache at any moment must change no pixel, no sound and no hash (G4 rule 3). A host observation may affect simulation only when captured as the initial host records or as the explicit, tick-stamped `host.features` / `host.display` AD-14 input in [host-capabilities-and-viewports.md#state-and-input-records](host-capabilities-and-viewports.md#state-and-input-records). Those records are hashed because script-visible; the runner's raw observation and presentation transform are not.
+- **Pointer and geometry state:** mapping a physical pointer through the displayed game rectangle is presentation work, but the resulting logical pointer input is an AD-14 input and the current normalized display geometry is deterministic state. Therefore a runner MUST use the same measured game rectangle for pointer mapping and `host.display` inputs; it MUST NOT mutate core geometry through an out-of-band setter.
 
 <a id="draw-list"></a>
 ## Draw-list replay and the presented frame
@@ -69,6 +70,31 @@ request; the core decodes them (AD-28) and the runner pulls pixels it needs from
 because `rev` increments on every mutation and an unknown or stale `rev` returns `null`; it must be able to refill at
 any time, and a test that flushes every cache every frame must produce identical pixels.
 
+<a id="picture-pixels"></a>
+**A composed picture is a texture the core supplies.** A tile bitmap is one picture whose pixels are built from other
+tiles ([tiles.md#tile-bitmap-tbm](../formats/tiles.md#tile-bitmap-tbm)), so a runner MUST NOT compose it, lower it to
+cell blits or decode it from its bytes. When a draw names such an asset — a board image, a battle background, a sprite
+animation frame — the runner gets its straight-RGBA pixels from `engine.picturePixels(key)` and uploads them like any
+other texture; `null` means the core has not decoded that picture, which a runner reports as a deferred command for
+that frame, never as a guess. Lowering a picture to independent cell blits is not equivalent: a later cell that the
+picture's transparent colour keys out must still erase what an earlier cell painted under it, and every tile must be
+clipped to the picture's own `width · 32 × height · 32` bounds.
+
+<a id="blit-pipeline"></a>
+**Pixel pipeline of a `blit` — a runner MUST apply these stages in this order.** A blit carries the colour key (`key`),
+the world tint (`tint`), `alpha` and `blend`:
+
+1. **Skip and key.** A pixel whose alpha is zero is not drawn. `key` is tested against the sampled texel exactly; for
+   a composed picture the texel already carries every authored effect, including a tile bitmap cell's own shade, so
+   the transparent colour is tested on the picture's finished pixels ([tiles.md#tile-bitmap-tbm](../formats/tiles.md#tile-bitmap-tbm)).
+2. **World stage.** Apply `tint` — the pre-summed board shading and ambient — to the sampled texel under the R-15 rule
+   ([tiles.md#shading](../formats/tiles.md#shading)): remap pure white to `245` and pure black to `10` when this tint
+   is non-zero, add it, and clamp once.
+3. **Blend.** `normal`, `additive` or `translucent` with `alpha` (AD-3).
+
+The order is part of the agreement bound below: **colour-key exclusion is compared exactly**, so a runner that keys
+after the world tint fails the colour-key vectors.
+
 <a id="surface-read-and-state-hash"></a>
 ## Surface reads, presentation and game state
 
@@ -93,26 +119,27 @@ operation, separate from host presentation reads. A runner cannot trigger that o
 **Enforcement by type/API rather than convention (answering the open question on #1048):**
 Host accessor purity is guaranteed structurally rather than by trusting runners or developers to follow convention:
 1. **Type signature:** `surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null` is typed as a read-only query taking primitive values and returning `{ readonly w: number, readonly h: number, readonly rgba: Bytes } | null`. It accepts no callbacks, configuration flags, or mutable contexts.
-2. **API separation:** The presentation query is separated entirely from the screen composition pipeline. `surfacePixels` resolves the stored entry for `id`, compares its `rev` and returns `null` on any mismatch; it never invokes the core's frame rebuild. Only a deterministic core operation — the end of `advance`, a script screen read, or a restore — rebuilds surface 0.
+2. **API separation:** `surfacePixels` resolves the stored entry and revision without invoking a rebuild. Currently the core rebuilds at the end of `advance`, on a script screen read, or on restore. The approved deterministic rebuild-before-read rule remains binding; reconstructing the target's history-dependent frame and its precise timing remain unresolved.
 3. **Detached buffer ownership:** The returned `rgba` byte buffer is a newly allocated copy (`new Uint8Array(entry.bitmap.data)`), so runners can retain, wrap, or mutate it without corrupting the engine's internal state.
 
 **Two surfaces, not one.** A script that draws and names no canvas draws to the **script-screen layer**, a persistent
 surface with the reserved id `-1`. The id is fixed, never taken from the monotonic counter, so the first draw to the
 screen moves neither the counter nor any canvas handle, and a script cannot name the layer (handles are never
-negative). The layer is created on first use at the frame's size. While an outermost program runs it is composited
-between the board and the render-now overlay into surface 0, the **presented frame**; outside a program it is retained
-but not composed. Drawing to the layer never overwrites the board, and rebuilding the frame never discards what the script drew.
-Both surfaces are saved; neither is hashed.
+negative). In the current implementation the layer is composited between the live board and overlay while an
+outermost program runs; this is an implementation gap, not the target. The owner chose the Toolkit 3.1 model
+for now: a running program presents its own surface with the message window on top, without live board or overlay
+composition. Board redraws replace that surface. The starting frame is core-composed, with no host pixel request.
+See [ADR 0018](../../adr/0018-core-composed-program-starting-frame.md) and
+[main-loop-and-startup.md#reawakened-starting-frame-capture](main-loop-and-startup.md#reawakened-starting-frame-capture).
+Both existing surfaces are saved; neither is hashed. The storage and save/hash treatment of retained prior-frame
+history are unresolved and are not decided by these existing exclusions.
 
-**When the core rebuilds the frame.** The core rebuilds surface 0 from game state alone, and only at three points: at
+**Current implementation: when the core rebuilds the frame.** The core rebuilds surface 0 from game state alone, and only at three points: at
 the end of every `advance` call; immediately before a script reads the screen (`getpixel` on the screen,
 `canvasgetscreen`, `savescreen`, and a canvas draw whose source is the screen); and when a saved game is restored,
 before any script runs. A rebuild is skipped when the frame it would render is the one already rebuilt — the same
 draw-list size and commands (the tick stamp is not part of the comparison) and no asset has arrived since — and a
-restore always rebuilds. The frame's pixels and revision therefore depend on the game and on how `advance` calls were
-batched, never on how often a host read them; its revision and bytes may differ between batchings, which is harmless
-because surface 0 is excluded from the state hash. A state edit made between `advance` calls shows in the frame at the
-next `advance` or script read, never on a host read.
+restore always rebuilds. In the current implementation pixels and revisions can differ between `advance` batchings and host reads do not cause rebuilds. The adopted target must additionally preserve the correct history-dependent script-visible pixels and G3 determinism: exclusion of surface 0 from the hash does not make different future screen-read results harmless. A state edit currently appears at the next `advance` or script read, never on a host read.
 
 **What leaves the hash and what stays:**
 The hash includes the application store: script variables and globals, script-owned canvases (`cnvX`), and game-loop
@@ -163,10 +190,16 @@ reason to widen the bound.
 ## Input and focus
 
 A runner turns its host's events into the AD-14 input records and feeds them to `advance` with the tick they belong to:
+The record kinds include:
 `key { code, char, vk, down, repeat? }` — a physical key in the host's own identifier space, the character it produced
 or `null`, its virtual-key number or `null`, and the optional `repeat` flag for host auto-repeat, which is not a new
-press edge; `pointer` in logical integer pixels; `gamepad` with a **physical** standard-layout button bitmask
-([E-112](display-input-audio.md#reawakened-gamepad-contract)); `focus { lost | gained }`.
+press edge; `pointer` in logical integer pixels; `gamepad` with a **physical** standard-layout button bitmask and
+`host.gamepads` with the complete current set of connected normalized standard-layout devices, as specified in
+[E-112](display-input-audio.md#reawakened-gamepad-contract); `host.features`, `host.display`; `focus { lost | gained }`.
+
+When a successful `blob.loaded` installs saved state, the runner MUST append fresh `host.features` and `host.gamepads`
+records after that reply. Core applies them before resumed script execution, even if the request pump performs several
+internal advances. The v2 snapshot lists connected devices sorted by normalized index; an omitted device is disconnected.
 
 **A runner maps, it does not name.** `core` turns each key into its binding control (`key:<code>`,
 [ACT-3](display-input-audio.md#act-3)) and into its legacy queue name, so a script sees `LEFT` and `" "` on every host
@@ -204,8 +237,12 @@ bytes, cached per runner and shared across games, with eviction that never remov
 `media.seek` and `media.fade` arithmetic as a pure function of the cue and the tick the voice became ready, and
 `CuePlayer` is the state machine over it — the `(track, voice)` map, the prepared voice from `media.load`, the
 pre-ready message queue, the autoplay lock's mirror and the focus hold. `runner-web` carries the output: `PcmSink` holds
-one `synth` source voice per protocol voice and **pulls** frames, which is the same call a browser `AudioContext` graph
-makes, with bus, master and voice volumes applied at the pull. The four bank ranks of
+one `synth` source voice per protocol voice and **pulls** frames. The shipped graph runs that pull inside an
+**AudioWorklet** (`apps/audio-worklet.js`), so the render quantum is the browser's render-quantum size rather than a
+fixed `ScriptProcessorNode` buffer; the one-shot onset target is **≤ 50 ms** measured as
+`baseLatency + renderQuantumSize / sampleRate`, and the browser lane asserts it. A `ScriptProcessorNode` fallback
+remains only for a platform that genuinely lacks AudioWorklet; it is logged explicitly and uses a documented
+2048-frame buffer. Bus, master and voice volumes are applied at the pull either way. The four bank ranks of
 [audio-media.md#soundfont-layers](audio-media.md#soundfont-layers) resolve in `synth` (`effectiveBank`: player, author,
 runner, bundled — never a fifth, which MEDIA-5 retired), a bank is validated as a RIFF `sfbk` container against the
 runner's ceiling (`bank.invalid`, `bank.unavailable`), and `BankCache` keys it by the SHA-256 of its bytes so two games
@@ -239,6 +276,10 @@ and both:
 - register **no service worker**. A desktop application is already offline; the only artefact with a worker is the PWA
   ([offline](#offline));
 - provide `platform-services`, an asset source for a folder or a package, and the save-blob host behind AD-17's keys.
+
+**The player's window is its game.** Closing the player's last window exits the player application on every platform,
+macOS included: the shell never stays alive with no window, and the process that launched the game ends with it
+([E-06](main-loop-and-startup.md#e-06), where closing the engine's window exits the game).
 
 **The player's launch resolution** is fixed, in this order, and is the only mechanism:
 
@@ -321,8 +362,10 @@ reply is remembered as unavailable for the engine session and is not requested a
 cache is not saved and is excluded from state and draw hashes. It does not prevent a separate gameplay asset request.
 
 A hint **never blocks**, **never changes state**, **never appears in a state or draw hash**, and **never earns a reply**.
-The wire record is an AD-5 and AD-17 amendment, added by entry 8. The owner approved this correction to the landed
-planner's behavior on 2026-11-01 (issue #934, OQ4); it supersedes the broader proposed table in
+Because it never blocks, a runner must dispatch a hint before it awaits any blocking reply; a hint and a blocking
+asset request for the same key in the same report must share the hint's origin read, not the request's. The wire record
+is an AD-5 and AD-17 amendment, added by entry 8. The owner approved this correction to the landed planner's behavior on
+2026-11-01 (issue #934, OQ4); it supersedes the broader proposed table in
 [audio-media.md#audio-prefetch](audio-media.md#audio-prefetch).
 
 The web runner reports one diagnostic about hints, `shared`: the keys whose audio-cue read was served by a read that a
@@ -372,12 +415,21 @@ which is what "the same core build" in the capability's success check means.
 <a id="csp-and-banks"></a>
 ## CSP and the audio path
 
-The default audio path ships **SF2** banks only, so it instantiates **no WebAssembly** and the shipped CSP needs no
-`wasm-unsafe-eval` for it. `script-src 'wasm-unsafe-eval'` is allowed only in a build that can load an SF3 bank or a
-user-supplied `.sf2` that is SF3, and the page states which build it is.
+The desktop player can receive an SF3 bank, including one named `.sf2`. Its MIDI dependency eagerly initializes the
+WebAssembly Vorbis decoder even when the bundled uncompressed SF2 is used. The desktop player and measurement page
+therefore allow `wasm-unsafe-eval` in `script-src`; this permits WebAssembly compilation but not JavaScript
+`unsafe-eval`. The policy still permits scripts only from the application's own origin. The decoder supports
+compressed SoundFont samples; the interactive player waits for its initialization before starting audio, and reports
+initialization failure rather than silently playing a compressed sample before the decoder is ready.
 
-The browser lane **MUST** assert that the default path instantiates no WebAssembly, so the allowance can never widen
-silently. SF3 support itself is unverified and is not promised by this page.
+The browser player's strict policy remains unchanged by this desktop fix, and its browser lane **MUST** assert that
+the default path instantiates no WebAssembly. The current browser player does not yet meet that requirement: the same
+eager dependency initialization is blocked by its policy ([issue #1325](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1325)).
+SF3 playback on other runners is not established by the desktop result.
+
+The AudioWorklet module is loaded by `audioWorklet.addModule` from a **same-origin** URL — `/apps/audio-worklet.js` in
+the browser and `app://player/apps/audio-worklet.js` under the desktop scheme. That fetch is governed by `script-src`,
+not `worker-src`. The browser lane loads the module under the real CSP; the desktop smoke does the same over `app://`.
 
 <a id="conformance-lane"></a>
 ## Conformance: the schema and the vector kit
@@ -394,8 +446,7 @@ A runner proves itself by replaying vectors, not by sharing types. Two artefacts
   replaying them.
 
 <a id="drift-check"></a>
-The schema, the kit and the TypeScript types cannot drift from one another: **`pnpm runner-protocol:check`** fails when
-any one of them changes alone. It runs, in this order, and reports every problem it finds:
+The historical v1 schema and vector kit remain fixed together; the active core input union also serves v2 and is wider. **`pnpm runner-protocol:check`** checks the historical contract without treating v2-only records as v1 changes. It runs, in this order, and reports every problem it finds:
 
 1. **The kit is reproducible.** It regenerates the vectors and fails if the committed `vectors.json` differs.
 2. **The schema is well formed.** Every `$ref` resolves, every `$defs` entry is reachable from the three roots
@@ -404,13 +455,14 @@ any one of them changes alone. It runs, in this order, and reports every problem
    cannot weaken the schema.
 3. **The schema and the kit agree.** Every vector's verdict matches what the schema returns: a valid record is accepted
    and a refusal is refused. A kit that holds no valid record for some kind the schema lists fails.
-4. **The schema and the TypeScript types agree.** The check reads `DrawList`, `InputRecord` and `RunnerRequest` from
+4. **The schema and historical TypeScript types agree.** The check reads `DrawList`, `InputRecordV1` and `RunnerRequest` from
    `packages/core/src/ports/` with the TypeScript compiler and compares each with its schema definition in the JSON
    projection, recursively: the keys a record carries, which are required (every key but `repeat`, AD-14), literal and
    enum values, `null`, arrays, records and nested objects, with a `Uint8Array` leaf as a base64 string. It names the
-   path of every difference, so a type change with no schema change, or the reverse, fails. Numeric bounds, string
-   patterns and lengths exist only in the schema (TypeScript has no integer type), and the refusals in the kit hold
-   them.
+   path of every difference, so a historical type change with no schema change, or the reverse, fails. Numeric bounds,
+   string patterns and lengths exist only in the schema (TypeScript has no integer type), and the refusals in the kit
+   hold them. The active core `InputRecord` includes semantic `action` events for v2; it is intentionally excluded from
+   this v1 drift check.
 
 `packages/core` also fails its own type check when a request kind is missing from `HOST_REQUEST_KINDS`, so a request
 kind cannot be added to the wire without being declarable by a package. The same check, plus perturbation tests that

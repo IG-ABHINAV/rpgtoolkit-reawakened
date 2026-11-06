@@ -4,10 +4,10 @@ Findings for issue [#732](https://github.com/tk-reawakened/rpgtoolkit-reawakened
 following the shared-rig change merged as [#733](https://github.com/tk-reawakened/rpgtoolkit-reawakened/pull/733)
 and the runtime budget in [#730](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/730).
 
-**This is a measurement record, not a decision.** Nothing here is implemented. Candidate A
+**This is a measurement record, not a decision.** The two candidates measured in the
+original investigation below were throwaway prototypes, not committed changes. Candidate A
 needs an owner decision because it is a production API addition; candidate B is a production
-performance fix with its own ticket concerns. Both were measured on throwaway prototypes
-that are not part of this change.
+performance fix with its own ticket concerns. Later results are recorded in section 8.
 
 Measured on one workstation with Node 24.21.0, using the committed tests at `de837ae9` and
 `tools/no-skips/run.mjs --group core-battle`. Local numbers are not CI numbers.
@@ -170,3 +170,26 @@ The headless golden suite, lint, and repository-wide coverage were not part of t
 All timings come from one machine; the reported 337 s run differs by roughly 3× from it, so
 the projected 207 s should be read as a ratio, not a promise. The profiles are sampled,
 not exact; shares are indicative to a few per cent.
+
+## 8. Later recovery and canonicalization measurements
+
+The later battle-list and overlay investigation reduced repeated serialization without
+changing the simulation or skipping state hashes. Recovery candidates now build the normal
+save projection once and add their asset manifest before canonicalization. Long strings
+without UTF-16 surrogate code units can use the standard JSON string escaping operation;
+strings containing surrogates still go through the validating path.
+
+On one macOS arm64 workstation with Node 24.21.0 and V8 coverage enabled, the two
+affected test files passed all 11 tests in 87.74 seconds before and 51.68 seconds after
+the change; user CPU was 159.82 and 89.53 seconds, respectively. The selected-row case
+took 14.23 and 8.46 seconds. These local figures are not a promise about CI times.
+The existing per-tick assertions, report hashes, and golden files were not changed.
+
+The full `core-battle` coverage shard passed 304 tests in both versions. A repeated run
+of the unmodified baseline reported different covered lines in an unchanged sprite
+animation file; [#1330](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1330)
+tracks that reporting discrepancy separately. Coverage thresholds were not changed.
+
+References: [recovery candidates](../spec/engine/interruption-recovery.md#stable-checkpoint),
+[state-hash projection](../spec/formats/save-game.md#state-hash-request-projection),
+and [issue #1256](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1256).

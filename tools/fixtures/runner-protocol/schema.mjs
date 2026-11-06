@@ -12,7 +12,7 @@ const TYPES = new Set(["object", "array", "string", "integer", "number", "boolea
 /** Every keyword the evaluator understands. Annotations (`title`, `description`, `contentEncoding`) never reject. */
 export const KEYWORDS = new Set([
   "$schema", "$id", "$ref", "$defs", "title", "description", "contentEncoding",
-  "type", "const", "enum", "minLength", "pattern", "minimum", "maximum",
+  "type", "const", "enum", "minLength", "pattern", "minimum", "exclusiveMinimum", "maximum",
   "oneOf", "items", "required", "properties", "additionalProperties",
 ]);
 
@@ -49,6 +49,7 @@ export function schemaErrors(root, value, current = root, path = "$") {
   }
   if (typeof value === "number") {
     if (typeof current.minimum === "number" && value < current.minimum) errors.push(`${path}: below minimum`);
+    if (typeof current.exclusiveMinimum === "number" && value <= current.exclusiveMinimum) errors.push(`${path}: at or below exclusive minimum`);
     if (typeof current.maximum === "number" && value > current.maximum) errors.push(`${path}: above maximum`);
   }
   if (Array.isArray(current.oneOf)) {
@@ -84,8 +85,8 @@ function children(node) {
 export function schemaProblems(schema) {
   const problems = [];
   if (schema.$schema !== DRAFT) problems.push(`schema: $schema must be ${DRAFT}`);
-  if (typeof schema.$id !== "string" || !schema.$id.endsWith("runner-protocol-v1.schema.json")) {
-    problems.push("schema: $id must name runner-protocol-v1.schema.json");
+  if (typeof schema.$id !== "string" || !/^https:\/\/tk-reawakened\.dev\/schema\/runner-protocol-v[12]\.schema\.json$/.test(schema.$id)) {
+    problems.push("schema: $id must name a supported runner-protocol schema version");
   }
   if (!isObject(schema.$defs)) return [...problems, "schema: $defs is missing"];
 

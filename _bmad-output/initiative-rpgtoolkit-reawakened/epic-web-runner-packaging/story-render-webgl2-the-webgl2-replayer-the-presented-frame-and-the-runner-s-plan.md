@@ -88,3 +88,13 @@ golden. CI run 41251593546 green on every check, including the new `unit (render
 
 The audio cue player and Web Audio (entries 5 and 6), the live input loop (entry 16), load modes (entry 9), the desktop
 and mobile wrappers (entries 11 and 12), the single-file package (entry 7).
+
+## Close-out record
+
+Merged in PR #984 (merge commit `a95cebbf1`, 2026-10-31). The conformance
+browser lane (`tools/browser/tests/conformance.spec.ts`) replays every raster
+vector and every gating golden row through WebGL2 against the independent
+reference at main; it passed both the #1218 gate and the 2026-11-03 audit
+gate. The verify's literal demo tick-120 hash is retired; the lanes read the
+`demo` game's `board` frame at tick 120 in `golden/regression/closing.json` —
+satisfied, not fossilised. Ledger entry reconciled to closed issue #929.

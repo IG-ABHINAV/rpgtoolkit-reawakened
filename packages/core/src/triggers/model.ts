@@ -26,6 +26,7 @@ export type TriggersSection = {
   deactivated: string[];
   deactivateAt: { x: number; y: number; layer: number } | null;
   active: TriggerActive | null;
+  /** Highest processed key sequence; -1 marks the first free-roam frame after boot. */
   lastKeySeq: number;
   silentUntilIdle: boolean;
 };

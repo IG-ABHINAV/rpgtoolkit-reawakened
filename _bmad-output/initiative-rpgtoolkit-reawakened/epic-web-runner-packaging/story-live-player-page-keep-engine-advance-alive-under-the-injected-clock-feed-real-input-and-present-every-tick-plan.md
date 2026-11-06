@@ -62,7 +62,7 @@ review: quick
 **Acceptance criteria:**
 - Given the demo, when the live page runs, then a document-attached canvas sized for the board contains nonblank board pixels.
 - **Interaction test:** Given a separate interactive session with movement bindings, when a real movement key is pressed, then a measured player-position fact and the rendered frame both change relative to that session's first frame. A waiting script receives its key exactly once. Do not compare this run to the closing golden.
-- **Parity test:** Given a live session configured exactly like the closing harness, without extra bindings or input/movement owners, when the closing-plan ENTER pairs are delivered at ticks 30, 60 and 90 and the session reaches tick 120, then its state hash matches the current committed demo closing baseline `91172695de52cfd6` and its draw hash remains `9a40be8a0b5ca816`, without further golden changes or substituting the one-shot tracer.
+- **Parity test:** Given a live session configured exactly like the closing harness, without extra bindings or input/movement owners, when the closing-plan ENTER pairs are delivered at ticks 30, 60 and 90 and the session reaches tick 120, then its state and draw hashes match the committed demo closing baseline in `golden/regression/closing.json`, without further golden changes or substituting the one-shot tracer.
 - Given the desktop package, when `pnpm desktop:measure` and a visible launch are run, then measurement succeeds and the actual window displays the board.
 - Given the same state and inputs, when presentation alpha changes, then state and draw hashes are unchanged.
 
@@ -97,13 +97,13 @@ At baseline `packages/runner-mobile` is absent and [#940](https://github.com/tk-
 
 The original finding was a defect against approved `docs/spec/engine/main-loop-and-startup.md#reawakened-boot-sequence` step 6: boot posted `sprites.createplayer(initChar)` (`packages/core/src/engine/engine.ts:2104-2109`), but the default sprite effect owner (`engine.ts:477-508`) delegated to `applySpriteEffect`, which had no `createplayer` handler (`packages/core/src/script/packs/movement.ts:294-353`). A separate `SpriteRuntime` needed a board to create a player (`packages/core/src/sprites/runtime.ts:335-339,357-360`), while E-02 requires player creation before startup and board entry. The approved correction acquires and parses the real character and creates the player in core before board entry; it landed in `672ec7dd`.
 
-### E-02 implementation and current closing baseline
+### E-02 implementation and historical closing baseline
 
 The distribution-package manifest's `index` stores every game-file **path**, not file bytes or parsed assets (`docs/spec/formats/packaging-and-paths.md:98-106`). Even though boot prefetches fonts and programs, those paths do not provide the actual `initChar` bytes needed by E-02 step 6. Core must request and parse the character through the existing host asset-request contract before startup and board entry; this is a required data read, not an optional prefetch hint.
 
-The normal asset request advances `nextRequestId` and carries that ID through its host reply (`packages/core/src/engine/engine.ts:1041-1045`). The engine section saves `nextRequestId` and pending request IDs (`engine.ts:1345-1349`), so request/reply IDs remain distinct across save/restore. `hashGameState` hashes the complete game state apart from its documented exclusions (`packages/core/src/save/hash.ts:202-216`); therefore the saved request sequence is hash-visible, and adding this required request changes the deterministic state hash. Hash-neutral prefetch hints use a separate counter precisely because they need no reply (`engine.ts:340-344`); the E-02 asset request is not such a hint.
+At E-02, normal asset requests advanced `nextRequestId` and carried that ID through the host reply. The saved request sequence was then hash-visible, so the required request changed the deterministic state hash. This rationale is historical: the current `hashGameState` excludes `engine.nextRequestId` while retaining pending request IDs (`packages/core/src/save/hash.ts`; `docs/spec/formats/save-game.md#state-hash-request-projection`).
 
-The implementation is commit `672ec7dd`. The re-record in `79c4ffdd` was director-authorized because the distribution-package manifest's `index` stores paths, not file bytes, so boot must request the actual `initChar` bytes through the existing host asset contract. That request advances the deterministic `nextRequestId`, which `hashGameState` includes; therefore the state hash must change. The review confirmed only tick-120 `stateHash` values moved — draw hashes, pixel bytes and command counts stayed byte-identical. `demo`'s current tick-120 state hash is `91172695de52cfd6`; its draw hash remains `9a40be8a0b5ca816`. Tick-120 state hashes changed for five games: `demo`, `Basic`, `Caoquest`, `ChimeranEmpire` and `FinalDestiny`. The other three—`School2Demo`, `LittleMan` and `BusDriver`—were unchanged.
+The implementation is commit `672ec7dd`. The re-record in `79c4ffdd` was director-authorized because the distribution-package manifest's `index` stores paths, not file bytes, so boot must request the actual `initChar` bytes through the existing host asset contract. At that time `hashGameState` included the request sequence, so the required request changed the state hash. The review confirmed only tick-120 `stateHash` values moved — draw hashes, pixel bytes and command counts stayed byte-identical. The E-02 demo tick-120 state hash `91172695de52cfd6` and draw hash `9a40be8a0b5ca816` are historical; see `golden/regression/closing.json` for the current baseline. Tick-120 state hashes changed for five games: `demo`, `Basic`, `Caoquest`, `ChimeranEmpire` and `FinalDestiny`. The other three—`School2Demo`, `LittleMan` and `BusDriver`—were unchanged.
 
 The parity and screen-read comparisons above and below are pre-E-02 observations. Their recorded demo state hash is retained as history and superseded by the current baseline. Post-E-02 interaction and desktop passes are recorded in the bullet above and in Verification below.
 
@@ -167,3 +167,18 @@ Closing that gap is a product decision, not a defect fix: it needs either an exp
 - `pnpm browser:test` → 11/11, including the parity test at state `91172695de52cfd6` / draw `9a40be8a0b5ca816`, the interactive movement test (a held ArrowRight moves the player one 32-pixel step and changes the frame), the empty-`startupPrg` boot regression, and focus pause/resume.
 - `pnpm desktop:build && pnpm desktop:measure --out tools/desktop/measurements/macos.json` → state `91172695de52cfd6`, draw `9a40be8a0b5ca816`, frame worst 0.
 - `pnpm desktop:run --package /tmp/tkr-authored-1018.dVCVR0/tiny-example.tpk` → a temporary package built from `docs/spec/examples/game` (no legacy download, not committed) showed its own village board after Enter, with the status reporting a player position.
+
+## Gap record (2026-11-03 audit; open work, no status change)
+
+The web leg of acceptance is provable from the merged battery at main:
+`tools/browser/tests/live-player.spec.ts` boots demo to the board on a visible canvas and moves the
+player under a held key; `tools/browser/tests/live-parity.spec.ts` pins the
+live page's tick-120 parity against `golden/regression/closing.json`; `mobile.spec.ts`,
+`storage.spec.ts` and `package.spec.ts` cover the wrapper, per-host durable saves and the
+no-start-up-program package; and the trigger phase is live since PR #1218 (merged 3fa7f68d).
+Remaining gap precisely: no committed evidence shows the desktop shell running the shared live loop
+interactively on an authored non-demo package (macOS measurement is demo-only; desktop evidence is
+tap/hold probes), and the acceptance asks for an authored non-demo package rendering its own board in
+the desktop player, with saves staying per-host (= #1021's round trip for hosts). Implementation gap:
+one interactive desktop run recording hashes and a screenshot; nothing about the web page itself is
+missing.

@@ -35,13 +35,14 @@
  * `SCHEMA_VERSIONS.vm` is migrated forward before it is returned: v2 → v3 adds
  * the effect log that ticket 3.21 introduced, v3 → v4 the thread, wait and
  * request fields of ticket 3.9, v4 → v5 advances both ticket 3.8 module
- * metadata and ticket 3.16's sandboxed file-handle table, and v5 → v6 renames
- * each program reference's `compiler` to `ir`. The `schema` section v1 → v2
- * turns its `compiler` into `ir` the same way. The chain is keyed by the
- * per-section numbers (AD-23). A save whose `schema.audio` is 1 carried the empty
- * placeholder; it is replaced by a fresh schema-2 audio section
- * (docs/spec/engine/audio-media.md#audio-state), because a placeholder held no
- * playback to keep.
+ * metadata and ticket 3.16's sandboxed file-handle table, v5 → v6 renames
+ * each program reference's `compiler` to `ir`, and v6 → v7 establishes the
+ * composable same-thread item-action continuation shape. The `schema` section
+ * v1 → v2 turns its `compiler` into `ir` the same way. A save whose
+ * `schema.audio` is 1 carried the empty placeholder; it is replaced by a fresh
+ * schema-2 audio section (docs/spec/engine/audio-media.md#audio-state), because
+ * a placeholder held no playback to keep. The chain is keyed by the
+ * per-section numbers (AD-23).
  *
  * AD-10 (the state tree) and AD-11 (the canonical form); docs/spec/formats/save-game.md#layout-minor-4 (the
  * saved game).
@@ -57,20 +58,24 @@ import {
   RESTORE_CELL_SEQ,
   ScriptError,
 } from "../script/errors.ts";
+import { itemActionRecordIssue, ITEM_ACTION_COMPLETE_COMMAND } from "../script/item-action.ts";
 import { IR_VERSION } from "../script/program.ts";
 import { SCHEMA_VERSIONS, type GameState } from "./state.ts";
 import { asActorsSection, createActorsSection, ACTORS_SCHEMA_VERSION, validateActorProgression, type ActorProgression, type ActorStats } from "../actors/model.ts";
 import { asSpritesSection, createSpritesSection, SPRITES_SCHEMA_VERSION } from "../sprites/model.ts";
-import { createInputSection } from "../input/input.ts";
+import { createInputSection, rebuildKeyboardActionClaimIndex } from "../input/input.ts";
 import { createTriggersSection, TRIGGERS_SCHEMA_VERSION } from "../triggers/model.ts";
 import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
+import { createUiSection, UI_SCHEMA_VERSION } from "./sections/ui.ts";
 import { AUDIO_SCHEMA_VERSION, createAudioSection } from "../audio/model.ts";
 import { createEventsSection } from "../events/model.ts";
 import { EVENT_DISPATCH_WAIT } from "../events/emitter.ts";
 import type { Diagnostic } from "../ports/engine.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection, validateBattleSection } from "../battle/model.ts";
 import { migrateMenuSections } from "../menu/migrate.ts";
 import { surfaceByteLength } from "../raster/surfaces.ts";
+import { createDisplaySection, HOST_FEATURES_SCHEMA_VERSION, DISPLAY_SCHEMA_VERSION, normalizeDisplayGeometry, normalizeHostFeatures } from "./sections/host.ts";
 /** Upgrade the old empty battle placeholder to the fighter-reference section. */
 function migrateBattle(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.battle;
@@ -170,6 +175,7 @@ function migrateVm(record: Record<string, unknown>, schema: Record<string, unkno
   if (version < 5) {
     if (!Array.isArray(vmRecord.files)) vmRecord.files = [];
   }
+  // v6 → v7 adds an optional per-frame itemActions stack; older frames remain absent until needed.
   schema.vm = SCHEMA_VERSIONS.vm;
 }
 
@@ -194,6 +200,39 @@ function migrateEngine(record: Record<string, unknown>, schema: Record<string, u
     }
   }
   schema.engine = SCHEMA_VERSIONS.engine;
+}
+
+/** Add the host sections to pre-#1349 saves using the documented deterministic defaults. */
+function migrateHostSections(record: Record<string, unknown>, schema: Record<string, unknown>, logicalWidth: number, logicalHeight: number): void {
+  for (const [name, versionNow] of [["features", HOST_FEATURES_SCHEMA_VERSION], ["display", DISPLAY_SCHEMA_VERSION]] as const) {
+    let version = schema[name];
+    if (version === undefined) {
+      if (Object.hasOwn(record, name)) shapeError(`the snapshot's schema.${name} version is missing`);
+      version = 0;
+    }
+    if (typeof version !== "number" || !Number.isInteger(version) || version < 0) shapeError(`the snapshot's schema.${name} must be a non-negative whole number`);
+    if (version > versionNow) shapeError(`the snapshot's ${name} schema version ${String(version)} is newer than supported version ${versionNow}`);
+    if (version === versionNow) continue;
+    if (version !== 0) shapeError(`the snapshot's ${name} schema version ${String(version)} has no migration`);
+    record[name] = name === "features"
+      ? normalizeHostFeatures(undefined)
+      : createDisplaySection(logicalWidth, logicalHeight);
+    schema[name] = versionNow;
+  }
+}
+
+/** Upgrade old world snapshots while retaining field-by-field absence for the main-file fallback. */
+function migrateWorld(record: Record<string, unknown>, schema: Record<string, unknown>): void {
+  const version = schema.world;
+  if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `world` version");
+  if (version > SCHEMA_VERSIONS.world) shapeError(`the snapshot's world schema version ${String(version)} is newer than supported version ${SCHEMA_VERSIONS.world}`);
+  const world = recordAt(record.world, "world");
+  const movement = world.movement === undefined ? {} : recordAt(world.movement, "world.movement");
+  world.movement = {
+    walking: movement.walking === undefined ? null : movement.walking,
+    pushing: movement.pushing === undefined ? null : movement.pushing,
+  };
+  schema.world = SCHEMA_VERSIONS.world;
 }
 
 /** Migrate the old empty sprites placeholder and v2 actors to the movement-aware section. */
@@ -299,11 +338,121 @@ function migrateTriggers(record: Record<string, unknown>, schema: Record<string,
   schema.triggers = TRIGGERS_SCHEMA_VERSION;
 }
 
+function rebuildInputActionIndexes(input: Record<string, unknown>): void {
+  const engineActions = ["up", "down", "left", "right", "confirm", "cancel", "menu"];
+  const registry: Record<string, true> = Object.fromEntries(engineActions.map((name) => [name, true]));
+  const order: Record<string, number> = Object.fromEntries(engineActions.map((name, index) => [name, index]));
+  const controls: Record<string, string[]> = {};
+  const padMasks: Record<string, number> = {};
+  const registered = Array.isArray(input.registeredActions) ? input.registeredActions : [];
+  for (const [index, value] of registered.entries()) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+    const action = value as Record<string, unknown>;
+    if (typeof action.name !== "string" || !/^game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/.test(action.name)) continue;
+    Object.defineProperty(registry, action.name, { value: true, enumerable: true, configurable: true, writable: true });
+    Object.defineProperty(order, action.name, { value: engineActions.length + index, enumerable: true, configurable: true, writable: true });
+    if (!Array.isArray(action.controls)) continue;
+    for (const control of action.controls) {
+      if (typeof control !== "string" || !/^(?:key:[A-Za-z][A-Za-z0-9]*|pad:(?:[0-9]|1[0-6])|pad:axis[01][+-])$/.test(control)) continue;
+      if (!Object.hasOwn(controls, control)) Object.defineProperty(controls, control, { value: [], enumerable: true, configurable: true, writable: true });
+      controls[control]!.push(action.name);
+      if (control.startsWith("pad:")) {
+        const bit = control === "pad:axis0-" ? 17 : control === "pad:axis0+" ? 18 : control === "pad:axis1-" ? 19 : control === "pad:axis1+" ? 20 : Number(control.slice(4));
+        padMasks[action.name] = (padMasks[action.name] ?? 0) | (1 << bit);
+      }
+    }
+  }
+  input.actionRegistry = registry;
+  input.actionOrder = order;
+  input.controlActions = controls;
+  input.actionPadMasks = padMasks;
+  const sources = typeof input.keyboardActionSources === "object" && input.keyboardActionSources !== null && !Array.isArray(input.keyboardActionSources)
+    ? input.keyboardActionSources as Record<string, Record<string, true>>
+    : {};
+  const heldKeys = typeof input.held === "object" && input.held !== null && !Array.isArray(input.held)
+    ? input.held as Record<string, unknown>
+    : {};
+  const bindings: Record<string, unknown> = {};
+  const bindingRecord = input.bindings;
+  if (typeof bindingRecord === "object" && bindingRecord !== null && !Array.isArray(bindingRecord) && "keys" in bindingRecord) {
+    const keyMap = bindingRecord.keys;
+    if (typeof keyMap === "object" && keyMap !== null && !Array.isArray(keyMap)) Object.assign(bindings, keyMap);
+  }
+  const defaults: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "confirm", Space: "confirm", Escape: "cancel" };
+  const legacyName = (code: string): string | null => {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^(?:Digit|Numpad)[0-9]$/.test(code)) return code.slice(-1);
+    return null;
+  };
+  const isPhysicalCode = (code: string): boolean =>
+    legacyName(code) !== null
+    || /^(?:Arrow(?:Up|Down|Left|Right)|Enter|Escape|Space|Tab|Backspace|Delete|Insert|Home|End|PageUp|PageDown|CapsLock|NumLock|ScrollLock|Pause|ContextMenu|PrintScreen|(?:Shift|Control|Alt|Meta)(?:Left|Right)|F(?:[1-9]|1[0-2])|Numpad(?:Add|Subtract|Multiply|Divide|Decimal|Enter|Equal|Comma|ParenLeft|ParenRight|Backspace)|Intl(?:Backslash|Ro|Yen)|Lang[1-5])$/.test(code);
+  const aliases: Record<string, string> = { ENTER: "confirm", RETURN: "confirm", SPACE: "confirm", " ": "confirm", ESC: "cancel", ESCAPE: "cancel", UP: "up", DOWN: "down", LEFT: "left", RIGHT: "right" };
+  const resolve = (value: unknown): string | null => typeof value === "string" ? aliases[value.toUpperCase()] ?? value : null;
+  if (typeof input.keyboardActions === "object" && input.keyboardActions !== null && !Array.isArray(input.keyboardActions)) {
+    for (const [action, held] of Object.entries(input.keyboardActions as Record<string, unknown>)) {
+      if (held !== true || !Object.hasOwn(registry, action) || Object.keys(sources[action] ?? {}).length > 0) continue;
+      const claims: Record<string, true> = {};
+      for (const [code, down] of Object.entries(heldKeys)) {
+        // Logical aliases do not prove a physical code. Rebuild only from a separately saved
+        // KeyboardEvent.code, so ENTER cannot invent key:Enter beside a held NumpadEnter.
+        if (down !== true || !isPhysicalCode(code)) continue;
+        const oldName = legacyName(code);
+        const resolved = resolve(bindings[code]) ?? defaults[code] ??
+          (oldName === null ? null : resolve(bindings[oldName]) ?? aliases[oldName]) ?? null;
+        if (resolved === action) Object.defineProperty(claims, `key:${code}`, { value: true, enumerable: true, configurable: true, writable: true });
+      }
+      if (Object.keys(claims).length === 0) Object.defineProperty(claims, "legacy.keyboard", { value: true, enumerable: true, configurable: true, writable: true });
+      Object.defineProperty(sources, action, { value: claims, enumerable: true, configurable: true, writable: true });
+    }
+  }
+  input.keyboardActionSources = sources;
+}
+
 /** Migrate the raw input section to the binding-aware schema. */
 function migrateInput(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.input;
   if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `input` version");
-  if (version >= INPUT_SCHEMA_VERSION) return;
+  const normalizeKeys = (value: unknown): unknown[] => Array.isArray(value)
+    ? value.map((entry: unknown) => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
+      const key = entry as Record<string, unknown>;
+      const actions = Array.isArray(key.resolvedActions) ? key.resolvedActions as string[] : typeof key.action === "string" ? [key.action] : [];
+      return { ...key, action: typeof key.action === "string" ? key.action : null, resolvedActions: actions };
+    })
+    : [];
+  if (version >= INPUT_SCHEMA_VERSION) {
+    const input = recordAt(record.input, "input");
+    if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
+    if (typeof input.actionPadMasks !== "object" || input.actionPadMasks === null || Array.isArray(input.actionPadMasks)) input.actionPadMasks = {};
+    if (typeof input.keyboardActionSources !== "object" || input.keyboardActionSources === null || Array.isArray(input.keyboardActionSources)) input.keyboardActionSources = {};
+    if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    input.keys = normalizeKeys(input.keys);
+    if (typeof input.nextPointerGestureId !== "number" || !Number.isSafeInteger(input.nextPointerGestureId) || input.nextPointerGestureId < 1) input.nextPointerGestureId = 1;
+    if (typeof input.pointerGestureId !== "number" || !Number.isSafeInteger(input.pointerGestureId)) input.pointerGestureId = null;
+    if (!Array.isArray(input.pendingClicks)) input.pendingClicks = [];
+    else input.pendingClicks = input.pendingClicks.map((value) => typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).x === "number" && typeof (value as Record<string, unknown>).y === "number"
+      ? { gestureId: typeof (value as Record<string, unknown>).gestureId === "number" ? (value as Record<string, number>).gestureId! : 0, x: (value as Record<string, number>).x!, y: (value as Record<string, number>).y! }
+      : null).filter((value) => value !== null);
+    if (!Array.isArray(input.pendingPointerUps)) input.pendingPointerUps = [];
+    else input.pendingPointerUps = input.pendingPointerUps.map((value) => typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).x === "number" && typeof (value as Record<string, unknown>).y === "number"
+      ? { gestureId: typeof (value as Record<string, unknown>).gestureId === "number" ? (value as Record<string, number>).gestureId! : 0, x: (value as Record<string, number>).x!, y: (value as Record<string, number>).y! }
+      : null).filter((value) => value !== null);
+    if (input.pointerPlane !== null && (typeof input.pointerPlane !== "object" || Array.isArray(input.pointerPlane))) input.pointerPlane = null;
+    if (input.pointerGestureId === null && typeof input.pointer === "object" && input.pointer !== null
+      && typeof (input.pointer as Record<string, unknown>).buttons === "number" && (((input.pointer as Record<string, number>).buttons ?? 0) & 1) !== 0) input.pointerGestureId = 0;
+    rebuildInputActionIndexes(input);
+    return;
+  }
+  if (version === 7) {
+    const input = recordAt(record.input, "input");
+    input.version = INPUT_SCHEMA_VERSION;
+    if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    input.keys = normalizeKeys(input.keys);
+    rebuildInputActionIndexes(input);
+    schema.input = INPUT_SCHEMA_VERSION;
+    return;
+  }
   const old = record.input;
   if (typeof old !== "object" || old === null || Array.isArray(old)) {
     record.input = createInputSection();
@@ -311,6 +460,57 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     return;
   }
   const oldRecord = old as Record<string, unknown>;
+  if (version >= 2 && version <= 6) {
+    const fresh = createInputSection();
+    const pointer = typeof oldRecord.pointer === "object" && oldRecord.pointer !== null && !Array.isArray(oldRecord.pointer) ? oldRecord.pointer as Record<string, unknown> : {};
+    const legacyPoints = (value: unknown): { gestureId: number; x: number; y: number }[] => Array.isArray(value)
+      ? value.flatMap((point) => typeof point === "object" && point !== null && typeof (point as Record<string, unknown>).x === "number" && typeof (point as Record<string, unknown>).y === "number"
+        ? [{ gestureId: typeof (point as Record<string, unknown>).gestureId === "number" ? (point as Record<string, number>).gestureId! : 0, x: (point as Record<string, number>).x!, y: (point as Record<string, number>).y! }]
+        : [])
+      : [];
+    const clicks = legacyPoints(oldRecord.pendingClicks);
+    const pointerUps = legacyPoints(oldRecord.pendingPointerUps);
+    const legacyMask = (mask: number): number => {
+      const targets = [12, 13, 14, 15, 0, 1, 9];
+      return targets.reduce((result, target, source) => result | ((mask & (1 << source)) !== 0 ? (1 << target) : 0), 0);
+    };
+    const pads = typeof oldRecord.gamepads === "object" && oldRecord.gamepads !== null && !Array.isArray(oldRecord.gamepads)
+      ? Object.fromEntries(Object.entries(oldRecord.gamepads as Record<string, unknown>).map(([device, value]) => {
+        if (typeof value !== "object" || value === null || Array.isArray(value)) return [device, value];
+        const pad = value as Record<string, unknown>;
+        return [device, { ...pad, mask: typeof pad.mask === "number" ? version < 6 ? legacyMask(pad.mask) : pad.mask : 0 }];
+      }))
+      : {};
+    const hasPrimaryPointer = (((pointer.buttons as number | undefined) ?? 0) & 1) !== 0;
+    const savedGestureId = oldRecord.pointerGestureId;
+    const activeGestureId = hasPrimaryPointer
+      ? typeof savedGestureId === "number" && Number.isSafeInteger(savedGestureId) && savedGestureId >= 0 ? savedGestureId : 0
+      : null;
+    const savedNextGestureId = oldRecord.nextPointerGestureId;
+    const nextGestureId = typeof savedNextGestureId === "number" && Number.isSafeInteger(savedNextGestureId) && savedNextGestureId >= 1 ? savedNextGestureId : 1;
+    const migrated: Record<string, unknown> = {
+      ...oldRecord,
+      version: INPUT_SCHEMA_VERSION,
+      pointer: { ...fresh.pointer, ...pointer },
+      pressedButtonSlot: version >= 4 ? oldRecord.pressedButtonSlot ?? null : null,
+      registeredActions: version >= 5 && Array.isArray(oldRecord.registeredActions) ? oldRecord.registeredActions : [],
+      semanticActionSources: version >= 5 && typeof oldRecord.semanticActionSources === "object" && oldRecord.semanticActionSources !== null ? oldRecord.semanticActionSources : {},
+      keyboardActionSources: {},
+      pointerMovementSuppressed: version >= 5 && typeof oldRecord.pointerMovementSuppressed === "boolean" ? oldRecord.pointerMovementSuppressed : false,
+      pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
+      pendingKeySequences: [],
+      gamepads: pads,
+      pointerGestureId: activeGestureId,
+      pendingClicks: clicks,
+      pendingPointerUps: pointerUps,
+      nextPointerGestureId: Math.max(nextGestureId, activeGestureId === null ? 1 : activeGestureId + 1, ...clicks.map((item) => item.gestureId + 1), ...pointerUps.map((item) => item.gestureId + 1)),
+    };
+    migrated.keys = normalizeKeys(migrated.keys);
+    record.input = migrated;
+    rebuildInputActionIndexes(migrated);
+    schema.input = INPUT_SCHEMA_VERSION;
+    return;
+  }
   const current = createInputSection();
   if (typeof oldRecord.nextSeq === "number") current.nextSeq = oldRecord.nextSeq;
   if (Array.isArray(oldRecord.keys)) current.keys = oldRecord.keys as typeof current.keys;
@@ -320,6 +520,63 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
   record.input = current;
   schema.input = INPUT_SCHEMA_VERSION;
 }
+/** Add deterministic author-surface, explicit custom-touch declaration and input-claim fields. */
+function migrateUi(record: Record<string, unknown>, schema: Record<string, unknown>): void {
+  const version = schema.ui;
+  if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `ui` version");
+  if (version > UI_SCHEMA_VERSION) shapeError(`the snapshot's ui schema ${version} is newer than supported schema ${UI_SCHEMA_VERSION}`);
+  const old = record.ui;
+  if (typeof old !== "object" || old === null || Array.isArray(old)) {
+    shapeError("the snapshot's `ui` section must be an object");
+  }
+  if (version < UI_SCHEMA_VERSION) {
+    const migrated: Record<string, unknown> = { ...createUiSection(), ...(old as Record<string, unknown>) };
+    const time = record.time;
+    const savedTick = typeof time === "object" && time !== null && !Array.isArray(time) &&
+      Number.isSafeInteger((time as Record<string, unknown>).tick)
+      ? (time as Record<string, number>).tick!
+      : 0;
+    if (version < 5) {
+      if (Array.isArray(migrated.actionSurfaces)) {
+        migrated.actionSurfaces = migrated.actionSurfaces.map((surface: unknown) => {
+          if (typeof surface !== "object" || surface === null || Array.isArray(surface)) return surface;
+          const publishedTick = (surface as Record<string, unknown>).publishedTick;
+          return {
+            ...surface,
+            publishedTick: Number.isSafeInteger(publishedTick) ? publishedTick : savedTick,
+          };
+        });
+      }
+      if (Array.isArray(migrated.surfaceBuilders)) {
+        migrated.surfaceBuilders = migrated.surfaceBuilders.map((builder: unknown) => {
+          if (typeof builder !== "object" || builder === null || Array.isArray(builder)) return builder;
+          const openedTick = (builder as Record<string, unknown>).openedTick;
+          return {
+            ...builder,
+            openedTick: Number.isSafeInteger(openedTick) ? openedTick : savedTick,
+          };
+        });
+      }
+    }
+    if (!Array.isArray(migrated.authorMarginSurfaces)) migrated.authorMarginSurfaces = [];
+        for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+          const claim = migrated[key];
+          if (claim !== null && typeof claim === "object" && !Array.isArray(claim)) migrated[key] = { ...claim, cancelled: typeof (claim as Record<string, unknown>).cancelled === "boolean" ? (claim as Record<string, unknown>).cancelled : false };
+        }
+    record.ui = migrated;
+  } else {
+    const current = old as Record<string, unknown>;
+    if (!Array.isArray(current.authorMarginSurfaces)) current.authorMarginSurfaces = [];
+  }
+  const currentUi = record.ui as Record<string, unknown>;
+  for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+    const claim = currentUi[key];
+    if (claim !== null && (typeof claim !== "object" || Array.isArray(claim) || typeof (claim as Record<string, unknown>).cancelled !== "boolean")) shapeError(`the snapshot's UI ${key} must be null or an object with boolean \`cancelled\``);
+  }
+  if (typeof currentUi.surfaceResultsPending !== "boolean") shapeError("the snapshot's UI surfaceResultsPending must be a boolean");
+  schema.ui = UI_SCHEMA_VERSION;
+}
+
 
 /** Migrate the empty audio placeholder (schema 1) to the track-and-voice section (schema 2; docs/spec/engine/audio-media.md#audio-state). */
 function migrateAudio(record: Record<string, unknown>, schema: Record<string, unknown>): void {
@@ -448,6 +705,15 @@ function validateVmShape(vm: Record<string, unknown>): ReadonlyMap<number, strin
       recordAt(frame.locals, `vm.threads[${index}].frames[${frameIndex}].locals`);
       arrayAt(frame.operands, `vm.threads[${index}].frames[${frameIndex}].operands`);
       if (frame.errorHandler !== null) recordAt(frame.errorHandler, `vm.threads[${index}].frames[${frameIndex}].errorHandler`);
+      if (Object.hasOwn(frame, "itemActions")) {
+        const itemActionsPath = `vm.threads[${index}].frames[${frameIndex}].itemActions`;
+        const records = arrayAt(frame.itemActions, itemActionsPath);
+        if (records.length === 0) shapeError(`the snapshot's ${itemActionsPath} is empty`);
+        for (const [actionIndex, actionValue] of records.entries()) {
+          const issue = itemActionRecordIssue(actionValue);
+          if (issue !== null) shapeError(`the snapshot's ${itemActionsPath}[${actionIndex}] ${issue}`);
+        }
+      }
       if (typeof frame.autoLocal !== "boolean") shapeError(`the snapshot's vm.threads[${index}].frames[${frameIndex}].autoLocal is invalid`);
       if (frame.programRoot !== undefined) {
         const rootPath = `vm.threads[${index}].frames[${frameIndex}].programRoot`;
@@ -466,6 +732,14 @@ function validateVmShape(vm: Record<string, unknown>): ReadonlyMap<number, strin
           if (restore.target !== null) stringAt(restore.target, `${rootPath}.restore.target`);
         }
       }
+    }
+    const topFrame = arrayAt(thread.frames, `vm.threads[${index}].frames`).at(-1);
+    const topRecords: unknown[] = isRecord(topFrame) && Array.isArray(topFrame.itemActions) ? topFrame.itemActions : [];
+    const lastRecord = topRecords.at(-1);
+    const completing = isRecord(lastRecord) && lastRecord.phase === "completion";
+    const pendingComplete = isRecord(thread.pending) && thread.pending.command === ITEM_ACTION_COMPLETE_COMMAND;
+    if (completing !== pendingComplete) {
+      shapeError(`the snapshot's vm.threads[${index}] item action completion and its pending dispatch disagree`);
     }
   }
   const objectClasses = validateVmObjects(vm);
@@ -903,6 +1177,27 @@ function validateEngineShape(value: unknown): void {
     }
   }
 }
+function validateHostFeaturesShape(value: unknown): void {
+  const features = recordAt(value, "features");
+  try {
+    const normalized = normalizeHostFeatures(features as HostFeatures);
+    if (Object.keys(features).length !== 6 || Object.keys(normalized).some((key) => !Object.hasOwn(features, key))) {
+      shapeError("the snapshot's features must be a complete normalized record");
+    }
+  } catch {
+    shapeError("the snapshot's features record is invalid");
+  }
+}
+
+function validateDisplayShape(value: unknown): void {
+  const display = recordAt(value, "display");
+  if (Object.keys(display).length !== 1) shapeError("the snapshot's display must contain only geometry");
+  try {
+    normalizeDisplayGeometry(recordAt(display.geometry, "display.geometry") as HostDisplayGeometry);
+  } catch {
+    shapeError("the snapshot's display.geometry is invalid");
+  }
+}
 function validateShape(record: Record<string, unknown>): void {
   const schema = recordAt(record.schema, "schema");
   for (const key of Object.keys(SCHEMA_VERSIONS)) numberAt(schema[key], `schema.${key}`);
@@ -919,7 +1214,18 @@ function validateShape(record: Record<string, unknown>): void {
     if (key === "surfaces") validateSurfacesShape(record[key]);
     if (key === "actors") validateActorsShape(record[key]);
     if (key === "triggers") validateTriggersShape(record[key]);
+    if (key === "world") {
+      const movement = recordAt(record.world, "world").movement;
+      const settings = recordAt(movement, "world.movement");
+      for (const field of ["walking", "pushing"] as const) {
+        if (settings[field] === null) continue;
+        const value = numberAt(settings[field], `world.movement.${field}`);
+        if (value !== 0 && value !== 1) shapeError(`the snapshot's world.movement.${field} must be 0, 1 or null`);
+      }
+    }
     if (key === "audio") validateAudioShape(record[key]);
+    if (key === "features") validateHostFeaturesShape(record[key]);
+    if (key === "display") validateDisplayShape(record[key]);
   }
   const rng = recordAt(record.rng, "rng");
   for (const key of ["s0", "s1", "s2", "s3"]) numberAt(rng[key], `rng.${key}`);
@@ -933,6 +1239,8 @@ function validateShape(record: Record<string, unknown>): void {
 export type RestoreOptions = {
   /** Refuse an older instruction version instead of restarting the affected threads (recovery). */
   readonly requireCurrentIr?: boolean;
+  readonly logicalWidth?: number;
+  readonly logicalHeight?: number;
 };
 
 /** The whole-number form of an instruction version, or `null` when the text is not one. */
@@ -1097,6 +1405,7 @@ export function restoreGameState(
   migrateSchema(schemaValue);
   refuseNewerIr(schemaValue.ir);
   refuseNewerFrameIr(record);
+  migrateHostSections(record, schemaValue, options.logicalWidth ?? 320, options.logicalHeight ?? 240);
   const schema = schemaValue;
   migrateEvents(record, schema);
   migrateActors(record, schema as Record<string, unknown>);
@@ -1108,12 +1417,16 @@ export function restoreGameState(
       throw new ScriptError("restore.shape", `the snapshot is missing the "${key}" section`);
     }
   }
+  migrateWorld(record, schema as Record<string, unknown>);
 
   migrateVm(record, schema as Record<string, unknown>);
   migrateSprites(record, schema as Record<string, unknown>);
   migrateInput(record, schema as Record<string, unknown>);
+  rebuildKeyboardActionClaimIndex(record.input as GameState["input"]);
   migrateTriggers(record, schema as Record<string, unknown>);
+  migrateUi(record, schema as Record<string, unknown>);
   migrateAudio(record, schema as Record<string, unknown>);
+  migrateEngine(record, schema as Record<string, unknown>);
   applyIrCompatibility(record, options);
   // The loaded state now runs the current instruction version: every position is
   // either unchanged or was restarted, and position-free references keep their

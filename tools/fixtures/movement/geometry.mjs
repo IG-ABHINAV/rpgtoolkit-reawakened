@@ -74,15 +74,35 @@ export function hitsVector(base, vector) {
   return false;
 }
 
-/** The first edge of `vector`, in stored order, that the base overlaps; or null. */
+/** Choose a canonical hit edge independent of polygon winding and start vertex. */
 export function hitEdge(base, vector) {
   const count = vector.closed !== false ? vector.points.length : vector.points.length - 1;
+  const compare = (a, b) => a[0] - b[0] || a[1] - b[1];
+  const edges = [];
+  const fallback = [];
+  const xs = base.map((p) => p[0]);
+  const ys = base.map((p) => p[1]);
+  const turn = (a, b, p) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+  const on = (a, b, p) => p[0] >= Math.min(a[0], b[0]) && p[0] <= Math.max(a[0], b[0]) && p[1] >= Math.min(a[1], b[1]) && p[1] <= Math.max(a[1], b[1]);
   for (let index = 0; index < count; index += 1) {
     const a = vector.points[index];
     const b = vector.points[(index + 1) % vector.points.length];
-    if (overlaps(base, [a, b])) return [b[0] - a[0], b[1] - a[1]];
+    const edge = compare(a, b) <= 0 ? [a, b] : [b, a];
+    if (Math.max(a[0], b[0]) >= Math.min(...xs) && Math.min(a[0], b[0]) <= Math.max(...xs) && Math.max(a[1], b[1]) >= Math.min(...ys) && Math.min(a[1], b[1]) <= Math.max(...ys)) fallback.push(edge);
+    for (let i = 0; i < base.length; i += 1) {
+      const c = base[i];
+      const d = base[(i + 1) % base.length];
+      const [u, v, w, x] = [turn(a, b, c), turn(a, b, d), turn(c, d, a), turn(c, d, b)];
+      if (((u > 0 && v < 0) || (u < 0 && v > 0) || (u === 0 && on(a, b, c)) || (v === 0 && on(a, b, d)))
+        && ((w > 0 && x < 0) || (w < 0 && x > 0) || (w === 0 && on(c, d, a)) || (x === 0 && on(c, d, b)))) {
+        edges.push(edge);
+        break;
+      }
+    }
   }
-  return null;
+  const candidates = edges.length === 0 ? fallback : edges;
+  candidates.sort((a, b) => compare(a[0], b[0]) || compare(a[1], b[1]));
+  return candidates.length === 0 ? null : [candidates[0][1][0] - candidates[0][0][0], candidates[0][1][1] - candidates[0][0][1]];
 }
 
 /**

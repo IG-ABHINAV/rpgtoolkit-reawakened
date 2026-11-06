@@ -7,10 +7,11 @@
  *
  * A kind this function does not decode returns `null` and the caller reports it as a deferred command rather than drawing
  * a wrong pixel. Today that is `.tan` (animated tiles, whose frame comes from the tick) and `.tbm` (a tile bitmap composed
- * from other tiles); both are entry 9.4's, which replays the animated and tile-bitmap scenes.
+ * from other tiles); a draw naming either takes its pixels from the core (`engine.picturePixels`,
+ * docs/spec/engine/runners.md#picture-pixels), because composition is the core's rule and a host must not reproduce it.
  */
 
-import { decodeTexture, expandTileToRgba, readTileset, tileDimensions, type AssetKey, type DecodedTexture } from "@tk-reawakened/core";
+import { decodeTexture, expandSingleTileToRgba, expandTileToRgba, readSingleTile, readTileset, tileDimensions, type AssetKey, type DecodedTexture } from "@tk-reawakened/core";
 
 /** Decode one draw-list texture asset, or `null` when this entry's decoder does not cover its kind. */
 export function decodeAssetTexture(key: AssetKey, bytes: Uint8Array): DecodedTexture | null {
@@ -37,6 +38,14 @@ export function decodeAssetTexture(key: AssetKey, bytes: Uint8Array): DecodedTex
     return { w: tileWidth * model.tiles.length, h: tileHeight, rgba };
   }
   if (key.endsWith(".tan") || key.endsWith(".tbm")) return null;
+  if (key.endsWith(".gph")) {
+    // A single tile is text, not a picture signature; the tile decoder expands it and the draw names it whole.
+    const parsed = readSingleTile(bytes, key);
+    if (!parsed.ok) return null;
+    const rgba = expandSingleTileToRgba(parsed.value, "row-major");
+    if (!rgba.ok) return null;
+    return { w: parsed.value.width, h: parsed.value.height, rgba: rgba.value };
+  }
   const decoded = decodeTexture(bytes, key);
   return decoded.ok ? decoded.value : null;
 }

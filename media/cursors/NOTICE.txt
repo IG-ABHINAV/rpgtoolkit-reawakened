@@ -12,3 +12,11 @@ Both cursors are 32×32 pixels, complying with the round-7 cursor rule
 (docs/spec/engine/rpgcode-functions.md#reawakened-default-cursors).
 `tkr-arrow.png` is the default mouse pointer with hotspot at (0, 0).
 `tkr-hand.png` is the default cursor-map hand rendered at (mapX - 40, mapY - 10).
+
+TKR menu hand (`tkr-menu-hand.png`)
+
+Copyright waived under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+Created for TK Reawakened on 2026-11-03 with OpenAI image generation, then
+adapted to a transparent 16×16 menu marker. This is original project artwork;
+it was not copied from or converted from a legacy cursor.

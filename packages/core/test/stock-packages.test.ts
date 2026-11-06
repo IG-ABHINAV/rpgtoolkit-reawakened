@@ -150,7 +150,7 @@ test("stock packages load through the .gam list and keep the no-plugin behavior"
   equal(resolved.diagnostics.length, 0);
   deepEqual(resolved.plugins.map((plugin) => plugin.package), [
     { name: "stock_battle", version: "1.0.0", namespace: "stock_battle", requests: ["asset"] },
-    { name: "stock_menu", version: "1.0.0", namespace: "stock_menu", requests: [] },
+    { name: "stock_menu", version: "1.0.0", namespace: "stock_menu", requests: ["asset", "listBlobs", "loadBlob", "saveBlob", "quit"] },
     { name: "stock_rpg", version: "1.0.0", namespace: "stock_rpg", requests: [] },
   ]);
   const game = authoredGame();

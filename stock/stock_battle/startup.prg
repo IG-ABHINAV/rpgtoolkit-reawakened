@@ -876,6 +876,10 @@ function battle() {
                                     if (stockBattle.preserveCharge == 0) {
                                         battle.releaseCharge(cache.party, cache.index)
                                         cache.ready = 0
+                                        if (stockBattleUi.on != 0) {
+                                            stockBattleUi.target = stockBattleUi.screen
+                                            stockBattleUi.drawChargeBar(cache.index, battle.fighter(cache.party, cache.index))
+                                        }
                                     }
                                 } else {
                                     stockBattle.turn(cache.party, cache.index)
@@ -2103,6 +2107,20 @@ stockBattleUi = {
                     drawcanvas(stockBattleUi.overlayScratch, 0, 0, layout.w, layout.h, stockBattleUi.screen)
                     stockBattleUi.target = stockBattleUi.screen
                 }
+                if (stockBattleUi.on != 0) {
+                    size = battle.partySize(1)
+                    for (index = 0; index < size; index = index + 1) {
+                        fill = battle.chargePercent(1, index)
+                        if (stockBattleUi.bars[index] != fill) {
+                            if (stockBattleUi.mode == "command" || stockBattleUi.mode == "list" || stockBattleUi.mode == "target") {
+                                stockBattleUi.target = stockBattleUi.buffer
+                                stockBattleUi.drawChargeBar(index, battle.fighter(1, index))
+                            }
+                            stockBattleUi.target = stockBattleUi.screen
+                            stockBattleUi.drawChargeBar(index, battle.fighter(1, index))
+                        }
+                    }
+                }
                 return 1
             }
             stockBattleUi.controlSig = stockBattleUi.nextControlSig
@@ -2517,7 +2535,7 @@ stockBattleUi.perform = (fighter) => {
 }
 
 stockBattleUi.isConfirm = (key) => {
-    if (key == "ENTER" || key == "SPACE") {
+    if (key == "ENTER" || key == "SPACE" || key == "confirm") {
         return 1
     }
     return 0
@@ -2529,14 +2547,14 @@ stockBattleUi.handleKey = (fighter, key) => {
     local(mode) = stockBattleUi.mode
     local(entry)
     local(step) = 0
-    if (key == "UP" || key == "LEFT") {
+    if (key == "UP" || key == "LEFT" || key == "up" || key == "left") {
         step = -1
     }
-    if (key == "DOWN" || key == "RIGHT") {
+    if (key == "DOWN" || key == "RIGHT" || key == "down" || key == "right") {
         step = 1
     }
     if (mode == "command") {
-        if (step != 0 && (key == "UP" || key == "DOWN")) {
+        if (step != 0 && (key == "UP" || key == "DOWN" || key == "up" || key == "down")) {
             stockBattleUi.cursor = (stockBattleUi.cursor + step + 4) % 4
             stockBattleUi.cue("select")
             return 0
@@ -2566,7 +2584,7 @@ stockBattleUi.handleKey = (fighter, key) => {
         return 0
     }
     if (mode == "list") {
-        if (step != 0 && (key == "UP" || key == "DOWN")) {
+        if (step != 0 && (key == "UP" || key == "DOWN" || key == "up" || key == "down")) {
             stockBattleUi.listCursor = (stockBattleUi.listCursor + step + stockBattleUi.listCount) % stockBattleUi.listCount
             stockBattleUi.listTop = stockBattleUi.listCursor - (stockBattleUi.listCursor % stockBattleUi.layout.listCapacity)
             stockBattleUi.cue("select")
@@ -2588,7 +2606,7 @@ stockBattleUi.handleKey = (fighter, key) => {
             stockBattleUi.openTargets("item")
             return 0
         }
-        if (key == "ESC") {
+        if (key == "ESC" || key == "cancel") {
             stockBattleUi.mode = "command"
             stockBattleUi.cue("select")
         }
@@ -2603,7 +2621,7 @@ stockBattleUi.handleKey = (fighter, key) => {
         if (stockBattleUi.isConfirm(key) == 1) {
             return stockBattleUi.perform(fighter)
         }
-        if (key == "ESC") {
+        if (key == "ESC" || key == "cancel") {
             if (stockBattleUi.pendingKind == "fight") {
                 stockBattleUi.mode = "command"
             } else {

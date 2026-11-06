@@ -17,7 +17,7 @@
 
 import type { AudioCue } from "@tk-reawakened/core";
 import { BUNDLED_BANK, CuePlayer, type AudioMessage } from "@tk-reawakened/synth";
-import { connectSinkToGraph, PcmSink, ticksToSeconds } from "../src/audio-sink.ts";
+import { connectSinkToGraph, defaultWorkletUrl, PcmSink, ticksToSeconds } from "../src/audio-sink.ts";
 
 type AudioReport = {
   readonly musicLengthTicks: number | null;
@@ -32,7 +32,11 @@ type AudioReport = {
   readonly graphStarted: boolean;
   readonly analyserEnergy: number | null;
   readonly analyserSeconds: number | null;
-  /** The default graph buffer size used by the shipped path. */
+  /** The kind of graph node the shipped path attached (`worklet` or `script`). */
+  readonly graphKind: "worklet" | "script" | null;
+  /** The graph's own onset latency in seconds (render quantum or buffer size + base latency). */
+  readonly graphLatencySeconds: number | null;
+  /** The ScriptProcessorNode buffer size, when the fallback path was used. */
   readonly graphBufferSize: number | null;
   readonly errors: readonly string[];
   /** The bundled SoundFont: its hash as the cache keyed it, and the MIDI the bank rendered in this browser. */
@@ -103,10 +107,18 @@ void (async () => {
       if (event.kind === "error") errors.push(`${event.code}: ${event.detail}`);
     },
   });
+  // The shipped audio graph is attached once so the cue tests exercise the real worklet path; messages are forwarded
+  // to both the local mirror and the renderer.
+  const context = new AudioContext({ sampleRate: 8_000 });
+  const graph = await connectSinkToGraph(context, sink, {
+    workletUrl: defaultWorkletUrl(),
+    fallbackBufferSize: 1_024,
+  });
   player = new CuePlayer({
     send: (message) => {
       sent.push(message);
       sink.handle(message);
+      graph.send(message);
     },
     readAsset: (asset) => bytes.get(asset) ?? null,
     // Rank 4: the bundled bank. The player and runner layers are the host's preferences and are empty here.
@@ -167,15 +179,14 @@ void (async () => {
   sink.render(left, right, frames);
 
   // A real graph, attached for the shipped path. The autoplay policy is disabled for this lane, so resume() resolves
-  // and the analyser reads the actual non-silent output for about the length the sink reports. We use a small buffer
-  // here so the analyser reads live audio within the fixture length; the shipped default is larger to avoid dropouts.
+  // and the analyser reads the actual non-silent output for about the length the sink reports.
   let graphStarted = false;
   let analyserEnergy: number | null = null;
   let analyserSeconds: number | null = null;
+  let graphKind: "worklet" | "script" | null = null;
+  let graphLatencySeconds: number | null = null;
   let graphBufferSize: number | null = null;
   try {
-    const context = new AudioContext({ sampleRate: 8_000 });
-    const graph = connectSinkToGraph(context, sink, 1_024);
     await context.resume();
     graphStarted = context.state === "running";
     const analyser = context.createAnalyser();
@@ -193,14 +204,23 @@ void (async () => {
     analyser.getFloatTimeDomainData(buffer);
     analyserEnergy = PcmSink.energy(buffer, buffer.length);
     graph.disconnect();
-    // Measure the shipped default buffer size without starting a second graph.
-    const defaultContext = new AudioContext({ sampleRate: 8_000 });
-    const defaultGraph = connectSinkToGraph(defaultContext, sink);
-    graphBufferSize = defaultGraph.node.bufferSize;
+    // Measure the shipped graph's own latency at the default sample rate.
+    const defaultContext = new AudioContext();
+    const defaultSink = new PcmSink({
+      readAsset: () => null,
+      readBank: () => null,
+      outputRateHz: defaultContext.sampleRate,
+    });
+    const defaultGraph = await connectSinkToGraph(defaultContext, defaultSink, { workletUrl: defaultWorkletUrl() });
+    graphKind = defaultGraph.node instanceof AudioWorkletNode ? "worklet" : "script";
+    graphBufferSize = defaultGraph.node instanceof ScriptProcessorNode ? defaultGraph.node.bufferSize : null;
+    graphLatencySeconds = await defaultGraph.latency();
     defaultGraph.disconnect();
     await defaultContext.close();
   } catch {
     graphStarted = false;
+  } finally {
+    void context.close();
   }
 
   // The bundled bank, loaded the way the runner loads it: ranks resolve, the cache hashes it, MIDI renders through it.
@@ -228,6 +248,8 @@ void (async () => {
     graphStarted,
     analyserEnergy,
     analyserSeconds,
+    graphKind,
+    graphLatencySeconds,
     graphBufferSize,
     errors,
     bankSha,

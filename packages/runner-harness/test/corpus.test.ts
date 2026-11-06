@@ -358,17 +358,33 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // Re-pinned by issue #1048: the presented screen (surface 0) and the script-screen layer no longer contribute to the
   // state hash. Only `sample-start-demo` and `sample-start-basic` moved, because only their start programs draw to the
   // screen (`clear()`); the other programs never put a screen entry into the saved state.
+  // Re-pinned by #589: `vm` moved to schema version 7 (the per-frame `itemActions` stack). Nothing else moved:
+  // with the version put back to 6 every previous value (see git history) is reproduced exactly.
+  // #585 (menu graphic): only both sample-start hashes moved because their menuGraphic("layout.png") now writes menu.graphic.
+  // Re-pinned again by #585 (pointer record): the input section moved to schema 3 (`downs`, `ups`, `downX`, `downY`, `button`
+  // joined `input.pointer`), so every state hash moved once and nothing else did. With the schema put back to 2 and the
+  // pointer record reduced to {x, y, buttons}, every previous value above and in golden/scripts/golden.json is reproduced exactly.
+  // Restoring the old mixed/ui responder reproduces both previous hashes and all eight closing baselines exactly.
+  // Re-pinned by #1231: the party section gained the saved `stepRemainder` and moved to schema 3, so every
+  // state hash moved once and nothing else did (draw hashes, ticks and diagnostics are unchanged).
+  // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
+  // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
+  // else did; every other hash, tick and diagnostic is unchanged.
+  // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
+  // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
+  // UI schema 8 adds the persisted surface-result thread-boundary marker; state hashes move, while
+  // corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "e0577da117f849f5",
-    "sample-system-demo": "1412e38336613efb",
-    "sample-sys-test-demo": "1412e38336613efb",
-    "sample-win-demo": "cf14d086b215e8e1",
-    "sample-oldman-demo": "3644a41f9d281d58",
-    "sample-man-demo": "c15afea486c1a662",
-    "sample-man-wander-demo": "0edb3abab3859871",
-    "sample-start-basic": "396a686051634955",
-    "sample-system-basic": "1412e38336613efb",
-    "sample-wander-basic": "2694ff0a5f3079c7",
+    "sample-start-demo": "97a520993e6d36e8",
+    "sample-system-demo": "ef3db9ec069cd85e",
+    "sample-sys-test-demo": "ef3db9ec069cd85e",
+    "sample-win-demo": "7b471cda21c5c57a",
+    "sample-oldman-demo": "17bb341afd8a0b95",
+    "sample-man-demo": "e1e61cb1b3f96a37",
+    "sample-man-wander-demo": "b0864a61eccfa53a",
+    "sample-start-basic": "678dc0c40b346b50",
+    "sample-system-basic": "ef3db9ec069cd85e",
+    "sample-wander-basic": "7d60ccc41cb0bed2",
   };
 
   for (const res of results) {
@@ -391,7 +407,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "2694ff0a5f3079c7");
+  equal(hash1, "7d60ccc41cb0bed2"); // UI schema 8 persists the thread-boundary marker.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

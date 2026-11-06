@@ -64,7 +64,10 @@ function goldenFrame(rig: UiRig, name: string, keys: readonly string[]): void {
   equal(expected.value.h, frame.h);
   let different = -1;
   for (let at = 0; at < frame.rgba.length; at += 1) if (frame.rgba[at] !== expected.value.rgba[at]) { different = at; break; }
-  equal(different, -1, `${name}: first differing byte ${different} (pixel ${Math.floor(different / 4) % frame.w},${Math.floor(different / 4 / frame.w)})`);
+  const pixel = Math.max(0, Math.floor(different / 4) * 4);
+  const actualRgba = [...frame.rgba.slice(pixel, pixel + 4)];
+  const expectedRgba = [...expected.value.rgba.slice(pixel, pixel + 4)];
+  equal(different, -1, `${name}: first differing byte ${different} (pixel ${Math.floor(pixel / 4) % frame.w},${Math.floor(pixel / 4 / frame.w)}), actual RGBA ${actualRgba}, expected RGBA ${expectedRgba}; mode ${String(ui(rig)["mode"])}, scan ${String(ui(rig)["barscan"])}, charge ${JSON.stringify(rig.charges())}, cached bars ${JSON.stringify(ui(rig)["bars"])}`);
   equal(record.pixels, recorded.pixels, `${name}: pixel hash`);
   equal(record.drawList, recorded.drawList, `${name}: draw-list hash`);
 }
@@ -77,6 +80,17 @@ function ruleHash(rig: UiRig): string {
 }
 
 
+
+test("normalized semantic actions operate the stock battle command and list consumers", () => {
+  const rig = bootUiRig();
+  awaitMenu(rig);
+  rig.action("down", "runner.fallback");
+  equal(ui(rig)["cursor"], 1, "semantic down moves the command selection");
+  rig.action("confirm", "runner.fallback");
+  equal(ui(rig)["mode"], "list", "semantic confirm opens the selected special list");
+  rig.action("cancel", "runner.fallback");
+  equal(ui(rig)["mode"], "command", "semantic cancel returns from the list");
+});
 
 test("a seeded battle opens the command box for the first charged player, and every command, list and target is reachable by keyboard", () => {
   const rig = bootUiRig();
@@ -247,6 +261,7 @@ test("a healing item can target and revive a fallen ally, and a defeated enemy k
   equal(slimes.length, 2);
   ok(slimes[0]!.stats.hp === 0 || slimes[1]!.stats.hp === 0, "a Slime was defeated");
   equal(rig.state().battle?.parties[0].length, 3, "the defeated enemy stays in its slot");
+  equal((ui(rig)["bars"] as Record<string, number>)["0"], Math.min(100, Math.floor(rig.charges()[1]![0]! * 100 / THRESHOLD)), "the first party charge cache reflects the released battle charge before the frame is captured");
   goldenFrame(rig, "defeated", keys);
 
   // The next Fight lists only the enemies still standing.

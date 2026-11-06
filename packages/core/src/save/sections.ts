@@ -10,7 +10,7 @@
  * (the saved game).
  */
 
-export type { WorldSection } from "./sections/world.ts";
+export type { WorldSection, WorldMovementSettings } from "./sections/world.ts";
 export {
   createCameraSection,
   type CameraEasing,
@@ -33,7 +33,7 @@ export {
   type ZoomState,
 } from "./sections/fx.ts";
 export type { RgbaSnapshot, SurfaceState, SurfacesSection } from "./sections/surfaces.ts";
-export { INPUT_SCHEMA_VERSION, type InputBindings, type InputButton, type InputButtonSlot, type InputGamepad, type InputImageButton, type InputSection } from "./sections/input.ts";
+export { INPUT_SCHEMA_VERSION, type InputBindings, type InputButton, type InputButtonSlot, type InputGamepad, type InputImageButton, type InputPointer, type InputSection, type RegisteredAction } from "./sections/input.ts";
 export type { EngineSection } from "./sections/engine.ts";
 export type { EventsSection } from "../events/model.ts";
 
@@ -59,3 +59,6 @@ export { createMenuSection, MENU_SCHEMA_VERSION, type MenuSection } from "../men
 
 /** Owner: `core/audio` (tracks, voices, `cueId`, script settings): schema v2, docs/spec/engine/audio-media.md#audio-state. */
 export type { AudioStateV2 as AudioSection } from "../audio/model.ts";
+
+/** Owner: `core` host boundary; records are normalized plain data (docs/spec/engine/host-capabilities-and-viewports.md#state-and-input-records). */
+export { DISPLAY_SCHEMA_VERSION, HOST_FEATURES_SCHEMA_VERSION, createDisplaySection, normalizeDisplayGeometry, normalizeHostFeatures, type DisplaySection, type HostFeaturesSection } from "./sections/host.ts";
