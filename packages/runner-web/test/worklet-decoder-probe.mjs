@@ -45,15 +45,20 @@ export async function probeWorkletDecoder(url) {
   const { context, control, processor, meter } = session;
   try {
     const send = (message) => processor.port.postMessage({ kind: "message", message });
+    const ready = waitMessage(processor.port, "ready");
     send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "test", sha256: null }, bankBytes: bank, bankSha: "test" });
     send({ kind: "load", voice: 1, track: "music", asset: "media/test.mid", data: midi });
-    send({ kind: "play", voice: 1, cue: 1, loop: false, volume: 100, positionTicks: 0 });
+    send({ kind: "play", voice: 1, cue: 1, loop: true, volume: 100, positionTicks: 0 });
     const before = await measure(meter);
     const released = waitMessage(control.port, "released");
-    control.port.postMessage({ kind: "resolve" });
+    control.port.postMessage({ kind: "resolve-held" });
     await released;
+    // Force the measurement window to elapse after the release ack but before the decoder finishes.
+    const during = await measure(meter);
+    control.port.postMessage({ kind: "finish" });
+    await ready;
     const after = await measure(meter);
-    return { before, after };
+    return { before, during, after };
   } finally {
     await context.close();
   }
