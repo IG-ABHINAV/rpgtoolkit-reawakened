@@ -22,6 +22,36 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
     throw new Error(`desktop CSP probe timed out: ${expression}`);
   };
   try {
+    // Run in the loaded app:// player, not an HTTP stand-in or a DevTools-injected script (which bypasses CSP).
+    // CDP only creates the element; Chromium must decide whether its inline body may execute.
+    const inline = await evaluate(`new Promise((resolve) => {
+      const probe = document.createElement('script');
+      const playerScript = [...document.scripts].find((script) => new URL(script.src, location.href).pathname === '/apps/player-desktop-live.js');
+      const result = { url: location.href, tick: window.__live?.tick ?? null, board: window.__live?.board ?? null,
+        playerScript: playerScript?.src ?? null, executed: false, violation: null };
+      const finish = () => {
+        document.removeEventListener('securitypolicyviolation', onViolation);
+        probe.remove();
+        result.executed = window.__desktopInlineCspProbe === true;
+        delete window.__desktopInlineCspProbe;
+        resolve(result);
+      };
+      const timer = setTimeout(finish, 2000);
+      const onViolation = (event) => {
+        if (event.effectiveDirective !== 'script-src-elem' || event.blockedURI !== 'inline') return;
+        result.violation = { directive: event.effectiveDirective, blockedURI: event.blockedURI };
+        clearTimeout(timer);
+        finish();
+      };
+      document.addEventListener('securitypolicyviolation', onViolation);
+      probe.textContent = 'window.__desktopInlineCspProbe = true';
+      document.head.appendChild(probe);
+    })`);
+    if (!inline.url.startsWith("app://player/") || inline.tick === null || inline.tick <= 0 || inline.board === null
+      || inline.playerScript !== "app://player/apps/player-desktop-live.js" || inline.executed
+      || inline.violation?.directive !== "script-src-elem" || inline.violation.blockedURI !== "inline") {
+      throw new Error(`desktop inline CSP enforcement failed: ${JSON.stringify(inline)}`);
+    }
     await build({ entryPoints: [join(root, "packages/synth/test/browser-csp-probe.mjs")], outfile: output, bundle: true, format: "esm", platform: "browser", target: "chrome120", logLevel: "silent" });
     const sound = await evaluate(`import('/apps/${filename}').then(m => m.probeCompressedAudio())`);
     if (!sound.ended || sound.energy <= 0.0001 || !sound.evalBlocked) throw new Error(`desktop CSP/audio probe failed: ${JSON.stringify(sound)}`);
@@ -125,7 +155,7 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
     await waitFor("!!window.__live?.error");
     const failure = await evaluate("window.__live.error");
     if (!String(failure).includes("decoder-probe-failure")) throw new Error(`decoder failure was not reported: ${failure}`);
-    return { energy: sound.energy, evalBlocked: sound.evalBlocked, readinessWaited: true, failureReported: true, workletRace: race, workletFailureVisible: true };
+    return { inline, energy: sound.energy, evalBlocked: sound.evalBlocked, readinessWaited: true, failureReported: true, workletRace: race, workletFailureVisible: true };
   } finally {
     writeFileSync(liveWorklet, originalWorklet);
     rmSync(output, { force: true });
