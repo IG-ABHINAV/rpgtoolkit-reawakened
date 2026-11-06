@@ -58,7 +58,24 @@ export async function probeWorkletDecoder(url) {
     control.port.postMessage({ kind: "finish" });
     await ready;
     const after = await measure(meter);
-    return { before, during, after };
+    if (after > 0.0001) return { before, during, after };
+    // Diagnose silence in the same graph without turning a failed compressed-bank assertion green.
+    send({ kind: "stop", voice: 1 });
+    const wav = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/pcm16-mono-8000.wav")).arrayBuffer());
+    send({ kind: "load", voice: 2, track: "sfx", asset: "media/test.wav", data: wav });
+    send({ kind: "play", voice: 2, cue: 2, loop: true, volume: 100, positionTicks: 0 });
+    const pcm = await measure(meter);
+    send({ kind: "stop", voice: 2 });
+    const plain = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf2")).arrayBuffer());
+    const accepted = waitMessage(processor.port, "bank.accepted");
+    send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "plain", sha256: null }, bankBytes: plain, bankSha: "plain" });
+    await accepted;
+    const plainReady = waitMessage(processor.port, "ready");
+    send({ kind: "load", voice: 3, track: "music", asset: "media/test.mid", data: midi });
+    await plainReady;
+    send({ kind: "play", voice: 3, cue: 3, loop: true, volume: 100, positionTicks: 0 });
+    const plainMidi = await measure(meter);
+    return { before, during, after, pcm, plainMidi, sampleRate: context.sampleRate, state: context.state };
   } finally {
     await context.close();
   }
