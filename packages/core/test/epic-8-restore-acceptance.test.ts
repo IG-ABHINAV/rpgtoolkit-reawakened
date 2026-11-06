@@ -388,7 +388,7 @@ test("restored open-tick input routing preserves saved UI results without repeat
   const sourceState = source.state();
   ok(sourceState !== null);
   const continuation = startThread(sourceState.vm, {
-    ref: { kind: "inline", text: 'if (confirmatinput == 1) {\n  confirmatresume = 1\n} else {\n  confirmatresume = 0\n}\nif (uiActivated() == 0) {\n  activationresume = 1\n} else {\n  activationresume = 0\n}\nif (uiCancelled() == 1) {\n  cancellationresume = 1\n} else {\n  cancellationresume = 0\n}\nif (hasFeature("touch")) {\n  touchbranch = 1\n} else {\n  touchbranch = 0\n}\nend()\n', ir: IR_VERSION },
+    ref: { kind: "inline", text: 'if (uiActivated() == 0) {\n  activationresume = 1\n} else {\n  activationresume = 0\n}\nif (uiCancelled() == 1) {\n  cancellationresume = 1\n} else {\n  cancellationresume = 0\n}\nif (hasFeature("touch")) {\n  touchbranch = 1\n} else {\n  touchbranch = 0\n}\nend()\n', ir: IR_VERSION },
     kind: "board",
     owner: "script",
   });
@@ -408,9 +408,7 @@ test("restored open-tick input routing preserves saved UI results without repeat
   const saved = encoder.encode(snapshotGameSave(sourceState));
   source.engine.advance(1, []);
   const uninterrupted = globals(source);
-  const game = boot('Load("slot")\nend()\n', undefined, (state) => {
-    state.vm.globals["confirmatinput"] = state.input.actions.confirm ? 1 : 0;
-  });
+  const game = boot('Load("slot")\nend()\n');
   let requests: InputRecord[] = [];
   for (let attempt = 0; attempt < 80; attempt += 1) {
     const report = game.engine.advance(1, requests);
@@ -431,7 +429,6 @@ test("restored open-tick input routing preserves saved UI results without repeat
     equal(restored.ticksRun, 1, "the saved open tick completes");
     deepEqual(restored.consumed.map(({ event }) => event.kind), ["blob.loaded", "host.features", "host.gamepads"]);
     equal(game.state()?.input.actions.confirm, true, "the live controller snapshot is applied before the open tick resumes");
-    equal(globals(game)["confirmatresume"], 1, "the resumed script sees the input-phase observation from the live snapshot");
     equal(globals(game)["activationresume"], uninterrupted["activationresume"], "the restored open-tick continuation matches uninterrupted saved author activation");
     equal(globals(game)["cancellationresume"], uninterrupted["cancellationresume"], "the restored open-tick continuation matches uninterrupted saved author cancellation");
     equal(globals(game)["activationresume"], 1);

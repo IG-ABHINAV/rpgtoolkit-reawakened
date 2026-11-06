@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import { applyUiEffect, assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, hydrateBoard, initCameraForBoard, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type InputRecord, type NormalizedHostFeatures } from "@tk-reawakened/core";
-import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedGeometryAfterAdvance, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostStateObserver, type PendingInput } from "../src/host-state.ts";
+import { applyUiEffect, assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, hydrateBoard, initCameraForBoard, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type GameState, type InputRecord, type NormalizedHostFeatures } from "@tk-reawakened/core";
+import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostStateObserver, type PendingInput } from "../src/host-state.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
 
 const viewSize = { width: 640, height: 480 };
@@ -142,7 +142,7 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
   savedState.camera.target = { kind: "point", point: { x: 0, y: 0 } };
   applyUiEffect(savedState, "uiItem", [7, "Go", "margin-go", null, 1, null, "confirm", null, 1]);
   applyUiEffect(savedState, "uiEnd", [7]);
-  savedState.input.focused = false;
+  savedState.input.focused = true;
   Object.assign(savedState.time, { tick: 50 });
   const legacySave = JSON.parse(snapshotGameSave(savedState)) as { features?: unknown; schema: Record<string, unknown> };
   delete legacySave.features;
@@ -152,6 +152,7 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
     touch: true, pointer: "coarse", keyboard: false, gamepad: true, haptics: false, orientation: "portrait",
   };
   let activatedItem: string | null = null;
+  let engineState: GameState | null = null;
   const engine = createEngine({
     seed: 7,
     assetIndex,
@@ -165,6 +166,7 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
     phaseRegistrations: [{
       phase: "animation",
       run(state) {
+        engineState = state;
         activatedItem = state.ui.surfaceActivated?.itemId ?? null;
       },
     }],
@@ -193,8 +195,7 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
   let hostObserver: HostStateObserver | null = null;
   let restoreEvents: readonly InputRecord["event"][] = [];
   try {
-    hostObserver = observeHostState(makeHost(6, 2), { width: 2, height: 2 }, (event) => {
-      observed.observe(event);
+    hostObserver = observeHostState(makeHost(4, 2), { width: 2, height: 2 }, (event) => {
       pending.push({ tick: null, event, pointerGeometry: null });
     });
     pending.length = 0; // The observed resize was already consumed before the stalled Load.
@@ -210,12 +211,14 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
     deepEqual(restoreEvents.map(({ kind }) => kind), [
       "key", "host.display", "pointer", "pointer", "host.features", "host.display", "host.gamepads",
     ], "the reply snapshot restores pointer geometry before the first margin record, not after the tap");
+    deepEqual(restoreEvents[1], { kind: "host.display", geometry: resized });
+    deepEqual(restoreEvents[5], { kind: "host.display", geometry: initial });
     deepEqual(pending, [], "snapshotForRestore drains records only after preserving pointer geometry");
   } finally {
     hostObserver?.dispose();
     restoreGlobals();
   }
-  const restored = engine.advance(0, [
+  const restored = engine.advance(1, [
     { tick: loadReport.tickAfter, event: { kind: "blob.loaded", reqId: loadRequest.reqId, bytes: saved } },
     ...restoreEvents.map((event) => ({ tick: loadReport.tickAfter, event })),
   ]);
@@ -225,27 +228,49 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
       ? [{ tick: readyReport.tickAfter, event: { kind: "asset" as const, reqId: request.reqId, bytes: files.get(request.key) ?? null } }]
       : []);
     if (assetReplies.length === 0) break;
-    readyReport = engine.advance(0, assetReplies);
+    readyReport = engine.advance(1, assetReplies);
   }
-  deepEqual(engine.hostDisplayGeometry(), initial, "Load restores the older saved display geometry");
-  deepEqual(engine.hostFeatures(), { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }, "a version-1 save missing host features migrates to the documented defaults");
-  equal(loadReport.tickAfter === readyReport.tickAfter, false, "the restored save tick differs from the wait/input timestamp");
-
-  const focused = engine.advance(0, [{ tick: readyReport.tickAfter, event: { kind: "focus", state: "gained" } }]);
-  equal(focused.ticksRun, 0, "focus restoration remains pre-tick");
-  deepEqual(focused.consumed.map(({ event }) => event.kind), ["focus"], "host focus resumes the restored state");
-  const pointerTick = engine.advance(1, []);
-  equal(pointerTick.ticksRun, 1, JSON.stringify(pointerTick));
-  equal(activatedItem, "margin-go", "the queued Plane 3 press/release is hit-tested using the restored live geometry");
-  deepEqual(pointerTick.consumed.map(({ event }) => event.kind), [
-    "host.display", "key", "host.display", "pointer", "pointer", "host.features", "host.display", "host.gamepads",
-  ], "the focused Load path consumes restored geometry before each pointer and keeps the full current snapshot after prior edges");
+  equal(readyReport.ticksRun, 1, "the focused loaded game consumes the pending tap on the same advance that completes its load");
+  equal(activatedItem, "margin-go", "the Plane 3 tap activates under its own geometry before the final resize");
+  const consumedKinds = readyReport.consumed.map(({ event }) => event.kind);
+  const pointerAt = consumedKinds.indexOf("pointer");
+  equal(pointerAt > 0, true, "the focused load consumes its pointer events");
+  const finalDisplayAt = consumedKinds.lastIndexOf("host.display");
+  equal(finalDisplayAt > pointerAt + 1, true, "the later display geometry follows both pointer edges");
+  deepEqual(consumedKinds.slice(pointerAt - 1, pointerAt + 2), ["host.display", "pointer", "pointer"]);
+  deepEqual(consumedKinds.slice(finalDisplayAt - 1, finalDisplayAt + 1), ["host.features", "host.display"]);
   deepEqual(engine.hostFeatures(), liveFeatures);
-  deepEqual(engine.hostDisplayGeometry(), resized);
+  deepEqual(engine.hostDisplayGeometry(), initial, "final geometry follows the tap at its saved geometry");
   const firstFrame = rasterizePresentation(engine.drawList(), engine.hostDisplayGeometry(), new Map());
   equal(firstFrame.error, null);
-  equal(firstFrame.width, 6);
+  equal(firstFrame.width, 4);
   equal(firstFrame.height, 2);
+  if (engineState === null) throw new Error("expected the engine animation phase to expose loaded state");
+  engineState.ui.surfaceActivated = null;
+  engineState.ui.surfacePointerClaim = null;
+  activatedItem = null;
+  const pausedRecords: InputRecord[] = [
+    { tick: readyReport.tickAfter, event: { kind: "focus", state: "lost" } },
+    { tick: readyReport.tickAfter, event: { kind: "host.display", geometry: resized } },
+    { tick: readyReport.tickAfter, event: { kind: "pointer", x: -2, y: 0, buttons: 1 } },
+    { tick: readyReport.tickAfter, event: { kind: "pointer", x: -2, y: 0, buttons: 0 } },
+    { tick: readyReport.tickAfter, event: { kind: "host.display", geometry: initial } },
+  ];
+  const paused = engine.advance(0, pausedRecords);
+  equal(paused.ticksRun, 0);
+  deepEqual(paused.consumed.map(({ event }) => event.kind), ["focus"], "unfocused pre-tick processing keeps both display boundaries with the pending pointer");
+  deepEqual(engine.hostDisplayGeometry(), initial, "paused geometry remains unchanged until the ordered input batch resumes");
+  const focused = engine.advance(0, [{
+    tick: readyReport.tickAfter,
+    event: { kind: "focus", state: "gained" },
+  }]);
+  deepEqual(focused.consumed.map(({ event }) => event.kind), ["focus"]);
+  const resumedPointerTick = engine.advance(1, []);
+  equal(resumedPointerTick.ticksRun, 1);
+  deepEqual(resumedPointerTick.consumed.map(({ event }) => event.kind), [
+    "host.display", "pointer", "pointer", "host.display",
+  ]);
+  equal(activatedItem, "margin-go", "the paused pointer activates using geometry A before final geometry B");
 
 });
 

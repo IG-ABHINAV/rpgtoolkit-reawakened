@@ -68,7 +68,7 @@ import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import type { UiActionClaim } from "../save/sections/ui.ts";
-import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, recomputeInputActions, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, recomputeInputActions, registerGameAction, registeredActionNames as inputRegisteredActionNames, routePointerUpActivations, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -339,6 +339,7 @@ export function createEngine(init: EngineInit): Engine {
   });
   init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
   state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+  let preTickSurfaceActivation = false;
   const externallyRegisteredActions: RegisteredAction[] = [];
   function replayExternallyRegisteredActions(): void {
     const registered = new Set(state.input.registeredActions.map((action) => action.name));
@@ -3779,6 +3780,9 @@ export function createEngine(init: EngineInit): Engine {
   function applyQueuedInputRecords(consumed: InputRecord[]): void {
     const records = takeQueuedInputs(state.time.tick);
     for (const record of records) {
+      if (record.event.kind === "host.display" && state.input.pendingPointerUps.length > 0) {
+        routePointerUpActivations(state);
+      }
       if (applyHostStateEvent(record.event)) {
         consumed.push(record);
         continue;
@@ -3804,7 +3808,8 @@ export function createEngine(init: EngineInit): Engine {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        state.ui.surfaceActivated = null;
+        if (preTickSurfaceActivation) preTickSurfaceActivation = false;
+        else state.ui.surfaceActivated = null;
         state.ui.surfaceCancelled = false;
         state.ui.surfaceCancelledSeq = null;
         state.ui.surfaceCancelledOwner = null;
@@ -3925,9 +3930,14 @@ export function createEngine(init: EngineInit): Engine {
   function processPreTickEvents(consumed: InputRecord[]): boolean {
     const records = takeQueuedInputs(state.time.tick);
     const deferred: InputRecord[] = [];
+    const hasPointerRecord = records.some((record) => record.event.kind === "pointer");
+    let inputFocused = state.input.focused;
     let restoredOpenTick = false;
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index]!;
+      if (record.event.kind === "host.display" && state.input.pendingPointerUps.length > 0) {
+        routePointerUpActivations(state);
+      }
       if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
       } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
@@ -3935,6 +3945,10 @@ export function createEngine(init: EngineInit): Engine {
           // Earlier host observations belong to the old timeline, not a later tick after a load rewinds it.
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
+            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) {
+              at += 1;
+              continue;
+            }
             if (!applyHostStateEvent(earlier.event)) {
               at += 1;
               continue;
@@ -3966,6 +3980,10 @@ export function createEngine(init: EngineInit): Engine {
           // Keys must be released by the blur; host observations must not wait for a resumed tick.
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
+            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) {
+              at += 1;
+              continue;
+            }
             if (!applyHostStateEvent(earlier.event)) {
               if (earlier.event.kind !== "key") {
                 at += 1;
@@ -3977,12 +3995,20 @@ export function createEngine(init: EngineInit): Engine {
             deferred.splice(at, 1);
           }
         }
+        inputFocused = record.event.state === "gained";
         applyRoutedInputEvent(record.event);
         consumed.push(record);
+      } else if (!inputFocused && hasPointerRecord && (record.event.kind === "host.display" || record.event.kind === "pointer")) {
+        deferred.push(record);
       } else if (!state.input.focused && applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
-        deferred.push(record);
+        const activationBefore = state.ui.surfaceActivated;
+        applyRoutedInputEvent(record.event);
+        if (record.event.kind === "pointer" && state.ui.surfaceActivated !== null && state.ui.surfaceActivated !== activationBefore) {
+          preTickSurfaceActivation = true;
+        }
+        consumed.push(record);
       }
     }
     queuedInputs.unshift(...deferred);
@@ -4293,6 +4319,7 @@ export function createEngine(init: EngineInit): Engine {
       const consumed: InputRecord[] = [];
       const failedAtStart = failed;
       for (const input of inputs) queuedInputs.push(input);
+      preTickSurfaceActivation = false;
       const restoredOpenTick = processPreTickEvents(consumed);
       if (restoredOpenTick) {
         state.engine.phase = "input";
