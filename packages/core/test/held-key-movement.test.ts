@@ -21,6 +21,7 @@ import {
   MOVEMENT_PLUGIN,
   scriptOwnsInput,
   runThreadsPhase,
+  registerGameAction,
   runWaitsPhase,
   startProgram,
   startThread,
@@ -238,6 +239,7 @@ test("a key held through wait begins moving on the first idle phase after the bl
 
 test("a running program owns input even before its immediate Get executes", () => {
   const state = makeState();
+  equal(registerGameAction(state.input, { name: "game.test", label: "Test", icon: null, group: null, controls: ["key:ArrowRight"], locked: false, hidden: false }), true);
   const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "answer = Get()" });
   tick(state, 0, [key("ArrowRight", true)]);
   equal(state.sprites.players[0]!.movement.active, null, "input does not walk before Get");

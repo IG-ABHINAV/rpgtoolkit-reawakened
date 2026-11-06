@@ -9,6 +9,7 @@ import {
   UI_PLUGIN,
   createScriptServices as coreCreateScriptServices,
   runThreadsPhase,
+  registerGameAction,
   runWaitsPhase,
   startProgram,
   type GameState,
@@ -45,6 +46,7 @@ const enter = (down: boolean): Event => ({ kind: "key", name: "Enter", code: "En
 
 test("waitInput hands a script the press and release that arrived together, then waits again", () => {
   const state = makeState();
+  equal(registerGameAction(state.input, { name: "game.test", label: "Test", icon: null, group: null, controls: ["key:Enter"], locked: false, hidden: false }), true);
   const program = [
     "first = waitinput()",
     "k1 = first.kind",
@@ -80,6 +82,7 @@ test("waitInput hands a script the press and release that arrived together, then
 
 test("waitInput delivers a key first and reports the pointer change that came with it on the next call", () => {
   const state = makeState();
+  equal(registerGameAction(state.input, { name: "game.test", label: "Test", icon: null, group: null, controls: ["key:Enter"], locked: false, hidden: false }), true);
   const program = "first = waitinput()\nk1 = first.kind\nn1 = first.key\nsecond = waitinput(first)\nk2 = second.kind\nd2 = second.newdowns\nend()";
   const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: program });
   const services = createScriptServices(state);
@@ -119,6 +122,7 @@ function nativeProvider(): PluginDefinition {
 
 test("a native menu provider receives the pointer as its own event and keeps a pointer change that arrived with a key", () => {
   const state = makeState();
+  equal(registerGameAction(state.input, { name: "game.test", label: "Test", icon: null, group: null, controls: ["key:Enter"], locked: false, hidden: false }), true);
   const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "mainmenu()\nend()" });
   const services = coreCreateScriptServices(state, [{ definition: CORE_PLUGIN }, { definition: UI_PLUGIN }, { definition: CATALOGUE_PLUGIN }, { definition: nativeProvider() }]);
   runThreadsPhase(state.vm, services, 100);

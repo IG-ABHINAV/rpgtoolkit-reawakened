@@ -1322,6 +1322,7 @@ test("boot first free-roam frame polls held and queued activation without arriva
       return latest;
     };
     run(engine, game.files, 5);
+    equal(engine.registerGameAction({ name: "game.test", label: "Test", icon: null, group: null, controls: ["key:Enter", "key:ArrowRight"], locked: false, hidden: false }), true);
     let state = current();
     ok(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"), scenario);
     const direction = scenario === "direction";
