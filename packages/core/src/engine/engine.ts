@@ -3998,7 +3998,9 @@ export function createEngine(init: EngineInit): Engine {
         consumed.push(record);
       } else if (!inputFocused && hasPointerRecord && (record.event.kind === "host.display" || record.event.kind === "pointer")) {
         deferred.push(record);
-      } else if (!inputFocused && applyHostStateEvent(record.event)) {
+      } else if (hasPointerRecord) {
+        deferred.push(record);
+      } else if (applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
         deferred.push(record);
