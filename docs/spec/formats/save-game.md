@@ -80,6 +80,9 @@ game clock. It resumes the remaining preparation at the same animation phase
 as the saved run, so its frames and frame sounds stay in step. Unloaded
 animations retain discovered frame metadata in the save; animations whose
 frames have not yet been discovered keep an empty frame list.
+Older saves that cleared the discovered frame list do not record which frame
+pictures were already cached, so their exact pre-playback timing cannot always
+be reconstructed.
 
 <a id="save-before-quit"></a>
 **Save before quit (OWNER; ruled 2026-11-02).** A game `Save` requested before `quitGame()` remains due: the core MUST serialize and publish that save, and the runner MUST persist it before the session closes. This applies when snapshot serialization is deferred by the in-flight request rule above; request-byte availability MUST NOT move it to the after-quit side of the boundary. A blob write requested after `quitGame()` MUST fail without a host-side write. The core settles that later request as failed before taking the earlier save snapshot, so the snapshot contains no unanswered request that restore would drop and strand. The runner MUST keep the session open until it has completed the request prefix through all writes before quit, and close only after the earlier save's host write has completed.
