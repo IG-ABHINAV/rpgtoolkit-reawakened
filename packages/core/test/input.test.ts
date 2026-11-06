@@ -593,6 +593,29 @@ test("pointer-up interaction candidates are tick state and v5 snapshots migrate 
   deepEqual(migrated.input.pendingPointerUps, [], "a v5 save has no release work to replay");
 });
 
+test("restore suppression masks only primary and preserves secondary/auxiliary release for waitInput", () => {
+  for (const bit of [2, 4]) {
+    const state = createInputSection();
+    state.primaryPointerSuppressedUntilRelease = true;
+    applyInputEvent(state, { kind: "pointer", x: 10, y: 12, buttons: 1 | bit });
+    const baseline = { ...state.pointer };
+    equal(baseline.buttons, bit);
+    equal(baseline.downs, 1);
+    const wait = { kind: "input.key" as const, global: true, key: null, parkSeq: 1, pointer: baseline };
+    applyInputEvent(state, { kind: "pointer", x: 10, y: 12, buttons: 1 });
+    const released = pollInputKey({ tick: 1, input: inputView(state), claims: [] }, wait);
+    equal(released?.record?.kind, "pointer");
+    equal(released?.record?.button, bit);
+    equal(released?.record?.newups, 1);
+    equal(released?.record?.buttons, 0);
+    equal(state.primaryPointerSuppressedUntilRelease, true, "independent release does not release the held primary");
+    equal(state.pointerGestureId, null);
+    deepEqual(state.pendingPointerUps, [], "no primary interaction is manufactured");
+    applyInputEvent(state, { kind: "pointer", x: 10, y: 12, buttons: 0 });
+    equal(state.primaryPointerSuppressedUntilRelease, false);
+  }
+});
+
 const BASE = { x: 0, y: 0, buttons: 0, downs: 0, ups: 0 };
 
 test("waitInput wakes for a key before the pointer and reports the baseline so the pointer change is not lost", () => {

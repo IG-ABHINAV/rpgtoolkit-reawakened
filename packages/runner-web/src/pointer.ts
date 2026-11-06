@@ -68,14 +68,21 @@ export function attachPointerInput(
       if (primaryPointerId !== null) suppressedPointerId = primaryPointerId;
       routedButtons &= ~1;
     }
+    const newPrimaryDown = event.type === "pointerdown" && event.button === 0 && (event.buttons & 1) !== 0;
+    if (newPrimaryDown) {
+      // A genuine new down ends any missed outside-window release before target classification.
+      cancelPrimary(event.pointerId);
+      if (timelineChanged || suppressedPointerId === event.pointerId) onPointer(lastPointer, event.buttons & ~1);
+      if (primaryPointerId === event.pointerId) primaryPointerId = null;
+      if (suppressedPointerId === event.pointerId) suppressedPointerId = null;
+      runnerOwnedPointers.delete(event.pointerId);
+      corePreemptedFallbackPointers.delete(event.pointerId);
+      modalFallbackPointers.delete(event.pointerId);
+    }
     const fallbackTarget = isFallbackTouchControlTarget(event.target);
     if (runnerOwnedPointers.has(event.pointerId)) {
-      if (event.type === "pointerdown" && event.button === 0 && (event.buttons & 1) !== 0) {
-        runnerOwnedPointers.delete(event.pointerId);
-      } else {
-        if (event.type === "pointerup") runnerOwnedPointers.delete(event.pointerId);
-        return;
-      }
+      if (event.type === "pointerup") runnerOwnedPointers.delete(event.pointerId);
+      return;
     }
     const corePreempted = corePreemptedFallbackPointers.has(event.pointerId);
     if (fallbackTarget && !corePreempted) {
@@ -111,11 +118,6 @@ export function attachPointerInput(
     const rect = host.getBoundingClientRect();
     const outside = event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom;
     const primaryNow = (event.buttons & 1) !== 0;
-    const newPrimaryDown = event.type === "pointerdown" && event.button === 0 && primaryNow;
-    if (newPrimaryDown && !outside && (timelineChanged || suppressedPointerId === event.pointerId)) {
-      // A real new down proves the prior physical press ended, even if its up happened outside the window.
-      onPointer(lastPointer, event.buttons & ~1);
-    }
     const chordedPrimaryMove = event.type === "pointermove" &&
       (event.pointerType === "mouse" || event.pointerType === "pen") &&
       primaryNow &&

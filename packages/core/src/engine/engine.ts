@@ -2053,7 +2053,9 @@ export function createEngine(init: EngineInit): Engine {
     const time = state.time;
     const nextModalId = state.ui.nextModalId;
     let heldPrimary = state.input.primaryPointerSuppressedUntilRelease || (state.input.pointer.buttons & 1) !== 0;
-    for (const record of queuedInputs) if (record.event.kind === "pointer") heldPrimary = (record.event.buttons & 1) !== 0;
+    for (const record of queuedInputs) {
+      if (record.event.kind === "pointer") heldPrimary = (record.event.buttons & 1) !== 0;
+    }
     if (nextMain !== undefined) {
       initialCharacterKey = null;
       initialCharacterResolved = true;

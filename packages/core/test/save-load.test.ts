@@ -275,9 +275,9 @@ test("successful Load cancels held and already-queued raw gestures but accepts a
   ].join("\n"));
   run(source, null, { ticks: 8 });
   const savedState = source.state()!;
-  for (const mode of ["held", "queued-release", "saved-held", "fresh-after-reply"] as const) {
+  for (const mode of ["held", "queued-release", "queued-cancel", "saved-held", "fresh-after-reply"] as const) {
     const queuedRelease = mode === "queued-release";
-    const oldDown = mode === "held" || queuedRelease;
+    const oldDown = mode === "held" || queuedRelease || mode === "queued-cancel";
     savedState.input.pointer.buttons = mode === "saved-held" ? 1 : 0;
     const game = boot('Load("slot")\nend()');
     let replies: InputRecord[] = [];
@@ -287,7 +287,8 @@ test("successful Load cancels held and already-queued raw gestures but accepts a
       const loadingReply = replies.some(({ event }) => event.kind === "blob.loaded");
       const pointer = (buttons: number): InputRecord => ({ tick, event: { kind: "pointer", x: 20, y: 20, buttons } });
       const report = game.engine.advance(1, loadingReply
-        ? [...(oldDown ? [pointer(1)] : []), ...(queuedRelease ? [pointer(0)] : []), ...replies,
+        ? [...(oldDown ? [pointer(1)] : []), ...(queuedRelease ? [pointer(0)] : []),
+          ...(mode === "queued-cancel" ? [{ tick, event: { kind: "pointer.cancel" as const } }] : []), ...replies,
           ...(mode === "fresh-after-reply" ? [pointer(1), pointer(0)] : [])]
         : replies);
       replies = [];
@@ -299,13 +300,13 @@ test("successful Load cancels held and already-queued raw gestures but accepts a
     }
     ok(loaded, "the real game Load completed");
     const current = game.state()!;
-    equal(current.input.primaryPointerSuppressedUntilRelease, mode === "held");
+    equal(current.input.primaryPointerSuppressedUntilRelease, mode === "held" || mode === "queued-cancel");
     equal(globals(current).activated, mode === "fresh-after-reply" ? 1 : 0,
       "only a genuinely fresh post-boundary gesture activates the loaded item");
     const send = (buttons: number): void => {
       game.engine.advance(1, [{ tick: current.time.tick, event: { kind: "pointer", x: 20, y: 20, buttons } }]);
     };
-    if (mode === "held") {
+    if (mode === "held" || mode === "queued-cancel") {
       send(1);
       send(1);
       send(0);
@@ -334,6 +335,9 @@ test("the restore pointer latch round-trips and migrates earlier input snapshots
     equal(hashGameState(replay), hashGameState(state), "replay retains suppression/release at the same input boundary");
   }
   equal(state.input.pointer.downs, 1, "only the fresh post-release down contributes an edge");
+  state.input.primaryPointerSuppressedUntilRelease = true;
+  applyInputEvent(state.input, { kind: "pointer.cancel" });
+  equal(state.input.primaryPointerSuppressedUntilRelease, true, "host-leave cancellation does not prove physical release");
 });
 
 test("a refused Load does not discard raw pointer events or suppress the live gesture", () => {
@@ -356,6 +360,24 @@ test("a refused Load does not discard raw pointer events or suppress the live ge
   ok(refused);
   equal(game.state()!.input.pointer.buttons, 1);
   equal(game.state()!.input.primaryPointerSuppressedUntilRelease, false);
+});
+
+test("Reset preserves suppression of a live held primary through its physical release", () => {
+  const game = boot('msgbox("Before reset")\nReset()\nend()');
+  run(game, null, { ticks: 8 });
+  const current = game.state()!;
+  const epoch = game.engine.surfaceCacheEpoch();
+  game.engine.advance(1, [
+    { tick: current.time.tick, event: { kind: "pointer", x: 20, y: 20, buttons: 1 } },
+    { tick: current.time.tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } },
+  ]);
+  ok(game.engine.surfaceCacheEpoch() > epoch, "the real Reset replaced the lifecycle");
+  equal(current.input.primaryPointerSuppressedUntilRelease, true);
+  applyInputEvent(current.input, { kind: "pointer", x: 20, y: 20, buttons: 1 });
+  equal(current.input.pointer.downs, 0);
+  applyInputEvent(current.input, { kind: "pointer", x: 20, y: 20, buttons: 0 });
+  applyInputEvent(current.input, { kind: "pointer", x: 20, y: 20, buttons: 1 });
+  equal(current.input.pointer.downs, 1, "a fresh post-release down is eligible");
 });
 test("a saved runtime movement setting survives save and load", () => {
   const saved = capture('pixelmovement(1, 1)\nSave("slot")\nrestoredWalking = pixelmovement()\nend()');

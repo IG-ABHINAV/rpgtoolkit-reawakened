@@ -415,11 +415,11 @@ export function heldPointerGoal(state: InputSection): { x: number; y: number } |
 }
 
 /** The pointer record after one `pointer` event: position and buttons, then one edge per changed button bit, lowest bit first. */
-function pointerAfter(previous: InputSection["pointer"], event: PointerInput): InputSection["pointer"] {
-  const next = { ...previous, x: event.x, y: event.y, buttons: event.buttons };
+function pointerAfter(previous: InputSection["pointer"], event: PointerInput, buttons: number): InputSection["pointer"] {
+  const next = { ...previous, x: event.x, y: event.y, buttons };
   for (let bit = 1; bit <= 4; bit *= 2) {
     const was = (previous.buttons & bit) !== 0;
-    const now = (event.buttons & bit) !== 0;
+    const now = (buttons & bit) !== 0;
     if (!was && now) {
       next.downs += 1;
       next.downX = event.x;
@@ -434,14 +434,11 @@ function pointerAfter(previous: InputSection["pointer"], event: PointerInput): I
 }
 
 function applyPointer(state: InputSection, event: PointerInput): void {
-  if (state.primaryPointerSuppressedUntilRelease) {
-    state.pointer = { ...state.pointer, x: event.x, y: event.y, buttons: event.buttons & ~1 };
-    if ((event.buttons & 1) === 0) state.primaryPointerSuppressedUntilRelease = false;
-    return;
-  }
+  const buttons = state.primaryPointerSuppressedUntilRelease ? event.buttons & ~1 : event.buttons;
+  if ((event.buttons & 1) === 0) state.primaryPointerSuppressedUntilRelease = false;
   const previous = state.pointer;
   const wasDown = (previous.buttons & 1) !== 0;
-  const isDown = (event.buttons & 1) !== 0;
+  const isDown = (buttons & 1) !== 0;
   const pressSlot = state.pressedButtonSlot;
   const slot = slotAt(state, event.x, event.y);
   if (!wasDown && isDown) {
@@ -449,7 +446,7 @@ function applyPointer(state: InputSection, event: PointerInput): void {
     state.nextPointerGestureId += 1;
   }
   const gestureId = state.pointerGestureId;
-  state.pointer = pointerAfter(previous, event);
+  state.pointer = pointerAfter(previous, event, buttons);
   if (!wasDown && isDown) {
     state.pressedButtonSlot = slot?.enabled === true ? slot.id : null;
   } else if (wasDown && state.pressedButtonSlot !== null) {

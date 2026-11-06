@@ -355,6 +355,46 @@ test("leaving the host cancels a modal-preempted fallback press", async ({ brows
   }
 });
 
+test("a genuine fallback press retires a modal pointer whose outside-window release was missed", async ({ browser }) => {
+  const fixture = packageWithStartup("touch-missed-up.tpk", 'msgbox("Modal A")\nend()');
+  const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
+  const page = await context.newPage();
+  try {
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+    const confirm = page.getByRole("button", { name: "Confirm" });
+    await confirm.waitFor({ state: "visible", timeout: 45_000 });
+    await page.waitForFunction(() => window.__session?.engine.runnerControlPointerPreemption(0, 0) === 1);
+    await installInputTrace(page);
+    await confirm.hover();
+    await page.mouse.down();
+    await page.locator("#report").hover();
+    await page.evaluate(() => {
+      // Simulate the missing DOM up of a release outside the browser, while CDP resets physical mouse state.
+      window.addEventListener("pointerup", (event) => event.stopImmediatePropagation(), { once: true, capture: true });
+    });
+    await page.mouse.up();
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => typeof window.__session?.engine.runnerControlPointerPreemption(0, 0) !== "number");
+    await page.evaluate(() => { (window as Window & { __touchInputTrace?: unknown[] }).__touchInputTrace = []; });
+    await confirm.click();
+    await page.waitForFunction(() => {
+      const trace = (window as Window & { __touchInputTrace?: { inputs: TraceInput[] }[] }).__touchInputTrace ?? [];
+      return trace.some(({ inputs }) => inputs.some(({ event }) =>
+        event.kind === "action" && event.action === "confirm" && event.source === "runner.fallback" && event.down === false));
+    });
+    const inputs = await tracedInputs(page);
+    const actions = inputs.filter(({ event }) => event.kind === "action" && event.source === "runner.fallback");
+    expect(actions.map(({ event }) => [event.action, event.down, event.modalId])).toEqual([
+      ["confirm", true, null], ["confirm", false, null],
+    ]);
+    expect(inputs.filter(({ event }) => event.kind === "pointer" && ((event.buttons ?? 0) & 1) !== 0)).toHaveLength(0);
+  } finally {
+    await closeLiveSession(page);
+    await context.close();
+  }
+});
+
 test("an A-scoped fallback release cannot dismiss modal B when Enter is queued in the same advance", async ({ browser }) => {
   const fixture = packageWithStartup("modal-owner-race.tpk", 'first = msgbox("Modal A")\nsecond = msgbox("Modal B")\nend()');
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
