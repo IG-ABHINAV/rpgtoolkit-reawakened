@@ -158,6 +158,19 @@ function createVectors() {
       rows.push({ id: `gamepad-boundary-${kind}-${name}`, family: "input", valid, record: { tick: 8, event } });
     }
   }
+  for (const [name, axes] of [
+    ["extra", { x: 0, y: 0, z: 1 }],
+    ["missing-x", { y: 0 }],
+    ["missing-y", { x: 0 }],
+  ]) {
+    const sample = { device: 0, axes, buttons: 0 };
+    for (const [kind, event] of [
+      ["gamepad", { kind: "gamepad", ...sample, connected: true }],
+      ["host-gamepads", { kind: "host.gamepads", devices: [sample] }],
+    ]) {
+      rows.push({ id: `gamepad-axes-${kind}-${name}`, family: "input", valid: false, why: "axes must contain exactly x and y", record: { tick: 8, event } });
+    }
+  }
   return {
     schema: 2,
     protocol: "runner-protocol-v2",

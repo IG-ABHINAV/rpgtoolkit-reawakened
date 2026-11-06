@@ -226,3 +226,19 @@ test("runtime gamepad validation matches published v2 device and axis boundaries
     }
   }
 });
+
+test("runtime and published v2 gamepad axis shapes reject missing and extra keys", () => {
+  const root = dirname(fileURLToPath(import.meta.url));
+  const vectorsPath = join(root, "../../../tools/fixtures/runner-protocol/vectors-v2.json");
+  const { vectors } = JSON.parse(readFileSync(vectorsPath, "utf8")) as {
+    readonly vectors: readonly { readonly id: string; readonly valid: boolean; readonly record: { readonly event: unknown } }[];
+  };
+  const cases = vectors.filter((vector) => vector.id.startsWith("gamepad-axes-"));
+  equal(cases.length, 6);
+  for (const vector of cases) {
+    equal(vector.valid, false, vector.id);
+    const result = validateInputEvent(vector.record.event);
+    equal(result.ok, false, vector.id);
+    if (!result.ok) equal(result.path, vector.id.includes("-host-gamepads-") ? "devices[0].axes" : "axes", vector.id);
+  }
+});

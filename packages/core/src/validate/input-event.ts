@@ -158,6 +158,8 @@ function validateGamepad(record: UnknownRecord): InputEventValidation {
   const axes = record["axes"];
   if (typeof axes !== "object" || axes === null || Array.isArray(axes)) return invalid("axes", "expected an object");
   const axisRecord = axes as UnknownRecord;
+  if (Object.keys(axisRecord).some((key) => key !== "x" && key !== "y") || !Object.hasOwn(axisRecord, "x") || !Object.hasOwn(axisRecord, "y"))
+    return invalid("axes", "expected exactly x and y axes");
   if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid("axes.x", "expected an integer from -1000 through 1000");
   if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid("axes.y", "expected an integer from -1000 through 1000");
   if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 0x1ffff) return invalid("buttons", "expected a 17-bit non-negative physical button mask");

@@ -4,10 +4,10 @@
   "note": "V2 is the strict two-plane runner contract: every DrawList is {tick,width,height,commands,marginCommands}; both ordered arrays are required, use AD-3 commands, and participate in the draw hash. The v1 schema and vectors remain unchanged. Validate against packages/runner-harness/schema/runner-protocol-v2.schema.json.",
   "counts": {
     "draw": 16,
-    "input": 56,
+    "input": 62,
     "request": 13,
     "valid": 48,
-    "invalid": 37
+    "invalid": 43
   },
   "vectors": [
     {
@@ -1586,6 +1586,127 @@
               "axes": {
                 "x": 0,
                 "y": 0.5
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-axes-gamepad-extra",
+      "family": "input",
+      "valid": false,
+      "why": "axes must contain exactly x and y",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-axes-host-gamepads-extra",
+      "family": "input",
+      "valid": false,
+      "why": "axes must contain exactly x and y",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0,
+                "y": 0,
+                "z": 1
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-axes-gamepad-missing-x",
+      "family": "input",
+      "valid": false,
+      "why": "axes must contain exactly x and y",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "y": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-axes-host-gamepads-missing-x",
+      "family": "input",
+      "valid": false,
+      "why": "axes must contain exactly x and y",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "y": 0
+              },
+              "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "gamepad-axes-gamepad-missing-y",
+      "family": "input",
+      "valid": false,
+      "why": "axes must contain exactly x and y",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "axes": {
+            "x": 0
+          },
+          "buttons": 0,
+          "connected": true
+        }
+      }
+    },
+    {
+      "id": "gamepad-axes-host-gamepads-missing-y",
+      "family": "input",
+      "valid": false,
+      "why": "axes must contain exactly x and y",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0
               },
               "buttons": 0
             }

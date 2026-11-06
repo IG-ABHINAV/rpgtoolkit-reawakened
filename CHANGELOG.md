@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Runtime input validation rejects gamepad axis objects with extra fields, matching the v2 schema and host snapshots; missing and extra axis keys are covered by published vectors (#1625; `docs/spec/engine/display-input-audio.md#e-112`).
 - Active v2 gamepad records now enforce the same device and integer axis bounds as runtime validation and host snapshots; published boundary vectors cover both forms and historical v1 is unchanged (#1620; `docs/spec/engine/display-input-audio.md#e-112`).
 - The active runner protocol schema now rejects gamepad button masks outside the physical 17-bit range, matching runtime validation while preserving historical v1; conformance vectors cover buttons 9 and 16 and the first invalid bit (#1460; `docs/spec/engine/display-input-audio.md#e-112`).
 - Corrected the stalled-load margin regression to put queued input before the load reply, as live runners do: a successful load discards the old primary tap, preserves unrelated input, and accepts a fresh geometry-sensitive tap after the boundary (#1511; `docs/spec/engine/host-capabilities-and-viewports.md#live-host-state-after-restore`).
