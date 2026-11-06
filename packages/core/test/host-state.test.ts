@@ -177,10 +177,11 @@ test("engine applies and records complete host updates on their consuming tick",
   equal(live.state.input.actions.right, false, "the initial device disconnect is consumed");
   live.state.input.pendingActions = [];
   inputEdges = [];
-  engine.advance(1, [
+  const orderedSnapshot = engine.advance(1, [
     { tick: live.state.time.tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
     { tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } },
   ]);
+  deepEqual(orderedSnapshot.consumed.map((input) => input.event.kind), ["gamepad", "host.gamepads"]);
   equal(live.state.input.actions.right, false, "the complete snapshot disconnect is applied after the same-tick press");
   ok(inputEdges.includes("right"), "the press edge is preserved before the snapshot's disconnect");
 });
