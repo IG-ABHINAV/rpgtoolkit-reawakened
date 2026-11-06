@@ -68,7 +68,7 @@ import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import type { UiActionClaim } from "../save/sections/ui.ts";
-import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, recomputeInputActions, registerGameAction, registeredActionNames as inputRegisteredActionNames, routePointerUpActivations, setPointerMovementSuppressed } from "../input/index.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, recomputeInputActions, registerGameAction, routePointerUpActivations, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -421,7 +421,7 @@ export function createEngine(init: EngineInit): Engine {
   const diagnostics: Diagnostic[] = [];
   const reportedUnknownActions = new Set<string>();
   const reportUnknownAction = (action: string): void => {
-    if (inputRegisteredActionNames(state.input).has(action) || reportedUnknownActions.has(action)) return;
+    if (Object.hasOwn(state.input.actionRegistry, action) || reportedUnknownActions.has(action)) return;
     reportedUnknownActions.add(action);
     diagnostics.push({ code: "input.unknown-action", file: mainKey ?? "", line: 0, message: `input names unregistered action "${action}"` });
   };
@@ -3721,32 +3721,22 @@ export function createEngine(init: EngineInit): Engine {
       }
     }
   }
-  function actionStateSnapshot(): Map<string, boolean> {
-    const before = new Map<string, boolean>();
-    for (const action of inputRegisteredActionNames(state.input)) before.set(action, state.input.actions[action] === true);
-    return before;
-  }
-  function routeActionStateChanges(before: ReadonlyMap<string, boolean>, firstSeq: number): void {
-    for (const action of inputRegisteredActionNames(state.input)) {
-      const down = state.input.actions[action] === true;
-      if (before.get(action) !== down) routeAuthorSurfaceAction(action, down, actionInputSequence(action, firstSeq));
-    }
-  }
   function applyRoutedInputEvent(event: InputRecord["event"]): void {
     if (event.kind === "pointer.cancel") { applyInputEvent(state.input, event, reportUnknownAction); state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); return; }
     if (event.kind === "action") {
-      const before = actionStateSnapshot();
+      const before = state.input.actions[event.action] === true;
       const firstSeq = state.input.nextSeq;
       applyInputEvent(state.input, event, reportUnknownAction);
-      routeActionStateChanges(before, firstSeq);
+      const down = state.input.actions[event.action] === true;
+      if (event.modalId === null && before !== down) routeAuthorSurfaceAction(event.action, down, actionInputSequence(event.action, firstSeq));
       return;
     }
     if (event.kind !== "pointer") {
       if (event.kind === "key") {
-        const before = actionStateSnapshot();
         const firstSeq = state.input.nextSeq;
-        applyInputEvent(state.input, event, reportUnknownAction);
-        routeActionStateChanges(before, firstSeq);
+        applyInputEvent(state.input, event, reportUnknownAction, (action, down) => {
+          routeAuthorSurfaceAction(action, down, actionInputSequence(action, firstSeq));
+        });
       } else {
         applyInputEvent(state.input, event, reportUnknownAction);
         if (event.kind === "focus" && event.state === "lost") { state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); }
