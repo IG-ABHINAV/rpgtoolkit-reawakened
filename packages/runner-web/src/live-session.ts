@@ -335,7 +335,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     audioContext.removeEventListener("statechange", onAudioStateChange);
     graph.disconnect();
     renderer.dispose();
-    closePromise = audioContext.close();
+    closePromise = audioContext.state === "closed" ? Promise.resolve() : audioContext.close();
     return closePromise;
   }
 

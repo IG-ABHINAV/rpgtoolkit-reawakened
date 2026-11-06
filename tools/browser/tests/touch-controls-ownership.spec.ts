@@ -66,10 +66,11 @@ async function servePackage(page: Page, fixture: TouchFixture): Promise<void> {
 }
 
 async function closeLiveSession(page: Page): Promise<void> {
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
   await page.evaluate(async () => {
     const close = (window as Window & { __session?: { close?: () => Promise<void> } }).__session?.close;
     if (close !== undefined) await close();
-  }).catch(() => undefined);
+  });
 }
 
 async function openSilentDemo(page: Page, name: string): Promise<void> {

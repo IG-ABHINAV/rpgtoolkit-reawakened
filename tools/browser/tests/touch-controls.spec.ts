@@ -62,10 +62,11 @@ async function servePackage(page: Page, fixture: TouchFixture): Promise<void> {
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(fixture.descriptor) }));
 }
 async function closeLiveSession(page: Page): Promise<void> {
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
   await page.evaluate(async () => {
     const close = (window as Window & { __session?: { close?: () => Promise<void> } }).__session?.close;
     if (close !== undefined) await close();
-  }).catch(() => undefined);
+  });
 }
 
 
