@@ -17,6 +17,7 @@ import {
 import { createGameState, hashGameState, restoreGameState, snapshot, snapshotGameSave } from "../src/save/index.ts";
 import { applyInputEffect } from "../src/script/packs/movement.ts";
 import { pollInputKey, pollMenuScreen } from "../src/script/waits.ts";
+import { validateInputEvent } from "../src/validate/input-event.ts";
 
 test("input records have monotonic sequences and claims deliver each key once", () => {
   const state = createInputSection();
@@ -237,6 +238,25 @@ test("registered keyboard and gamepad controls dispatch without extra key aliase
   equal(state.actions["game.fireball"], false);
 });
 
+test("validated physical pad 9 dispatches its registered action after JSON transport", () => {
+  const action = { name: "game.fireball", label: "Fireball", icon: null, group: null, controls: ["pad:9"], locked: false, hidden: false };
+  const state = createInputSection();
+  equal(registerGameAction(state, action), true);
+  const event = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 9 };
+  const validated = validateInputEvent(JSON.parse(JSON.stringify(event)));
+  equal(validated.ok, true);
+  if (!validated.ok) throw new Error("pad:9 must pass input validation");
+  applyInputEvent(state, validated.value);
+  processGamepadEvents(state);
+  equal(state.actions["game.fireball"], true);
+  equal(state.keys.some((entry) => entry.name === "game.fireball"), true);
+  const release = validateInputEvent({ ...event, buttons: 0 });
+  if (!release.ok) throw new Error("gamepad release must validate");
+  applyInputEvent(state, release.value);
+  processGamepadEvents(state);
+  equal(state.actions["game.fireball"], false);
+});
+
 test("semantic claims accept prototype-named sources and ignore unbound pad bits", () => {
   const state = createInputSection();
   applyInputEvent(state, { kind: "action", action: "confirm", down: true, source: "__proto__", modalId: null });
@@ -282,8 +302,8 @@ test("claimed and out-of-plane pointer gestures do not become held movement goal
 test("button slots use logical half-open hit tests and click destinations use camera pixels", () => {
   const state = createInputSection({
     buttons: [{ id: "ok", x: 10, y: 20, w: 20, h: 10, action: "confirm", enabled: true }],
-    camera: { x: 100, y: 200 },
   });
+  state.camera = { x: 100, y: 200 };
   applyInputEvent(state, { kind: "pointer", x: 10, y: 20, buttons: 1 });
   applyInputEvent(state, { kind: "pointer", x: 30, y: 30, buttons: 1 });
   applyInputEvent(state, { kind: "pointer", x: 31, y: 30, buttons: 1 });
@@ -357,7 +377,8 @@ test("pointer cancellation clears only the primary bit and pending slot without 
 });
 
 test("pointer cancellation emits no click request", () => {
-  const state = createInputSection({ camera: { x: 100, y: 200 } });
+  const state = createInputSection();
+  state.camera = { x: 100, y: 200 };
   applyInputEvent(state, { kind: "pointer", x: 30, y: 40, buttons: 1 });
   const clicks = [...state.pendingClicks];
   applyInputEvent(state, { kind: "pointer.cancel" });
@@ -569,6 +590,25 @@ test("the pointer record round-trips a snapshot and a version-2 section migrates
   deepEqual(migrated.pendingPointerUps, [{ gestureId: 0, x: 9, y: 8 }]);
   equal(migrated.version, 10);
   deepEqual(migrated.bindings, state.input.bindings, "a version-2 section keeps every other field");
+});
+
+test("a v2 queued click and camera survive migration without translating the saved world point again", () => {
+  const state = createGameState({ seed: 7 });
+  state.input.camera = { x: 64, y: -32 };
+  applyInputEvent(state.input, { kind: "pointer", x: 20, y: 40, buttons: 1 });
+  const raw = JSON.parse(snapshot(state)) as { schema: Record<string, number>; input: Record<string, unknown> };
+  raw.schema.input = 2;
+  raw.input.version = 2;
+  raw.input.pointer = { x: 20, y: 40, buttons: 1 };
+  raw.input.pendingClicks = [{ x: 84, y: 8 }];
+  delete raw.input.nextPointerGestureId;
+  delete raw.input.pointerGestureId;
+  delete raw.input.pendingPointerUps;
+  const restored = restoreGameState(JSON.stringify(raw));
+  deepEqual(restored.input.camera, { x: 64, y: -32 });
+  deepEqual(restored.input.pendingClicks, [{ gestureId: 0, x: 84, y: 8 }]);
+  applyInputEvent(restored.input, { kind: "pointer", x: 20, y: 40, buttons: 0 });
+  deepEqual(restored.input.pendingPointerUps, [{ gestureId: 0, x: 84, y: 8 }]);
 });
 
 test("pointer-up interaction candidates are tick state and v5 snapshots migrate them empty", () => {

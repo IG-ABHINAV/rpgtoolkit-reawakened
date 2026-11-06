@@ -72,6 +72,8 @@ export type LiveSession = {
   readonly cuesSettled: () => Promise<void>;
   /** The located diagnostics the engine has reported so far, capped like the effect audit. */
   readonly diagnostics: () => readonly { code: string; file: string; line: number; message: string }[];
+  /** Persistent host audio initialization failure, if one occurred. */
+  readonly audioError: () => string | null;
   readonly advance: (ticks: number, inputs?: readonly InputRecord[]) => Promise<void>;
   readonly setHostRestoreSnapshotProvider: (provider: (() => HostRestoreSnapshot) | null) => void;
 };
@@ -286,6 +288,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   let currentTick = 0;
   let currentStateHash = "";
   const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
+  let audioError: string | null = null;
   let closed = false;
   let closePromise: Promise<void> | null = null;
   let quitNotified = false;
@@ -303,6 +306,10 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       if (event.kind === "ready") queueMicrotask(() => player.ready(event.voice, event.lengthTicks));
       else if (event.kind === "ended") player.ended(event.voice);
       else if (event.kind === "error") {
+        if (event.code === "audio.decoder-unavailable") {
+          audioError = event.detail;
+          sessionDiagnostics.push({ code: event.code, file: "", line: 0, message: event.detail });
+        }
         if (event.voice !== null) queueMicrotask(() => player.failed(event.voice!));
         else console.warn(`audio: ${event.code}: ${event.detail}`); // a bank failure belongs to no voice
       } else if (event.kind === "bank.substitution") console.warn(describePatchGap(event)); // playback continues; not game state
@@ -453,6 +460,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     audioState: () => ({ scheduled: [...sink.scheduled], open: sink.open }),
     cuesSettled: () => cueChain,
     diagnostics: () => [...sessionDiagnostics],
+    audioError: () => audioError,
     engine,
     gameId,
     close,

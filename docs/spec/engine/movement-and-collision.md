@@ -77,6 +77,8 @@ The current implementation ([`packages/core/src/sprites/movement.ts`](../../../p
 <a id="e-25"></a>
 **E-25 Mouse movement.** Clicking the board path-finds the selected player to the clicked point; if the point is blocked by a sprite the player walks up to it. The path and the destination can be drawn. While a blocking script owns the key queue a click starts no path, a path under way pauses, and a button still held when the script ends walks towards the cursor again ([display-input-audio.md](display-input-audio.md#reawakened-click-movement-freeze)).
 
+**Reawakened implementation choice — pointer and camera coordinates.** A pointer record names a logical viewport point, not a board point. When the engine consumes it, it adds the current simulation camera position, including its deterministic shake offset, to obtain the board point. Queued clicks and releases keep that board point even if the camera subsequently moves; a held pointer is translated again using the camera at each repath. The sprite's bottom-centre reference point moves toward that board point, subject to path and collision constraints. Camera interpolation is presentation-only: while a camera is moving, a click can differ from the last interpolated frame by the sub-tick camera displacement. No presentation alpha enters the input record or replay.
+
 ## Walking a step
 
 What happens between a direction key being down and the sprite standing at its next position. Both movement modes share everything here except where the entries say otherwise; the difference is the size of one step (E-23) and therefore how often a boundary is tested.

@@ -6,13 +6,13 @@ import { configureInput } from "../../input/input.ts";
 import type { GameState } from "../../save/state.ts";
 import type { SpriteActor, SpritePoint, Facing, SpritesSection } from "../../sprites/model.ts";
 import { enqueueDirectionMove, enqueueScriptDirectionMove } from "../../sprites/movement.ts";
-import { enqueueMove, enqueuePathMove, enqueuePointPathMove, setWaypoint, itemKey } from "../../sprites/runtime.ts";
+import { enqueueMove, enqueuePointPathMove, setWaypoint, itemKey } from "../../sprites/runtime.ts";
 import type { Character } from "../../formats/actor/index.ts";
 import { actorFromSource } from "../../sprites/model.ts";
 import { createInitialPlayer } from "../../sprites/runtime.ts";
 import { findPath } from "../../sprites/pathfinding.ts";
 import { playStance } from "../../sprites/animation.ts";
-import type { WorldVector } from "../../world/model.ts";
+import type { WorldBoard, WorldVector } from "../../world/model.ts";
 import type { Arg, BuiltinDoc, BuiltinSpec } from "../builtins.ts";
 import type { CommandEffect, CommandResult, CommandView } from "../plugin.ts";
 import { ScriptError } from "../errors.ts";
@@ -20,8 +20,8 @@ import { readCharacter } from "../../formats/actor/character.ts";
 import { BinaryReader } from "../../formats/binary/reader.ts";
 import { actorInputFromCharacter } from "../../actors/hydrate.ts";
 
-const PAUSE = 4;
-const PATHFIND = 1;
+const PAUSE = 1;
+const PATHFIND = 4;
 const WAYPOINT = 8;
 const WAYPOINT_LINK = 16;
 const DIRECTIONS: readonly Facing[] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
@@ -107,11 +107,16 @@ function waitFor(view: CommandView, flags: number): boolean {
   const thread = view.state?.vm.threads.find((value) => value.id === view.thread);
   return blocking(view) || thread?.collect != null || (flags & PAUSE) !== 0;
 }
-function movementResult(view: CommandView, id: string, kind: "player" | "item", steps: number, flags: number, args: readonly Arg[]): CommandResult {
+function movementResult(view: CommandView, id: string, kind: "player" | "item", steps: number, flags: number, args: readonly Arg[], clearWhenEmpty = false): CommandResult {
   const actorValue = actor(view, id, kind);
   if (actorValue !== null && !actorValue.visible) throw new ScriptError("builtin.bad-arg", `cannot move hidden ${kind} "${id}"`);
   const effects: CommandEffect[] = [{ kind: "state-write", section: "sprites", args: args.map((arg) => arg.value as never) }];
-  if (!waitFor(view, flags) || actorValue === null || steps === 0) return { value: null, effects };
+  const waypoint = actorValue?.queue.waypoint;
+  const pendingWaypoint = waypoint != null && waypoint.points.length > 0 &&
+    (waypoint.cycles !== 0 || (waypoint.cycle === 0 && waypoint.cursor < waypoint.points.length));
+  const pending = actorValue != null && !(clearWhenEmpty && (flags & 2) !== 0) &&
+    (actorValue.movement.active !== null || actorValue.queue.moves.length > 0 || pendingWaypoint);
+  if (!waitFor(view, flags) || actorValue === null || (steps === 0 && !pending)) return { value: null, effects };
   return { value: null, effects, wait: { kind: "sprite.movement", global: blocking(view), actor: id } };
 }
 function docs(summary: string, behaviour: string, waits: BuiltinDoc["waits"] = { kind: "never", summary: "Does not wait." }): BuiltinDoc {
@@ -134,6 +139,18 @@ function pointsFromArgs(args: readonly Arg[], start: number): SpritePoint[] {
 function vector(view: CommandView, id: string): WorldVector | null {
   return view.state?.world.board?.vectors?.find((value) => value.handle === id || String(value.handle) === id) ?? null;
 }
+function routePoints(board: WorldBoard, sprites: SpritesSection, actorValue: SpriteActor, goals: readonly SpritePoint[], clear: boolean): SpritePoint[] {
+  let start = clear ? actorValue : actorValue.queue.moves.at(-1)?.target ?? actorValue.movement.active?.target ?? actorValue;
+  const points: SpritePoint[] = [];
+  for (const goal of goals) {
+    if (goal.x === start.x && goal.y === start.y) continue;
+    const path = findPath(board, sprites, { ...actorValue, x: start.x, y: start.y }, goal, 1);
+    points.push(...path.points);
+    start = path.points.at(-1) ?? start;
+  }
+  return points;
+}
+
 function moveEffect(_name: string, args: readonly Arg[]): CommandEffect { return { kind: "state-write", section: "sprites", args: args.map((arg) => arg.value as never) }; }
 
 function stanceResult(view: CommandView, id: string, kind: "player" | "item", stance: string, args: readonly Arg[]): CommandResult {
@@ -170,20 +187,20 @@ const PUSH_ITEM: BuiltinSpec = {
 const PLAYER_STEP: BuiltinSpec = {
   name: "playerstep", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }],
   doc: docs("Move a player to a board point.", "Finds a deterministic route to x,y, queues it, and waits only for a blocking thread or the pause flag."),
-  call: (view, args) => { const id = movementPlayerId(view, args[0]?.value); const flags = number(args, 3); const value = actor(view, id, "player"); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, "player", path?.points.length ?? 0, flags, args); },
+  call: (view, args) => { const id = movementPlayerId(view, args[0]?.value); const flags = number(args, 3); const value = actor(view, id, "player"); const state = view.state; const points = value === null || state?.world.board == null ? [] : routePoints(state.world.board, state.sprites, value, [{ x: number(args, 1), y: number(args, 2) }], (flags & 2) !== 0); return movementResult(view, id, "player", points.length, flags, args, true); },
 };
 const ITEM_STEP: BuiltinSpec = {
   name: "itemstep", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, { name: "flags", optional: true, byRef: false, variadic: false }],
   doc: docs("Move an item to a board point.", "Finds a deterministic route to x,y, queues it, and waits only for a blocking thread or the pause flag."),
-  call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const flags = number(args, 3); const value = actor(view, id, "item"); const board = view.state?.world.board; const path = value === null || board === undefined || board === null ? null : findPath(board, view.state?.sprites ?? null, value, { x: number(args, 1), y: number(args, 2) }, 1); return movementResult(view, id, "item", path?.points.length ?? 0, flags, args); },
+  call: (view, args) => { const id = itemId(view, args[0]?.value as number | string ?? ""); const flags = number(args, 3); const value = actor(view, id, "item"); const state = view.state; const points = value === null || state?.world.board == null ? [] : routePoints(state.world.board, state.sprites, value, [{ x: number(args, 1), y: number(args, 2) }], (flags & 2) !== 0); return movementResult(view, id, "item", points.length, flags, args, true); },
 };
 function pathCommand(name: "playerpath" | "itempath"): BuiltinSpec {
   return { name, aliases: [], params: movementParams(), doc: docs("Queue a player or item path.", "Queues explicit points, a deterministic path-find route, or a copied/live-linked waypoint vector. The pause flag or a blocking program waits for completion."), call: (view, args) => {
     const kind = name === "playerpath" ? "player" : "item";
     const flags = number(args, 1); const id = kind === "player" ? movementPlayerId(view, args[0]?.value) : itemId(view, args[0]?.value as number | string ?? ""); const value = actor(view, id, kind); const board = view.state?.world.board; let points = pointsFromArgs(args, 2);
     if ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0) { const source = vector(view, string(args, 2)); points = source?.points ?? []; }
-    else if ((flags & PATHFIND) !== 0 && value !== null && board !== undefined && board !== null && points.length > 0) points = findPath(board, view.state?.sprites ?? null, value, points[0]!, 1).points;
-    return movementResult(view, id, kind, points.length, flags, args);
+    else if ((flags & PATHFIND) !== 0 && value !== null && board != null && view.state !== undefined) points = routePoints(board, view.state.sprites, value, points, (flags & 2) !== 0);
+    return movementResult(view, id, kind, points.length, flags, args, true);
   } };
 }
 const PLAYER_LOCATION: BuiltinSpec = { name: "playerlocation", aliases: [], params: [{ name: "handle", optional: false, byRef: false, variadic: false }, { name: "x", optional: false, byRef: true, variadic: false }, { name: "y", optional: false, byRef: true, variadic: false }, { name: "layer", optional: false, byRef: true, variadic: false }], doc: docs("Read a player's location.", "Returns the player's current pixel x,y and one-based layer immediately through by-reference outputs."), call: (view, args) => { const value = actor(view, playerId(view, args[0]?.value as number | string ?? ""), "player"); return { value: value?.x ?? 0, out: [...output(args, 1, value?.x ?? 0), ...output(args, 2, value?.y ?? 0), ...output(args, 3, (value?.layer ?? 0) + 1)] }; } };
@@ -418,11 +435,43 @@ export function applySpriteEffect(state: GameState, name: string, args: readonly
       }
     }
     const distance = state.world.movement.pushing === 1 ? 8 : 32;
-    for (const facing of dirs) enqueueScriptDirectionMove(state.sprites, actor!.id, facing, distance, false);
+    for (const [index, facing] of dirs.entries()) enqueueScriptDirectionMove(state.sprites, actor!.id, facing, distance, index === 0 && (numberValue(args[2]) & 2) !== 0);
     return true;
   }
-  if (name === "playerstep" || name === "itemstep") { const board = state.world.board; if (board === null || board === undefined) return false; const path = findPath(board, state.sprites, actor!, { x: numberValue(args[1]), y: numberValue(args[2]) }, 1); return enqueuePointPathMove(state.sprites, actor!.id, path.points, true, 1); }
-  if (name === "playerpath" || name === "itempath") { const flags = numberValue(args[1]); const points = ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0 ? (state.world.board?.vectors?.find((value) => String(value.handle) === String(args[2]))?.points ?? []) : pointsFromValues(args.slice(2))); if ((flags & (WAYPOINT | WAYPOINT_LINK)) !== 0) return setWaypoint(state.sprites, actor!.id, points, numberValue(args[3]), (flags & WAYPOINT_LINK) !== 0); return enqueuePointPathMove(state.sprites, actor!.id, points, true, (flags & PATHFIND) !== 0 ? 1 : undefined); }
+  if (name === "playerstep" || name === "itemstep") {
+    const board = state.world.board;
+    if (board == null) return false;
+    const clear = (numberValue(args[3]) & 2) !== 0;
+    if (clear) replaceActor(state, actor!.id, {
+      queue: { moves: [], waypoint: null },
+      movement: { ...actor!.movement, active: null, waitTicks: 0 },
+      prev: null,
+    });
+    const points = routePoints(board, state.sprites, actor!, [{ x: numberValue(args[1]), y: numberValue(args[2]) }], clear);
+    for (const point of points) enqueueMove(state.sprites, actor!.id, { source: "path", target: point, facing: null, pathMode: 1 });
+    return points.length > 0;
+  }
+  if (name === "playerpath" || name === "itempath") {
+    const flags = numberValue(args[1]);
+    const clear = (flags & 2) !== 0;
+    const waypoint = (flags & (WAYPOINT | WAYPOINT_LINK)) !== 0;
+    const points = waypoint
+      ? state.world.board?.vectors?.find((value) => String(value.handle) === String(args[2]))?.points ?? []
+      : pointsFromValues(args.slice(2));
+    if (clear) replaceActor(state, actor!.id, {
+      queue: { moves: [], waypoint: null },
+      movement: { ...actor!.movement, active: null, waitTicks: 0 },
+      prev: null,
+    });
+    if (waypoint) return setWaypoint(state.sprites, actor!.id, points, numberValue(args[3]), (flags & WAYPOINT_LINK) !== 0);
+    if ((flags & PATHFIND) !== 0) {
+      if (state.world.board == null) return false;
+      const route = routePoints(state.world.board, state.sprites, actor!, points, clear);
+      for (const point of route) enqueueMove(state.sprites, actor!.id, { source: "path", target: point, facing: null, pathMode: 1 });
+      return route.length > 0;
+    }
+    return enqueuePointPathMove(state.sprites, actor!.id, points, false);
+  }
   if (name === "playerdirection" || name === "itemdirection") { const facing = direction(String(args[1] ?? args[0] ?? "S")); replaceActor(state, actor!.id, { facing }); return true; }
   if (name === "playerspeed" || name === "itemspeed") { replaceActor(state, actor!.id, { speed: numberValue(args[1] ?? args[0]) }); return true; }
   if (name === "wander") { enqueueDirectionMove(state.sprites, actor!.id, direction(String(args[1] ?? "S")), 0, false); return true; }
