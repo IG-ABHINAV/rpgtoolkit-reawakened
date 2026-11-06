@@ -324,7 +324,7 @@ function updatePadActions(
   }
 }
 
-function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (action: string) => void): void {
+function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (action: string) => void, onActionTransition?: (action: string, down: boolean, firstSeq: number) => void): void {
   if (event.down && event.repeat === true && state.held[event.name] !== true) return;
   const priorRaw = state.held[event.name] === true;
   state.held[event.name] = event.down;
@@ -368,7 +368,7 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
       delete sources["legacy.keyboard"];
       updateKeyboardClaimIndex(state, action, control, false);
     }
-    updateAction(state, action, false, event.code);
+    updateAction(state, action, false, event.code, onActionTransition);
   }
 }
 
@@ -473,9 +473,9 @@ function applyPointer(state: InputSection, event: PointerInput): void {
 }
 
 /** Apply one raw event. Gamepad events are staged for deterministic device ordering. */
-export function applyInputEvent(state: InputSection, event: InputEvent, onUnknownAction?: (action: string) => void): void {
+export function applyInputEvent(state: InputSection, event: InputEvent, onUnknownAction?: (action: string) => void, onActionTransition?: (action: string, down: boolean, firstSeq: number) => void): void {
   switch (event.kind) {
-    case "key": applyKey(state, event, onUnknownAction); return;
+    case "key": applyKey(state, event, onUnknownAction, onActionTransition); return;
     case "action":
       if (event.modalId !== null) {
         if (event.action !== "confirm" && event.action !== "cancel") {
