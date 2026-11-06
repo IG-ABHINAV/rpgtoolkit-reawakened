@@ -26,6 +26,7 @@ import {
   hashGameState,
   PACKAGE_ROOT,
   startThread,
+  writeAnimation,
   type Engine,
   type GameState,
   type InputRecord,
@@ -36,6 +37,16 @@ import { bootUiRig, gameFiles, SCREEN_HEIGHT, SCREEN_WIDTH, type UiRig } from ".
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const encoder = new TextEncoder();
 const RIG = { stanceDelayTicks: 3 } as const;
+const TBM_RIG = { stanceDelayTicks: 3, background: "tbm" } as const;
+const mixedAnimation = writeAnimation({
+  magic: "RPGTLKIT ANIM", major: 2, minor: 3, width: 64, height: 64,
+  frames: [
+    { image: "meadow.tbm", transparent: { r: 255, g: 0, b: 255 }, sound: "" },
+    { image: "slime_rest_b.png", transparent: { r: 255, g: 0, b: 255 }, sound: "" },
+  ],
+  delay: 3 / 60, residue: new Uint8Array(),
+});
+if (!mixedAnimation.ok) throw new Error(mixedAnimation.error.message);
 
 /** The fight program: the first turn saves the game, then the stock battle screen takes the turn as usual. */
 const FIGHT = [
@@ -58,6 +69,7 @@ type SavedAnimation = {
   readonly pinned?: true;
   readonly loaded: boolean;
   readonly finished: boolean;
+  readonly preparation: { readonly stage: string; readonly picturesReady: boolean | null } | null;
   readonly loop: boolean;
   readonly originTick: number;
   readonly delayTicks: number;
@@ -80,9 +92,10 @@ type HashPoint = { readonly tick: number; readonly hash: string };
 type SavedRun = { readonly rig: UiRig; readonly saved: Saved };
 
 /** Play a battle rig until the script's `Save` reaches the host, answering it so the fight carries on. */
-function saveMidBattle(): SavedRun {
-  const rig = bootUiRig(RIG);
-  rig.files.set(assetKey("prg/fight.prg"), encoder.encode(FIGHT));
+function saveMidBattle(program = FIGHT, tbm = false): SavedRun {
+  const rig = bootUiRig(tbm ? TBM_RIG : RIG);
+  rig.files.set(assetKey("prg/fight.prg"), encoder.encode(program));
+  if (tbm) rig.files.set(assetKey("misc/slime_rest.anm"), mixedAnimation.value);
   const engine = rig.engine as { advance: Engine["advance"] };
   const advance = engine.advance.bind(engine);
   let answers: InputRecord[] = [];
@@ -134,10 +147,12 @@ function catalogue(): readonly PackageCatalogueEntry[] {
 }
 
 /** A brand-new engine on the same game whose start-up program loads the save: nothing of the saved run is cached. */
-function freshLoad(saved: Uint8Array): FreshHost {
-  const game = gameFiles(RIG);
-  game.files.set(assetKey("prg/start.prg"), encoder.encode('load("slot")\nend()\n'));
-  game.files.set(assetKey("prg/fight.prg"), encoder.encode(FIGHT));
+function freshLoad(saved: Uint8Array, program = FIGHT, beforeLoad = "", tbm = false, missingFrame = false): FreshHost {
+  const game = gameFiles(tbm ? TBM_RIG : RIG);
+  game.files.set(assetKey("prg/start.prg"), encoder.encode(`${beforeLoad}load("slot")\nend()\n`));
+  game.files.set(assetKey("prg/fight.prg"), encoder.encode(program));
+  if (tbm) game.files.set(assetKey("misc/slime_rest.anm"), mixedAnimation.value);
+  if (missingFrame) game.files.delete(assetKey("bitmap/slime_rest.png"));
   let latest: GameState | null = null;
   const engine = createEngine({
     seed: 291,
@@ -340,4 +355,71 @@ test("resetting during a live battle clears the battle and the fight program tha
     equal(animations.filter((animation) => animation.pinned === true).length, 0, "no pinned stance animation survives");
     deepEqual(rig.diagnostics, []);
   }
+});
+
+// These cross-engine save/load tests exceed one second because both engines boot real game and package assets.
+const WARM_PICTURES = 'createcanvas(64,64,c)\nsetimage("slime_rest.png",0,0,64,64,c)\nsetimage("slime_rest_b.png",0,0,64,64,c)\n';
+const WARM_TBM = 'createcanvas(64,64,c)\nsetimage("meadow.tbm",0,0,64,64,c)\nsetimage("slime_rest_b.png",0,0,64,64,c)\n';
+for (const [name, prefix, pause, expectedPreparation, beforeLoad, tbm] of [
+  ["source only", "", "", { stage: "source-ready", picturesReady: false }, "", false],
+  ["pictures fetched", "", "threadSleep(getThreadId(), 1/60)\n", { stage: "pictures-requested", picturesReady: null }, "", false],
+  ["source only with warm pictures", WARM_PICTURES, "", { stage: "source-ready", picturesReady: true }, "", false],
+  ["cold source with warm restore", "", "", { stage: "source-ready", picturesReady: false }, WARM_PICTURES, false],
+  ["cold tile bitmap", "", "", { stage: "source-ready", picturesReady: false }, "", true],
+  ["warm tile bitmap", WARM_TBM, "", { stage: "source-ready", picturesReady: true }, "", true],
+  ["tile bitmap pictures fetched", "", "threadSleep(getThreadId(), 1/60)\n", { stage: "pictures-requested", picturesReady: null }, "", true],
+] as const) {
+  test(`an unloaded animation saved with ${name} resumes its phase (#1340)`, () => {
+    const program = `${prefix}id = pinnedanimation("slime_rest.anm", 4, 4, 1)\n${pause}Save("slot")\nthreadSleep(getThreadId(), 120)\nend()\n`;
+    const { saved, rig } = saveMidBattle(program, tbm);
+    equal(saved.game.fx.animations[0]?.loaded, false, "the saved animation has not loaded");
+    equal(saved.game.fx.animations[0]?.frames.length, 2);
+    deepEqual(saved.game.fx.animations[0]?.preparation, expectedPreparation);
+    deepEqual(rig.state().fx.animations[0]?.frames, saved.game.fx.animations[0]?.frames);
+    deepEqual(rig.state().fx.animations[0]?.preparation, saved.game.fx.animations[0]?.preparation);
+    const host = freshLoad(saved.bytes, program, beforeLoad, tbm);
+    rig.until((state) => state.time.tick >= 15);
+    runUntilTick(host, rig.state().time.tick);
+    equal(host.state().fx.animations.length, 1);
+    equal(host.state().fx.animations[0]?.loaded, true);
+    equal(host.state().fx.animations[0]?.frames.length, 2);
+    const shown = new Set<string>();
+    for (let i = 0; i < 7; i += 1) {
+      equal(host.state().time.tick, rig.state().time.tick);
+      deepEqual(host.state().fx.animations, rig.state().fx.animations);
+      const frame = host.frame();
+      shown.add(frame);
+      equal(frame, fnv1a64(rig.frame().rgba), "the presented frame matches");
+      rig.tick();
+      runUntilTick(host, rig.state().time.tick);
+    }
+    ok(shown.size >= 2, "the observed frames visibly change");
+    deepEqual(host.diagnostics, []);
+  });
+}
+
+// Two real engine boots exercise continuation sharing, not just one animation's clock.
+for (const [label, beforeLoad] of [["cold", ""], ["warm", WARM_PICTURES]] as const) {
+  test(`a resumed script's second animation sees the saved cache boundary with a ${label} restore (#1340)`, () => {
+    const program = 'id = pinnedanimation("slime_rest.anm",4,4,1)\nSave("slot")\nid2 = pinnedanimation("slime_rest.anm",8,8,1)\nthreadSleep(getThreadId(),120)\nend()\n';
+    const { saved, rig } = saveMidBattle(program);
+    deepEqual(saved.game.fx.animations[0]?.preparation, { stage: "source-ready", picturesReady: false });
+    const host = freshLoad(saved.bytes, program, beforeLoad);
+    rig.until((state) => state.time.tick >= 15);
+    runUntilTick(host, rig.state().time.tick);
+    equal(rig.state().fx.animations.length, 2);
+    deepEqual(host.state().fx.animations, rig.state().fx.animations);
+  });
+}
+
+test("a resumed script can cancel an unloaded animation before its pictures are requested (#1340)", () => {
+  const program = 'id = pinnedanimation("slime_rest.anm",4,4,1)\nSave("slot")\nendanimation(id)\ncanceled = 1\nthreadSleep(getThreadId(),120)\nend()\n';
+  const { saved, rig } = saveMidBattle(program);
+  deepEqual(saved.game.fx.animations[0]?.preparation, { stage: "source-ready", picturesReady: false });
+  const host = freshLoad(saved.bytes, program, "", false, true);
+  rig.until((state) => state.vm.globals.canceled === 1);
+  runUntilTick(host, rig.state().time.tick);
+  equal(host.state().vm.globals.canceled, 1);
+  deepEqual(host.diagnostics, []);
+  equal(host.requested.includes("bitmap/slime_rest.png"), false);
 });

@@ -73,22 +73,6 @@ image effects and other in-flight blob requests all settle first. A save
 therefore never records a thread parked on a request the host has not answered,
 which a restore would drop and strand.
 
-**Animations still loading.** A save can contain a screen animation whose source
-or frame pictures have not yet started playback. It records whether preparation
-has reached the source-ready or pictures-requested stage, and whether all frame
-dependencies were already available when a source-ready save was taken. A fresh
-load fetches those dependencies without advancing the game clock and preserves
-the saved phase transitions even when the new engine's cache is warmer or colder.
-A source-ready animation with cold dependencies consumes its first animation
-phase before it starts; one with warm dependencies starts in that phase. An
-animation whose picture requests had already settled resumes at its next phase;
-tile-bitmap animations retain their existing pre-tick completion.
-
-The `fx` save section's next version migrates older unloaded animations with no
-readiness record to the source-ready, cold-dependency stage. Old saves did not
-record whether the pictures were warm, so this deterministic fallback cannot
-reconstruct that lost fact in every case.
-
 <a id="save-before-quit"></a>
 **Save before quit (OWNER; ruled 2026-11-02).** A game `Save` requested before `quitGame()` remains due: the core MUST serialize and publish that save, and the runner MUST persist it before the session closes. This applies when snapshot serialization is deferred by the in-flight request rule above; request-byte availability MUST NOT move it to the after-quit side of the boundary. A blob write requested after `quitGame()` MUST fail without a host-side write. The core settles that later request as failed before taking the earlier save snapshot, so the snapshot contains no unanswered request that restore would drop and strand. The runner MUST keep the session open until it has completed the request prefix through all writes before quit, and close only after the earlier save's host write has completed.
 

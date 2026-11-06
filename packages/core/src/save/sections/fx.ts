@@ -35,6 +35,7 @@ export type AnimationState = {
   frames: AnimationFrameState[];
   loaded: boolean;
   finished: boolean;
+  preparation: { stage: "source-ready"; picturesReady: boolean } | { stage: "pictures-requested"; picturesReady: null } | null;
   soundFrame: number;
 };
 

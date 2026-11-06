@@ -112,6 +112,7 @@ export function loadAnimation(state: GameState, animation: AnimationState, bytes
   animation.originTick = state.time.tick;
   animation.soundFrame = -1;
   animation.loaded = true;
+  animation.preparation = null;
   return true;
 }
 
@@ -222,7 +223,7 @@ export function applyAnimationEffect(state: GameState, effect: { readonly name: 
   const nextAnimationId = Math.max(fx.nextAnimationId ?? 1, id + 1);
   const animation: AnimationState = {
     id, file, asset: null, x, y, width, height, loop, ...(effect.name === "pinnedanimation" ? { pinned: true as const } : {}), originTick: state.time.tick,
-    delayTicks: 1, frame: 0, frames: [], loaded: false, finished: false, soundFrame: -1,
+    delayTicks: 1, frame: 0, frames: [], loaded: false, finished: false, preparation: null, soundFrame: -1,
   };
   state.fx = { ...createAnimationDefaults(fx), animations: [...current, animation], nextAnimationId };
 }

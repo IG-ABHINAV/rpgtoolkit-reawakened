@@ -233,6 +233,107 @@ test("restore refuses a snapshot whose vm section is not an object", () => {
   json.vm = 7;
   equal(errorOf(() => restoreGameState(JSON.stringify(json))).code, "restore.shape");
 });
+// The fx section (ticket #1340): schema 1 animations did not preserve readiness.
+test("fx schema 1 migration distinguishes loaded and unloaded animation preparation", () => {
+  const raw = JSON.parse(fixtureText("fx-v1-animation.json")) as {
+    fx: { animations: { loaded: boolean; preparation?: unknown }[] };
+    schema: { fx: number };
+  };
+  equal(raw.schema.fx, 1);
+  ok(raw.fx.animations.every((animation) => !Object.hasOwn(animation, "preparation")));
+
+  const restored = restoreGameState(fixtureText("fx-v1-animation.json"));
+  equal(restored.schema.fx, SCHEMA_VERSIONS.fx);
+  equal(restored.fx.animations[0]!.loaded, true);
+  equal(restored.fx.animations[0]!.preparation, null);
+  equal(restored.fx.animations[1]!.loaded, false);
+  deepEqual(restored.fx.animations[1]!.preparation, { stage: "source-ready", picturesReady: false });
+  const restoredAgain = restoreGameState(snapshot(restored));
+  equal(canon(restoredAgain), canon(restored));
+});
+
+test("fx schema 2 rejects malformed animation preparation states", () => {
+  type RawFxSnapshot = {
+    fx: {
+      animations: { loaded: boolean; finished: boolean; preparation?: unknown }[];
+    };
+    schema: { fx: number };
+  };
+  const refused = (edit: (json: RawFxSnapshot) => void): void => {
+    const json = JSON.parse(fixtureText("fx-v1-animation.json")) as RawFxSnapshot;
+    json.schema.fx = SCHEMA_VERSIONS.fx;
+    json.fx.animations[0]!.preparation = null;
+    json.fx.animations[1]!.preparation = { stage: "source-ready", picturesReady: false };
+    edit(json);
+    equal(errorOf(() => restoreGameState(JSON.stringify(json))).code, "restore.shape");
+  };
+  refused((json) => { delete json.fx.animations[1]!.preparation; });
+  refused((json) => { json.fx.animations[1]!.preparation = { stage: "unknown", picturesReady: false }; });
+  refused((json) => { json.fx.animations[1]!.preparation = { stage: "source-ready", picturesReady: null }; });
+  refused((json) => { json.fx.animations[1]!.preparation = { stage: "pictures-requested", picturesReady: false }; });
+  refused((json) => { json.fx.animations[1]!.preparation = { stage: "source-ready", picturesReady: false, extra: true }; });
+  refused((json) => { json.fx.animations[0]!.preparation = { stage: "source-ready", picturesReady: false }; });
+  refused((json) => {
+    json.fx.animations[1]!.finished = true;
+    json.fx.animations[1]!.preparation = { stage: "source-ready", picturesReady: false };
+  });
+});
+
+test("fx schema 2 validates retained animation frame fields during preparation", () => {
+  type RawFrame = Record<string, unknown>;
+  type RawFxSnapshot = {
+    fx: {
+      animations: {
+        frames: RawFrame[];
+        loaded: boolean;
+        preparation?: unknown;
+      }[];
+    };
+    schema: { fx: number };
+  };
+  const makeSnapshot = (): RawFxSnapshot => {
+    const json = JSON.parse(fixtureText("fx-v1-animation.json")) as RawFxSnapshot;
+    json.schema.fx = SCHEMA_VERSIONS.fx;
+    json.fx.animations[0]!.preparation = null;
+    json.fx.animations[1]!.preparation = { stage: "source-ready", picturesReady: false };
+    json.fx.animations[1]!.frames.push({
+      asset: null,
+      image: "spark.png",
+      sound: "",
+      srcWidth: 16,
+      srcHeight: 16,
+      tile: null,
+      transparent: { r: 0, g: 0, b: 0 },
+    });
+    return json;
+  };
+  const valid = restoreGameState(JSON.stringify(makeSnapshot()));
+  equal(valid.fx.animations[1]!.frames.length, 1);
+
+  const refused = (edit: (frame: RawFrame) => void): void => {
+    const json = makeSnapshot();
+    edit(json.fx.animations[1]!.frames[0]!);
+    equal(errorOf(() => restoreGameState(JSON.stringify(json))).code, "restore.shape");
+  };
+  refused((frame) => { frame.asset = 7; });
+  refused((frame) => { frame.tile = "0"; });
+  refused((frame) => { frame.surface = "surface-1"; });
+  refused((frame) => { delete frame.image; });
+  refused((frame) => { delete frame.transparent; });
+});
+
+test("fx migration rejects malformed and newer section versions", () => {
+  const malformed = JSON.parse(fixtureText("fx-v1-animation.json")) as {
+    fx: { animations: { loaded: boolean }[] };
+  };
+  malformed.fx.animations[1]!.loaded = "false" as unknown as boolean;
+  equal(errorOf(() => restoreGameState(JSON.stringify(malformed))).code, "restore.shape");
+
+  const newer = JSON.parse(fixtureText("fx-v1-animation.json")) as { schema: { fx: number } };
+  newer.schema.fx = SCHEMA_VERSIONS.fx + 1;
+  equal(errorOf(() => restoreGameState(JSON.stringify(newer))).code, "restore.shape");
+});
+
 
 // The audio section (ticket 6.6; docs/spec/engine/audio-media.md#audio-state): schema 1 was the empty placeholder
 // every committed save fixture carries; schema 2 is the track-and-voice section.

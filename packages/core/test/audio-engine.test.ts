@@ -215,6 +215,7 @@ test("an animation frame's sound is an sfx cue after the length is learned, and 
       frames: [{ image: "a.bmp", asset: null, tile: null, srcWidth: 8, srcHeight: 6, transparent: { r: 0, g: 0, b: 0 }, sound: "step.wav" }],
       loaded: true,
       finished: false,
+      preparation: null,
       soundFrame: -1,
     });
   });

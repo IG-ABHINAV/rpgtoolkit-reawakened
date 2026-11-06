@@ -202,6 +202,49 @@ function migrateEngine(record: Record<string, unknown>, schema: Record<string, u
   schema.engine = SCHEMA_VERSIONS.engine;
 }
 
+/** Upgrade saved animation readiness; old saves did not preserve cache warmth. */
+function migrateFx(record: Record<string, unknown>, schema: Record<string, unknown>): void {
+  const version = schema.fx;
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1 || version > SCHEMA_VERSIONS.fx) {
+    shapeError("the snapshot's fx schema version is unsupported");
+  }
+  const fx = recordAt(record.fx, "fx");
+  if (fx.animations !== undefined) {
+    if (!Array.isArray(fx.animations)) shapeError("the snapshot's fx.animations must be an array");
+    for (const [index, value] of fx.animations.entries()) {
+      const animation = recordAt(value, `fx.animations[${index}]`);
+      if (typeof animation.loaded !== "boolean" || typeof animation.finished !== "boolean") {
+        shapeError(`the snapshot's fx.animations[${index}] has invalid playback flags`);
+      }
+      if (version === 1) animation.preparation = animation.loaded === false && animation.finished !== true
+        ? { stage: "source-ready", picturesReady: false }
+        : null;
+      const preparation = animation.preparation;
+      if (preparation === null) continue;
+      const detail = recordAt(preparation, `fx.animations[${index}].preparation`);
+      if (animation.loaded !== false || animation.finished !== false || Object.keys(detail).length !== 2 ||
+        (detail.stage === "source-ready" ? typeof detail.picturesReady !== "boolean"
+          : detail.stage === "pictures-requested" ? detail.picturesReady !== null : true)) {
+        shapeError(`the snapshot's fx.animations[${index}].preparation is invalid`);
+      }
+      for (const [frameIndex, value] of arrayAt(animation.frames, `fx.animations[${index}].frames`).entries()) {
+        const path = `fx.animations[${index}].frames[${frameIndex}]`;
+        const frame = recordAt(value, path);
+        if (frame.asset !== null) stringAt(frame.asset, `${path}.asset`);
+        if (frame.tile !== null) numberAt(frame.tile, `${path}.tile`);
+        if (frame.surface !== undefined) numberAt(frame.surface, `${path}.surface`);
+        stringAt(frame.image, `${path}.image`);
+        stringAt(frame.sound, `${path}.sound`);
+        numberAt(frame.srcWidth, `${path}.srcWidth`);
+        numberAt(frame.srcHeight, `${path}.srcHeight`);
+        const transparent = recordAt(frame.transparent, `${path}.transparent`);
+        for (const channel of ["r", "g", "b"]) numberAt(transparent[channel], `${path}.transparent.${channel}`);
+      }
+    }
+  }
+  schema.fx = SCHEMA_VERSIONS.fx;
+}
+
 /** Add the host sections to pre-#1349 saves using the documented deterministic defaults. */
 function migrateHostSections(record: Record<string, unknown>, schema: Record<string, unknown>, logicalWidth: number, logicalHeight: number): void {
   for (const [name, versionNow] of [["features", HOST_FEATURES_SCHEMA_VERSION], ["display", DISPLAY_SCHEMA_VERSION]] as const) {
@@ -1477,6 +1520,7 @@ export function restoreGameState(
   migrateUi(record, schema as Record<string, unknown>);
   migrateAudio(record, schema as Record<string, unknown>);
   migrateEngine(record, schema as Record<string, unknown>);
+  migrateFx(record, schema as Record<string, unknown>);
   applyIrCompatibility(record, options);
   // The loaded state now runs the current instruction version: every position is
   // either unchanged or was restarted, and position-free references keep their

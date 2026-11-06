@@ -75,7 +75,7 @@ export const SCHEMA_VERSIONS = {
   input: INPUT_SCHEMA_VERSION,
   ui: UI_SCHEMA_VERSION,
   camera: 1,
-  fx: 1,
+  fx: 2,
   audio: 2,
   surfaces: 1,
   rng: 1,
