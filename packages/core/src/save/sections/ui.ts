@@ -3,7 +3,7 @@
 import type { DrawCommand, FontRef, Rgb } from "../../ports/draw.ts";
 import type { SurfaceId } from "../../ports/keys.ts";
 
-export const UI_SCHEMA_VERSION = 7;
+export const UI_SCHEMA_VERSION = 8;
 export type UiTextDraw = {
   readonly x: number;
   readonly y: number;
@@ -140,6 +140,7 @@ export type UiSection = {
   surfaceCancelled: boolean;
   surfaceCancelledSeq: number | null;
   surfaceCancelledOwner: number | null;
+  surfaceResultsPending: boolean;
   surfacePointerClaim: UiActionClaim | null;
   customTouchControlsDeclared: boolean;
 };
@@ -184,6 +185,7 @@ export function createUiSection(): UiSection {
     surfaceCancelledOwner: null,
     surfacePointerClaim: null,
     customTouchControlsDeclared: false,
+    surfaceResultsPending: false,
   };
 
 }
@@ -208,5 +210,6 @@ export function resetUiForProgramStart(ui: UiSection, releaseSurface: (id: Surfa
   ui.surfaceCancelled = false;
   ui.surfaceCancelledSeq = null;
   ui.surfaceCancelledOwner = null;
+  ui.surfaceResultsPending = false;
   if (ui.surfacePointerClaim !== null) ui.surfacePointerClaim = { ...ui.surfacePointerClaim, cancelled: true };
 }

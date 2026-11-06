@@ -499,6 +499,8 @@ type ObservedEngine = {
   readonly engine: Engine;
   /** Whether the engine's own input state held Right at the input phase of each tick it ran. */
   readonly rightHeld: boolean[];
+  /** Latest state passed through the real input registration. */
+  readonly state: { current: GameState | null };
 };
 
 /** The real engine with Right bound and an observer in its input phase; its board is the empty authored one. */
@@ -506,6 +508,7 @@ function observedEngine(): ObservedEngine {
   const board = writeBoard(createEmptyBoard());
   if (!board.ok) throw new Error(board.error.message);
   const rightHeld: boolean[] = [];
+  const state: ObservedEngine["state"] = { current: null };
   const engine = createEngine({
     seed: 7,
     assetIndex: createAssetIndex(["Boards/test.brd"]),
@@ -515,12 +518,15 @@ function observedEngine(): ObservedEngine {
     height: 32,
     maxTicks: 60,
     input: { bindings: { keys: { ArrowRight: "right" } } },
-    phaseRegistrations: [{ phase: "input", rank: 1, run: (state) => { rightHeld.push(state.input.actions.right === true); } }],
+    phaseRegistrations: [{ phase: "input", rank: 1, run: (live) => {
+      state.current = live;
+      rightHeld.push(live.input.actions.right === true);
+    } }],
   });
   const request = engine.advance(0, []).requests[0];
   if (request?.kind !== "asset") throw new Error("expected the board request");
   if (engine.advance(0, [{ tick: 0, event: { kind: "asset", reqId: request.reqId, bytes: board.value } }]).loading) throw new Error("expected the board to load");
-  return { engine, rightHeld };
+  return { engine, rightHeld, state };
 }
 
 test("through the engine: a key pressed before the blur is released when focus returns", () => {
@@ -537,16 +543,23 @@ test("through the engine: a key pressed before the blur is released when focus r
   equal(rightHeld[rightHeld.length - 1], true);
 });
 
-test("through the engine: a key pressed in the blur's own frame is released too, and stays in the replay record", () => {
-  const { engine, rightHeld } = observedEngine();
+test("through the engine: a key after pointer input in the blur frame is released but stays queued", () => {
+  const { engine, rightHeld, state } = observedEngine();
   equal(engine.advance(2, []).ticksRun, 2);
 
-  // The host batches the key-down and the blur of one frame into one advance, in host order.
-  const blurred = engine.advance(2, [{ tick: 2, event: key("ArrowRight", true) }, { tick: 2, event: BLUR }]);
+  // Pointer hover, key-down and blur arrive in one frame; blur releases the held action without discarding the script key.
+  const blurred = engine.advance(2, [
+    { tick: 2, event: { kind: "pointer", x: 1, y: 1, buttons: 0 } },
+    { tick: 2, event: key("ArrowRight", true) },
+    { tick: 2, event: BLUR },
+  ]);
   equal(blurred.ticksRun, 0);
-  deepEqual(blurred.consumed.map((record) => record.event.kind), ["key", "focus"], "both records are consumed, in host order");
+  deepEqual(blurred.consumed.map((record) => record.event.kind), ["pointer", "key", "focus"], "the pre-blur prefix is consumed in order");
+  const blurState = state.current;
+  if (blurState === null) throw new Error("expected the input registration to expose engine state");
+  ok(blurState.input.keys.some((queued) => queued.name === "right"), "blur keeps the key available in the script queue");
   equal(engine.advance(3, [{ tick: 2, event: REFOCUS }]).ticksRun, 3);
-  deepEqual(rightHeld.slice(2), [false, false, false], "the key pressed just before the blur is not held after it");
+  deepEqual(rightHeld.slice(2), [false, false, false], "the key pressed after the pointer is no longer held");
 });
 
 test("through the engine: a key the host queued after the blur still waits for the resumed tick", () => {

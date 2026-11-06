@@ -470,6 +470,109 @@ test("default Enter and Escape claims prevent Get from reading the same key", ()
   }
 });
 
+test("an author tap flushed before blur survives until the resumed script reads uiActivated", () => {
+  const capture = captureState();
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)',
+    'uiItem("Play")',
+    'uiEnd()',
+    'sleep(1)',
+    'activated = uiActivated()',
+    'end()',
+  ].join("\n"), [capture.registration]);
+  engine.advance(1, []);
+  const blurred = engine.advance(1, [
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+    { tick: 1, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(blurred.ticksRun, 0);
+  const paused = capture.state();
+  if (paused === undefined) throw new Error("expected captured game state");
+  equal(paused.ui.surfaceActivated?.index, 0);
+  equal(paused.ui.surfaceResultsPending, true, "the paused activation has a persisted lifecycle marker");
+  equal(paused.input.pointer.buttons & 1, 0, "blur still releases the pointer hold");
+
+  engine.advance(0, [{ tick: 1, event: { kind: "focus", state: "gained" } }]);
+  engine.advance(1, []);
+  const resumed = capture.state();
+  if (resumed === undefined) throw new Error("expected resumed game state");
+  equal(resumed.vm.globals.activated, 0, "the resumed script reads the pre-blur activation");
+  equal(resumed.ui.surfaceActivated, null, "uiActivated consumes the one-shot result");
+});
+test("a pre-blur author cancellation survives until the resumed script reads uiCancelled", () => {
+  const capture = captureState();
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)',
+    'uiItem("Play")',
+    'uiEnd()',
+    'sleep(1)',
+    'if (uiCancelled() == 1) { cancelled = 1 } else { cancelled = 0 }',
+    'end()',
+  ].join("\n"), [capture.registration]);
+  engine.advance(1, []);
+  const blurred = engine.advance(1, [
+    { tick: 1, event: { kind: "key", name: "ESCAPE", code: "Escape", char: null, down: true } },
+    { tick: 1, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(blurred.ticksRun, 0);
+  const paused = capture.state();
+  if (paused === undefined) throw new Error("expected captured game state");
+  equal(paused.ui.surfaceCancelled, true);
+
+  engine.advance(0, [{ tick: 1, event: { kind: "focus", state: "gained" } }]);
+  engine.advance(1, []);
+  const resumed = capture.state();
+  if (resumed === undefined) throw new Error("expected resumed game state");
+  equal(resumed.vm.globals.cancelled, 1, "the resumed script reads the pre-blur cancellation");
+  equal(resumed.ui.surfaceCancelled, false, "uiCancelled consumes the one-shot result");
+});
+test("debugger stepping and uninterrupted resume consume a pre-blur activation at the same thread boundary", () => {
+  const source = [
+    'uiBegin("title", "menu", 0, 0, 16, 16)',
+    'uiItem("Play")',
+    'uiEnd()',
+    'sleep(1)',
+    'activated = uiActivated()',
+    'end()',
+  ].join("\n");
+  const baselineCapture = captureState();
+  const baseline = programEngine(source, [baselineCapture.registration]);
+  const debugCapture = captureState();
+  const debugged = programEngine(source, [debugCapture.registration]);
+  for (const engine of [baseline, debugged]) {
+    engine.advance(1, []);
+    engine.advance(1, [
+      { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+      { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+      { tick: 1, event: { kind: "focus", state: "lost" } },
+    ]);
+    engine.advance(0, [{ tick: 1, event: { kind: "focus", state: "gained" } }]);
+  }
+  const uninterrupted = baseline.advance(1, []);
+  debugged.setBreakpoints([{ file: "<inline>", line: 5 }]);
+  const stopped = debugged.advance(1, []);
+  equal(stopped.ticksRun, 0);
+  equal(stopped.paused?.line, 5);
+  const stoppedState = debugCapture.state();
+  if (stoppedState === undefined) throw new Error("expected captured debugger state");
+  equal(stoppedState.ui.surfaceResultsPending, true, "a breakpoint does not expire the pending result");
+  const stepped = debugged.advance(0, [], undefined, "step");
+  equal(stepped.paused?.thread, 1);
+  const afterStep = debugCapture.state();
+  if (afterStep === undefined) throw new Error("expected captured stepped state");
+  equal(afterStep.ui.surfaceResultsPending, true, "a partial step does not cross the thread-pass boundary");
+  equal(afterStep.vm.globals.activated, 0, "the stepped continuation consumes the activation");
+  const resumed = debugged.advance(0, [], undefined, "continue");
+  equal(resumed.paused, null);
+  const completed = debugCapture.state();
+  if (completed === undefined) throw new Error("expected completed debugger state");
+  equal(completed.ui.surfaceResultsPending, false, "the marker clears only when the open thread pass completes");
+  equal(resumed.stateHash, uninterrupted.stateHash, "debugger and uninterrupted execution produce the same final state");
+});
+
+
+
 test("author surface release dispatches its registered action once without click leakage", () => {
   const capture = captureState();
   const surfaceRegistration: EnginePhaseRegistration = {

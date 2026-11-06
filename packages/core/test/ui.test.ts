@@ -105,6 +105,31 @@ test("custom touch suppression requires an explicit persistent declaration", () 
   equal(migrated.ui.surfaceCancelledSeq, null);
   equal(migrated.ui.surfaceCancelledOwner, null);
 });
+test("pending author UI results are hash-significant, snapshot-migrated, and reset with their UI lifecycle", () => {
+  const state = createGameState({ seed: 0 });
+  state.ui.surfaceActivated = {
+    owner: 7, surfaceId: "title", itemId: "play", index: 0, action: null, inputSeq: 41, cancelled: false,
+  };
+  state.ui.surfaceResultsPending = true;
+  const pendingHash = hashGameState(state);
+  state.ui.surfaceResultsPending = false;
+  equal(hashGameState(state) === pendingHash, false, "the lifecycle marker participates in the canonical state hash");
+  state.ui.surfaceResultsPending = true;
+
+  const saved = snapshot(state);
+  const restored = restoreGameState(saved);
+  equal(restored.ui.surfaceResultsPending, true, "snapshot restore preserves the pending one-shot lifecycle");
+  equal(hashGameState(restored), hashGameState(state));
+
+  const legacy = JSON.parse(saved) as { schema: { ui: number }; ui: Record<string, unknown> };
+  legacy.schema.ui = 7;
+  delete legacy.ui.surfaceResultsPending;
+  equal(restoreGameState(JSON.stringify(legacy)).ui.surfaceResultsPending, false, "v7 snapshots migrate without a phantom pending result");
+
+  resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+  equal(state.ui.surfaceResultsPending, false, "starting a new program clears the previous surface's lifecycle marker");
+});
+
 test("legacy UI save migration preserves surface lifetime metadata and defaults Plane 3 commands", () => {
   const state = createGameState({ seed: 0 });
   applyUiEffect(state, "mwincls", []);

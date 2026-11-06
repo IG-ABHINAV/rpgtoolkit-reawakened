@@ -8,7 +8,7 @@ import { createLoadController, type LoadModeRequest, type LoadState } from "../s
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
 import { attachPointerInput } from "../src/pointer.ts";
 import { createLiveSession, type LiveSession } from "../src/live-session.ts";
-import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
 import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "../src/touch-controls.ts";
@@ -365,10 +365,15 @@ function startLiveLoop(
     fallbackActionSequence += 1;
     return fallbackActionSequence;
   });
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+  const hostObserver = observeHostState(hostViewport, viewSize, (event) => {
     displayGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
+  session.setHostRestoreSnapshotProvider(() => {
+    const snapshot = hostObserver.snapshotForRestore(pending);
+    for (const event of snapshot) displayGeometry.observe(event);
+    return snapshot;
+  });
   const stopPointerInput = attachPointerInput(
     hostViewport.viewport,
     viewSize,
@@ -415,7 +420,7 @@ function startLiveLoop(
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
-    stopObservingHost();
+    hostObserver.dispose();
     if (frameId !== null) window.cancelAnimationFrame(frameId);
     if (spinnerTimer !== null) window.clearInterval(spinnerTimer);
     window.removeEventListener("keydown", onKeyDown);
@@ -439,6 +444,7 @@ function startLiveLoop(
     const elapsed = Math.max(0, now - previous);
     previous = now;
     const spinner = overlay?.update() ?? false;
+    hostObserver.poll();
     syncTouchControls();
     // While the engine waits on an asset the simulation is frozen, so wall time is not banked: a long wait must not come
     // back as a burst of catch-up ticks. The last presented frame stays on the canvas and the loop keeps running.
@@ -456,6 +462,7 @@ function startLiveLoop(
         session.advance(wholeTicks, inputs).then(() => {
           if (disposed) return;
           if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
+          reconcileObservedHostFeaturesAfterAdvance(session.engine.hostFeatures(), hostObserver, pending);
           const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), displayGeometry, pending, session.tick());
           advancing = false;
           if (disposed || restoredGeometryNeedsTick) return;

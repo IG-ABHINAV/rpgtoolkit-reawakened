@@ -68,7 +68,7 @@ import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.
 import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
 import type { UiActionClaim } from "../save/sections/ui.ts";
-import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, registerGameAction, registeredActionNames as inputRegisteredActionNames, setPointerMovementSuppressed } from "../input/index.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, recomputeInputActions, registerGameAction, registeredActionNames as inputRegisteredActionNames, routePointerUpActivations, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
@@ -2030,12 +2030,15 @@ export function createEngine(init: EngineInit): Engine {
       initialCharacterKey = null;
       initialCharacterResolved = true;
     }
+    const hostFeatures = state.features;
+    const hostGeometry = state.display.geometry;
+    const hostGamepads = state.input.gamepads;
     const fresh = createGameState({
       seed: 0,
       width: init.width,
       height: init.height,
-      ...(init.features === undefined ? {} : { features: init.features }),
-      ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+      features: hostFeatures,
+      displayGeometry: hostGeometry,
     });
     state.world = { ...fresh.world, movement: movementDefaults(mainFile) };
     state.sprites = fresh.sprites;
@@ -2097,6 +2100,10 @@ export function createEngine(init: EngineInit): Engine {
     } else {
       services = makeServices(activePlugins, loader ?? undefined, true);
     }
+    state.input.gamepads = { ...hostGamepads };
+    recomputeInputActions(state.input, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+    });
     audio.retry();
   }
   function fail(diagnostic: Diagnostic): void {
@@ -2639,7 +2646,12 @@ export function createEngine(init: EngineInit): Engine {
       } else {
         registerAudio();
       }
-      if (!startupServicesReady) services = makeServices(activePlugins, loader, true);
+      if (!startupServicesReady) {
+        services = makeServices(activePlugins, loader, true);
+        recomputeInputActions(state.input, (action, down, firstSeq) => {
+          routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+        });
+      }
       if (failed) return false;
       if (initialCharacterKey !== null && cache.has(initialCharacterKey)) {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
@@ -3534,6 +3546,27 @@ export function createEngine(init: EngineInit): Engine {
       state.features = normalizeHostFeatures(event.features);
       return true;
     }
+    if (event.kind === "host.gamepads") {
+      const connected = new Set(event.devices.map((device) => device.device));
+      const stagedConnected = new Set(
+        Object.entries(state.input.gamepads)
+          .filter(([, pad]) => pad.connected)
+          .map(([device]) => Number(device)),
+      );
+      for (const pending of state.input.pendingGamepads) {
+        if (pending.connected) stagedConnected.add(pending.device);
+        else stagedConnected.delete(pending.device);
+      }
+      for (const device of [...stagedConnected].sort((left, right) => left - right)) {
+        if (!connected.has(device)) {
+          state.input.pendingGamepads.push({ device, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+        }
+      }
+      for (const device of event.devices) {
+        state.input.pendingGamepads.push({ ...device, connected: true });
+      }
+      return true;
+    }
     if (event.kind === "host.display") {
       const previous = state.display.geometry;
       const geometry = normalizeDisplayGeometry(event.geometry);
@@ -3743,38 +3776,54 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
 
+  function processPendingGamepadEvents(): void {
+    processGamepadEvents(state.input, ({ device, connected }) => {
+      queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
+        device,
+        type: "gamepad",
+      });
+    }, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
+    });
+  }
+  function applyQueuedInputRecords(consumed: InputRecord[]): void {
+    const records = takeQueuedInputs(state.time.tick);
+    for (const record of records) {
+      if (record.event.kind === "host.display" && state.input.pendingPointerUps.length > 0) {
+        routePointerUpActivations(state);
+      }
+      if (applyHostStateEvent(record.event)) {
+        consumed.push(record);
+        continue;
+      }
+      if (record.event.kind === "asset") {
+        consumeAsset(record, consumed);
+        continue;
+      }
+      applyRoutedInputEvent(record.event);
+      consumed.push(record);
+    }
+    processPendingGamepadEvents();
+  }
+
+  /** End the pending one-shot preservation only at the actual script-thread phase boundary. */
+  function finishScriptThreadPass(): void {
+    state.ui.surfaceResultsPending = false;
+  }
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        state.ui.surfaceActivated = null;
-        state.ui.surfaceCancelled = false;
-        state.ui.surfaceCancelledSeq = null;
-        state.ui.surfaceCancelledOwner = null;
+        if (!state.ui.surfaceResultsPending) {
+          state.ui.surfaceActivated = null;
+          state.ui.surfaceCancelled = false;
+          state.ui.surfaceCancelledSeq = null;
+          state.ui.surfaceCancelledOwner = null;
+        }
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }
-        const records = takeQueuedInputs(state.time.tick);
-        for (const record of records) {
-          if (applyHostStateEvent(record.event)) {
-            consumed.push(record);
-            continue;
-          }
-          if (record.event.kind === "asset") {
-            consumeAsset(record, consumed);
-            continue;
-          }
-          applyRoutedInputEvent(record.event);
-          consumed.push(record);
-        }
-        processGamepadEvents(state.input, ({ device, connected }) => {
-          queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
-            device,
-            type: "gamepad",
-          });
-        }, (action, down, firstSeq) => {
-          routeAuthorSurfaceAction(action, down, down ? actionInputSequence(action, firstSeq) : null);
-        });
+        applyQueuedInputRecords(consumed);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
       }
@@ -3809,6 +3858,7 @@ export function createEngine(init: EngineInit): Engine {
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
         withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET, startupThreadEligible));
+        finishScriptThreadPass();
         if (state.engine.pendingEnterThread !== undefined) {
           const enterThread = state.vm.threads.find((thread) => thread.id === state.engine.pendingEnterThread);
           if (enterThread === undefined || enterThread.status === "finished") {
@@ -3885,11 +3935,17 @@ export function createEngine(init: EngineInit): Engine {
     queuedInputs.push(...deferred);
     return ready;
   }
-  function processPreTickEvents(consumed: InputRecord[]): void {
+  function processPreTickEvents(consumed: InputRecord[]): boolean {
     const records = takeQueuedInputs(state.time.tick);
     const deferred: InputRecord[] = [];
+    const hasPointerRecord = records.some((record) => record.event.kind === "pointer");
+    let inputFocused = state.input.focused;
+    let restoredOpenTick = false;
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index]!;
+      if (record.event.kind === "host.display" && state.input.pendingPointerUps.length > 0) {
+        routePointerUpActivations(state);
+      }
       if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
       } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
@@ -3897,10 +3953,8 @@ export function createEngine(init: EngineInit): Engine {
           // Earlier host observations belong to the old timeline, not a later tick after a load rewinds it.
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
-            if (!applyHostStateEvent(earlier.event)) {
-              at += 1;
-              continue;
-            }
+            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) break;
+            if (!applyHostStateEvent(earlier.event)) break;
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
@@ -3908,41 +3962,60 @@ export function createEngine(init: EngineInit): Engine {
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
+          for (let at = 0; at < deferred.length; at += 1) {
+            deferred[at] = { ...deferred[at]!, tick: state.time.tick };
+          }
           for (const queued of records.slice(index + 1)) {
             if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved" || queued.event.kind === "blob.listed") continue;
-            deferred.push({ ...queued, tick: state.time.tick });
+            const rebased = { ...queued, tick: state.time.tick };
+            deferred.push(rebased);
           }
+          restoredOpenTick = state.engine.openTick !== undefined;
           break;
         }
       } else if (record.event.kind === "video.ended") {
         if (state.engine.video?.reqId === record.event.reqId) state.engine.video = { ...state.engine.video, ended: true };
         consumed.push(record);
       } else if (record.event.kind === "focus") {
-        if (record.event.state === "lost" && state.engine.openTick === undefined) {
-          // Apply earlier keys and host updates in order before focus loss stops the tick.
-          // Keys must be released by the blur; host observations must not wait for a resumed tick.
+        if (record.event.state === "lost" && deferred.length > 0 && state.engine.openTick === undefined) {
+          const priorActivation = state.ui.surfaceActivated;
+          const priorCancellation = state.ui.surfaceCancelled;
+          const priorCancellationSeq = state.ui.surfaceCancelledSeq;
+          const priorCancellationOwner = state.ui.surfaceCancelledOwner;
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
-            if (!applyHostStateEvent(earlier.event)) {
-              if (earlier.event.kind !== "key") {
-                at += 1;
-                continue;
-              }
-              applyRoutedInputEvent(earlier.event);
+            if (applyHostStateEvent(earlier.event)) {
+              consumed.push(earlier);
+              deferred.splice(at, 1);
+              continue;
             }
+            if (earlier.event.kind !== "key" && earlier.event.kind !== "action" && earlier.event.kind !== "gamepad"
+              && earlier.event.kind !== "pointer" && earlier.event.kind !== "pointer.cancel") break;
+            applyRoutedInputEvent(earlier.event);
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
+          processPendingGamepadEvents();
+          if (state.ui.surfaceActivated !== priorActivation || state.ui.surfaceCancelled !== priorCancellation
+            || state.ui.surfaceCancelledSeq !== priorCancellationSeq || state.ui.surfaceCancelledOwner !== priorCancellationOwner) {
+            state.ui.surfaceResultsPending = true;
+          }
         }
+        inputFocused = record.event.state === "gained";
         applyRoutedInputEvent(record.event);
         consumed.push(record);
-      } else if (!state.input.focused && applyHostStateEvent(record.event)) {
+      } else if (!inputFocused && hasPointerRecord && (record.event.kind === "host.display" || record.event.kind === "pointer")) {
+        deferred.push(record);
+      } else if (hasPointerRecord || deferred.length > 0) {
+        deferred.push(record);
+      } else if (applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
         deferred.push(record);
       }
     }
     queuedInputs.unshift(...deferred);
+    return restoredOpenTick;
   }
   function consumeStoppedInputs(consumed: InputRecord[]): void {
     if (!failed) return;
@@ -4233,6 +4306,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function finishOpenTick(consumed: InputRecord[], mode: ResumeMode): Paused | null {
     const paused = withSurfaceBatch(() => runOpenThreads(mode));
+    if (state.engine.openTick === undefined) finishScriptThreadPass();
     if (paused !== null || state.engine.openTick !== undefined) return paused;
     for (const phase of ENGINE_PHASES) {
       if (phase !== "input" && phase !== "waits" && phase !== "threads") runPhase(phase, consumed);
@@ -4249,7 +4323,11 @@ export function createEngine(init: EngineInit): Engine {
       const consumed: InputRecord[] = [];
       const failedAtStart = failed;
       for (const input of inputs) queuedInputs.push(input);
-      processPreTickEvents(consumed);
+      const restoredOpenTick = processPreTickEvents(consumed);
+      if (restoredOpenTick) {
+        state.engine.phase = "input";
+        applyQueuedInputRecords(consumed);
+      }
       drive();
       if (failedAtStart) consumeStoppedInputs(consumed);
       const requestedTicks = Number.isFinite(ticks) ? Math.max(0, Math.trunc(ticks)) : 0;

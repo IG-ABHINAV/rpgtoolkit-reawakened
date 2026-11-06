@@ -330,7 +330,7 @@ test("custom fight seed and mid-battle save restore preserve state and drawing",
   equal(drawHash, hashDrawList(drawListFor(repeated.state)));
   equal(stateHash === hashState(differentSeed.state), false);
   equal(drawHash === hashDrawList(drawListFor(differentSeed.state)), false);
-  equal(stateHash, "d954ffd1368f84e9"); // UI schema 7 adds a hashed author-claim cancellation flag; the draw hash is unchanged.
+  equal(stateHash, "980948088315f2ef"); // UI schema 8 adds the hashed surface-result thread-boundary marker; the draw hash is unchanged.
   equal(drawHash, "480086a70fb486bb"); // DrawList v2 includes the explicit marginCommands layer.
 
   const restoredState = restoreGameState(snapshot(first.state));

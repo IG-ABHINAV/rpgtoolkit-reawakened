@@ -44,6 +44,16 @@ export type GamepadInput = {
   readonly buttons: number;
 };
 
+/** Complete live set of connected normalized devices used to reconcile a restored gamepad section. */
+export type HostGamepadsInput = {
+  readonly kind: "host.gamepads";
+  readonly devices: readonly {
+    readonly device: number;
+    readonly axes: { readonly x: number; readonly y: number };
+    readonly buttons: number;
+  }[];
+};
+
 /** The window gained or lost focus. */
 export type FocusInput = {
   readonly kind: "focus";
@@ -127,6 +137,7 @@ export type InputEvent =
   | FocusInput
   | HostFeaturesInput
   | HostDisplayInput
+  | HostGamepadsInput
   | AssetReply
   | BlobLoaded
   | BlobSaved
@@ -140,7 +151,7 @@ export type InputRecord = {
   readonly tick: number;
   readonly event: InputEvent;
 };
-/** Historical runner protocol v1 event union; active v2 adds ActionInput. */
+/** Historical runner protocol v1 event union; active v2 adds ActionInput and HostGamepadsInput. */
 export type InputEventV1 =
   | KeyInput
   | PointerInput

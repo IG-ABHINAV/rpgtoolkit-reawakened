@@ -4,7 +4,7 @@ import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppre
 import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
 import { soundFontDecoderReady } from "@tk-reawakened/synth";
 import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
-import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 
 type Host = {
   openPackage(): Promise<{ readonly name: string; readonly bytes: Uint8Array; readonly descriptor: unknown } | null>;
@@ -64,8 +64,8 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   let previous = performance.now();
   let accumulator = 0;
   let pending: PendingInput[] = [];
-    const fallbackControlKeys = new Set<string>();
-      let fallbackActionSequence = 0;
+  const fallbackControlKeys = new Set<string>();
+  let fallbackActionSequence = 0;
   let disposed = false;
   const onKeyDown = (event: KeyboardEvent): void => {
     if (shouldSuppressGameplayKey(event.code, event.repeat, true, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
@@ -90,10 +90,15 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
     fallbackActionSequence += 1;
     return fallbackActionSequence;
   });
-  const stopObservingHost = observeHostState(hostViewport, viewSize, (event) => {
+  const hostObserver = observeHostState(hostViewport, viewSize, (event) => {
     observedGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
+  session.setHostRestoreSnapshotProvider(() => {
+    const snapshot = hostObserver.snapshotForRestore(pending);
+    for (const event of snapshot) observedGeometry.observe(event);
+    return snapshot;
+  });
   const pointerHost = stage;
   const stopPointerInput = attachPointerInput(
     pointerHost,
@@ -117,7 +122,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
-    stopObservingHost();
+    hostObserver.dispose();
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onBlur);
@@ -130,6 +135,7 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   window.addEventListener("pagehide", dispose, { once: true });
   const draw = (now: number): void => {
     if (disposed) return;
+    hostObserver.poll();
     touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     accumulator += Math.max(0, now - previous);
     previous = now;
@@ -141,12 +147,13 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
       return;
     }
     const inputs = stampPendingInputs(pending, session.tick());
-          const submittedActionSequence = fallbackActionSequence;
+    const submittedActionSequence = fallbackActionSequence;
     pending = [];
     const tickBeforeAdvance = session.tick();
     void session.advance(ticks, inputs).then(() => {
       if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
       if (disposed) return;
+      reconcileObservedHostFeaturesAfterAdvance(session.engine.hostFeatures(), hostObserver, pending);
       const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
       if (restoredGeometryNeedsTick) {
         requestAnimationFrame(draw);

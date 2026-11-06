@@ -570,6 +570,9 @@
           "$ref": "#/$defs/videoEnded"
         },
         {
+          "$ref": "#/$defs/hostGamepadsInput"
+        },
+        {
           "$ref": "#/$defs/actionInput"
         }
       ]
@@ -1329,6 +1332,63 @@
         "source": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "hostGamepadsInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "devices"
+      ],
+      "properties": {
+        "kind": {
+          "const": "host.gamepads"
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "device",
+              "axes",
+              "buttons"
+            ],
+            "properties": {
+              "device": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "axes": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "minimum": -1000,
+                    "maximum": 1000
+                  },
+                  "y": {
+                    "type": "integer",
+                    "minimum": -1000,
+                    "maximum": 1000
+                  }
+                }
+              },
+              "buttons": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 131071
+              }
+            }
+          }
         }
       }
     }
