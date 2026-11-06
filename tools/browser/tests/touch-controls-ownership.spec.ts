@@ -360,9 +360,11 @@ test("leaving the host cancels a modal-preempted fallback press", async ({ brows
     // Isolate host departure without a preceding pointermove, which independently cancels the press.
     await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
     await page.mouse.down();
+    await expect.poll(async () => (await tracedInputs(page)).some((entry) => entry.event.kind === "pointer" && (entry.event.buttons ?? 0) === 1)).toBe(true);
+    const beforeSyntheticRelease = (await tracedInputs(page)).length;
     await page.locator("#stage").dispatchEvent("pointerleave", { pointerId: 1, pointerType: "mouse", buttons: 1 });
     await page.mouse.up();
-    await page.waitForTimeout(50);
+    await expect.poll(async () => (await tracedInputs(page)).slice(beforeSyntheticRelease).some((entry) => entry.event.kind === "pointer" && (entry.event.buttons ?? 0) === 0)).toBe(true);
     expect((await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === "confirm" && entry.event.source === "runner.fallback")).toHaveLength(0);
     expect(await page.evaluate(() => window.__session?.engine.runnerControlPointerPreemption(0, 0))).toBe(1);
     // Also exercise an actual departure and return through browser pointer events.
@@ -370,8 +372,10 @@ test("leaving the host cancels a modal-preempted fallback press", async ({ brows
     await page.mouse.down();
     await page.mouse.move(report.x + report.width / 2, report.y + report.height / 2);
     await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2);
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const beforePhysicalRelease = (await tracedInputs(page)).length;
     await page.mouse.up();
-    await page.waitForTimeout(50);
+    await expect.poll(async () => (await tracedInputs(page)).slice(beforePhysicalRelease).some((entry) => entry.event.kind === "pointer" && (entry.event.buttons ?? 0) === 0)).toBe(true);
     expect((await tracedInputs(page)).filter((entry) => entry.event.kind === "action" && entry.event.action === "confirm" && entry.event.source === "runner.fallback")).toHaveLength(0);
     const stillModal = await page.evaluate(({ buttonCenterX, buttonCenterY }) => {
       const target = window as Window & {
