@@ -32,7 +32,7 @@ export async function probeDesktopCsp(page, evaluate, root, sleep) {
     });
     await build({ entryPoints: [join(root, "packages/runner-web/test/worklet-decoder-probe.mjs")], outfile: runnerOutput, bundle: true, format: "esm", platform: "browser", target: "chrome120", logLevel: "silent" });
     const race = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeWorkletDecoder('/apps/${workletFilename}'))`);
-    if (race.before !== 0 || race.after <= 0.0001) throw new Error(`worklet decoder race: ${JSON.stringify(race)}`);
+    if (race.before !== 0 || race.during !== 0 || race.after <= 0.0001) throw new Error(`worklet decoder race: ${JSON.stringify(race)}`);
     const cueReadiness = await evaluate(`import('/apps/${runnerFilename}').then(m => m.probeCueReadiness('/apps/${workletFilename}'))`);
     if (cueReadiness.early !== 0 || cueReadiness.scheduled.length !== 1
       || cueReadiness.scheduled[0].track !== "music" || cueReadiness.scheduled[0].positionTicks !== 30) {
