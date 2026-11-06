@@ -166,7 +166,8 @@ function isPlainAxes(axes: object): boolean {
 function validateGamepad(record: UnknownRecord): InputEventValidation {
   const device = record["device"];
   if (!isInteger(device) || device < 0 || device > 3) return invalid("device", "expected an integer from 0 through 3");
-  if (typeof record["connected"] !== "boolean") return invalid("connected", "expected a boolean");
+  const connected = record["connected"];
+  if (typeof connected !== "boolean") return invalid("connected", "expected a boolean");
   const axesDescriptor = Object.getOwnPropertyDescriptor(record, "axes");
   if (axesDescriptor === undefined || !axesDescriptor.enumerable || !("value" in axesDescriptor))
     return invalid("axes", "expected an enumerable data property");
@@ -175,10 +176,13 @@ function validateGamepad(record: UnknownRecord): InputEventValidation {
   const axisRecord = axes as UnknownRecord;
   if (!isPlainAxes(axisRecord))
     return invalid("axes", "expected exactly x and y axes");
-  if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid("axes.x", "expected an integer from -1000 through 1000");
-  if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid("axes.y", "expected an integer from -1000 through 1000");
-  if (!isNonNegativeInteger(record["buttons"]) || record["buttons"] > 0x1ffff) return invalid("buttons", "expected a 17-bit non-negative physical button mask");
-  return accept(record);
+  const x = axisRecord["x"];
+  const y = axisRecord["y"];
+  if (!isInteger(x) || x < -1000 || x > 1000) return invalid("axes.x", "expected an integer from -1000 through 1000");
+  if (!isInteger(y) || y < -1000 || y > 1000) return invalid("axes.y", "expected an integer from -1000 through 1000");
+  const buttons = record["buttons"];
+  if (!isNonNegativeInteger(buttons) || buttons > 0x1ffff) return invalid("buttons", "expected a 17-bit non-negative physical button mask");
+  return { ok: true, value: { kind: "gamepad", device, connected, axes: { x, y }, buttons } };
 }
 
 function validateAction(record: UnknownRecord): InputEventValidation {
@@ -216,6 +220,7 @@ function validateHostFeatures(record: UnknownRecord): InputEventValidation {
 function validateHostGamepads(record: UnknownRecord): InputEventValidation {
   const devices = record["devices"];
   if (!Array.isArray(devices)) return invalid("devices", "expected an array");
+  const normalized: { device: number; axes: { x: number; y: number }; buttons: number }[] = [];
   let previous = -1;
   for (let index = 0; index < devices.length; index += 1) {
     const device = devices[index];
@@ -236,11 +241,15 @@ function validateHostGamepads(record: UnknownRecord): InputEventValidation {
     const axisRecord = axes as UnknownRecord;
     if (!isPlainAxes(axisRecord))
       return invalid(`devices[${index}].axes`, "expected exactly x and y axes");
-    if (!isInteger(axisRecord["x"]) || axisRecord["x"] < -1000 || axisRecord["x"] > 1000) return invalid(`devices[${index}].axes.x`, "expected an integer from -1000 through 1000");
-    if (!isInteger(axisRecord["y"]) || axisRecord["y"] < -1000 || axisRecord["y"] > 1000) return invalid(`devices[${index}].axes.y`, "expected an integer from -1000 through 1000");
-    if (!isNonNegativeInteger(sample["buttons"]) || sample["buttons"] > 0x1ffff) return invalid(`devices[${index}].buttons`, "expected a 17-bit non-negative physical button mask");
+    const x = axisRecord["x"];
+    const y = axisRecord["y"];
+    if (!isInteger(x) || x < -1000 || x > 1000) return invalid(`devices[${index}].axes.x`, "expected an integer from -1000 through 1000");
+    if (!isInteger(y) || y < -1000 || y > 1000) return invalid(`devices[${index}].axes.y`, "expected an integer from -1000 through 1000");
+    const buttons = sample["buttons"];
+    if (!isNonNegativeInteger(buttons) || buttons > 0x1ffff) return invalid(`devices[${index}].buttons`, "expected a 17-bit non-negative physical button mask");
+    normalized.push({ device: number, axes: { x, y }, buttons });
   }
-  return accept(record);
+  return { ok: true, value: { kind: "host.gamepads", devices: normalized } };
 }
 function validateHostDisplay(record: UnknownRecord): InputEventValidation {
   const geometry = record["geometry"];

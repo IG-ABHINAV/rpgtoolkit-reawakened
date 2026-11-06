@@ -290,3 +290,47 @@ for (const kind of ["gamepad", "host.gamepads"] as const) {
     equal(reads, 0, "validation must not invoke the getter");
   });
 }
+
+for (const kind of ["gamepad", "host.gamepads"] as const) {
+  test(`${kind} snapshots validated axes before hostile later reads and log encoding`, () => {
+    const axes: { x: number; y: number; z?: number } = { x: 7, y: -8 };
+    const sample = Object.defineProperty({ device: 0, axes }, "buttons", {
+      enumerable: true,
+      get: () => { axes.z = 1; return 0; },
+    });
+    const event = kind === "gamepad"
+      ? Object.assign(sample, { kind, connected: true })
+      : { kind, devices: [sample] };
+    const result = validateInputEvent(event);
+    equal(result.ok, true);
+    if (!result.ok) throw new Error(result.message);
+    axes.x = 123;
+    const encoded = JSON.parse(JSON.stringify(encodeLog(result.value)));
+    const decoded = decodeLog(encoded);
+    const expected = kind === "gamepad"
+      ? { kind, device: 0, connected: true, axes: { x: 7, y: -8 }, buttons: 0 }
+      : { kind, devices: [{ device: 0, axes: { x: 7, y: -8 }, buttons: 0 }] };
+    deepEqual(encoded, expected);
+    deepEqual(decoded, expected);
+  });
+}
+
+test("host.gamepads snapshots the validated devices getter result", () => {
+  let reads = 0;
+  const sample = { device: 0, axes: { x: 0, y: 0 }, buttons: 0 };
+  const event = {
+    kind: "host.gamepads",
+    get devices() {
+      return ++reads === 1 ? [sample] : [{ ...sample, axes: { x: 0, y: 0, z: 1 } }];
+    },
+  };
+  const result = validateInputEvent(event);
+  equal(result.ok, true);
+  if (!result.ok) throw new Error(result.message);
+  equal(reads, 1);
+  const encoded = JSON.parse(JSON.stringify(encodeLog(result.value)));
+  const expected = { kind: "host.gamepads", devices: [sample] };
+  deepEqual(encoded, expected);
+  deepEqual(decodeLog(encoded), expected);
+  equal(reads, 1);
+});
