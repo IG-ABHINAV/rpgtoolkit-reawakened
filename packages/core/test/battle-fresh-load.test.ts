@@ -30,6 +30,7 @@ import {
   type GameState,
   type InputRecord,
   type PackageCatalogueEntry,
+  type TickReport,
 } from "../src/index.ts";
 import { bootUiRig, gameFiles, SCREEN_HEIGHT, SCREEN_WIDTH, type UiRig } from "./battle-ui-rig.ts";
 
@@ -314,6 +315,21 @@ test("two brand-new engines loading the same mid-battle save run the same state 
   deepEqual(first.hashes, second.hashes);
   ok(first.hashes.length >= 30);
   deepEqual(first.diagnostics, []);
+});
+
+test("the battle rig counts simulated ticks, not asset-loading advances", () => {
+  const rig = bootUiRig(RIG);
+  const engine = rig.engine as { advance: Engine["advance"] };
+  const advance = engine.advance.bind(engine);
+  const reports: TickReport[] = [];
+  engine.advance = (ticks, inputs, ...rest) => {
+    const report = advance(ticks, inputs, ...rest);
+    reports.push(report);
+    return report;
+  };
+  rig.tick(1);
+  ok(reports.some((report) => report.ticksRun === 0 && report.requests.some((request) => request.kind === "asset")), "the real engine stalled for an asset");
+  equal(reports.reduce((sum, report) => sum + report.ticksRun, 0), 1, "one tick actually ran after the host answered");
 });
 
 // docs/spec/engine/battle.md#bat-13: `reset()` closes an active battle. The stock battle loop, its screen, the pinned

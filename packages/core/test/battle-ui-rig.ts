@@ -669,7 +669,7 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
   const requested: string[] = [];
   const cues: AudioCue[] = [];
   let replies: Reply[] = [];
-  const advance = (inputs: readonly Reply[] = [], ticks = 1): void => {
+  const advance = (inputs: readonly Reply[] = [], ticks = 1): number => {
     const report = engine.advance(ticks, [...replies, ...inputs] as never);
     replies = [];
     diagnostics.push(...report.diagnostics);
@@ -681,6 +681,7 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
         replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
       }
     }
+    return report.ticksRun;
   };
   const read = (value: unknown): unknown => {
     const state = latest;
@@ -715,8 +716,9 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
         // One advance computes one state hash, and with canvases in the state a hash is expensive: run in chunks
         // while nothing is loading, a tick at a time while the host answers asset requests.
         const chunk = replies.length > 0 ? 1 : Math.min(remaining, 8);
-        advance([], chunk);
-        remaining -= chunk;
+        const ran = advance([], chunk);
+        if (ran === 0 && replies.length === 0) throw new Error("battle UI rig could not advance and has no asset replies");
+        remaining -= ran;
       }
     },
     press(name, ticks = 4) {
