@@ -613,6 +613,8 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         env:
           CI: "true"
+          # Preserve screenshot preparation and font phases in CI logs (#1621).
+          DEBUG: "pw:api"
         with:
           api-level: 33
           target: google_apis
