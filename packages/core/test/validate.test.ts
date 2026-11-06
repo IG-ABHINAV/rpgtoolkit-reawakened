@@ -6,6 +6,9 @@
 // however hostile, makes the validator throw.
 import { test } from "node:test";
 import { deepEqual, equal } from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { validateInputEvent } from "../src/index.ts";
 
 test("validateInputEvent accepts one valid event of each kind", () => {
@@ -14,7 +17,8 @@ test("validateInputEvent accepts one valid event of each kind", () => {
     ["key with null char", { kind: "key", name: "ENTER", code: "Enter", char: null, down: false }],
     ["pointer", { kind: "pointer", x: 10, y: -20, buttons: 0 }],
     ["pointer.cancel", { kind: "pointer.cancel" }],
-    ["semantic action", { kind: "action", action: "game.fireball", down: true, source: "runner.fallback" }],
+    ["semantic action", { kind: "action", action: "game.fireball", down: true, source: "runner.fallback", modalId: null }],
+    ["modal-scoped confirm", { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 1 }],
     ["gamepad", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 }],
     ["gamepad W3C button 16", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 16 }],
     ["host gamepad snapshot", { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 1 << 16 }] }],
@@ -68,7 +72,9 @@ test("validateInputEvent names the path of the first failure", () => {
     ],
     ["unknown kind", { kind: "nope" }, "kind"],
     ["absent kind", {}, "kind"],
-    ["empty semantic action", { kind: "action", action: "", down: true, source: "runner.fallback" }, "action"],
+    ["empty semantic action", { kind: "action", action: "", down: true, source: "runner.fallback", modalId: null }, "action"],
+    ["semantic action requires modalId", { kind: "action", action: "confirm", down: true, source: "runner.fallback" }, "modalId"],
+    ["modal scope only accepts confirm or cancel", { kind: "action", action: "game.fireball", down: true, source: "runner.fallback", modalId: 1 }, "action"],
     ["extra key", { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0, extra: 1 }, "extra"],
     ["pointer.cancel rejects payload fields", { kind: "pointer.cancel", x: 1 }, "x"],
     [
@@ -185,4 +191,15 @@ test("validateInputEvent returns a fresh value, not the input reference", () => 
 
   input.kind = "nope";
   equal(result.value.kind, "gamepad");
+});
+
+test("runtime validation rejects the generated v2 modal-scoped game action vector", () => {
+  const root = dirname(fileURLToPath(import.meta.url));
+  const vectorsPath = join(root, "../../../tools/fixtures/runner-protocol/vectors-v2.json");
+  const rootRecord = JSON.parse(readFileSync(vectorsPath, "utf8")) as {
+    readonly vectors: readonly { readonly id: string; readonly record: { readonly event?: unknown } }[];
+  };
+  const vector = rootRecord.vectors.find((row) => row.id === "refuse-modal-scoped-game-action");
+  if (vector === undefined) throw new Error("generated v2 modal-action refusal vector is missing");
+  equal(validateInputEvent(vector.record.event).ok, false, vector.id);
 });

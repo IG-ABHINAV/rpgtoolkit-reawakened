@@ -207,7 +207,10 @@ test("focused restore re-establishes pointer geometry before stalled-load margin
       { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 1 }, pointerGeometry: resized },
       { tick: loadReport.tickAfter, event: { kind: "pointer", ...logical, buttons: 0 }, pointerGeometry: resized },
     );
-    restoreEvents = hostObserver.snapshotForRestore(pending);
+    const snapshot = hostObserver.snapshotForRestore(pending);
+    deepEqual(snapshot.pending.map(({ kind }) => kind), ["key", "host.display", "pointer", "pointer"]);
+    deepEqual(snapshot.observations.map(({ kind }) => kind), ["host.features", "host.display", "host.gamepads"]);
+    restoreEvents = [...snapshot.pending, ...snapshot.observations];
     deepEqual(restoreEvents.map(({ kind }) => kind), [
       "key", "host.display", "pointer", "pointer", "host.features", "host.display", "host.gamepads",
     ], "the reply snapshot restores pointer geometry before the first margin record, not after the tap");
@@ -390,7 +393,7 @@ test("gamepad polling accepts only the standard mapping and emits devices in asc
       { device: 0, buttons: 1 << 16 },
       { device: 2, buttons: 0 },
     ]);
-    deepEqual(observer.snapshotForRestore(), [
+    deepEqual(observer.snapshotForRestore().observations, [
       { kind: "host.features", features: { touch: true, pointer: "coarse", keyboard: false, gamepad: true, haptics: false, orientation: "portrait" } },
       { kind: "host.display", geometry: { content: { width: 640, height: 480 }, game: { x: 0, y: 0, width: 640, height: 480 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } } },
       { kind: "host.gamepads", devices: [
@@ -406,18 +409,18 @@ test("gamepad polling accepts only the standard mapping and emits devices in asc
     observer.poll();
     pending.push(
       { tick: null, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true }, pointerGeometry: null },
-      { tick: null, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" }, pointerGeometry: null },
+      { tick: null, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null }, pointerGeometry: null },
       { tick: null, event: { kind: "focus", state: "lost" }, pointerGeometry: null },
     );
     pads.length = 0;
     observer.poll();
     const snapshot = observer.snapshotForRestore(pending);
-    const sourceEdges = snapshot.filter(({ kind }) => kind === "gamepad" || kind === "key" || kind === "action" || kind === "focus");
+    const sourceEdges = snapshot.pending.filter(({ kind }) => kind === "gamepad" || kind === "key" || kind === "action" || kind === "focus");
     deepEqual(sourceEdges.map(({ kind }) => kind), ["gamepad", "key", "action", "focus", "gamepad"], "all pending source edges precede the full restore snapshot in original order");
     deepEqual(sourceEdges[0], { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 });
     deepEqual(sourceEdges[4], { kind: "gamepad", device: 0, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
     deepEqual(pending, [], "all pending input records moved into the blob reply");
-    deepEqual(snapshot[snapshot.length - 1], { kind: "host.gamepads", devices: [] }, "the snapshot follows all causal edges");
+    deepEqual(snapshot.observations[snapshot.observations.length - 1], { kind: "host.gamepads", devices: [] }, "the snapshot follows all causal edges");
   } finally {
     observer?.dispose();
     restore();
@@ -431,7 +434,7 @@ test("live host capabilities are reconciled after save restore as logged feature
   const observer: HostStateObserver = {
     poll() {},
     currentFeatures: () => ({ ...current }),
-    snapshotForRestore: () => [],
+    snapshotForRestore: () => ({ pending: [], observations: [] }),
     dispose() {},
   };
   const restored: NormalizedHostFeatures = {

@@ -11,8 +11,8 @@
 // schema version moved and no other key changed.
 // #585 regenerated both fixtures once: the input section moved to schema 3 (the pointer record gained downs, ups, downX,
 // downY and button), so `schema.input` is 3 and `input.version`/`input.pointer` changed; no other key moved.
-// #1352 adds UI schema 7's author-margin command list and surface/declaration fields.
-// UI schema 8 adds the persisted surface-result thread-boundary marker.
+// #1410 adds input schema 8's registered-action, control-index and held-source state; #1576 advances input to schema 9 for modal-scoped action claims.
+// #1352 adds UI schema 5's author-margin command list and surface/declaration fields; UI schema 8 includes claim cancellation and deterministic saved modal identities.
 // No actors, battle values, or other sections changed.
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";

@@ -58,13 +58,16 @@ test("portrait overlay anchors controls inside the safe game rectangle", () => {
   ok(padBottom <= measured.game.y + measured.game.height, "the D-pad ends inside the game rectangle");
 });
 
-test("gameplay key ownership survives focus transfer and never consumes repeats", () => {
+test("fallback key ownership isolates only Enter and Space activation sequences", () => {
   const owned = new Set<string>();
-  equal(shouldSuppressGameplayKey("ArrowRight", false, true, false, owned), false, "a gameplay-owned press reaches the engine");
-  equal(shouldSuppressGameplayKey("ArrowRight", false, false, true, owned), false, "its release reaches the engine after focus moves");
+  for (const code of ["ArrowRight", "Escape", "KeyW"]) {
+    equal(shouldSuppressGameplayKey(code, false, true, true, owned), false, `${code} press reaches gameplay from a fallback target`);
+    equal(shouldSuppressGameplayKey(code, true, true, true, owned), false, `${code} repeat reaches gameplay from a fallback target`);
+    equal(shouldSuppressGameplayKey(code, false, false, true, owned), false, `${code} release reaches gameplay from a fallback target`);
+  }
 
-  equal(shouldSuppressGameplayKey("Space", false, true, true, owned), true, "a fresh fallback press is isolated");
-  equal(shouldSuppressGameplayKey("Space", true, true, false, owned), true, "repeat stays with the original fallback owner");
+  equal(shouldSuppressGameplayKey("Space", false, true, true, owned), true, "a fresh fallback activation press is isolated");
+  equal(shouldSuppressGameplayKey("Space", true, true, false, owned), true, "repeat stays with the original fallback owner after focus moves");
   equal(owned.has("Space"), true);
   equal(shouldSuppressGameplayKey("Space", false, false, false, owned), true, "release stays isolated after moving away");
   equal(owned.has("Space"), false);

@@ -566,7 +566,7 @@ function catalogue(options: RigOptions): readonly PackageCatalogueEntry[] {
   }];
 }
 
-type Reply = { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: string | null; readonly down: boolean } | { readonly kind: "action"; readonly action: string; readonly down: boolean; readonly source: string } };
+type Reply = { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: string | null; readonly down: boolean } | { readonly kind: "action"; readonly action: string; readonly down: boolean; readonly source: string; readonly modalId: number | null } };
 
 export type UiRig = {
   readonly engine: Engine;
@@ -733,8 +733,8 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
     action(action, source, ticks = 4) {
       const tick = latest?.time.tick ?? 0;
       advance([
-        { tick, event: { kind: "action", action, down: true, source } },
-        { tick: tick + 1, event: { kind: "action", action, down: false, source } },
+        { tick, event: { kind: "action", action, down: true, source, modalId: null } },
+        { tick: tick + 1, event: { kind: "action", action, down: false, source, modalId: null } },
       ], ticks);
       for (let guard = 0; guard < 6 && replies.length > 0; guard += 1) advance([], 2);
     },

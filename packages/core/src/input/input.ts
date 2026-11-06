@@ -1,6 +1,6 @@
 /** Deterministic input owner for keyboard, pointer and normalized gamepad data. */
 import type { InputEvent, GamepadInput, KeyInput, PointerInput } from "../ports/input.ts";
-import type { InputBindings, InputButton, InputButtonSlot, InputGamepad, InputKeyState, InputSection, RegisteredAction } from "../save/sections/input.ts";
+import { INPUT_SCHEMA_VERSION, type InputBindings, type InputButton, type InputButtonSlot, type InputGamepad, type InputKeyState, type InputSection, type RegisteredAction } from "../save/sections/input.ts";
 
 import { canon } from "../canon/canon.ts";
 import type { PlainData } from "../ports/plain-data.ts";
@@ -77,9 +77,10 @@ function updateKeyboardClaimIndex(state: InputSection, action: string, control: 
 
 export function createInputSection(config: InputConfig = {}): InputSection {
   const state: InputSection = {
-    version: 8,
+    version: INPUT_SCHEMA_VERSION,
     nextSeq: 1,
     keys: [],
+    pendingKeySequences: [],
     held: {},
     pointer: { x: 0, y: 0, buttons: 0, downs: 0, ups: 0, downX: 0, downY: 0, button: 0 },
     focused: true,
@@ -101,10 +102,11 @@ export function createInputSection(config: InputConfig = {}): InputSection {
     keyboardActionSources: {},
     semanticActionSources: {},
     directionOrder: [],
+    modalActions: [],
     pendingActions: [],
-    pendingKeySequences: [],
     pendingClicks: [],
     pointerMovementSuppressed: false,
+    primaryPointerSuppressedUntilRelease: false,
     pointerPlane: config.pointerPlane === undefined ? null : { ...config.pointerPlane },
     nextPointerGestureId: 1,
     pointerGestureId: null,
@@ -413,11 +415,11 @@ export function heldPointerGoal(state: InputSection): { x: number; y: number } |
 }
 
 /** The pointer record after one `pointer` event: position and buttons, then one edge per changed button bit, lowest bit first. */
-function pointerAfter(previous: InputSection["pointer"], event: PointerInput): InputSection["pointer"] {
-  const next = { ...previous, x: event.x, y: event.y, buttons: event.buttons };
+function pointerAfter(previous: InputSection["pointer"], event: PointerInput, buttons: number): InputSection["pointer"] {
+  const next = { ...previous, x: event.x, y: event.y, buttons };
   for (let bit = 1; bit <= 4; bit *= 2) {
     const was = (previous.buttons & bit) !== 0;
-    const now = (event.buttons & bit) !== 0;
+    const now = (buttons & bit) !== 0;
     if (!was && now) {
       next.downs += 1;
       next.downX = event.x;
@@ -432,9 +434,11 @@ function pointerAfter(previous: InputSection["pointer"], event: PointerInput): I
 }
 
 function applyPointer(state: InputSection, event: PointerInput): void {
+  const buttons = state.primaryPointerSuppressedUntilRelease ? event.buttons & ~1 : event.buttons;
+  if ((event.buttons & 1) === 0) state.primaryPointerSuppressedUntilRelease = false;
   const previous = state.pointer;
   const wasDown = (previous.buttons & 1) !== 0;
-  const isDown = (event.buttons & 1) !== 0;
+  const isDown = (buttons & 1) !== 0;
   const pressSlot = state.pressedButtonSlot;
   const slot = slotAt(state, event.x, event.y);
   if (!wasDown && isDown) {
@@ -442,7 +446,7 @@ function applyPointer(state: InputSection, event: PointerInput): void {
     state.nextPointerGestureId += 1;
   }
   const gestureId = state.pointerGestureId;
-  state.pointer = pointerAfter(previous, event);
+  state.pointer = pointerAfter(previous, event, buttons);
   if (!wasDown && isDown) {
     state.pressedButtonSlot = slot?.enabled === true ? slot.id : null;
   } else if (wasDown && state.pressedButtonSlot !== null) {
@@ -475,6 +479,14 @@ export function applyInputEvent(state: InputSection, event: InputEvent, onUnknow
   switch (event.kind) {
     case "key": applyKey(state, event, onUnknownAction); return;
     case "action":
+      if (event.modalId !== null) {
+        if (event.action !== "confirm" && event.action !== "cancel") {
+          onUnknownAction?.(event.action);
+          return;
+        }
+        if (event.down) state.modalActions.push({ seq: state.nextSeq++, action: event.action, modalId: event.modalId });
+        return;
+      }
       if (!applySemanticActionEdge(state, event.action, event.down, event.source)) onUnknownAction?.(event.action);
       return;
     case "pointer": applyPointer(state, event); return;
@@ -553,18 +565,22 @@ export function takeInputActions(state: InputSection): { actions: string[]; clic
   return result;
 }
 
-/** Add every queued key older than a waiter's park floor to the shared claim set. */
+/** Add every queued key or scoped modal action older than a waiter's park floor to the shared claim set. */
 export function claimInputBefore(state: InputSection, floor: number, claims: number[]): void {
   for (const key of state.keys) {
     if (key.seq < floor && !claims.includes(key.seq)) claims.push(key.seq);
   }
+  for (const action of state.modalActions) {
+    if (action.seq < floor && !claims.includes(action.seq)) claims.push(action.seq);
+  }
 }
 
-/** Remove only claims made by the engine; an unclaimed key remains for later waiters. */
+/** Remove only claims made by the engine; an unclaimed key or scoped action remains for later waiters. */
 export function pruneClaimed(state: InputSection, claimed: readonly number[]): void {
   if (claimed.length === 0) return;
   const used = new Set(claimed);
   state.keys = state.keys.filter((key) => !used.has(key.seq));
+  state.modalActions = state.modalActions.filter((action) => !used.has(action.seq));
 }
 /** Recompute derived action state after restoring the physical gamepad sample across a lifecycle reset. */
 export function recomputeInputActions(

@@ -120,12 +120,22 @@ export type VideoEnded = {
 };
 
 /** A normalized semantic action edge, consumed on its stamped tick (ACT-4). */
-export type ActionInput = {
-  readonly kind: "action";
-  readonly action: string;
-  readonly down: boolean;
-  readonly source: string;
-};
+export type ActionInput =
+  | {
+      readonly kind: "action";
+      readonly action: string;
+      readonly down: boolean;
+      readonly source: string;
+      readonly modalId: null;
+    }
+  | {
+      readonly kind: "action";
+      readonly action: "confirm" | "cancel";
+      readonly down: boolean;
+      readonly source: string;
+      /** Non-null binds a modal-only action to the exact modal instance that received the press. */
+      readonly modalId: number;
+    };
 
 /** The one published input event union (AD-14). */
 export type InputEvent =

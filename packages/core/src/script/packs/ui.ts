@@ -499,8 +499,8 @@ export function applyUiEffect(
       ui.cursorY += ui.font.size;
       return;
     }
-    case "prompt": ui.modal = { kind: "prompt", text: stringArg(first), title: "", style: 0, textColor: ui.color, background: ui.message.background, graphic: "", selected: 0, result: null }; return;
-    case "msgbox": ui.modal = { kind: "msgbox", text: stringArg(args[0]), title: stringArg(args[1]), style: numberArg(args[2]) === 1 ? 1 : 0, textColor: typeof args[3] === "number" ? dosPaletteEntry(numberArg(args[3])) : ui.color, background: typeof args[4] === "number" ? dosPaletteEntry(numberArg(args[4])) : ui.message.background, graphic: stringArg(args[5]), selected: 0, result: null }; return;
+    case "prompt": ui.modal = { modalId: ui.nextModalId++, kind: "prompt", text: stringArg(first), title: "", style: 0, textColor: ui.color, background: ui.message.background, graphic: "", selected: 0, result: null }; return;
+    case "msgbox": ui.modal = { modalId: ui.nextModalId++, kind: "msgbox", text: stringArg(args[0]), title: stringArg(args[1]), style: numberArg(args[2]) === 1 ? 1 : 0, textColor: typeof args[3] === "number" ? dosPaletteEntry(numberArg(args[3])) : ui.color, background: typeof args[4] === "number" ? dosPaletteEntry(numberArg(args[4])) : ui.message.background, graphic: stringArg(args[5]), selected: 0, result: null }; return;
     case "createcursormap": {
       const id = Math.trunc(numberArg(first));
       const maps = ui.cursorMaps ?? [];

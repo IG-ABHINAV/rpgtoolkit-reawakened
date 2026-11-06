@@ -57,7 +57,7 @@ const KEY_SETS: { readonly [kind in EventKind]: readonly string[] } = {
   key: ["kind", "name", "code", "char", "down", "repeat"],
   pointer: ["kind", "x", "y", "buttons"],
   "pointer.cancel": ["kind"],
-  action: ["kind", "action", "down", "source"],
+  action: ["kind", "action", "down", "source", "modalId"],
   gamepad: ["kind", "device", "connected", "axes", "buttons"],
   focus: ["kind", "state"],
   "host.features": ["kind", "features"],
@@ -168,6 +168,9 @@ function validateAction(record: UnknownRecord): InputEventValidation {
   if (!isNonEmptyString(record["action"])) return invalid("action", "expected a non-empty action name");
   if (typeof record["down"] !== "boolean") return invalid("down", "expected a boolean");
   if (!isNonEmptyString(record["source"])) return invalid("source", "expected a non-empty source name");
+  const modalId = record["modalId"];
+  if (modalId !== null && (typeof modalId !== "number" || !Number.isSafeInteger(modalId) || modalId < 1)) return invalid("modalId", "expected a positive safe integer or null");
+  if (modalId !== null && record["action"] !== "confirm" && record["action"] !== "cancel") return invalid("action", "modal-scoped actions must be confirm or cancel");
   return accept(record);
 }
 function validateFocus(record: UnknownRecord): InputEventValidation {

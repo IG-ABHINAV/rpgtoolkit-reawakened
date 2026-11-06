@@ -156,6 +156,7 @@ test("an active engine modal owns confirm before an underlying author surface", 
       applyUiEffect(state, "uiItem", [7, "Confirm", "confirm", null, 1, null, null, null, 1]);
       applyUiEffect(state, "uiEnd", [7]);
       state.ui.modal = {
+        modalId: state.ui.nextModalId++,
         kind: "msgbox",
         text: "Modal",
         title: "",
@@ -446,6 +447,41 @@ test("Engine touch-control query requires the explicit declaration command", () 
   equal(engine.customTouchControlsDeclared(), true);
 });
 
+test("pointer preemption query is read-only and follows modal and author UI priority", () => {
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Author target", "author-target", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([surfaceRegistration]);
+  engine.advance(1, []);
+  const before = JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() });
+  equal(engine.runnerControlPointerPreemption(5, 5), "author");
+  equal(engine.runnerControlPointerPreemption(17, 17), null);
+  equal(JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() }), before, "preflight does not mutate or hash simulation state");
+
+  const modal = programEngine('msgbox("Modal")\nend()', []);
+  modal.advance(1, []);
+  equal(modal.runnerControlPointerPreemption(300, 200), 1, "an active modal preempts a fallback target regardless of the point");
+});
+test("fallback modal actions are claimed only by their captured modal after earlier same-tick key input", () => {
+  const engine = programEngine('first = msgbox("Modal A")\nsecond = msgbox("Modal B")\nend()', []);
+  engine.advance(1, []);
+  equal(engine.runnerControlPointerPreemption(300, 200), 1);
+  engine.advance(1, [
+    { tick: 1, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } },
+    { tick: 1, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 1 } },
+    { tick: 1, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback", modalId: 1 } },
+  ]);
+  equal(engine.runnerControlPointerPreemption(300, 200), 2);
+  engine.advance(1, []);
+  equal(engine.runnerControlPointerPreemption(300, 200), 2, "stale A confirmation cannot dismiss B");
+});
+
+
 test("default Enter and Escape claims prevent Get from reading the same key", () => {
   for (const key of ["Enter", "Escape"] as const) {
     const capture = captureState();
@@ -618,7 +654,7 @@ test("author pointer cancellation stays sticky and reset or modal release cannot
         } else if (state.time.tick === 1 && interruption === "reset") {
           resetUiForProgramStart(state.ui, () => {});
         } else if (state.time.tick === 1 && interruption === "modal") {
-          state.ui.modal = { kind: "msgbox", text: "Notice", title: "", style: 0, textColor: { r: 255, g: 255, b: 255 }, background: { r: 0, g: 0, b: 0 }, graphic: "", selected: 0, result: null };
+          state.ui.modal = { modalId: state.ui.nextModalId++, kind: "msgbox", text: "Notice", title: "", style: 0, textColor: { r: 255, g: 255, b: 255 }, background: { r: 0, g: 0, b: 0 }, graphic: "", selected: 0, result: null };
         } else if (state.time.tick === 2 && interruption === "modal") {
           state.ui.modal = null;
         }

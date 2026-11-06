@@ -413,6 +413,9 @@ function rebuildInputActionIndexes(input: Record<string, unknown>): void {
 function migrateInput(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.input;
   if (typeof version !== "number") shapeError("the snapshot's `schema` has no numeric `input` version");
+  if (version < 10 && typeof record.input === "object" && record.input !== null && !Array.isArray(record.input)) {
+    (record.input as Record<string, unknown>).primaryPointerSuppressedUntilRelease = false;
+  }
   const normalizeKeys = (value: unknown): unknown[] => Array.isArray(value)
     ? value.map((entry: unknown) => {
       if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
@@ -423,6 +426,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     : [];
   if (version >= INPUT_SCHEMA_VERSION) {
     const input = recordAt(record.input, "input");
+    if (typeof input.primaryPointerSuppressedUntilRelease !== "boolean") shapeError("the snapshot's primaryPointerSuppressedUntilRelease must be boolean");
     if (!Array.isArray(input.registeredActions)) input.registeredActions = [];
     if (typeof input.actionPadMasks !== "object" || input.actionPadMasks === null || Array.isArray(input.actionPadMasks)) input.actionPadMasks = {};
     if (typeof input.keyboardActionSources !== "object" || input.keyboardActionSources === null || Array.isArray(input.keyboardActionSources)) input.keyboardActionSources = {};
@@ -441,13 +445,32 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
     if (input.pointerPlane !== null && (typeof input.pointerPlane !== "object" || Array.isArray(input.pointerPlane))) input.pointerPlane = null;
     if (input.pointerGestureId === null && typeof input.pointer === "object" && input.pointer !== null
       && typeof (input.pointer as Record<string, unknown>).buttons === "number" && (((input.pointer as Record<string, number>).buttons ?? 0) & 1) !== 0) input.pointerGestureId = 0;
+    const modalActions = Array.isArray(input.modalActions) ? input.modalActions : [];
+    input.modalActions = modalActions;
+    for (const value of modalActions) {
+      if (typeof value !== "object" || value === null || Array.isArray(value) ||
+          !Number.isSafeInteger((value as Record<string, unknown>).seq) ||
+          !Number.isSafeInteger((value as Record<string, unknown>).modalId) ||
+          ((value as Record<string, unknown>).modalId as number) < 1 ||
+          ((value as Record<string, unknown>).action !== "confirm" && (value as Record<string, unknown>).action !== "cancel")) {
+        shapeError("the snapshot's input modalActions must contain sequenced confirm/cancel records with positive modal ids");
+      }
+    }
     rebuildInputActionIndexes(input);
+    return;
+  }
+  if (version === 8 || version === 9) {
+    const input = recordAt(record.input, "input");
+    input.version = INPUT_SCHEMA_VERSION;
+    if (!Array.isArray(input.modalActions)) input.modalActions = [];
+    schema.input = INPUT_SCHEMA_VERSION;
     return;
   }
   if (version === 7) {
     const input = recordAt(record.input, "input");
     input.version = INPUT_SCHEMA_VERSION;
     if (!Array.isArray(input.pendingKeySequences)) input.pendingKeySequences = [];
+    if (!Array.isArray(input.modalActions)) input.modalActions = [];
     input.keys = normalizeKeys(input.keys);
     rebuildInputActionIndexes(input);
     schema.input = INPUT_SCHEMA_VERSION;
@@ -499,6 +522,7 @@ function migrateInput(record: Record<string, unknown>, schema: Record<string, un
       pointerMovementSuppressed: version >= 5 && typeof oldRecord.pointerMovementSuppressed === "boolean" ? oldRecord.pointerMovementSuppressed : false,
       pointerPlane: version >= 5 && oldRecord.pointerPlane !== undefined ? oldRecord.pointerPlane : null,
       pendingKeySequences: [],
+      modalActions: [],
       gamepads: pads,
       pointerGestureId: activeGestureId,
       pendingClicks: clicks,
@@ -558,11 +582,27 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
         });
       }
     }
+    const modal = migrated.modal;
+    const oldModalId = typeof modal === "object" && modal !== null && !Array.isArray(modal)
+      ? (modal as Record<string, unknown>).modalId
+      : undefined;
+    if (typeof modal === "object" && modal !== null && !Array.isArray(modal) &&
+        (!Number.isSafeInteger(oldModalId) || (oldModalId as number) < 1)) {
+      (modal as Record<string, unknown>).modalId = 1;
+    }
+    const currentModal = migrated.modal;
+    const modalId = typeof currentModal === "object" && currentModal !== null && !Array.isArray(currentModal)
+      ? (currentModal as Record<string, unknown>).modalId
+      : null;
+    const nextModalId = Number.isSafeInteger(migrated.nextModalId) && (migrated.nextModalId as number) >= 1
+      ? migrated.nextModalId as number
+      : 1;
+    migrated.nextModalId = typeof modalId === "number" ? Math.max(nextModalId, modalId + 1) : nextModalId;
     if (!Array.isArray(migrated.authorMarginSurfaces)) migrated.authorMarginSurfaces = [];
-        for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
-          const claim = migrated[key];
-          if (claim !== null && typeof claim === "object" && !Array.isArray(claim)) migrated[key] = { ...claim, cancelled: typeof (claim as Record<string, unknown>).cancelled === "boolean" ? (claim as Record<string, unknown>).cancelled : false };
-        }
+    for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
+      const claim = migrated[key];
+      if (claim !== null && typeof claim === "object" && !Array.isArray(claim)) migrated[key] = { ...claim, cancelled: typeof (claim as Record<string, unknown>).cancelled === "boolean" ? (claim as Record<string, unknown>).cancelled : false };
+    }
     record.ui = migrated;
   } else {
     const current = old as Record<string, unknown>;
@@ -572,6 +612,16 @@ function migrateUi(record: Record<string, unknown>, schema: Record<string, unkno
   for (const key of ["surfaceActivated", "surfacePointerClaim"] as const) {
     const claim = currentUi[key];
     if (claim !== null && (typeof claim !== "object" || Array.isArray(claim) || typeof (claim as Record<string, unknown>).cancelled !== "boolean")) shapeError(`the snapshot's UI ${key} must be null or an object with boolean \`cancelled\``);
+  }
+  if (!Number.isSafeInteger(currentUi.nextModalId) || (currentUi.nextModalId as number) < 1) {
+    shapeError("the snapshot's UI nextModalId must be a positive safe integer");
+  }
+  const currentModal = currentUi.modal;
+  if (currentModal !== null && (typeof currentModal !== "object" || Array.isArray(currentModal) ||
+      !Number.isSafeInteger((currentModal as Record<string, unknown>).modalId) ||
+      ((currentModal as Record<string, unknown>).modalId as number) < 1 ||
+      ((currentModal as Record<string, unknown>).modalId as number) >= (currentUi.nextModalId as number))) {
+    shapeError("the snapshot's UI modal must carry an identity below nextModalId");
   }
   if (typeof currentUi.surfaceResultsPending !== "boolean") shapeError("the snapshot's UI surfaceResultsPending must be a boolean");
   schema.ui = UI_SCHEMA_VERSION;

@@ -1,7 +1,7 @@
 /** Owner: core/input (AD-10/AD-14; E-110..E-112). */
 import type { PlainData } from "../../ports/plain-data.ts";
 
-export const INPUT_SCHEMA_VERSION = 8;
+export const INPUT_SCHEMA_VERSION = 10;
 
 export type InputKeyState = {
   readonly seq: number;
@@ -96,10 +96,13 @@ export type InputSection = {
   actionPadMasks: { [action: string]: number };
   semanticActionSources: { [action: string]: { [source: string]: boolean } };
   keyboardActionSources: { [action: string]: { [control: string]: boolean } };
+  modalActions: Array<{ readonly seq: number; readonly action: "confirm" | "cancel"; readonly modalId: number }>;
   pendingActions: string[];
   pendingKeySequences: number[];
   pendingClicks: { gestureId: number; x: number; y: number }[];
   pointerMovementSuppressed: boolean;
+  /** A live primary gesture invalidated by a successful timeline replacement, until its physical release. */
+  primaryPointerSuppressedUntilRelease: boolean;
   pointerPlane: { width: number; height: number } | null;
   nextPointerGestureId: number;
   pointerGestureId: number | null;

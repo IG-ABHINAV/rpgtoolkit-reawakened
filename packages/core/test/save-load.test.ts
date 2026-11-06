@@ -15,6 +15,7 @@ import {
   IR_VERSION,
   SCHEMA_VERSIONS,
   addActor,
+  applyInputEvent,
   assetKey,
   createAssetIndex,
   createEmptyBoard,
@@ -196,6 +197,187 @@ test("a game save restores through `restoreGameSave` with no diagnostic and a st
   const reloaded = restoreGameState(snapshot(restored.state));
   deepEqual(reloaded.vm.globals, restored.state.vm.globals, "globals survive a second round trip");
   equal(hashGameState(reloaded), hashGameState(restored.state), "the state hash is stable across load and re-load");
+});
+
+test("a nonempty scoped modal action queue round-trips through a game save", () => {
+  const source = boot('first = msgbox("Saved modal")\nend()');
+  run(source, null);
+  const savedState = source.state();
+  ok(savedState !== null);
+  ok(savedState.ui.modal !== null);
+  const savedModalId = savedState.ui.modal.modalId;
+  const actionSeq = savedState.input.nextSeq++;
+  savedState.input.modalActions = [{ seq: actionSeq, action: "confirm", modalId: savedModalId }];
+  const saved = encoder.encode(snapshotGameSave(savedState));
+  const restored = restoreGameSave(decoder.decode(saved), savedState.audio);
+  equal(restored.diagnostics.length, 0);
+  equal(restored.state.ui.modal?.modalId, savedModalId);
+  deepEqual(restored.state.input.modalActions, [{ seq: actionSeq, action: "confirm", modalId: savedModalId }]);
+});
+
+test("a host-captured modal identity cannot target a modal reopened from an older save", () => {
+  const game = boot('Save("slot")\nfirst = msgbox("Modal A")\nLoad("slot")\nsecond = msgbox("Restored modal")\nend()');
+  let saved: Uint8Array | null = null;
+  let replies: InputRecord[] = [];
+  let originalDismissed = false;
+  let loadApplied = false;
+  let staleActionSent = false;
+  let restoredModal: number | null = null;
+
+  for (let attempt = 0; attempt < 40 && restoredModal === null; attempt += 1) {
+    const modal = game.engine.runnerControlPointerPreemption(0, 0);
+    const tick = game.state()?.time.tick ?? 0;
+    const inputs: InputRecord[] = [];
+    if (modal === 1 && !originalDismissed) {
+      inputs.push({ tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } });
+      originalDismissed = true;
+    } else if (loadApplied && typeof modal === "number" && !staleActionSent) {
+      inputs.push({ tick, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 1 } });
+      staleActionSent = true;
+    }
+    const report = game.engine.advance(1, [...replies, ...inputs]);
+    replies = [];
+    if (report.consumed.some((record) => record.event.kind === "blob.loaded")) loadApplied = true;
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "saveBlob") {
+        saved ??= new Uint8Array(request.bytes);
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.saved", reqId: request.reqId, ok: true } });
+      } else if (request.kind === "loadBlob") {
+        if (saved === null) throw new Error("load was requested before the save completed");
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: new Uint8Array(saved) } });
+      } else if (request.kind === "listBlobs") {
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.listed", reqId: request.reqId, names: [] } });
+      }
+    }
+    const afterTickModal = game.engine.runnerControlPointerPreemption(0, 0);
+    if (loadApplied && staleActionSent && typeof afterTickModal === "number") restoredModal = afterTickModal;
+  }
+
+  equal(saved === null, false, "the game produced its pre-modal save");
+  equal(originalDismissed, true, "the first modal was dismissed");
+  equal(loadApplied, true, "the RPGCode Load reply was consumed");
+  equal(staleActionSent, true, "the old pointer action was sent after restore");
+  equal(restoredModal, 2, "restoring and reopening A allocates a fresh modal id, so the old pointer cannot dismiss it");
+});
+
+test("successful Load cancels held and already-queued raw gestures but accepts a fresh author press", () => {
+  const source = boot([
+    "activated = 0",
+    "while (1) {",
+    'uiBegin("restored", "menu", 0, 0, 64, 64)',
+    'uiItem("Target", { id: "target", bounds: { x: 0, y: 0, w: 64, h: 64 } })',
+    "uiEnd()",
+    "if (uiActivated() >= 0) { activated = activated + 1 }",
+    "sleep(1)",
+    "}",
+  ].join("\n"));
+  run(source, null, { ticks: 8 });
+  const savedState = source.state()!;
+  for (const mode of ["held", "queued-release", "queued-cancel", "saved-held", "fresh-after-reply"] as const) {
+    const queuedRelease = mode === "queued-release";
+    const oldDown = mode === "held" || queuedRelease || mode === "queued-cancel";
+    savedState.input.pointer.buttons = mode === "saved-held" ? 1 : 0;
+    const game = boot('Load("slot")\nend()');
+    let replies: InputRecord[] = [];
+    let loaded = false;
+    for (let attempt = 0; attempt < 20 && !loaded; attempt += 1) {
+      const tick = game.state()?.time.tick ?? 0;
+      const loadingReply = replies.some(({ event }) => event.kind === "blob.loaded");
+      const pointer = (buttons: number): InputRecord => ({ tick, event: { kind: "pointer", x: 20, y: 20, buttons } });
+      const report = game.engine.advance(1, loadingReply
+        ? [...(oldDown ? [pointer(1)] : []), ...(queuedRelease ? [pointer(0)] : []),
+          ...(mode === "queued-cancel" ? [{ tick, event: { kind: "pointer.cancel" as const } }] : []), ...replies,
+          ...(mode === "fresh-after-reply" ? [pointer(1), pointer(0)] : [])]
+        : replies);
+      replies = [];
+      loaded = report.consumed.some(({ event }) => event.kind === "blob.loaded");
+      for (const request of report.requests) {
+        if (request.kind === "asset") replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+        if (request.kind === "loadBlob") replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: encoder.encode(snapshotGameSave(savedState)) } });
+      }
+    }
+    ok(loaded, "the real game Load completed");
+    const current = game.state()!;
+    equal(current.input.primaryPointerSuppressedUntilRelease, mode === "held" || mode === "queued-cancel");
+    equal(globals(current).activated, mode === "fresh-after-reply" ? 1 : 0,
+      "only a genuinely fresh post-boundary gesture activates the loaded item");
+    const send = (buttons: number): void => {
+      game.engine.advance(1, [{ tick: current.time.tick, event: { kind: "pointer", x: 20, y: 20, buttons } }]);
+    };
+    if (mode === "held" || mode === "queued-cancel") {
+      send(1);
+      send(1);
+      send(0);
+      equal(globals(current).activated, 0, "held moves and release cannot claim the restored author item");
+    }
+    send(1);
+    send(0);
+    equal(globals(current).activated, mode === "fresh-after-reply" ? 2 : 1, "a genuinely fresh press after release activates normally");
+  }
+});
+
+test("the restore pointer latch round-trips and migrates earlier input snapshots", () => {
+  const state = createGameState({ seed: 1 });
+  state.input.primaryPointerSuppressedUntilRelease = true;
+  equal(restoreGameState(snapshot(state)).input.primaryPointerSuppressedUntilRelease, true);
+  const old = JSON.parse(snapshot(state)) as { schema: { input: number }; input: Record<string, unknown> };
+  old.schema.input = 9;
+  old.input.version = 9;
+  delete old.input.primaryPointerSuppressedUntilRelease;
+  equal(restoreGameState(JSON.stringify(old)).input.primaryPointerSuppressedUntilRelease, false);
+  const replay = restoreGameState(snapshot(state));
+  for (const buttons of [1, 1, 0, 1, 0]) {
+    const event = { kind: "pointer" as const, x: 20, y: 20, buttons };
+    applyInputEvent(state.input, event);
+    applyInputEvent(replay.input, event);
+    equal(hashGameState(replay), hashGameState(state), "replay retains suppression/release at the same input boundary");
+  }
+  equal(state.input.pointer.downs, 1, "only the fresh post-release down contributes an edge");
+  state.input.primaryPointerSuppressedUntilRelease = true;
+  applyInputEvent(state.input, { kind: "pointer.cancel" });
+  equal(state.input.primaryPointerSuppressedUntilRelease, true, "host-leave cancellation does not prove physical release");
+});
+
+test("a refused Load does not discard raw pointer events or suppress the live gesture", () => {
+  const game = boot('Load("slot")\nend()');
+  let replies: InputRecord[] = [];
+  let refused = false;
+  for (let attempt = 0; attempt < 20 && !refused; attempt += 1) {
+    const tick = game.state()?.time.tick ?? 0;
+    const loadingReply = replies.some(({ event }) => event.kind === "blob.loaded");
+    const report = game.engine.advance(1, loadingReply
+      ? [...replies, { tick, event: { kind: "pointer", x: 20, y: 20, buttons: 1 } }]
+      : replies);
+    replies = [];
+    refused = loadingReply;
+    for (const request of report.requests) {
+      if (request.kind === "asset") replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      if (request.kind === "loadBlob") replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: Uint8Array.of(1) } });
+    }
+  }
+  ok(refused);
+  equal(game.state()!.input.pointer.buttons, 1);
+  equal(game.state()!.input.primaryPointerSuppressedUntilRelease, false);
+});
+
+test("Reset preserves suppression of a live held primary through its physical release", () => {
+  const game = boot('msgbox("Before reset")\nReset()\nend()');
+  run(game, null, { ticks: 8 });
+  const current = game.state()!;
+  const epoch = game.engine.surfaceCacheEpoch();
+  game.engine.advance(1, [
+    { tick: current.time.tick, event: { kind: "pointer", x: 20, y: 20, buttons: 1 } },
+    { tick: current.time.tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } },
+  ]);
+  ok(game.engine.surfaceCacheEpoch() > epoch, "the real Reset replaced the lifecycle");
+  equal(current.input.primaryPointerSuppressedUntilRelease, true);
+  applyInputEvent(current.input, { kind: "pointer", x: 20, y: 20, buttons: 1 });
+  equal(current.input.pointer.downs, 0);
+  applyInputEvent(current.input, { kind: "pointer", x: 20, y: 20, buttons: 0 });
+  applyInputEvent(current.input, { kind: "pointer", x: 20, y: 20, buttons: 1 });
+  equal(current.input.pointer.downs, 1, "a fresh post-release down is eligible");
 });
 test("a saved runtime movement setting survives save and load", () => {
   const saved = capture('pixelmovement(1, 1)\nSave("slot")\nrestoredWalking = pixelmovement()\nend()');

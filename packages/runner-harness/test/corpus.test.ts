@@ -372,19 +372,22 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // else did; every other hash, tick and diagnostic is unchanged.
   // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
   // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
-  // UI schema 8 adds the persisted surface-result thread-boundary marker; state hashes move, while
-  // corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
+  // UI schema 7 adds author-claim cancellation; UI schema 8 adds deterministic modal identity; UI schema 9 adds the
+  // pending one-shot surface-result marker. Input schema 9 adds an empty modal-action queue. These versions enter the
+  // canonical hash even when their fields are inactive; corpus inputs, ticks, diagnostics, draws and events stay fixed.
+  // #1600 input schema 10 adds the false restore-gesture suppression latch. Normalizing only input/schema versions
+  // to 9 and removing that field reproduces all previous corpus hashes; behavior and draw assertions are unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "97a520993e6d36e8",
-    "sample-system-demo": "ef3db9ec069cd85e",
-    "sample-sys-test-demo": "ef3db9ec069cd85e",
-    "sample-win-demo": "7b471cda21c5c57a",
-    "sample-oldman-demo": "17bb341afd8a0b95",
-    "sample-man-demo": "e1e61cb1b3f96a37",
-    "sample-man-wander-demo": "b0864a61eccfa53a",
-    "sample-start-basic": "678dc0c40b346b50",
-    "sample-system-basic": "ef3db9ec069cd85e",
-    "sample-wander-basic": "7d60ccc41cb0bed2",
+    "sample-start-demo": "165468fdb5b33f30",
+    "sample-system-demo": "4a55feda8958f5aa",
+    "sample-sys-test-demo": "4a55feda8958f5aa",
+    "sample-win-demo": "19dfdb738bc625f6",
+    "sample-oldman-demo": "c5058a11e55080f1",
+    "sample-man-demo": "0b795a35d706f77b",
+    "sample-man-wander-demo": "3a2b9726d53375d0",
+    "sample-start-basic": "28b9d02bd2f7bb58",
+    "sample-system-basic": "4a55feda8958f5aa",
+    "sample-wander-basic": "279ff8afa7b6d7f8",
   };
 
   for (const res of results) {
@@ -407,7 +410,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "7d60ccc41cb0bed2"); // UI schema 8 persists the thread-boundary marker.
+  equal(hash1, "279ff8afa7b6d7f8"); // Input schema 10 adds the inactive restore-gesture suppression latch.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

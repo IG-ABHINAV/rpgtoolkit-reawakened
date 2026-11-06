@@ -85,18 +85,27 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
   const observedGeometry = createObservedHostGeometry(session.displayGeometry());
-  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, (action, down) => {
-    pending.push({ tick: null, event: { kind: "action", action, down, source: "runner.fallback" }, pointerGeometry: null });
+  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean, modalId: number | null = null): number => {
+    let event: InputRecord["event"];
+    if (modalId === null) {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId: null };
+    } else if (action === "confirm" || action === "cancel") {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId };
+    } else {
+      throw new Error("only confirm or cancel may target a modal");
+    }
+    pending.push({ tick: null, event, pointerGeometry: null });
     fallbackActionSequence += 1;
     return fallbackActionSequence;
-  });
+  };
+  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, dispatchFallbackAction);
   const hostObserver = observeHostState(hostViewport, viewSize, (event) => {
     observedGeometry.observe(event);
     pending.push({ tick: null, event, pointerGeometry: null });
   }, session.hostState ?? undefined);
   session.setHostRestoreSnapshotProvider(() => {
     const snapshot = hostObserver.snapshotForRestore(pending);
-    for (const event of snapshot) observedGeometry.observe(event);
+    for (const event of snapshot.observations) observedGeometry.observe(event);
     return snapshot;
   });
   const pointerHost = stage;
@@ -113,6 +122,9 @@ function run(session: LiveSession, canvas: HTMLCanvasElement, status: HTMLElemen
       reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
       pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
     },
+    ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
+    dispatchFallbackAction,
+    () => session.engine.surfaceCacheEpoch(),
   );
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);

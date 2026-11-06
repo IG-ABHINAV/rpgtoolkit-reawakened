@@ -54,6 +54,7 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
     hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
     surfaceCacheEpoch() { return 0; },
     accessibilityTree() { return []; },
+    runnerControlPointerPreemption() { return null; },
   };
 
   const run: Run = {
@@ -174,6 +175,7 @@ test("runLog throws naming call and cause for engine violations", () => {
     hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
     surfaceCacheEpoch() { return 0; },
     accessibilityTree() { return []; },
+    runnerControlPointerPreemption() { return null; },
   });
   const failureCases: readonly {
     name: string;
@@ -329,6 +331,7 @@ test("runLog accepts non-empty requests and diagnostics and hands them to the ob
       hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
       surfaceCacheEpoch() { return 0; },
       accessibilityTree() { return []; },
+      runnerControlPointerPreemption() { return null; },
     };
   };
   const seen: { call: number; tickAfter: number; requests: number; diagnostics: unknown }[] = [];

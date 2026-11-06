@@ -28,7 +28,7 @@ export function shouldSuppressGameplayKey(
     if (!down) ownedKeys.delete(code);
     return true;
   }
-  if (!down || repeat || !fallbackTarget) return false;
+  if (!down || repeat || !fallbackTarget || (code !== "Enter" && code !== "Space")) return false;
   ownedKeys.add(code);
   return true;
 }
@@ -53,9 +53,9 @@ export function fallbackTouchLayout(geometry: TouchControlGeometry): { readonly 
 const TOUCH_STYLES = `
 .fallback-touch-controls{position:absolute;z-index:2;display:flex;align-items:end;gap:20px;pointer-events:none;touch-action:none}
 .fallback-touch-controls[hidden]{display:none}
-.fallback-touch-pad,.fallback-touch-actions{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:8px;pointer-events:auto}
+.fallback-touch-pad,.fallback-touch-actions{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:8px;pointer-events:none}
 .fallback-touch-actions{grid-template-columns:repeat(2,48px);grid-template-rows:48px}
-.fallback-touch-button{width:48px;height:48px;padding:0;border:2px solid #fff;border-radius:50%;background:rgba(12,18,28,.88);color:#fff;font:700 20px/1 sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+.fallback-touch-button{width:48px;height:48px;padding:0;border:2px solid #fff;border-radius:50%;background:rgba(12,18,28,.88);color:#fff;font:700 20px/1 sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;pointer-events:auto}
 .fallback-touch-button:focus-visible{outline:3px solid #ffd84d;outline-offset:3px}
 .fallback-touch-button[aria-pressed="true"]{background:rgba(60,115,190,.96)}
 .fallback-touch-overlay .fallback-touch-button{background:rgba(12,18,28,.62)}
@@ -72,7 +72,7 @@ type TouchControlHandle = {
 export function createFallbackTouchControls(
   stage: HTMLElement,
   geometry: () => TouchControlGeometry,
-  dispatch: (action: FallbackTouchAction, down: boolean) => number,
+  dispatch: (action: FallbackTouchAction, down: boolean, modalId?: number | null) => number,
 ): TouchControlHandle {
   const root = document.createElement("div");
   root.className = "fallback-touch-controls";
@@ -93,9 +93,11 @@ export function createFallbackTouchControls(
   actionGroup.setAttribute("role", "group");
   const buttons = new Map<FallbackTouchAction, HTMLButtonElement>();
   const activePointers = new Map<number, FallbackTouchAction>();
+  const activePointerButtons = new Map<number, HTMLButtonElement>();
+  const cancelledPointers = new Set<number>();
   const activeKeys = new Map<string, FallbackTouchAction>();
-  const pressSequences = new Map<FallbackTouchAction, number>();
   const pendingReleases = new Map<FallbackTouchAction, number>();
+  const pressSequences = new Map<FallbackTouchAction, number>();
   let acknowledgedSequence = 0;
   const actions: readonly { readonly action: FallbackTouchAction; readonly label: string; readonly glyph: string; readonly zone: "dpad" | "actions"; readonly row: number; readonly column: number }[] = [
     { action: "up", label: "Move up", glyph: "▲", zone: "dpad", row: 0, column: 1 },
@@ -137,16 +139,31 @@ export function createFallbackTouchControls(
     buttons.get(action)?.setAttribute("aria-pressed", "false");
     dispatch(action, false);
   };
-  const releasePointer = (pointerId: number): void => {
+  const releasePointer = (pointerId: number, event: PointerEvent): void => {
     const action = activePointers.get(pointerId);
-    if (action === undefined) return;
+    const button = activePointerButtons.get(pointerId);
+    if (action === undefined || button === undefined) return;
     activePointers.delete(pointerId);
+    activePointerButtons.delete(pointerId);
+    const cancelled = cancelledPointers.delete(pointerId) ||
+      document.elementFromPoint(event.clientX, event.clientY)?.closest(".fallback-touch-button") !== button;
+    if (action === "confirm" || action === "cancel") {
+      if (!cancelled) activateClick(action);
+      else buttons.get(action)?.setAttribute("aria-pressed", hasActiveSource(action) ? "true" : "false");
+      return;
+    }
     release(action);
   };
   const cancelPointer = (pointerId: number): void => {
     const action = activePointers.get(pointerId);
     if (action === undefined) return;
     activePointers.delete(pointerId);
+    activePointerButtons.delete(pointerId);
+    cancelledPointers.delete(pointerId);
+    if (action === "confirm" || action === "cancel") {
+      buttons.get(action)?.setAttribute("aria-pressed", hasActiveSource(action) ? "true" : "false");
+      return;
+    }
     forceRelease(action);
   };
   const releaseKey = (event: KeyboardEvent): void => {
@@ -165,9 +182,12 @@ export function createFallbackTouchControls(
   const forceReleaseAll = (): void => {
     const actions = new Set(pressSequences.keys());
     activePointers.clear();
+    activePointerButtons.clear();
+    cancelledPointers.clear();
     activeKeys.clear();
     pendingReleases.clear();
     for (const action of actions) forceRelease(action);
+    for (const button of buttons.values()) button.setAttribute("aria-pressed", "false");
   };
   const releaseAll = (): void => {
     forceReleaseAll();
@@ -188,6 +208,7 @@ export function createFallbackTouchControls(
     const button = document.createElement("button");
     button.type = "button";
     button.className = `fallback-touch-button fallback-touch-${entry.zone}`;
+    button.dataset.action = entry.action;
     button.setAttribute("aria-label", entry.label);
     button.setAttribute("aria-pressed", "false");
     button.textContent = entry.glyph;
@@ -197,22 +218,40 @@ export function createFallbackTouchControls(
       if (button.disabled || event.button !== 0) return;
       event.preventDefault();
       button.setPointerCapture(event.pointerId);
+      cancelledPointers.delete(event.pointerId);
       const wasActive = hasActiveSource(entry.action);
       activePointers.set(event.pointerId, entry.action);
+      activePointerButtons.set(event.pointerId, button);
+      if (entry.action === "confirm" || entry.action === "cancel") {
+        button.setAttribute("aria-pressed", "true");
+      } else {
+        press(entry.action, wasActive);
+      }
+    });
+    button.addEventListener("pointermove", (event) => {
+      event.preventDefault();
+      const action = activePointers.get(event.pointerId);
+      if ((action === "confirm" || action === "cancel") &&
+          document.elementFromPoint(event.clientX, event.clientY)?.closest(".fallback-touch-button") !== button) {
+        cancelledPointers.add(event.pointerId);
+        buttons.get(action)?.setAttribute("aria-pressed", "false");
+      }
+    });
+    button.addEventListener("pointerup", (event) => { event.preventDefault(); releasePointer(event.pointerId, event); });
+    button.addEventListener("pointercancel", (event) => { event.preventDefault(); cancelPointer(event.pointerId); });
+    button.addEventListener("lostpointercapture", (event) => cancelPointer((event as PointerEvent).pointerId));
+    button.addEventListener("keydown", (event) => {
+      if (event.code !== "Enter" && event.code !== "Space") return;
+      if (entry.action === "confirm" || entry.action === "cancel") {
+        if (event.repeat) event.preventDefault();
+        return;
+      }
+      event.preventDefault();
+      if (button.disabled || event.repeat || activeKeys.has(event.code)) return;
+      const wasActive = hasActiveSource(entry.action);
+      activeKeys.set(event.code, entry.action);
       press(entry.action, wasActive);
     });
-    button.addEventListener("pointermove", (event) => event.preventDefault());
-    button.addEventListener("pointerup", (event) => { event.preventDefault(); releasePointer(event.pointerId); });
-    button.addEventListener("pointercancel", (event) => { event.preventDefault(); cancelPointer(event.pointerId); });
-    button.addEventListener("lostpointercapture", (event) => cancelPointer(event.pointerId));
-    button.addEventListener("keydown", (event) => {
-          if (event.code !== "Enter" && event.code !== "Space") return;
-          event.preventDefault();
-          if (button.disabled || event.repeat || activeKeys.has(event.code)) return;
-          const wasActive = hasActiveSource(entry.action);
-          activeKeys.set(event.code, entry.action);
-          press(entry.action, wasActive);
-        });
     button.addEventListener("keyup", releaseKey);
     button.addEventListener("click", (event) => {
       if (event.detail === 0 && !button.disabled) activateClick(entry.action);

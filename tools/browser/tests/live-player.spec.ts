@@ -681,15 +681,23 @@ test("live standard gamepad input drives the title action and gameplay movement"
   expect(initial.player).not.toBeNull();
   if (initial.player === null) throw new Error("live player did not reach gameplay");
 
-  const beforeMovement = await page.evaluate(() => window.__live?.tick ?? 0);
-  await page.evaluate(() => (window as Window & { __setGamepad?: (axisX: number, buttonA: boolean) => void }).__setGamepad?.(1, false));
+  const beforeMovement = await page.evaluate(() => {
+    const target = window as Window & {
+      __gamepadConsumed?: readonly unknown[];
+      __setGamepad?: (axisX: number, buttonA: boolean) => void;
+    };
+    const boundary = { tick: window.__session?.tick() ?? 0, consumed: target.__gamepadConsumed?.length ?? 0 };
+    target.__setGamepad?.(1, false);
+    return boundary;
+  });
   await page.waitForFunction(({ x, y }) => {
     const player = window.__live?.player;
     return player !== null && player !== undefined && player.x >= x + 32 && player.y === y;
   }, initial.player, { timeout: 15_000 });
   await page.evaluate(() => (window as Window & { __setGamepad?: (axisX: number, buttonA: boolean) => void }).__setGamepad?.(0, false));
-  await page.waitForFunction((tick) =>
-    (window as Window & { __gamepadConsumed?: readonly { tick: number; event: { axes?: { x: number } } }[] }).__gamepadConsumed?.some((input) => input.tick > tick && input.event.axes?.x === 1000) === true,
+  await page.waitForFunction(({ tick, consumed }) =>
+    // The next advance consumes AT the current tick. The log offset proves this is a new sample, not an older hold.
+    (window as Window & { __gamepadConsumed?: readonly { tick: number; event: { axes?: { x: number } } }[] }).__gamepadConsumed?.slice(consumed).some((input) => input.tick >= tick && input.event.axes?.x === 1000) === true,
   beforeMovement, { timeout: 15_000 });
   const result = await page.evaluate(() => ({
     live: window.__live as LiveReport,

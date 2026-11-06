@@ -1169,7 +1169,31 @@ export function createEngine(init: EngineInit): Engine {
     startupServicesReady = runStartups;
     return nextServices;
   }
+  function rebaseModalTimeline(candidate: GameState, nextIdFloor: number): void {
+    const ids = new Set<number>();
+    if (candidate.ui.modal !== null) ids.add(candidate.ui.modal.modalId);
+    for (const action of candidate.input.modalActions) ids.add(action.modalId);
+
+    const remapped = new Map<number, number>();
+    let nextId = Math.max(candidate.ui.nextModalId, nextIdFloor);
+    for (const oldId of [...ids].sort((left, right) => left - right)) {
+      if (oldId >= nextIdFloor) continue;
+      if (!Number.isSafeInteger(nextId)) throw new ScriptError("restore.shape", "modal identity space is exhausted");
+      remapped.set(oldId, nextId++);
+    }
+    if (candidate.ui.modal !== null) {
+      const id = remapped.get(candidate.ui.modal.modalId);
+      if (id !== undefined) candidate.ui.modal = { ...candidate.ui.modal, modalId: id };
+    }
+    candidate.input.modalActions = candidate.input.modalActions.map((action) => {
+      const id = remapped.get(action.modalId);
+      return id === undefined ? action : { ...action, modalId: id };
+    });
+    candidate.ui.nextModalId = nextId;
+  }
+
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
+    const modalIdFloor = state.ui.nextModalId;
     const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
@@ -1198,6 +1222,7 @@ export function createEngine(init: EngineInit): Engine {
       startupServicesReady = previousStartupServicesReady;
       failed = previousFailed;
 
+      rebaseModalTimeline(candidate, modalIdFloor);
       Object.assign(state, candidate);
       const actionRegistry = createInputSection();
       for (const action of startupActions) registerGameAction(actionRegistry, action);
@@ -2026,6 +2051,11 @@ export function createEngine(init: EngineInit): Engine {
     clearStartupAnchors();
     const rng = state.rng;
     const time = state.time;
+    const nextModalId = state.ui.nextModalId;
+    let heldPrimary = state.input.primaryPointerSuppressedUntilRelease || (state.input.pointer.buttons & 1) !== 0;
+    for (const record of queuedInputs) {
+      if (record.event.kind === "pointer") heldPrimary = (record.event.buttons & 1) !== 0;
+    }
     if (nextMain !== undefined) {
       initialCharacterKey = null;
       initialCharacterResolved = true;
@@ -2051,7 +2081,9 @@ export function createEngine(init: EngineInit): Engine {
     state.battle = fresh.battle;
     state.menu = fresh.menu;
     state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+    state.input.primaryPointerSuppressedUntilRelease = heldPrimary;
     state.ui = fresh.ui;
+    state.ui.nextModalId = Math.max(state.ui.nextModalId, nextModalId);
     state.camera = createCameraSection(init.width, init.height);
     state.fx = fresh.fx;
     state.surfaces = createSurfacesSection(init.width, init.height);
@@ -3714,6 +3746,10 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
+    if (state.input.primaryPointerSuppressedUntilRelease) {
+      applyInputEvent(state.input, event, reportUnknownAction);
+      return;
+    }
     const previousButtons = state.input.pointer.buttons;
     const wasPrimaryDown = (previousButtons & 1) !== 0;
     const isPrimaryDown = (event.buttons & 1) !== 0;
@@ -3959,9 +3995,31 @@ export function createEngine(init: EngineInit): Engine {
             deferred.splice(at, 1);
           }
         }
+        // Records already queued when Load commits still belong to the old physical gesture.
+        let heldPrimary = state.input.primaryPointerSuppressedUntilRelease || (state.input.pointer.buttons & 1) !== 0;
+        for (const pending of deferred) {
+          if (pending.event.kind === "pointer") heldPrimary = (pending.event.buttons & 1) !== 0;
+        }
+        const consumedBeforeReply = consumed.length;
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
+          state.input.primaryPointerSuppressedUntilRelease = heldPrimary;
+          state.input.pointer = { ...state.input.pointer, buttons: state.input.pointer.buttons & ~1 };
+          state.input.pointerGestureId = null;
+          state.input.pressedButtonSlot = null;
+          state.input.pendingClicks = [];
+          state.input.pendingPointerUps = [];
+          state.ui.surfacePointerClaim = null;
+          setPointerMovementSuppressed(state.input, false);
+          let consumedOldPointerAt = consumedBeforeReply;
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (earlier.event.kind === "pointer" || earlier.event.kind === "pointer.cancel") {
+              consumed.splice(consumedOldPointerAt++, 0, earlier);
+              deferred.splice(at, 1);
+            } else at += 1;
+          }
           for (let at = 0; at < deferred.length; at += 1) {
             deferred[at] = { ...deferred[at]!, tick: state.time.tick };
           }
@@ -4423,6 +4481,10 @@ export function createEngine(init: EngineInit): Engine {
     },
     accessibilityTree() {
       return uiAccessibilityTree(state.ui);
+    },
+    runnerControlPointerPreemption(x: number, y: number): number | "author" | null {
+      if (state.ui.modal != null) return state.ui.modal.modalId;
+      return authorSurfaceTargetAt(x, y) !== null ? "author" : null;
     },
     hostFeatures(): NormalizedHostFeatures {
       return { ...state.features };
