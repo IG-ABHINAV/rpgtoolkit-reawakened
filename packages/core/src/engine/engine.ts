@@ -3943,14 +3943,8 @@ export function createEngine(init: EngineInit): Engine {
           // Earlier host observations belong to the old timeline, not a later tick after a load rewinds it.
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
-            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) {
-              at += 1;
-              continue;
-            }
-            if (!applyHostStateEvent(earlier.event)) {
-              at += 1;
-              continue;
-            }
+            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) break;
+            if (!applyHostStateEvent(earlier.event)) break;
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
@@ -3973,29 +3967,15 @@ export function createEngine(init: EngineInit): Engine {
         if (state.engine.video?.reqId === record.event.reqId) state.engine.video = { ...state.engine.video, ended: true };
         consumed.push(record);
       } else if (record.event.kind === "focus") {
-        if (record.event.state === "lost" && state.engine.openTick === undefined) {
-          // Apply earlier keys and host updates in order before focus loss stops the tick.
-          // Keys must be released by the blur; host observations must not wait for a resumed tick.
-          for (let at = 0; at < deferred.length;) {
-            const earlier = deferred[at]!;
-            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) {
-              at += 1;
-              continue;
-            }
-            if (!applyHostStateEvent(earlier.event)) {
-              if (earlier.event.kind !== "key") {
-                at += 1;
-                continue;
-              }
-              applyRoutedInputEvent(earlier.event);
-            }
-            consumed.push(earlier);
-            deferred.splice(at, 1);
-          }
+        if (deferred.length > 0 && state.engine.openTick === undefined) {
+          // Keep a focus transition behind any earlier deferred records so host snapshots cannot overtake their input.
+          deferred.push(record);
+          inputFocused = record.event.state === "gained";
+        } else {
+          inputFocused = record.event.state === "gained";
+          applyRoutedInputEvent(record.event);
+          consumed.push(record);
         }
-        inputFocused = record.event.state === "gained";
-        applyRoutedInputEvent(record.event);
-        consumed.push(record);
       } else if (!inputFocused && hasPointerRecord && (record.event.kind === "host.display" || record.event.kind === "pointer")) {
         deferred.push(record);
       } else if (hasPointerRecord || deferred.length > 0) {

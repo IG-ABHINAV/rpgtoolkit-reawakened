@@ -184,6 +184,17 @@ test("engine applies and records complete host updates on their consuming tick",
   deepEqual(orderedSnapshot.consumed.map((input) => input.event.kind), ["gamepad", "host.gamepads"]);
   equal(live.state.input.actions.right, false, "the complete snapshot disconnect is applied after the same-tick press");
   ok(inputEdges.includes("right"), "the press edge is preserved before the snapshot's disconnect");
+  const orderedBlur = engine.advance(1, [
+    { tick: live.state.time.tick, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+    { tick: live.state.time.tick, event: { kind: "host.gamepads", devices: [] } },
+    { tick: live.state.time.tick, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(orderedBlur.ticksRun, 0, "focus loss stops the tick after consuming its ordered input prefix");
+  deepEqual(orderedBlur.consumed.map((input) => input.event.kind), ["gamepad", "host.gamepads", "focus"]);
+  const refocus = engine.advance(1, [{ tick: live.state.time.tick, event: { kind: "focus", state: "gained" } }]);
+  equal(refocus.ticksRun, 1);
+  equal(live.state.input.gamepads["0"]?.connected, false, "the empty snapshot after a deferred press is not overtaken by blur");
+  equal(live.state.input.actions.right, false, "refocusing cannot apply the superseded controller press as a ghost hold");
 });
 test("delayed replacement MainFile re-registers external actions before recomputing held gamepad state", () => {
   const encodeMain = (startupPrg: string) => {

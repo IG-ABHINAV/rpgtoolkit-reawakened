@@ -307,7 +307,7 @@ test("full-engine Load refuses newer IR and restarts an older-IR saved thread", 
 });
 
 // Full boot and a real save/load are needed to exercise the request boundary and timeline rewind.
-test("host changes before a load reply do not survive as future inputs", () => {
+test("host records preceding a load reply preserve their order after restore", () => {
   const saved = capture();
   const game = boot('sleep(30)\nLoad("slot")\nend()\n');
   let replies: InputRecord[] = [];
@@ -320,14 +320,19 @@ test("host changes before a load reply do not survive as future inputs", () => {
       } else if (request.kind === "loadBlob") {
         const before = { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: null } as const;
         const result = game.engine.advance(0, [
+          { tick: report.tickAfter, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 1000, y: 0 }, buttons: 0 } },
+          { tick: report.tickAfter, event: { kind: "host.gamepads", devices: [] } },
           { tick: report.tickAfter, event: { kind: "host.features", features: before } },
           { tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: saved } },
         ]);
-        deepEqual(result.consumed.map(({ event }) => event.kind), ["host.features", "blob.loaded"]);
+        deepEqual(result.consumed.map(({ event }) => event.kind), ["blob.loaded"]);
         ok(result.tickAfter < report.tickAfter, `the real load rewound the timeline: ${report.tickAfter} -> ${result.tickAfter}; ${JSON.stringify(result.diagnostics)}`);
         const later = { ...before, touch: false } as const;
         const update = game.engine.advance(1, [{ tick: result.tickAfter, event: { kind: "host.features", features: later } }]);
-        equal(update.consumed.filter(({ event }) => event.kind === "host.features").length, 1);
+        equal(game.state()?.input.gamepads["0"]?.connected, false, "the load-time full snapshot follows the earlier controller edge");
+        equal(game.state()?.input.actions.right, false, "load cannot leave the earlier controller direction held");
+        deepEqual(update.consumed.map(({ event }) => event.kind), ["gamepad", "host.gamepads", "host.features", "host.features"]);
+        equal(update.consumed.filter(({ event }) => event.kind === "host.features").length, 2);
         const continuation = game.engine.advance(80, []);
         ok(continuation.tickAfter > report.tickAfter, "the continuation passed the old input tick");
         equal(continuation.consumed.some(({ event }) => event.kind === "host.features"), false, "old host input was not replayed at its former tick");
