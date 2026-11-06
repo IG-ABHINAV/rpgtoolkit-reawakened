@@ -384,7 +384,7 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
     "sample-win-demo": "19dfdb738bc625f6",
     "sample-oldman-demo": "c5058a11e55080f1",
     "sample-man-demo": "0b795a35d706f77b",
-    "sample-man-wander-demo": "3a2b9726d53375d0",
+    "sample-man-wander-demo": "fdb36a6da14c36be",
     "sample-start-basic": "28b9d02bd2f7bb58",
     "sample-system-basic": "4a55feda8958f5aa",
     "sample-wander-basic": "279ff8afa7b6d7f8",

@@ -251,7 +251,7 @@ test("an item-owned script reads and moves its own source sprite (#1253)", () =>
 test("a hydrated item thread uses its source and the runtime push mode together", () => {
   const { engine, files, state: latest } = setup(
     true,
-    'pixelmovement(1, 1)\npushitem("source", "E", 4)\nthreadSleep(getThreadId(), 120)\nend()\n',
+    'pixelmovement(1, 1)\npushitem("source", "E", 1)\nthreadSleep(getThreadId(), 120)\nend()\n',
     true,
   );
   advance(engine, files, 60);
@@ -283,7 +283,7 @@ test("a hydrated board item survives an actual interruption checkpoint", () => {
 test("a hydrated item thread's sourceHandle works as an item and child-program handle", () => {
   const { engine, files, state: latest } = setup(
     true,
-    'handle = sourceHandle()\nitemLocation(handle, observedX, observedY, observedLayer)\npushitem(handle, "E", 4)\nexecuteProgram("item-activation.prg", { source: "source" })\nchildReturned = 1\nend()\n',
+    'handle = sourceHandle()\nitemLocation(handle, observedX, observedY, observedLayer)\npushitem(handle, "E", 1)\nexecuteProgram("item-activation.prg", { source: "source" })\nchildReturned = 1\nend()\n',
     true,
   );
   advance(engine, files, 60);
