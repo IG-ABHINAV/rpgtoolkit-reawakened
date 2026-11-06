@@ -608,6 +608,9 @@ jobs:
               exit 1
             fi
           }
+      - name: Instrument Playwright utility-world diagnostics
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+        run: node tools/mobile/diagnose-playwright.mjs
       - name: Exercise APK on API 33 emulator
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         uses: reactivecircus/android-emulator-runner@v2
