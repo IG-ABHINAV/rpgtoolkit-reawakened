@@ -348,6 +348,7 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
   state.engine = { claims: [] };
+  let preserveUiResultsUntilThreads = false;
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
   let mainFile: MainFile | null = null;
@@ -3810,10 +3811,12 @@ export function createEngine(init: EngineInit): Engine {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        state.ui.surfaceActivated = null;
-        state.ui.surfaceCancelled = false;
-        state.ui.surfaceCancelledSeq = null;
-        state.ui.surfaceCancelledOwner = null;
+        if (!preserveUiResultsUntilThreads) {
+          state.ui.surfaceActivated = null;
+          state.ui.surfaceCancelled = false;
+          state.ui.surfaceCancelledSeq = null;
+          state.ui.surfaceCancelledOwner = null;
+        }
         for (const thread of state.vm.threads) {
           if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
         }
@@ -3852,6 +3855,7 @@ export function createEngine(init: EngineInit): Engine {
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
         withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET, startupThreadEligible));
+        preserveUiResultsUntilThreads = false;
         if (state.engine.pendingEnterThread !== undefined) {
           const enterThread = state.vm.threads.find((thread) => thread.id === state.engine.pendingEnterThread);
           if (enterThread === undefined || enterThread.status === "finished") {
@@ -3971,6 +3975,10 @@ export function createEngine(init: EngineInit): Engine {
         consumed.push(record);
       } else if (record.event.kind === "focus") {
         if (record.event.state === "lost" && deferred.length > 0 && state.engine.openTick === undefined) {
+          const priorActivation = state.ui.surfaceActivated;
+          const priorCancellation = state.ui.surfaceCancelled;
+          const priorCancellationSeq = state.ui.surfaceCancelledSeq;
+          const priorCancellationOwner = state.ui.surfaceCancelledOwner;
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
             if (applyHostStateEvent(earlier.event)) {
@@ -3985,6 +3993,10 @@ export function createEngine(init: EngineInit): Engine {
             deferred.splice(at, 1);
           }
           processPendingGamepadEvents();
+          if (state.ui.surfaceActivated !== priorActivation || state.ui.surfaceCancelled !== priorCancellation
+            || state.ui.surfaceCancelledSeq !== priorCancellationSeq || state.ui.surfaceCancelledOwner !== priorCancellationOwner) {
+            preserveUiResultsUntilThreads = true;
+          }
         }
         inputFocused = record.event.state === "gained";
         applyRoutedInputEvent(record.event);
