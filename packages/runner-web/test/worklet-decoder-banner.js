@@ -16,6 +16,11 @@ registerProcessor("decoder-probe-control", class extends AudioWorkletProcessor {
       } else if (data.kind === "resolve") {
         probeRelease().then(() => this.port.postMessage({ kind: "decoded" }));
         this.port.postMessage({ kind: "released" });
+      } else if (data.kind === "resolve-held") {
+        // A release acknowledgement does not mean asynchronous instantiation has completed.
+        this.port.postMessage({ kind: "released" });
+      } else if (data.kind === "finish") {
+        probeRelease().then(() => this.port.postMessage({ kind: "decoded" }));
       } else if (data.kind === "reject") probeReject();
     };
   }
