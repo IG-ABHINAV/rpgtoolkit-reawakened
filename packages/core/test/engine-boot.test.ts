@@ -1414,6 +1414,7 @@ test("wait drops mid-delay keys before the same thread's following get (#1174, d
   run(engine, game.files, 1, [sendKey(afterPark, "C"), sendKey(afterPark, "D")]);
   equal(doubles.state().vm.globals.keyafter, "C");
   equal(doubles.state().vm.globals.keyafterget, "D", "get must skip A and B while retaining the later post-park key");
+  run(engine, game.files, 1); // the start-up stage ends in the tick the blocking program finishes; a persistent thread created during it first receives a slice at the next pass
   equal(doubles.state().vm.globals.otherthreadkey, "", "the shared backlog is gone before another thread can call get");
 });
 test("wait captures its floor while the queue is empty and accepts the first later key (#1174, docs/spec/engine/display-input-audio.md#e-110)", () => {

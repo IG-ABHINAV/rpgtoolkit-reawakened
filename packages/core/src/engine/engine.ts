@@ -3056,11 +3056,18 @@ export function createEngine(init: EngineInit): Engine {
     if (live === undefined || original !== live || ordinal === undefined) return null;
     return { ordinal, className: live.className, hostType: live.hostType ?? null };
   }
-  /** A board thread has no lifetime owner during startup until a board is installed. */
+  /**
+   * A board thread has no lifetime owner during startup until a board is installed; before the first
+   * board is installed, no background thread receives a slice (owner-relayed 3.1-source fact, 2026-11-05):
+   * persistence decides only whether a spawned thread survives long enough to be eligible afterwards.
+   * Once a board is installed during startup (a start-up `send`/`Load`), a real board exists and its
+   * threads and persistent threads become eligible and may run, as everywhere else (a live blocking
+   * thread still owns the phase; see #1167). The blocking program itself never becomes ineligible.
+   */
   function startupThreadEligible(thread: Thread): boolean {
     return state.engine.boot?.stage !== "startup"
       || (state.world.board !== null && state.world.board !== undefined)
-      || thread.kind !== "board";
+      || thread.kind === "blocking";
   }
   function discardUnboardedStartupThreads(): void {
     if (state.world.board === null || state.world.board === undefined) endBoardThreads(state.vm);
