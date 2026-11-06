@@ -3973,13 +3973,13 @@ export function createEngine(init: EngineInit): Engine {
         if (record.event.state === "lost" && deferred.length > 0 && state.engine.openTick === undefined) {
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
-            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) break;
             if (applyHostStateEvent(earlier.event)) {
               consumed.push(earlier);
               deferred.splice(at, 1);
               continue;
             }
-            if (earlier.event.kind !== "key" && earlier.event.kind !== "action" && earlier.event.kind !== "gamepad") break;
+            if (earlier.event.kind !== "key" && earlier.event.kind !== "action" && earlier.event.kind !== "gamepad"
+              && earlier.event.kind !== "pointer" && earlier.event.kind !== "pointer.cancel") break;
             applyRoutedInputEvent(earlier.event);
             consumed.push(earlier);
             deferred.splice(at, 1);
