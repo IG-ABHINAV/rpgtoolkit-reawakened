@@ -372,19 +372,19 @@ test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 progra
   // else did; every other hash, tick and diagnostic is unchanged.
   // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
   // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
-  // UI schema 7 adds the persisted author-claim cancellation flag; only state hashes move from this schema change.
-  // Corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
+  // UI schema 8 adds the persisted surface-result thread-boundary marker; state hashes move, while
+  // corpus inputs, ticks, diagnostics, draws, and events remain unchanged.
   const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "d4d5cf26ecf2280a",
-    "sample-system-demo": "1a67e8bc05aeb7e2",
-    "sample-sys-test-demo": "1a67e8bc05aeb7e2",
-    "sample-win-demo": "d0b39c89987bb522",
-    "sample-oldman-demo": "c030d5e1232a9f1d",
-    "sample-man-demo": "f66fdd92bfd77427",
-    "sample-man-wander-demo": "d1d34d7ab3691236",
-    "sample-start-basic": "f2269b2e13b97a56",
-    "sample-system-basic": "1a67e8bc05aeb7e2",
-    "sample-wander-basic": "8a16b3434ef59ef2",
+    "sample-start-demo": "97a520993e6d36e8",
+    "sample-system-demo": "ef3db9ec069cd85e",
+    "sample-sys-test-demo": "ef3db9ec069cd85e",
+    "sample-win-demo": "7b471cda21c5c57a",
+    "sample-oldman-demo": "17bb341afd8a0b95",
+    "sample-man-demo": "e1e61cb1b3f96a37",
+    "sample-man-wander-demo": "b0864a61eccfa53a",
+    "sample-start-basic": "678dc0c40b346b50",
+    "sample-system-basic": "ef3db9ec069cd85e",
+    "sample-wander-basic": "7d60ccc41cb0bed2",
   };
 
   for (const res of results) {
@@ -407,7 +407,7 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "8a16b3434ef59ef2"); // UI schema 7 persists author-claim cancellation state.
+  equal(hash1, "7d60ccc41cb0bed2"); // UI schema 8 persists the thread-boundary marker.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);
