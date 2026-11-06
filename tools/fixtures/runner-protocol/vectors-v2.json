@@ -4,9 +4,9 @@
   "note": "V2 is the strict two-plane runner contract: every DrawList is {tick,width,height,commands,marginCommands}; both ordered arrays are required, use AD-3 commands, and participate in the draw hash. The v1 schema and vectors remain unchanged. Validate against packages/runner-harness/schema/runner-protocol-v2.schema.json.",
   "counts": {
     "draw": 16,
-    "input": 32,
+    "input": 34,
     "request": 13,
-    "valid": 42,
+    "valid": 44,
     "invalid": 19
   },
   "vectors": [
@@ -1052,6 +1052,24 @@
       }
     },
     {
+      "id": "input-gamepad-all-physical-buttons",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "connected": true,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 131071
+        }
+      }
+    },
+    {
       "id": "refuse-gamepad-button-range",
       "family": "input",
       "valid": false,
@@ -1098,6 +1116,27 @@
                 "y": 0
               },
               "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "input-host-gamepads-all-physical-buttons",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0,
+                "y": 0
+              },
+              "buttons": 131071
             }
           ]
         }
