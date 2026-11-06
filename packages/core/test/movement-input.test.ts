@@ -45,7 +45,8 @@ test("input-replay-button-slots drives every recorded case through core input st
   const data = fixture();
   for (const inputCase of data.cases) {
     const [cameraX, cameraY] = inputCase.setup.camera;
-    const state = createInputSection({ bindings: inputCase.setup.bindings, buttons: inputCase.setup.slots, camera: { x: cameraX, y: cameraY }, allowDiagonals: inputCase.setup.allowDiagonals });
+    const state = createInputSection({ bindings: inputCase.setup.bindings, buttons: inputCase.setup.slots, allowDiagonals: inputCase.setup.allowDiagonals });
+    state.camera = { x: cameraX, y: cameraY };
     let previousKeys = 0;
     let previousClicks = 0;
     for (let tick = 0; tick < inputCase.ticks; tick += 1) {

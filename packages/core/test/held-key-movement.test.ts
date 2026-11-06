@@ -504,7 +504,7 @@ type ObservedEngine = {
 };
 
 /** The real engine with Right bound and an observer in its input phase; its board is the empty authored one. */
-function observedEngine(): ObservedEngine {
+function observedEngine(width = 32, height = 32): ObservedEngine {
   const board = writeBoard(createEmptyBoard());
   if (!board.ok) throw new Error(board.error.message);
   const rightHeld: boolean[] = [];
@@ -514,8 +514,8 @@ function observedEngine(): ObservedEngine {
     assetIndex: createAssetIndex(["Boards/test.brd"]),
     assetRoot: PACKAGE_ROOT,
     initialBoard: "test.brd",
-    width: 32,
-    height: 32,
+    width,
+    height,
     maxTicks: 60,
     input: { bindings: { keys: { ArrowRight: "right" } } },
     phaseRegistrations: [{ phase: "input", rank: 1, run: (live) => {
@@ -571,4 +571,50 @@ test("through the engine: a key the host queued after the blur still waits for t
   deepEqual(blurred.consumed.map((record) => record.event.kind), ["focus"], "a record after the blur is not applied while unfocused");
   equal(engine.advance(2, [{ tick: 2, event: REFOCUS }]).ticksRun, 2);
   deepEqual(rightHeld.slice(2), [true, true], "it applies at the resumed tick, as before");
+});
+
+test("pointer events capture the simulation camera, including centering, scrolling and shake", () => {
+  const { engine, state } = observedEngine(640, 480);
+  engine.advance(1, []);
+  const live = state.current;
+  if (live === null) throw new Error("expected the engine state");
+
+  // A small board is centred 64 pixels below the viewport origin.
+  Object.assign(live.camera, { x: 0, y: -64, prevX: 0, prevY: -64, shake: null });
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 250, y: 223, buttons: 1 } }]);
+  deepEqual(live.input.pendingClicks, [{ gestureId: 1, x: 250, y: 159 }]);
+
+  // A queued click keeps its original world position when the camera moves before release.
+  Object.assign(live.camera, { x: 80, y: 50, prevX: 20, prevY: 10, shake: { amplitude: 3, remainingTicks: 10, elapsedTicks: 1 } });
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 100, y: 90, buttons: 0 } }]);
+  deepEqual(live.input.pendingClicks, [{ gestureId: 1, x: 250, y: 159 }]);
+  deepEqual(live.input.pendingPointerUps, [{ gestureId: 1, x: 183, y: 137 }], "release uses the current camera and shake, not the previous or interpolated camera");
+  deepEqual({ x: live.input.pointer.x, y: live.input.pointer.y }, { x: 100, y: 90 }, "script-visible pointer remains in viewport coordinates");
+});
+
+test("a logged pointer gesture replays identically across tick batchings with a nonzero camera", () => {
+  const batched = observedEngine(640, 480);
+  const split = observedEngine(640, 480);
+  for (const fixture of [batched, split]) {
+    fixture.engine.advance(1, []);
+    if (fixture.state.current === null) throw new Error("expected the engine state");
+    Object.assign(fixture.state.current.camera, { x: 0, y: -64, prevX: 0, prevY: -64, shake: null });
+  }
+  const records = [
+    { tick: 1, event: { kind: "pointer" as const, x: 250, y: 223, buttons: 1 } },
+    { tick: 2, event: { kind: "pointer" as const, x: 250, y: 223, buttons: 0 } },
+  ];
+  const oneBatch = batched.engine.advance(2, records);
+  const first = split.engine.advance(1, [records[0]!]);
+  const second = split.engine.advance(1, [records[1]!]);
+  deepEqual(oneBatch.consumed, records);
+  deepEqual([...first.consumed, ...second.consumed], records);
+  equal(oneBatch.stateHash, second.stateHash);
+  const a = batched.state.current;
+  const b = split.state.current;
+  if (a === null || b === null) throw new Error("expected both engine states");
+  deepEqual(a.input.pendingClicks, [{ gestureId: 1, x: 250, y: 159 }]);
+  deepEqual(a.input.pendingClicks, b.input.pendingClicks);
+  deepEqual(a.input.pendingPointerUps, b.input.pendingPointerUps);
+  equal(a.input.pendingPointerUps.length, 1, "the release is retained in replay");
 });

@@ -2,6 +2,7 @@ import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { test } from "node:test";
 import { assetKey } from "../src/formats/resolver/resolver.ts";
 import { createGameState, type GameState } from "../src/save/state.ts";
+import { restoreGameState, snapshot } from "../src/save/snapshot.ts";
 import { actorFromSource, type SpriteActor } from "../src/sprites/model.ts";
 import { applyTriggerEffect, runTriggersPhase, selectPointerActivationTarget, type TriggerEvent, type TriggerPhaseOptions } from "../src/triggers/runtime.ts";
 import { fileProgramRef } from "../src/script/program.ts";
@@ -98,6 +99,53 @@ test("a contextual gameplay release requires the whole pointer gesture to stay i
   applyInputEvent(state.input, { kind: "pointer", x: 96, y: 0, buttons: 0 });
   runInputPhase(state);
   equal(state.input.keys[0]?.target, "item:0", "a complete Plane 1 tap still activates normally");
+});
+
+test("a queued contextual release keeps its captured board point when the camera moves", () => {
+  const world = board([], [item(0, 100, 32, 1)]);
+  const state = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
+  state.input.pointerPlane = { width: 100, height: 100 };
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player, x: 84, y: 32, collisionBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  state.sprites.items = state.sprites.items.map((actor) => ({
+    ...actor, activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  state.input.camera = { x: 80, y: 0 };
+  applyInputEvent(state.input, { kind: "pointer", x: 20, y: 32, buttons: 1 });
+  applyInputEvent(state.input, { kind: "pointer", x: 20, y: 32, buttons: 0 });
+  const restored = restoreGameState(snapshot(state));
+  for (const candidate of [state, restored]) {
+    candidate.input.camera = { x: 300, y: 0 };
+    runInputPhase(candidate);
+    equal(candidate.input.keys[0]?.target, "item:0");
+    equal(runTriggersPhase(candidate, { programRef: (name) => ref(name) })[0]?.key, "item:0");
+  }
+
+  const outside = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
+  outside.input.pointerPlane = { width: 100, height: 100 };
+  outside.sprites.players = outside.sprites.players.map((player) => ({
+    ...player, x: 84, y: 32, collisionBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  outside.sprites.items = outside.sprites.items.map((actor) => ({
+    ...actor, activationBase: { points: rectangle(-8, -8, 8, 8) },
+  }));
+  outside.input.camera = { x: -10, y: 0 };
+  applyInputEvent(outside.input, { kind: "pointer", x: 110, y: 32, buttons: 1 });
+  applyInputEvent(outside.input, { kind: "pointer", x: 110, y: 32, buttons: 0 });
+  runInputPhase(outside);
+  deepEqual(outside.input.keys, [], "an outside-plane tap cannot activate the item even when its world point overlaps it");
+  equal(outside.sprites.players[0]!.queue.moves.length, 0, "an outside-plane tap cannot start a path");
+
+  const releaseOutside = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
+  releaseOutside.input.pointerPlane = { width: 100, height: 100 };
+  releaseOutside.input.camera = { x: -10, y: 0 };
+  releaseOutside.sprites.players = outside.sprites.players.map((player) => ({ ...player }));
+  releaseOutside.sprites.items = outside.sprites.items.map((actor) => ({ ...actor }));
+  applyInputEvent(releaseOutside.input, { kind: "pointer", x: 96, y: 32, buttons: 1 });
+  applyInputEvent(releaseOutside.input, { kind: "pointer", x: 110, y: 32, buttons: 0 });
+  runInputPhase(releaseOutside);
+  deepEqual(releaseOutside.input.keys, [], "a reachable item cannot activate from an outside-plane release");
 });
 test("a pointer activation is dispatched only to the tapped item, not the higher-ranked reachable item", () => {
   const world = board([], [item(0, 32, 0, 1), item(1, 16, 0, 1)]);
