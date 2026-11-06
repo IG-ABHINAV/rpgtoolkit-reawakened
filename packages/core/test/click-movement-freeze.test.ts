@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   applyInputEvent,
   assetKey,
+  composeBoard,
   createEmptyBoard,
   createGameState,
   createInputSection,
@@ -13,12 +14,17 @@ import {
   runThreadsPhase,
   scriptOwnsInput,
   startProgram,
+  snapshot,
+  restoreGameState,
+  hashGameState,
+  spriteDraws,
   type GameState,
   type WorldBoard,
 } from "../src/index.ts";
 import { enqueuePointPathMove } from "../src/sprites/runtime.ts";
 import { applySpriteEffect } from "../src/script/packs/movement.ts";
 import { runTriggersPhase } from "../src/triggers/runtime.ts";
+import { createCameraSection } from "../src/world/camera.ts";
 import type { WorldItem, WorldProgram } from "../src/world/model.ts";
 import { createScriptServices } from "./script-test-services.ts";
 
@@ -276,4 +282,91 @@ test("a held button re-paths an idle player with no route, and focus loss releas
   tick(state, 801, [REFOCUS], run);
   ticks(state, 802, 1000, run);
   equal(hero(state).x, START.x, "after refocus nothing walks until the button is pressed again");
+});
+
+test("a held pointer repaths with the current simulation camera rather than the press camera", () => {
+  const state = makeState();
+  state.camera = { ...createCameraSection(), x: 64, y: 0, prevX: 10, prevY: 0,
+    shake: { amplitude: 3, remainingTicks: 10, elapsedTicks: 1 } };
+  applyInputEvent(state.input, down(100, 66));
+  state.input.pendingClicks = []; // The earlier press was already consumed; the button remains held.
+  inputPhase(state);
+  const route = hero(state).queue.moves;
+  ok(route.length > 0, "the held pointer starts a route");
+  deepEqual(route[route.length - 1]!.target, { x: 167, y: 63 }, "current camera and shake locate the board goal");
+});
+
+test("a click on a centred board renders the player's feet at the clicked viewport point", () => {
+  const state = makeState();
+  state.camera = { ...createCameraSection(320, 240), x: 0, y: -64, prevX: 0, prevY: -64 };
+  state.input.camera = { x: 0, y: -64 }; // The engine snapshots this when it consumes the pointer.
+  const click = { x: 200, y: 127 };
+  tick(state, 0, [down(click.x, click.y)]);
+  tick(state, 1, [up(click.x, click.y)]);
+  ticks(state, 2, 200);
+  deepEqual({ x: hero(state).x, y: hero(state).y }, { x: 200, y: 63 });
+  const commands = composeBoard({
+    board: state.world.board!, layers: [], tick: state.time.tick, camera: { x: 0, y: -64 },
+    viewport: { width: 320, height: 240 }, alpha: 1,
+    include: { shading: false, images: false, sprites: true }, sprites: spriteDraws(state.sprites),
+  }).commands;
+  const sprite = commands.find((command) => command.kind === "rect" && command.rect.w === 16 && command.rect.h === 16);
+  ok(sprite?.kind === "rect", "the compositor draws the player");
+  deepEqual({ x: sprite.rect.x + sprite.rect.w / 2, y: sprite.rect.y + sprite.rect.h }, click);
+});
+
+test("a queued click keeps its captured world point after the camera moves", () => {
+  const state = makeState();
+  state.input.pointerPlane = { width: 100, height: 100 };
+  state.input.camera = { x: 64, y: 0 };
+  applyInputEvent(state.input, down(90, 63));
+  applyInputEvent(state.input, up(90, 63));
+  state.input.camera = { x: 300, y: 0 };
+  state.camera = { ...createCameraSection(), x: 300, prevX: 300 };
+  inputPhase(state);
+  const route = hero(state).queue.moves;
+  ok(route.length > 0, "the eligible click still routes");
+  deepEqual(route[route.length - 1]!.target, { x: 154, y: 63 });
+  ticks(state, 1, 200);
+  deepEqual({ x: hero(state).x, y: hero(state).y }, { x: 154, y: 63 });
+
+  const outside = makeState();
+  outside.input.pointerPlane = { width: 100, height: 100 };
+  outside.input.camera = { x: 54, y: 0 };
+  applyInputEvent(outside.input, down(100, 63));
+  applyInputEvent(outside.input, up(100, 63));
+  outside.input.camera = { x: 300, y: 0 };
+  inputPhase(outside);
+  equal(hero(outside).queue.moves.length, 0, "an outside-plane click never becomes a route");
+});
+
+test("queued clicks, releases and held-pointer repaths survive save and deterministic replay", () => {
+  const original = makeState();
+  original.world = { ...original.world, board: {
+    key: assetKey("boards/test.brd"), coordType: 0, sizeX: 10, sizeY: 8, sizeL: 1,
+    width: 320, height: 240, background: { r: 0, g: 0, b: 0 }, ambient: { r: 255, g: 255, b: 255 },
+    layers: [], programs: [], items: [],
+  } };
+  original.camera = { ...createCameraSection(), x: 64, prevX: 64 };
+  original.input.camera = { x: 64, y: 0 };
+  original.input.pointerPlane = { width: 100, height: 100 };
+  applyInputEvent(original.input, down(90, 63));
+  applyInputEvent(original.input, up(90, 63));
+  applyInputEvent(original.input, down(80, 63));
+  const restored = restoreGameState(snapshot(original));
+  deepEqual(restored.input.pendingClicks, original.input.pendingClicks);
+  deepEqual(restored.input.pendingPointerUps, original.input.pendingPointerUps);
+  equal(restored.input.pointer.buttons, 1);
+  for (const state of [original, restored]) {
+    state.input.camera = { x: 300, y: 0 };
+    inputPhase(state);
+    const route = hero(state).queue.moves;
+    ok(route.length > 0);
+    deepEqual(route[route.length - 1]!.target, { x: 144, y: 63 }, "the held gesture's captured goal is preserved");
+    state.camera.x = 80;
+    state.camera.prevX = 80;
+    ticks(state, 1, 200);
+  }
+  equal(hashGameState(restored), hashGameState(original), "restored execution reaches the same deterministic state");
+  deepEqual({ x: hero(restored).x, y: hero(restored).y }, { x: 160, y: 63 }, "a still-held pointer repaths with the changed camera");
 });

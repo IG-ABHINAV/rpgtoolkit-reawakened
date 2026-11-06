@@ -11,7 +11,6 @@ export type InputConfig = {
   readonly bindings?: InputBindings;
   readonly allowDiagonals?: boolean;
   readonly buttons?: readonly InputButton[];
-  readonly camera?: { readonly x: number; readonly y: number };
   readonly playerId?: string | null;
   readonly pathMode?: 1 | 2 | 3;
   readonly pointerPlane?: { readonly width: number; readonly height: number };
@@ -128,7 +127,6 @@ export function configureInput(state: InputSection, config: InputConfig): void {
       if (slot?.id !== state.pressedButtonSlot || !slot.enabled) state.pressedButtonSlot = null;
     }
   }
-  if (config.camera !== undefined) state.camera = { x: config.camera.x, y: config.camera.y };
   if (config.playerId !== undefined) state.playerId = config.playerId;
   if (config.pathMode !== undefined) state.pathMode = config.pathMode;
   if (config.pointerPlane !== undefined) state.pointerPlane = { ...config.pointerPlane };
@@ -406,12 +404,12 @@ function slotAt(state: InputSection, x: number, y: number): InputButtonSlot | un
  * (docs/spec/engine/display-input-audio.md#reawakened-click-movement-freeze). Core polls this on the idle input
  * phase; it adds no state, because the pointer record already holds the last position and buttons.
  */
-export function heldPointerGoal(state: InputSection): { x: number; y: number } | null {
+export function heldPointerGoal(state: InputSection, camera: { readonly x: number; readonly y: number } = state.camera): { x: number; y: number } | null {
   const { x, y, buttons } = state.pointer;
   if (state.pointerMovementSuppressed || (buttons & 1) === 0 || slotAt(state, x, y) !== undefined) return null;
   const plane = state.pointerPlane;
   if (plane !== null && (x < 0 || y < 0 || x >= plane.width || y >= plane.height)) return null;
-  return { x: x + state.camera.x, y: y + state.camera.y };
+  return { x: x + camera.x, y: y + camera.y };
 }
 
 /** The pointer record after one `pointer` event: position and buttons, then one edge per changed button bit, lowest bit first. */
