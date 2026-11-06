@@ -1163,7 +1163,7 @@ test("boot first free-roam frame polls held and queued activation without arriva
       equal(state.input.keys.length, 0, `${scenario}: title consumed the key`);
     }
     if (scenario === "queued") equal(state.input.keys.length, 1, "second key remains queued");
-    if (scenario === "queued-direction") deepEqual(state.input.keys.map((entry) => entry.name), ["right"]);
+    if (scenario === "queued-direction") deepEqual(state.input.keys.map((entry) => entry.name), ["RIGHT"]);
     if (scenario === "deactivated") state.triggers.deactivateAt = { x: 64, y: 64, layer: 1 };
     const beforeX = state.sprites.players[0]!.x;
     run(engine, game.files, 1);

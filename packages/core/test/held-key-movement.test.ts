@@ -154,7 +154,7 @@ for (const [label, text, waitKind] of [
     equal(thread.wait?.kind, waitKind);
     tick(state, 0, [key("ArrowRight", true)]);
     equal(state.sprites.players[0]!.movement.active, null, "no direction movement starts");
-    equal(state.input.keys.at(-1)?.name, "right", "the script key queue receives the press");
+    equal(state.input.keys.at(-1)?.name, "RIGHT", "the script key queue receives the press");
   });
 }
 
@@ -172,7 +172,7 @@ test("a menu provider owns direction presses without moving the player", () => {
   equal(thread.wait?.kind, "menu.screen", "the real menu provider is waiting");
   tick(state, 0, [key("ArrowRight", true)]);
   equal(state.sprites.players[0]!.movement.active, null, "menu navigation does not move the player");
-  equal(state.input.keys.at(-1)?.name, "right", "the menu receives the key");
+  equal(state.input.keys.at(-1)?.name, "RIGHT", "the menu receives the key");
 });
 
 test("a battle loop that sleeps between turns still owns input: no key walks the player, and the loop is no global wait", () => {
@@ -186,7 +186,7 @@ test("a battle loop that sleeps between turns still owns input: no key walks the
   tick(state, 0, [key("ArrowRight", true)]);
   for (let t = 1; t < 60; t += 1) tick(state, t);
   equal(state.sprites.players[0]!.x, 48, "the held key walked nothing during the battle loop");
-  equal(state.input.keys.at(-1)?.name, "right", "the key still reaches the key queue");
+  equal(state.input.keys.at(-1)?.name, "RIGHT", "the key still reaches the key queue");
 
   killThread(state.vm, loop.id);
   tick(state, 60);
@@ -212,7 +212,7 @@ test("a tap during wait is lost for movement but remains in the key queue", () =
   tick(state, 1, [key("ArrowRight", false)]);
   equal(state.sprites.players[0]!.queue.moves.length, 0, "a blocked press queues no step");
   equal(state.sprites.players[0]!.movement.active, null, "a blocked tap starts no movement");
-  equal(state.input.keys.at(-1)?.name, "right", "the tap is still buffered for scripts");
+  equal(state.input.keys.at(-1)?.name, "RIGHT", "the tap is still buffered for scripts");
   killThread(state.vm, thread.id);
   tick(state, 2);
   equal(state.sprites.players[0]!.queue.moves.length, 0, "released tap is not replayed after the block");
@@ -243,7 +243,7 @@ test("a running program owns input even before its immediate Get executes", () =
   equal(state.sprites.players[0]!.movement.active, null, "input does not walk before Get");
   runThreadsPhase(state.vm, createScriptServices(state), 100);
   equal(thread.status, "finished");
-  equal(state.vm.globals.answer, "right", "Get reads the buffered key");
+  equal(state.vm.globals.answer, "RIGHT", "Get reads the buffered key");
 });
 
 test("a global wait in a non-blocking thread also freezes movement", () => {

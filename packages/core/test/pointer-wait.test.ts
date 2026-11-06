@@ -85,7 +85,7 @@ test("waitInput delivers a key first and reports the pointer change that came wi
   const services = createScriptServices(state);
   runThreadsPhase(state.vm, services, 100);
   step(state, services, [press(9, 9), enter(true)]);
-  deepEqual([state.vm.globals.k1, state.vm.globals.n1], ["key", "confirm"], "a key wins the same-tick tie");
+  deepEqual([state.vm.globals.k1, state.vm.globals.n1], ["key", "Enter"], "a key wins the same-tick tie");
   step(state, services);
   deepEqual([state.vm.globals.k2, state.vm.globals.d2], ["pointer", 1], "the pointer press was not lost behind the key");
   equal(thread.status, "finished");
@@ -130,7 +130,7 @@ test("a native menu provider receives the pointer as its own event and keeps a p
   step(state, services);
   equal(log().length, 1, "nothing new, nothing delivered");
   step(state, services, [press(5, 6), enter(true)]);
-  deepEqual(log().at(-1), ["key", "confirm"], "the key wins the tie");
+  deepEqual(log().at(-1), ["key", "Enter"], "the key wins the tie");
   step(state, services);
   deepEqual(log().at(-1), [1, 1, 0, 5, 5], "the press that arrived with the key is delivered next");
   ok(thread.status === "waiting");

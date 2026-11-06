@@ -134,10 +134,10 @@ test("the shipped bindings open, navigate, confirm and cancel the stock menu", (
     ok(parked(game.state()), `the menu is waiting for input after ${code}`);
   };
   const stack = (): string[] => game.state().menu.screens.map((screen) => screen.screen);
-  press("Enter", "Enter", (state) => state.menu.screens[0]?.screen === "main");
-  press("ArrowDown", "ArrowDown", (state) => state.menu.screens[0]?.selection === 1);
-  press("Space", "Space", (state) => state.menu.screens.length === 2);
+  press("ENTER", "Enter", (state) => state.menu.screens[0]?.screen === "main");
+  press("DOWN", "ArrowDown", (state) => state.menu.screens[0]?.selection === 1);
+  press(" ", "Space", (state) => state.menu.screens.length === 2);
   deepEqual(stack(), ["main", "equipment"]);
-  press("Escape", "Escape", (state) => state.menu.screens.length === 1);
-  press("Escape", "Escape", (state) => state.menu.screens.length === 0);
+  press("ESC", "Escape", (state) => state.menu.screens.length === 1);
+  press("ESC", "Escape", (state) => state.menu.screens.length === 0);
 });
