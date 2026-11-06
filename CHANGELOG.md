@@ -1,10 +1,16 @@
 # Changelog
 
 ## Unreleased
+- The Android proof's CDP attach retries are exercised against a real Chromium endpoint after an injected socket reset; persistent reset and HTTP errors also verify deadline exhaustion and retained diagnostics (#1059).
+- The Electron desktop smoke now checks that the real `app://` player loads its package and rejects an injected inline script with a CSP violation, without changing the desktop policy (#1230).
+- Browser and mobile quit-restart probes no longer compare independently sampled session ticks; the mobile probe latches the reset and new frame, deliberately allows tick overtaking, and checks old input listeners were replaced (#1612).
+- The desktop worklet fallback probe measures a complete loop of the retained bank after deliberately advancing past the one-shot duration, so a delayed observation cannot mistake the MIDI fixture's silent tail or finished playback for a failed fallback (#1635).
 - Author-surface routing carries the originating input sequence directly instead of repeatedly searching a shared key's resolved actions; large shared bindings retain their activation and key-claim behavior without quadratic scans (#1631; `docs/spec/engine/display-input-audio.md#act-2`).
 - Engine keyboard and semantic-action routing now visits only changed actions instead of scanning the entire action registry for each event; author-surface action ordering and input claims are preserved (#1435; `docs/spec/engine/display-input-audio.md#act-2`).
 - Runtime input validation rejects gamepad axis objects with extra fields, matching the v2 schema and host snapshots; missing and extra axis keys are covered by published vectors (#1625; `docs/spec/engine/display-input-audio.md#e-112`).
 - The desktop AudioWorklet race probe waits for the worklet voice to become ready before measuring output, and tests a delayed decoder release instead of relying on how quickly initialization finishes (#1619).
+- The active v2 `host.gamepads` schema now rejects duplicate or out-of-order device indices, matching runtime validation; ordering vectors cover sparse, complete, inverted and duplicate snapshots (#1623; `docs/spec/engine/display-input-audio.md#reawakened-gamepad-contract`).
+- The v2 protocol kind-coverage check now follows nested union alternatives, and its regression removes all valid examples of the kind before asserting the missing-coverage error (#1628).
 - Active v2 gamepad records now enforce the same device and integer axis bounds as runtime validation and host snapshots; published boundary vectors cover both forms and historical v1 is unchanged (#1620; `docs/spec/engine/display-input-audio.md#e-112`).
 - The active runner protocol schema now rejects gamepad button masks outside the physical 17-bit range, matching runtime validation while preserving historical v1; conformance vectors cover buttons 9 and 16 and the first invalid bit (#1460; `docs/spec/engine/display-input-audio.md#e-112`).
 - Corrected the stalled-load margin regression to put queued input before the load reply, as live runners do: a successful load discards the old primary tap, preserves unrelated input, and accepts a fresh geometry-sensitive tap after the boundary (#1511; `docs/spec/engine/host-capabilities-and-viewports.md#live-host-state-after-restore`).

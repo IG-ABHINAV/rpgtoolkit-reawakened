@@ -23,6 +23,7 @@ type FixtureWindow = Window & { Capacitor?: { Plugins?: { Filesystem?: TestMobil
 declare global {
   interface Window {
     __inputListenerCounts?: () => Record<string, number>;
+    __inputKeydownListeners?: () => readonly EventListenerOrEventListenerObject[];
   }
 }
 
@@ -134,6 +135,7 @@ export async function trackInputListeners(page: Page): Promise<void> {
       }
       return counts;
     };
+    window.__inputKeydownListeners = () => entries.filter((entry) => entry.target === window && entry.type === "keydown").map((entry) => entry.listener);
   });
 }
 

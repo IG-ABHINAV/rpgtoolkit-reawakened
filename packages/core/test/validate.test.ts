@@ -334,3 +334,14 @@ test("host.gamepads snapshots the validated devices getter result", () => {
   deepEqual(decodeLog(encoded), expected);
   equal(reads, 1);
 });
+
+test("runtime gamepad snapshot ordering matches published v2 vectors", () => {
+  const root = dirname(fileURLToPath(import.meta.url));
+  const path = join(root, "../../../tools/fixtures/runner-protocol/vectors-v2.json");
+  const { vectors } = JSON.parse(readFileSync(path, "utf8")) as {
+    readonly vectors: readonly { readonly id: string; readonly valid: boolean; readonly record: { readonly event: unknown } }[];
+  };
+  const ordering = vectors.filter((vector) => vector.id.startsWith("host-gamepads-order-"));
+  equal(ordering.length, 7);
+  for (const vector of ordering) equal(validateInputEvent(vector.record.event).ok, vector.valid, vector.id);
+});

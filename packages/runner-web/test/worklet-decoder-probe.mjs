@@ -186,9 +186,14 @@ export async function probeGraphFallback(url) {
     const retained = sink.currentBank?.id;
     const ready = waitMessage(graph.node.port, "ready");
     graph.send({ kind: "load", voice: 4, track: "music", asset: "media/test.mid", data: midi });
-    await ready;
-    graph.send({ kind: "play", voice: 4, cue: 4, loop: false, volume: 100, positionTicks: 0 });
-    const energy = await measure(meter);
+    const { lengthTicks } = await ready;
+    if (lengthTicks !== 120) throw new Error(`unexpected MIDI fixture length: ${lengthTicks}`);
+    graph.send({ kind: "play", voice: 4, cue: 4, loop: true, volume: 100, positionTicks: 0 });
+    // Let the audio thread advance past the original one-shot's end before observing the retained bank.
+    // A delayed renderer must not miss the only sounding portion; sample a complete loop including its silent tail.
+    await measure(meter, Math.ceil(context.sampleRate * (lengthTicks / 60 + 1)));
+    const energy = await measure(meter, Math.ceil(context.sampleRate * lengthTicks / 60) + 128);
+    graph.send({ kind: "stop", voice: 4 });
     accepted = waitMessage(graph.node.port, "bank.accepted");
     setBank(null);
     await accepted;
