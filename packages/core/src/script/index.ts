@@ -92,6 +92,7 @@ export {
   endBoardThreads,
   endItemThreads,
   findBlockingThread,
+  findLiveBlockingThread,
   findThread,
   cellRef,
   globalRef,

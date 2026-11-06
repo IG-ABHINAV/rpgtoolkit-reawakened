@@ -160,21 +160,26 @@ test("send and board load reset neither the message window nor the script surfac
   equal(state.ui.message.text, "send test", "message text is unchanged by board load");
 });
 
-test("a thread starting and ending while the outermost program runs neither hides nor resets the message window", () => {
-  // `thread` takes inline code, not a file name. The thread runs in the first tick's slack after the
-  // main program's step budget is spent, and ends there while the main program still waits for a key.
+test("a thread started by the outermost program neither runs before it ends nor resets the message window", () => {
+  // `thread` takes inline code, not a file name. Under the R-32 live blocking thread rule (#1167)
+  // the board thread takes no step while the blocking program runs or waits; it first runs in the
+  // phase after the outermost program ends.
   const game = boot('msg = "bg"\nmwin("main")\ndummy = thread("mwin(msg)", 0)\ni = 0\nwhile (i < 2500) { i = i + 1 }\nwait()\nmwin("after")');
   const list = game.engine.drawList();
   const state = sync(game);
-  ok(state.vm.threads.every((thread) => thread.kind === "blocking" || thread.status === "finished"), "the thread has ended");
-  equal(state.ui.message.text, "main\nbg", "thread start did not reset the text, and the thread's line was added");
-  equal(state.ui.message.visible, true, "thread end did not hide the window");
-  ok(hasText(list, "main") && hasText(list, "bg"), "both lines are composed while the outermost program waits");
+  deepEqual(
+    state.vm.threads.map((thread) => [thread.kind, thread.status]),
+    [["blocking", "waiting"], ["board", "ready"]],
+    "the board thread was started but took no step while the program is live",
+  );
+  equal(state.ui.message.text, "main", "the thread did not draw while the program is live");
+  equal(state.ui.message.visible, true, "the open message window stays composed while the program waits");
+  ok(hasText(list, "main") && !hasText(list, "bg"), "only the program's line is composed while it waits");
 
   game.advance(1, ["ENTER"]);
   const ended = sync(game);
   equal(ended.ui.message.visible, false, "the outermost program's end hides it");
-  equal(ended.ui.message.text, "main\nbg\nafter", "the stored text is kept");
+  equal(ended.ui.message.text, "main\nafter\nbg", "the thread's line was added after the program ended, without hiding or resetting anything");
 });
 
 test("the next outermost program start resets the stored message text and the script text layer", () => {

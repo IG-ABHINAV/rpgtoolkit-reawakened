@@ -417,3 +417,18 @@ export function refreshBlock(state: VmState, tick: number): void {
     state.block = { thread: thread.id, kind: thread.wait.kind, since: tick };
   }
 }
+
+/**
+ * The live blocking thread (AD-26; R-32): the `blocking`-kind thread that has
+ * started and not finished, or `null`. A live blocking thread owns the
+ * `threads` phase — background threads take no turn while it is standing by,
+ * running or parked in a global wait (see `docs/spec/engine/rpgcode-errors-and-threads.md`,
+ * `#reawakened-live-blocking-thread`). At most one is live, because
+ * `startThread` refuses a second.
+ */
+export function findLiveBlockingThread(state: Pick<VmState, "threads">): Thread | null {
+  for (const thread of state.threads) {
+    if (thread.kind === "blocking" && thread.status !== "finished") return thread;
+  }
+  return null;
+}
