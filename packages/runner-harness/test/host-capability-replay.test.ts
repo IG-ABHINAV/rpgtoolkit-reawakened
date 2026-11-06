@@ -143,13 +143,13 @@ function replay(
           const target: WorldItem = {
             slot: 0, itemFile: "interactable.item", activationPrg: "end()", multitaskPrg: "",
             initialVar: "", initialValue: "", finalVar: "", finalValue: "", loadingVar: "", loadingValue: "",
-            activate: 0, activationType: 1, x: 24, y: 16, layer: 1, reserved: 0,
+            activate: 0, activationType: 1, x: 72, y: 64, layer: 1, reserved: 0,
           };
           const board = { ...state.world.board, items: [target] };
           state.world = { ...state.world, board };
           state.sprites = hydrateSprites({
             board,
-            players: [{ id: "hero", kind: "player", source: "hero.character", x: 12, y: 16, layer: 1, facing: "S", controlled: true }],
+            players: [{ id: "hero", kind: "player", source: "hero.character", x: 60, y: 64, layer: 1, facing: "S", controlled: true }],
           }, state.sprites);
         },
       },
@@ -275,7 +275,7 @@ function assertInputBehavior(profile: Profile, result: Replay): void {
     deepEqual(released.keys.filter(({ action }) => action === "confirm"), [
       { name: "confirm", action: "confirm", target: null },
     ], "the author HUD creates exactly one compatibility confirm-key entry");
-    deepEqual(released.pendingClicks, [{ gestureId: 2, x: 16, y: 16 }], "unclaimed Plane 1 click reaches the contextual gameplay consumer");
+    deepEqual(released.pendingClicks, [{ gestureId: 2, x: 64, y: 64 }], "unclaimed Plane 1 click reaches the contextual gameplay consumer through the camera offset");
     equal(released.pendingPointerUps.length, 1, "unclaimed in-plane release queues a contextual activation candidate");
     equal(result.observationsAfterInput.get(3), 0, "input phase consumes the contextual release candidate");
     const contextual = result.postInput.get(3);
