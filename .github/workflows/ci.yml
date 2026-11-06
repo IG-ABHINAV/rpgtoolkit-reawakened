@@ -616,6 +616,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         env:
           CI: "true"
+          DEBUG: "pw:api"
         with:
           api-level: 33
           target: google_apis
