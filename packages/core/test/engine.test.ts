@@ -505,6 +505,63 @@ test("default Enter and Escape claims prevent Get from reading the same key", ()
     equal(state.vm.globals.answer, "", `Get must not read the ${key} sequence claimed by the author surface`);
   }
 });
+test("semantic confirm claims the author surface key once across independent sources", () => {
+  const capture = captureState();
+  let input: { sequence: number | null; keys: number[]; held: boolean } | undefined;
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)', 'uiItem("Play")', "uiEnd()", "sleep(1)",
+    "activated = uiActivated()", "after = Get()", "end()",
+  ].join("\n"), [capture.registration, { phase: "input", run: (state) => {
+    input = { sequence: state.ui.surfaceActivated?.inputSeq ?? null,
+      keys: state.input.keys.filter((key) => key.name === "confirm").map((key) => key.seq),
+      held: state.input.actions.confirm === true };
+  } }]);
+  engine.advance(1, []);
+  engine.advance(1, [
+    { tick: 1, event: { kind: "action", action: "confirm", source: "touch:a", down: true, modalId: null } },
+    { tick: 1, event: { kind: "action", action: "confirm", source: "touch:b", down: true, modalId: null } },
+    { tick: 1, event: { kind: "action", action: "confirm", source: "touch:a", down: false, modalId: null } },
+  ]);
+  const state = capture.state();
+  if (state === undefined || input === undefined) throw new Error("expected captured input");
+  deepEqual(input.keys, [1], "only the aggregate press emits a compatibility key");
+  equal(state.vm.globals.activated, 0, "the script observes author activation");
+  equal(state.vm.globals.after, "", "Get cannot consume the author-claimed semantic key");
+  equal(input.sequence, 1, "the author activation carries that key's sequence");
+  equal(input.held, true, "the second source still owns confirm");
+  equal(state.engine.claims?.includes(1), true);
+  engine.advance(1, [{ tick: 2, event: { kind: "action", action: "confirm", source: "touch:b", down: false, modalId: null } }]);
+  equal(state.input.actions.confirm, false, "the last source releases the action");
+});
+
+test("gamepad confirm claims its author surface key while another source holds the action", () => {
+  const capture = captureState();
+  let input: { sequence: number | null; keys: number[]; held: boolean } | undefined;
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)', 'uiItem("Play")', "uiEnd()", "sleep(1)",
+    "activated = uiActivated()", "after = Get()", "end()",
+  ].join("\n"), [capture.registration, { phase: "input", run: (state) => {
+    input = { sequence: state.ui.surfaceActivated?.inputSeq ?? null,
+      keys: state.input.keys.filter((key) => key.name === "confirm").map((key) => key.seq),
+      held: state.input.actions.confirm === true };
+  } }]);
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } }]);
+  const state = capture.state();
+  if (state === undefined || input === undefined) throw new Error("expected captured input");
+  deepEqual(input.keys, [1], "the physical press emits one compatibility key");
+  equal(state.vm.globals.after, "", "Get cannot consume the author-claimed gamepad key");
+  equal(state.vm.globals.activated, 0, "the script observes author activation");
+  equal(input.sequence, 1, "the author activation carries the gamepad key's sequence");
+  equal(state.engine.claims?.includes(1), true);
+  engine.advance(1, [{ tick: 2, event: { kind: "action", action: "confirm", source: "touch", down: true, modalId: null } }]);
+  equal(state.input.actions.confirm, true);
+  engine.advance(1, [{ tick: 3, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 } }]);
+  equal(state.input.actions.confirm, true, "the semantic source keeps confirm held after pad release");
+  equal(state.input.keys.filter((key) => key.name === "confirm").length, 0, "the second source did not emit a new press");
+  engine.advance(1, [{ tick: 4, event: { kind: "action", action: "confirm", source: "touch", down: false, modalId: null } }]);
+  equal(state.input.actions.confirm, false, "the final source releases confirm");
+});
 
 test("an author tap flushed before blur survives until the resumed script reads uiActivated", () => {
   const capture = captureState();
