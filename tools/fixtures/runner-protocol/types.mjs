@@ -118,6 +118,9 @@ export function typeProblems(schema, { sources = {}, inputAlias = "InputRecordV1
       const name = refName(node.$ref);
       if (name === null || defs[name] === undefined || seen.has(name)) out.push({ k: "unsupported", text: `$ref ${String(node.$ref)}` });
       else leaves(defs[name], name, UNTAGGED_BYTES.has(name), new Set(seen).add(name), out);
+    } else if (node.type === "array" && node.items !== undefined) {
+      // Array ordering/length refinements are enforced by schema vectors, not TypeScript.
+      out.push({ k: "array", items: node.items });
     } else if (Array.isArray(node.oneOf)) {
       for (const alternative of node.oneOf) leaves(alternative, def, untagged, seen, out);
     } else if (Array.isArray(node.enum)) {
@@ -130,8 +133,6 @@ export function typeProblems(schema, { sources = {}, inputAlias = "InputRecordV1
       out.push({ k: "number" });
     } else if (node.type === "boolean" || node.type === "null") {
       out.push({ k: node.type });
-    } else if (node.type === "array" && node.items !== undefined) {
-      out.push({ k: "array", items: node.items });
     } else if (node.type === "object" && node.properties !== undefined) {
       out.push({ k: "object", properties: node.properties, required: new Set(node.required ?? []), def });
     } else if (node.type === "object" && typeof node.additionalProperties === "object") {

@@ -77,6 +77,18 @@ function createSchema() {
       },
     ],
   };
+  // Four device indices have exactly 16 strictly increasing subsets. JSON Schema
+  // cannot compare adjacent values, so enumerate those sequences explicitly.
+  const sortedDeviceSequences = Array.from({ length: 16 }, (_, mask) =>
+    [0, 1, 2, 3].filter((device) => (mask & (1 << device)) !== 0));
+  for (let device = 0; device < 4; device += 1) {
+    schema.$defs[`hostGamepadIndex${device}`] = {
+      type: "object",
+      additionalProperties: false,
+      properties: { device: { const: device }, axes: {}, buttons: {} },
+      required: ["device"],
+    };
+  }
   schema.$defs.hostGamepadsInput = {
     type: "object",
     additionalProperties: false,
@@ -85,6 +97,13 @@ function createSchema() {
       kind: { const: "host.gamepads" },
       devices: {
         type: "array",
+        oneOf: sortedDeviceSequences.map((devices) => ({
+          minItems: devices.length,
+          maxItems: devices.length,
+          ...(devices.length === 0 ? {} : {
+            prefixItems: devices.map((device) => ({ $ref: `#/$defs/hostGamepadIndex${device}` })),
+          }),
+        })),
         items: {
           type: "object",
           additionalProperties: false,
@@ -171,6 +190,20 @@ function createVectors() {
       rows.push({ id: `gamepad-axes-${kind}-${name}`, family: "input", valid: false, why: "axes must contain exactly x and y", record: { tick: 8, event } });
     }
   }
+  for (const [name, valid, devices] of [
+    ["full", true, [0, 1, 2, 3]],
+    ["sparse", true, [0, 2, 3]],
+    ["descending", false, [3, 0]],
+    ["duplicate", false, [1, 1]],
+    ["late-inversion", false, [0, 2, 1]],
+    ["late-duplicate", false, [0, 1, 2, 2]],
+    ["too-many", false, [0, 1, 2, 3, 3]],
+  ]) {
+    rows.push({
+      id: `host-gamepads-order-${name}`, family: "input", valid,
+      record: { tick: 8, event: { kind: "host.gamepads", devices: devices.map((device) => ({ device, axes: { x: 0, y: 0 }, buttons: 0 })) } },
+    });
+  }
   return {
     schema: 2,
     protocol: "runner-protocol-v2",
@@ -193,12 +226,20 @@ function createVectors() {
 function documentOf(value) { return JSON.stringify(value, null, 2) + "\n"; }
 
 function kindSetFromOneOf(schema, node) {
-  const alternatives = node?.$ref !== undefined ? [schema.$defs[refName(node.$ref)]] : node?.oneOf ?? [];
-  const values = alternatives.flatMap((alternative) => {
-    const target = alternative?.$ref !== undefined ? schema.$defs[refName(alternative.$ref)] : alternative;
-    return target?.properties?.kind?.const === undefined ? [] : [target.properties.kind.const];
-  });
-  return new Set(values);
+  const values = new Set();
+  const visit = (current, seen = new Set()) => {
+    if (current == null) return;
+    if (current.$ref !== undefined) {
+      const name = refName(current.$ref);
+      if (name === null || seen.has(name)) return;
+      visit(schema.$defs[name], new Set(seen).add(name));
+      return;
+    }
+    if (current.properties?.kind?.const !== undefined) values.add(current.properties.kind.const);
+    for (const alternative of current.oneOf ?? []) visit(alternative, seen);
+  };
+  visit(node);
+  return values;
 }
 
 export async function check({ schema: schemaOverride, committedSchema, vectors: vectorsOverride, committedVectors, sources = {} } = {}) {
