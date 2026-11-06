@@ -183,6 +183,36 @@ test("trigger precedence, conditions, re-arm and key dispatch are deterministic"
   equal(key.length, 0);
 });
 
+test("mid-step item contact does not fire or re-arm regions", () => {
+  const world = board([region(0), { ...region(1), points: rectangle(96, -32, 160, 32) }], [item(0, 128, 0)]);
+  const state = stateWith(world, [itemActor(world, world.items![0]!, 0)]);
+  const poll = () => runTriggersPhase(state, { programRef: (name) => ref(name) });
+  state.time.tick = 1;
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player, movement: { ...player.movement, lastStepTick: 1, lastStepDistance: 32 },
+  }));
+  equal(poll()[0]?.key, "region:0");
+  finishActive(state);
+
+  // Leave the region and touch the item between completed steps.
+  state.time.tick += 1;
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player, x: 128, state: "moving",
+  }));
+  equal(poll()[0]?.key, "item:0", "item contact is polled before the next completed step");
+  equal(state.triggers.fired["region:0"], true, "leaving mid-step does not re-arm the region");
+  finishActive(state);
+  equal(state.triggers.active, null, "the overlapping second region does not fire between completed steps");
+  equal(state.triggers.fired["region:1"], undefined);
+
+  // Return to the region before the next completed step: it must not refire.
+  state.time.tick += 1;
+  state.sprites.players = state.sprites.players.map((player) => ({
+    ...player, x: 0, movement: { ...player.movement, lastStepTick: state.time.tick, lastStepDistance: 32 },
+  }));
+  equal(poll().length, 0, "the previously fired region remains suppressed on the next completed step");
+});
+
 test("condition failure falls through and hidden items never become candidates", () => {
   const world = board([region(0, 0, "gate", "open"), region(1)], [item(0, 0, 0)]);
   const hidden = itemActor(world, world.items![0]!, 0, 0, 0, false);

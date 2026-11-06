@@ -97,6 +97,17 @@ the real engine movement-wait cases remain covered by the authored scene.
 Rejected alternative: retaining the old hashes or generic wait would pin
 test-double behaviour and violate G5.
 
+Subsequent movement-fix drift was independently checked against instrumented
+snapshots. At tick 4, `sample-man-wander-demo` changed from
+`3a2b9726d53375d0` to `fdb36a6da14c36be`: only VM globals
+`tkmv_pause_thread` and `tkmv_pathfind` changed from zero to absent, and
+effect flags changed from 0 to 5. In the closing demo, state hashes changed
+at tick 90 from `ebc4debc8737c323` to `d8d5a0f1bae97949`, tick 120 from
+`bba581070de709d7` to `16ed8fa10754acc5`, and tick 600 from
+`fb98aa7b960d5fdf` to `7eea2b34522c760d`: only global `waypoint`
+changed from zero to absent and effect flags from 0 to 16. All other state,
+draws and pixels were unchanged; ticks 30 and 60 were unchanged.
+
 Fixture scene coverage (all six `movement-waits` cases are asserted through
 the core movement runtime per tick; no cases are deferred to another owner):
 

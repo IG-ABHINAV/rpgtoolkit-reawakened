@@ -382,7 +382,8 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
   if (bootPoll) section.lastKeySeq = 0;
   if (activationEntries.length > 0) section.lastKeySeq = activationEntries[0]!.seq;
   else for (const entry of state.input.keys) if (entry.seq > section.lastKeySeq) section.lastKeySeq = entry.seq;
-  if (!step && !key) return events;
+  const moving = player.state === "moving";
+  if (!step && !key && !moving) return events;
   const kind = key ? "key" : "step";
   const shape = playerShape(player);
   const regions = (board.programs ?? []).map(regionCandidate);
@@ -398,8 +399,11 @@ export function runTriggersPhase(state: GameState, options: TriggerPhaseOptions 
     rearmPool.push(candidate);
     if (actor.visible && item.layer === player.layer) items.push(candidate);
   }
-  const all = [...regions, ...items];
+  const all = [...(step || key ? regions : []), ...items];
   for (const candidate of rearmPool) {
+    // Mid-step polling exists for item contact only; regions retain the original
+    // step/key polling cadence for both activation and re-arming.
+    if (candidate.source === "region" && !step && !key) continue;
     const overlapsArea = candidate.layer === player.layer
       && (candidate.source === "item"
         ? candidate.actor !== undefined && candidate.actor.visible && overlaps(shape, itemShape(candidate))

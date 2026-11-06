@@ -255,7 +255,7 @@ for (const [targetKind, pushing, expectedDistance] of [
   ["player", 1, 8], ["player", 0, 32], ["item", 1, 8], ["item", 0, 32],
 ] as const) {
   test(`runtime pixelmovement setting controls ${targetKind} push increment (${expectedDistance}px, #1298)`, () => {
-    const command = targetKind === "player" ? 'push("E", 0, 4)' : 'pushitem(0, "E", 4)';
+    const command = targetKind === "player" ? 'push("E", 0, 1)' : 'pushitem(0, "E", 1)';
     const fixture = makeFixture({ pixelMovement: 0, enter: `pixelmovement(1, ${pushing})\n${command}\nend()` });
     const state = fixture.state();
     let startX: number;
@@ -339,7 +339,7 @@ test("switching to a main file with no initChar drops the previous player (#1298
 });
 
 test("blocking push resumes only at its runtime-selected target completion tick (#1298)", () => {
-  const fixture = makeFixture({ pixelMovement: 0, enter: 'pixelmovement(1, 1)\npush("E", 0, 4)\ncontinued = 1\nend()' });
+  const fixture = makeFixture({ pixelMovement: 0, enter: 'pixelmovement(1, 1)\npush("E", 0, 1)\ncontinued = 1\nend()' });
   const start = fixture.state().sprites.players[0];
   ok(start !== undefined);
   deepEqual(fixture.pressA().diagnostics, []);
