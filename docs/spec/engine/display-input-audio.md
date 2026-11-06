@@ -13,6 +13,12 @@ What the player sees and hears and how input reaches the game. These are the beh
 
 The window title is the game title. Tiles are 32×32 pixels and are drawn at 1:1 scale (no zoom).
 
+### Message window
+
+In the shipped game engine, `mwin()` appends text without waiting for input; scripts call `wait()` when they want the player to continue. Each call advances the vertical cursor by one font-line height. The window has a fixed-size text surface (600 × 100 pixels with the default settings): pixels drawn beyond its bottom are discarded, not scrolled or saved for another page. The cursor continues to advance, and overflow never waits for a key. `mwincls()` hides and clears the window and resets the cursor to the top; a script can show a screenful, call `wait()`, then call `mwincls()` before writing the next screenful.
+
+The editor's script test-runner differs: on overflow it waits for a key and clears the window to continue. Games should not depend on that test-runner behaviour; a replacement test-runner may choose to match it.
+
 <a id="e-05"></a>
 **E-05 FPS display and debug overlays.** An optional frames-per-second readout in the title bar, and debug overlays for board vectors, sprite vectors, the player's queued path and the destination marker, in colours from the main file.
 
