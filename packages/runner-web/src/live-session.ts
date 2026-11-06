@@ -51,7 +51,7 @@ export type LiveBlobHost = {
 export type LiveSession = {
   readonly engine: Engine;
   readonly gameId: string;
-  readonly close: () => void;
+  readonly close: () => Promise<void>;
   readonly tick: () => number;
   readonly stateHash: () => string;
   readonly viewSize: () => { readonly width: number; readonly height: number };
@@ -286,6 +286,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   let currentStateHash = "";
   const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
   let closed = false;
+  let closePromise: Promise<void> | null = null;
   let quitNotified = false;
   let cueChain: Promise<void> = Promise.resolve();
   let processing: Promise<void> = Promise.resolve();
@@ -324,8 +325,8 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
   window.addEventListener("pointerdown", unlockAudio, true);
   window.addEventListener("keydown", unlockAudio);
 
-  function close(): void {
-    if (closed) return;
+  function close(): Promise<void> {
+    if (closePromise !== null) return closePromise;
     closed = true;
     assets.close();
     decode?.close();
@@ -333,8 +334,9 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     window.removeEventListener("keydown", unlockAudio);
     audioContext.removeEventListener("statechange", onAudioStateChange);
     graph.disconnect();
-    void audioContext.close();
     renderer.dispose();
+    closePromise = audioContext.close();
+    return closePromise;
   }
 
 
@@ -365,7 +367,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
       case "extension.call": return { tick, event: { kind: "extension.result", reqId: request.reqId, result: null } };
       case "prefetch": assets.hint(request.hints); return null;
       case "quit":
-        close();
+        await close();
         quitNotified = true;
         return null;
       case "openUrl": return null;

@@ -197,6 +197,69 @@ test("a game save restores through `restoreGameSave` with no diagnostic and a st
   deepEqual(reloaded.vm.globals, restored.state.vm.globals, "globals survive a second round trip");
   equal(hashGameState(reloaded), hashGameState(restored.state), "the state hash is stable across load and re-load");
 });
+
+test("a nonempty scoped modal action queue round-trips through a game save", () => {
+  const source = boot('first = msgbox("Saved modal")\nend()');
+  run(source, null);
+  const savedState = source.state();
+  ok(savedState !== null);
+  ok(savedState.ui.modal !== null);
+  const savedModalId = savedState.ui.modal.modalId;
+  const actionSeq = savedState.input.nextSeq++;
+  savedState.input.modalActions = [{ seq: actionSeq, action: "confirm", modalId: savedModalId }];
+  const saved = encoder.encode(snapshotGameSave(savedState));
+  const restored = restoreGameSave(decoder.decode(saved), savedState.audio);
+  equal(restored.diagnostics.length, 0);
+  equal(restored.state.ui.modal?.modalId, savedModalId);
+  deepEqual(restored.state.input.modalActions, [{ seq: actionSeq, action: "confirm", modalId: savedModalId }]);
+});
+
+test("a host-captured modal identity cannot target a modal reopened from an older save", () => {
+  const game = boot('Save("slot")\nfirst = msgbox("Modal A")\nLoad("slot")\nsecond = msgbox("Restored modal")\nend()');
+  let saved: Uint8Array | null = null;
+  let replies: InputRecord[] = [];
+  let originalDismissed = false;
+  let loadApplied = false;
+  let staleActionSent = false;
+  let restoredModal: number | null = null;
+
+  for (let attempt = 0; attempt < 40 && restoredModal === null; attempt += 1) {
+    const modal = game.engine.runnerControlPointerPreemption(0, 0);
+    const tick = game.state()?.time.tick ?? 0;
+    const inputs: InputRecord[] = [];
+    if (modal === 1 && !originalDismissed) {
+      inputs.push({ tick, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } });
+      originalDismissed = true;
+    } else if (loadApplied && typeof modal === "number" && !staleActionSent) {
+      inputs.push({ tick, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 1 } });
+      staleActionSent = true;
+    }
+    const report = game.engine.advance(1, [...replies, ...inputs]);
+    replies = [];
+    if (report.consumed.some((record) => record.event.kind === "blob.loaded")) loadApplied = true;
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
+      } else if (request.kind === "saveBlob") {
+        saved ??= new Uint8Array(request.bytes);
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.saved", reqId: request.reqId, ok: true } });
+      } else if (request.kind === "loadBlob") {
+        if (saved === null) throw new Error("load was requested before the save completed");
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.loaded", reqId: request.reqId, bytes: new Uint8Array(saved) } });
+      } else if (request.kind === "listBlobs") {
+        replies.push({ tick: report.tickAfter, event: { kind: "blob.listed", reqId: request.reqId, names: [] } });
+      }
+    }
+    const afterTickModal = game.engine.runnerControlPointerPreemption(0, 0);
+    if (loadApplied && staleActionSent && typeof afterTickModal === "number") restoredModal = afterTickModal;
+  }
+
+  equal(saved === null, false, "the game produced its pre-modal save");
+  equal(originalDismissed, true, "the first modal was dismissed");
+  equal(loadApplied, true, "the RPGCode Load reply was consumed");
+  equal(staleActionSent, true, "the old pointer action was sent after restore");
+  equal(restoredModal, 2, "restoring and reopening A allocates a fresh modal id, so the old pointer cannot dismiss it");
+});
 test("a saved runtime movement setting survives save and load", () => {
   const saved = capture('pixelmovement(1, 1)\nSave("slot")\nrestoredWalking = pixelmovement()\nend()');
   const loader = boot(LOADER, { pixelMovement: 0 });

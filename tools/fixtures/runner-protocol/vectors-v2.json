@@ -4,10 +4,10 @@
   "note": "V2 is the strict two-plane runner contract: every DrawList is {tick,width,height,commands,marginCommands}; both ordered arrays are required, use AD-3 commands, and participate in the draw hash. The v1 schema and vectors remain unchanged. Validate against packages/runner-harness/schema/runner-protocol-v2.schema.json.",
   "counts": {
     "draw": 16,
-    "input": 25,
+    "input": 26,
     "request": 13,
     "valid": 38,
-    "invalid": 16
+    "invalid": 17
   },
   "vectors": [
     {
@@ -963,6 +963,22 @@
         "event": {
           "kind": "action",
           "action": "confirm",
+          "down": true,
+          "source": "runner.fallback",
+          "modalId": 3
+        }
+      }
+    },
+    {
+      "id": "refuse-modal-scoped-game-action",
+      "family": "input",
+      "valid": false,
+      "why": "modal-scoped actions may only confirm or cancel",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "action",
+          "action": "game.fireball",
           "down": true,
           "source": "runner.fallback",
           "modalId": 3

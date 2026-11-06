@@ -1169,7 +1169,31 @@ export function createEngine(init: EngineInit): Engine {
     startupServicesReady = runStartups;
     return nextServices;
   }
+  function rebaseModalTimeline(candidate: GameState, nextIdFloor: number): void {
+    const ids = new Set<number>();
+    if (candidate.ui.modal !== null) ids.add(candidate.ui.modal.modalId);
+    for (const action of candidate.input.modalActions) ids.add(action.modalId);
+
+    const remapped = new Map<number, number>();
+    let nextId = Math.max(candidate.ui.nextModalId, nextIdFloor);
+    for (const oldId of [...ids].sort((left, right) => left - right)) {
+      if (oldId >= nextIdFloor) continue;
+      if (!Number.isSafeInteger(nextId)) throw new ScriptError("restore.shape", "modal identity space is exhausted");
+      remapped.set(oldId, nextId++);
+    }
+    if (candidate.ui.modal !== null) {
+      const id = remapped.get(candidate.ui.modal.modalId);
+      if (id !== undefined) candidate.ui.modal = { ...candidate.ui.modal, modalId: id };
+    }
+    candidate.input.modalActions = candidate.input.modalActions.map((action) => {
+      const id = remapped.get(action.modalId);
+      return id === undefined ? action : { ...action, modalId: id };
+    });
+    candidate.ui.nextModalId = nextId;
+  }
+
   function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
+    const modalIdFloor = state.ui.nextModalId;
     const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
@@ -1198,6 +1222,7 @@ export function createEngine(init: EngineInit): Engine {
       startupServicesReady = previousStartupServicesReady;
       failed = previousFailed;
 
+      rebaseModalTimeline(candidate, modalIdFloor);
       Object.assign(state, candidate);
       const actionRegistry = createInputSection();
       for (const action of startupActions) registerGameAction(actionRegistry, action);
@@ -2026,6 +2051,7 @@ export function createEngine(init: EngineInit): Engine {
     clearStartupAnchors();
     const rng = state.rng;
     const time = state.time;
+    const nextModalId = state.ui.nextModalId;
     if (nextMain !== undefined) {
       initialCharacterKey = null;
       initialCharacterResolved = true;
@@ -2049,6 +2075,7 @@ export function createEngine(init: EngineInit): Engine {
     state.menu = fresh.menu;
     state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
     state.ui = fresh.ui;
+    state.ui.nextModalId = Math.max(state.ui.nextModalId, nextModalId);
     state.camera = createCameraSection(init.width, init.height);
     state.fx = fresh.fx;
     state.surfaces = createSurfacesSection(init.width, init.height);

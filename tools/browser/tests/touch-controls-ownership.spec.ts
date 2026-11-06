@@ -13,7 +13,7 @@ function packageWithStartup(name: string, startup: string): TouchFixture {
   const manifest = readDistributionManifest(loaded.value);
   if (!manifest.ok) throw new Error(manifest.error.message);
   const main = manifest.value.main;
-  const files = loaded.value.files.filter((file) => file.path !== "manifest.json").map((file) => ({ path: file.path, bytes: file.bytes }));
+  const files = loaded.value.files.filter((file) => file.path !== "manifest.json" && !/\.(?:mid|midi|wav|mp3|ogg|flac|sf2)$/i.test(file.path)).map((file) => ({ path: file.path, bytes: file.bytes }));
   const mainFile = files.find((file) => file.path === main);
   if (mainFile === undefined) throw new Error(`the demo package has no ${main}`);
   const parsed = readMainFile(new BinaryReader(mainFile.bytes, main));
@@ -40,6 +40,17 @@ function packageWithStartup(name: string, startup: string): TouchFixture {
   };
 }
 
+function packageWithSilentDemoStartup(name: string): TouchFixture {
+  const loaded = loadPackage({ kind: "tpk", name: "demo.tpk", bytes: new Uint8Array(readFileSync("fixtures/packages/demo.tpk")) });
+  if (!loaded.ok) throw new Error(loaded.error.message);
+  const startup = loaded.value.files.find((file) => file.path.toLowerCase() === "prg/start.prg");
+  if (startup === undefined) throw new Error("the demo package has no Prg/start.prg");
+  const source = new TextDecoder().decode(startup.bytes);
+  const silentSource = source.replace('mediaPlay("vip - title2.mid");', "");
+  if (silentSource === source) throw new Error("the demo title music call changed; update the silent input fixture");
+  return packageWithStartup(name, silentSource);
+}
+
 async function servePackage(page: Page, fixture: TouchFixture): Promise<void> {
   await page.route(`**/fixtures/packages/${fixture.name}`, (route) => {
     const bytes = fixture.packageBytes;
@@ -52,6 +63,19 @@ async function servePackage(page: Page, fixture: TouchFixture): Promise<void> {
     return route.fulfill({ status: 206, contentType: "application/octet-stream", headers: { "content-range": `bytes ${start}-${end}/${bytes.length}`, "content-length": String(slice.length) }, body: Buffer.from(slice) });
   });
   await page.route(`**/fixtures/packages/${fixture.name}.json`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(fixture.descriptor) }));
+}
+
+async function closeLiveSession(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const close = (window as Window & { __session?: { close?: () => Promise<void> } }).__session?.close;
+    if (close !== undefined) await close();
+  }).catch(() => undefined);
+}
+
+async function openSilentDemo(page: Page, name: string): Promise<void> {
+  const fixture = packageWithSilentDemoStartup(name);
+  await servePackage(page, fixture);
+  await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
 }
 
 async function installInputTrace(page: Page): Promise<void> {
@@ -80,6 +104,7 @@ async function tracedInputs(page: Page): Promise<readonly TraceInput[]> {
 
 
 test("fallback confirm and cancel wait for same-button pointer release", async ({ browser }) => {
+  const fixture = packageWithStartup("touch-ownership-input.tpk", 'msgbox("Touch controls")\nend()');
   for (const [name, action] of [["Confirm", "confirm"], ["Cancel", "cancel"]] as const) {
     const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
     const page = await context.newPage();
@@ -91,8 +116,16 @@ test("fallback confirm and cancel wait for same-button pointer release", async (
       if (box === null) throw new Error(`${name} fallback button has no bounds`);
       return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     };
+    const resetTrace = async (): Promise<void> => {
+      await page.evaluate(() => {
+        const target = window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[]; readonly consumed: readonly TraceInput[] }[]; __fallbackPointerId?: number };
+        target.__touchInputTrace = [];
+        delete target.__fallbackPointerId;
+      });
+    };
     try {
-      await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+      await servePackage(page, fixture);
+      await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
       const first = await setup();
 
       await button.hover();
@@ -105,8 +138,7 @@ test("fallback confirm and cancel wait for same-button pointer release", async (
       await page.waitForTimeout(50);
       expect((await tracedInputs(page)).filter((input) => input.event.kind === "action" && input.event.action === action && input.event.source === "runner.fallback")).toHaveLength(0);
 
-      await page.reload();
-      await setup();
+      await resetTrace();
       await button.hover();
       await page.mouse.down();
       await page.waitForFunction(() => typeof (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId === "number", undefined, { timeout: 2_000 });
@@ -119,8 +151,7 @@ test("fallback confirm and cancel wait for same-button pointer release", async (
       await page.waitForTimeout(50);
       expect((await tracedInputs(page)).filter((input) => input.event.kind === "action" && input.event.action === action && input.event.source === "runner.fallback")).toHaveLength(0);
 
-      await page.reload();
-      await setup();
+      await resetTrace();
       await button.click();
       await page.waitForFunction((wanted) => {
         const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
@@ -130,6 +161,7 @@ test("fallback confirm and cancel wait for same-button pointer release", async (
       expect(input.filter((entry) => entry.event.down === true)).toHaveLength(1);
       expect(input.filter((entry) => entry.event.down === false)).toHaveLength(1);
     } finally {
+      await closeLiveSession(page);
       await context.close();
     }
   }
@@ -242,6 +274,13 @@ test("fallback DOM yields overlapping author and modal pointers to core", async 
         expect(modalActions.map((entry) => entry.event.modalId)).toEqual([1, 1]);
       }
     } finally {
+      if (fixture === modal) {
+        await page.evaluate(async () => {
+          const audio = (window as Window & { __sessionAudioContext?: AudioContext }).__sessionAudioContext;
+          if (audio !== undefined && audio.state !== "closed") await audio.close();
+        });
+      }
+      await closeLiveSession(page);
       await context.close();
     }
   }
@@ -285,6 +324,7 @@ test("leaving the host cancels a modal-preempted fallback press", async ({ brows
     }, { buttonCenterX: button.x + button.width / 2, buttonCenterY: button.y + button.height / 2 });
     expect(stillModal).toBe(true);
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -298,6 +338,10 @@ test("an A-scoped fallback release cannot dismiss modal B when Enter is queued i
     await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
     const confirm = page.getByRole("button", { name: "Confirm" });
     await confirm.waitFor({ state: "visible", timeout: 45_000 });
+    await page.waitForFunction(() => {
+      const session = (window as Window & { __session?: { readonly engine?: { runnerControlPointerPreemption(x: number, y: number): number | "author" | null } } }).__session;
+      return session?.engine?.runnerControlPointerPreemption(0, 0) === 1;
+    }, undefined, { timeout: 45_000 });
     await installInputTrace(page);
     const box = await confirm.boundingBox();
     if (box === null) throw new Error("Confirm fallback button has no bounds");
@@ -333,12 +377,13 @@ test("an A-scoped fallback release cannot dismiss modal B when Enter is queued i
       const sameAdvance = trace.some((entry) =>
         entry.inputs.some((input) => input.event.kind === "key" && input.event.code === "Enter" && input.event.down === true) &&
         entry.inputs.some((input) => input.event.kind === "action" && input.event.action === "confirm" && input.event.modalId === 1 && input.event.down === true));
-      return { sameAdvance, claim: target.__session?.engine?.runnerControlPointerPreemption(0, 0) ?? null };
+      return { sameAdvance, claim: target.__session?.engine?.runnerControlPointerPreemption(0, 0) ?? null, inputs: trace.map((entry) => entry.inputs.map(({ event }) => event.kind === "key" ? { kind: event.kind, code: event.code, down: event.down } : event.kind === "action" ? { kind: event.kind, action: event.action, down: event.down, modalId: event.modalId } : event.kind === "pointer" ? { kind: event.kind, buttons: event.buttons } : { kind: event.kind })) };
     });
-    expect(proof.sameAdvance).toBe(true);
+    expect(proof.sameAdvance, JSON.stringify(proof)).toBe(true);
     expect(proof.claim).toBe(2);
     await page.mouse.up();
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -347,7 +392,7 @@ test("fallback grid gaps pass through and unrelated focused-button keys reach ga
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
   try {
-    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    await openSilentDemo(page, "touch-grid-gap.tpk");
     const moveRight = page.getByRole("button", { name: "Move right" });
     await moveRight.waitFor({ state: "visible", timeout: 45_000 });
     await installInputTrace(page);
@@ -405,6 +450,7 @@ test("fallback grid gaps pass through and unrelated focused-button keys reach ga
       return ["ArrowRight", "Escape"].every((code) => keys.some((entry) => entry.event.code === code && entry.event.down === true) && keys.some((entry) => entry.event.code === code && entry.event.down === false));
     }, undefined, { timeout: 10_000 });
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -413,7 +459,7 @@ test("held Enter on a focused Confirm button emits one action edge", async ({ br
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
   try {
-    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    await openSilentDemo(page, "touch-held-enter.tpk");
     const confirm = page.getByRole("button", { name: "Confirm" });
     await confirm.waitFor({ state: "visible", timeout: 45_000 });
     await installInputTrace(page);
@@ -438,6 +484,7 @@ test("held Enter on a focused Confirm button emits one action edge", async ({ br
     expect(actionEdges.filter((entry) => entry.event.down === false)).toHaveLength(1);
     expect(await page.evaluate(() => (window as Window & { __repeatKeydowns?: number }).__repeatKeydowns ?? 0)).toBeGreaterThan(0);
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -446,7 +493,7 @@ test("fallback pointer ownership clears after blur before the next gameplay clic
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
   try {
-    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    await openSilentDemo(page, "touch-blur-owner.tpk");
     const right = page.getByRole("button", { name: "Move right" });
     await right.waitFor({ state: "visible", timeout: 45_000 });
     await installInputTrace(page);
@@ -478,6 +525,7 @@ test("fallback pointer ownership clears after blur before the next gameplay clic
     expect(pointerEvents.some((entry) => entry.event.buttons === 1)).toBe(true);
     expect(pointerEvents.some((entry) => entry.event.buttons === 0)).toBe(true);
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -485,7 +533,7 @@ test("lost fallback capture keeps a held pointer away from gameplay", async ({ b
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
   try {
-    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    await openSilentDemo(page, "touch-lost-capture.tpk");
     const right = page.getByRole("button", { name: "Move right" });
     await right.waitFor({ state: "visible", timeout: 45_000 });
     await installInputTrace(page);
@@ -502,11 +550,15 @@ test("lost fallback capture keeps a held pointer away from gameplay", async ({ b
     await page.mouse.down();
     await page.waitForFunction(() => typeof (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId === "number");
     const pointerId = await page.evaluate(() => (window as Window & { __fallbackPointerId?: number }).__fallbackPointerId ?? -1);
-    await right.evaluate((element, id) => {
-      element.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true, pointerId: id, pointerType: "mouse", button: 0, buttons: 1 }));
-    }, pointerId);
+    expect(await right.evaluate((element, id) => element.hasPointerCapture(id), pointerId)).toBe(true);
+    await right.evaluate((element, id) => element.releasePointerCapture(id), pointerId);
+    await page.waitForFunction(({ id }) => !document.querySelector(".fallback-touch-button")?.hasPointerCapture(id), { id: pointerId });
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
-    await page.waitForTimeout(50);
+    await page.evaluate(() => {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      requestAnimationFrame(resolve);
+      return promise;
+    });
     expect((await tracedInputs(page)).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1)).toBe(false);
     await page.mouse.up();
     await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 2);
@@ -515,6 +567,7 @@ test("lost fallback capture keeps a held pointer away from gameplay", async ({ b
       return trace.flatMap((entry) => entry.inputs).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1);
     }, undefined, { timeout: 10_000 });
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -523,7 +576,7 @@ test("blur suppresses a held gameplay pointer until physical release", async ({ 
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
   try {
-    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    await openSilentDemo(page, "touch-blur-gameplay.tpk");
     await page.getByRole("button", { name: "Confirm" }).waitFor({ state: "visible", timeout: 45_000 });
     await installInputTrace(page);
     const stage = await page.locator("#stage").boundingBox();
@@ -552,6 +605,7 @@ test("blur suppresses a held gameplay pointer until physical release", async ({ 
       return trace.flatMap((entry) => entry.inputs).filter((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1).length === 2;
     }, undefined, { timeout: 10_000 });
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });

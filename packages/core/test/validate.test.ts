@@ -6,6 +6,9 @@
 // however hostile, makes the validator throw.
 import { test } from "node:test";
 import { deepEqual, equal } from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { validateInputEvent } from "../src/index.ts";
 
 test("validateInputEvent accepts one valid event of each kind", () => {
@@ -186,4 +189,15 @@ test("validateInputEvent returns a fresh value, not the input reference", () => 
 
   input.kind = "nope";
   equal(result.value.kind, "gamepad");
+});
+
+test("runtime validation rejects the generated v2 modal-scoped game action vector", () => {
+  const root = dirname(fileURLToPath(import.meta.url));
+  const vectorsPath = join(root, "../../../tools/fixtures/runner-protocol/vectors-v2.json");
+  const rootRecord = JSON.parse(readFileSync(vectorsPath, "utf8")) as {
+    readonly vectors: readonly { readonly id: string; readonly record: { readonly event?: unknown } }[];
+  };
+  const vector = rootRecord.vectors.find((row) => row.id === "refuse-modal-scoped-game-action");
+  if (vector === undefined) throw new Error("generated v2 modal-action refusal vector is missing");
+  equal(validateInputEvent(vector.record.event).ok, false, vector.id);
 });

@@ -18,7 +18,7 @@ function packageWithStartup(name: string, startup: string): TouchFixture {
   const manifest = readDistributionManifest(loaded.value);
   if (!manifest.ok) throw new Error(manifest.error.message);
   const main = manifest.value.main;
-  const files = loaded.value.files.filter((file) => file.path !== "manifest.json").map((file) => ({ path: file.path, bytes: file.bytes }));
+  const files = loaded.value.files.filter((file) => file.path !== "manifest.json" && !/\.(?:mid|midi|wav|mp3|ogg|flac|sf2)$/i.test(file.path)).map((file) => ({ path: file.path, bytes: file.bytes }));
   const mainFile = files.find((file) => file.path === main);
   if (mainFile === undefined) throw new Error(`the demo package has no ${main}`);
   const parsed = readMainFile(new BinaryReader(mainFile.bytes, main));
@@ -61,14 +61,23 @@ async function servePackage(page: Page, fixture: TouchFixture): Promise<void> {
   await page.route(`**/fixtures/packages/${fixture.name}.json`, (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(fixture.descriptor) }));
 }
+async function closeLiveSession(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const close = (window as Window & { __session?: { close?: () => Promise<void> } }).__session?.close;
+    if (close !== undefined) await close();
+  }).catch(() => undefined);
+}
+
 
 
 
 test("touch-capable live player exposes accessible fallback controls without shrinking the game", async ({ browser }) => {
+  const fixture = packageWithStartup("touch-controls-title.tpk", 'msgbox("Start game")\nend()');
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
   try {
-    await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
     await page.getByRole("group", { name: "Touch controls" }).waitFor({ state: "visible", timeout: 45_000 });
     for (const name of ["Move up", "Move left", "Move down", "Move right", "Confirm", "Cancel"]) {
       await expect(page.getByRole("button", { name })).toBeVisible();
@@ -358,6 +367,7 @@ test("touch-capable live player exposes accessible fallback controls without shr
         .some((input) => input.event.kind === "action" && input.event.action === "up" && input.event.down === false && input.event.source === "runner.fallback");
     }, undefined, { timeout: 10_000 });
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -376,6 +386,7 @@ test("an explicit custom touch-control declaration suppresses only the fallback 
     await expect(page.locator(".fallback-touch-controls")).toHaveCount(1);
     await expect(page.locator(".fallback-touch-controls")).toBeHidden();
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });
@@ -391,6 +402,7 @@ test("querying hasFeature touch does not suppress fallback controls", async ({ b
     const session = page.locator(".fallback-touch-controls");
     await expect(session).toBeVisible();
   } finally {
+    await closeLiveSession(page);
     await context.close();
   }
 });

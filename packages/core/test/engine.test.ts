@@ -481,6 +481,7 @@ test("fallback modal actions are claimed only by their captured modal after earl
   equal(engine.runnerControlPointerPreemption(300, 200), 2, "stale A confirmation cannot dismiss B");
 });
 
+
 test("default Enter and Escape claims prevent Get from reading the same key", () => {
   for (const key of ["Enter", "Escape"] as const) {
     const capture = captureState();
