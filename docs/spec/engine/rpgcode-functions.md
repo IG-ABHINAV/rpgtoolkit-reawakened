@@ -22,7 +22,7 @@ The Toolkit 3.1 engine registers 282 command names, grouped by area; 14 are alia
 
 | Command | Signature | Purpose | Notes |
 |---|---|---|---|
-| `mwin` | `void mwin(string str)` | Append a line to the message window. | Consecutive `mwin` statements draw together and repaint the window once at the end of the run. The fixed 600×100 geometry, overflow and default translucency are defined below. |
+| `mwin` | `void mwin(string str)` | Show the message window. | Appends one line. Consecutive `mwin` statements draw together and repaint the window once at the end of the run. The fixed 600×100 geometry, overflow and default translucency are defined below. |
 | `dialogue` | `string dialogue(string text)` | Show one dialogue message and wait for the player. | Uses the message window and waits for the next unclaimed input key; returns that key name and queues `dialogue.completed` on normal completion as defined by [E-123](plugins-and-battle.md#e-123). |
 | `wait` | `string wait([string &ret])` | Wait for a key press. The lowest unclaimed input sequence at or after the park sequence resumes the thread and is optionally written to `ret`. | Resolving the wait discards the buffered pre-park backlog; later `get()` calls cannot return those keys. |
 | `mwincls` | `void mwincls()` | Clear and hide the message window. |  |
