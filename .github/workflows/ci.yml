@@ -498,8 +498,6 @@ jobs:
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm exec playwright install --with-deps chromium
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
-      - run: node --test tools/mobile/proof-cdp.integration.mjs
-        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm browser:test
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
   # The mobile lane builds and drives the real Capacitor APK on API 33. The
@@ -574,6 +572,9 @@ jobs:
       - name: Assemble debug APK
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         run: cd packages/runner-mobile/android && ./gradlew assembleDebug
+      - name: Install Playwright Android driver
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+        run: pnpm exec playwright install android
       - name: Configure and require KVM access
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         run: |

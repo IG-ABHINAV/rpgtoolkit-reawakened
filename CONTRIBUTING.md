@@ -284,6 +284,14 @@ pnpm desktop:run --package fixtures/packages/demo.tpk
 
 Two things to expect on a fresh worktree: `pnpm install` can return before Electron's ~100 MB runtime has finished downloading in the background, so a first `desktop:measure` may fail with `ENOENT …/Electron` — wait and re-run; and the last recorded pre-E-02 launch drew the board off-screen. The live interactive loop and a post-E-02 visible desktop run remain unverified. The user-facing version of these steps is [docs/playing-the-desktop-player.md](docs/playing-the-desktop-player.md).
 
+### Run the Android proof
+
+The mobile proof drives the built Capacitor APK on a booted Android device or emulator. It uses Playwright's experimental [Android device and WebView API](https://playwright.dev/docs/api/class-android), rather than a manually forwarded debugging port. It still checks the rendered title and screenshots, trusted canvas touch, rotation, and host-blob presence after force-stop and relaunch; blob presence is not a claim that game state was restored.
+
+Build the debug APK as shown in the mobile job in `.github/workflows/ci.yml`: `pnpm mobile:build` prepares the web assets, then Capacitor sync and Gradle assemble the APK. Start an API 33 emulator and make sure `adb` can see it. Install the Playwright Android driver with `pnpm exec playwright install android`, then run `pnpm mobile:proof`. The Android API uses the default driver-install behavior; do not pass `omitDriverInstall`. With multiple devices, set `ANDROID_SERIAL` to the intended device. The proof resolves the serial through `adb`, uses that same device for Playwright and all later `adb` commands, and disconnects other enumerated devices.
+
+Attachment retains the three-minute startup deadline and records process and logcat observations in `artifacts/mobile-proof/`. A timed-out, uncancellable Playwright page attachment fails without starting another overlapping attach; ordinary connection failures can retry. Failure evidence and the screenshot deadline remain in effect. This migration is an evaluation, not proof that the intermittent screenshot timeout in #1621 is fixed.
+
 ### The loop while you work
 
 ```sh
