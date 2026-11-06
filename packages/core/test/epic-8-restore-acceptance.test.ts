@@ -409,6 +409,7 @@ test("restored open-tick input routing preserves saved UI results without repeat
   sourceState.ui.surfaceCancelled = true;
   sourceState.ui.surfaceCancelledSeq = 42;
   sourceState.ui.surfaceCancelledOwner = continuation.id;
+  sourceState.ui.surfaceResultsPending = true;
   sourceState.input.nextSeq = 43;
   const saved = encoder.encode(snapshotGameSave(sourceState));
   source.engine.advance(1, []);
@@ -438,6 +439,7 @@ test("restored open-tick input routing preserves saved UI results without repeat
     equal(globals(game)["cancellationresume"], uninterrupted["cancellationresume"], "the restored open-tick continuation matches uninterrupted saved author cancellation");
     equal(globals(game)["activationresume"], 1);
     equal(globals(game)["cancellationresume"], 1);
+    equal(game.state()?.ui.surfaceResultsPending, false, "the saved preservation marker clears at thread-pass completion");
     equal(globals(game)["touchbranch"], 1, "the resumed script sees reconciled host capabilities");
     return;
   }

@@ -348,7 +348,6 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
   state.engine = { claims: [] };
-  let preserveUiResultsUntilThreads = false;
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
   let mainFile: MainFile | null = null;
@@ -3807,11 +3806,15 @@ export function createEngine(init: EngineInit): Engine {
     processPendingGamepadEvents();
   }
 
+  /** End the pending one-shot preservation only at the actual script-thread phase boundary. */
+  function finishScriptThreadPass(): void {
+    state.ui.surfaceResultsPending = false;
+  }
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        if (!preserveUiResultsUntilThreads) {
+        if (!state.ui.surfaceResultsPending) {
           state.ui.surfaceActivated = null;
           state.ui.surfaceCancelled = false;
           state.ui.surfaceCancelledSeq = null;
@@ -3855,7 +3858,7 @@ export function createEngine(init: EngineInit): Engine {
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
         withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET, startupThreadEligible));
-        preserveUiResultsUntilThreads = false;
+        finishScriptThreadPass();
         if (state.engine.pendingEnterThread !== undefined) {
           const enterThread = state.vm.threads.find((thread) => thread.id === state.engine.pendingEnterThread);
           if (enterThread === undefined || enterThread.status === "finished") {
@@ -3995,7 +3998,7 @@ export function createEngine(init: EngineInit): Engine {
           processPendingGamepadEvents();
           if (state.ui.surfaceActivated !== priorActivation || state.ui.surfaceCancelled !== priorCancellation
             || state.ui.surfaceCancelledSeq !== priorCancellationSeq || state.ui.surfaceCancelledOwner !== priorCancellationOwner) {
-            preserveUiResultsUntilThreads = true;
+            state.ui.surfaceResultsPending = true;
           }
         }
         inputFocused = record.event.state === "gained";
@@ -4303,6 +4306,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function finishOpenTick(consumed: InputRecord[], mode: ResumeMode): Paused | null {
     const paused = withSurfaceBatch(() => runOpenThreads(mode));
+    if (state.engine.openTick === undefined) finishScriptThreadPass();
     if (paused !== null || state.engine.openTick !== undefined) return paused;
     for (const phase of ENGINE_PHASES) {
       if (phase !== "input" && phase !== "waits" && phase !== "threads") runPhase(phase, consumed);
