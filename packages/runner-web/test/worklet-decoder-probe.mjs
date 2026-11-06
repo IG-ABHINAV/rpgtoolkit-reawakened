@@ -45,6 +45,10 @@ export async function probeWorkletDecoder(url) {
   const { context, control, processor, meter } = session;
   try {
     const send = (message) => processor.port.postMessage({ kind: "message", message });
+    const events = [];
+    processor.port.addEventListener("message", ({ data }) => {
+      if (["ready", "ended", "error", "bank.accepted", "decoder.error"].includes(data.kind)) events.push(data);
+    });
     const ready = waitMessage(processor.port, "ready");
     send({ kind: "setBank", bankKind: "soundfont", bank: { source: "bundled", id: "test", sha256: null }, bankBytes: bank, bankSha: "test" });
     send({ kind: "load", voice: 1, track: "music", asset: "media/test.mid", data: midi });
@@ -58,13 +62,13 @@ export async function probeWorkletDecoder(url) {
     control.port.postMessage({ kind: "finish" });
     await ready;
     const after = await measure(meter);
-    if (after > 0.0001) return { before, during, after };
-    // Diagnose silence in the same graph without turning a failed compressed-bank assertion green.
+    const compressedWindows = [after, await measure(meter), await measure(meter)];
+    // Compare controls in the same graph without turning a failed compressed-bank assertion green.
     send({ kind: "stop", voice: 1 });
     const wav = new Uint8Array(await (await fetch("/packages/core/test/fixtures/audio/files/pcm16-mono-8000.wav")).arrayBuffer());
     send({ kind: "load", voice: 2, track: "sfx", asset: "media/test.wav", data: wav });
     send({ kind: "play", voice: 2, cue: 2, loop: true, volume: 100, positionTicks: 0 });
-    const pcm = await measure(meter);
+    const pcm = [await measure(meter), await measure(meter), await measure(meter)];
     send({ kind: "stop", voice: 2 });
     const plain = new Uint8Array(await (await fetch("/packages/synth/test/fixtures/test-minimal.sf2")).arrayBuffer());
     const accepted = waitMessage(processor.port, "bank.accepted");
@@ -74,8 +78,8 @@ export async function probeWorkletDecoder(url) {
     send({ kind: "load", voice: 3, track: "music", asset: "media/test.mid", data: midi });
     await plainReady;
     send({ kind: "play", voice: 3, cue: 3, loop: true, volume: 100, positionTicks: 0 });
-    const plainMidi = await measure(meter);
-    return { before, during, after, pcm, plainMidi, sampleRate: context.sampleRate, state: context.state };
+    const plainMidi = [await measure(meter), await measure(meter), await measure(meter)];
+    return { before, during, after, compressedWindows, pcm, plainMidi, events, sampleRate: context.sampleRate, state: context.state, currentTime: context.currentTime };
   } finally {
     await context.close();
   }
