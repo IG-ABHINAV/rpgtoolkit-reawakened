@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Browser and mobile quit-restart probes no longer compare independently sampled session ticks; the mobile probe latches the reset and new frame, deliberately allows tick overtaking, and checks old input listeners were replaced (#1612).
 - The desktop worklet fallback probe measures a complete loop of the retained bank after deliberately advancing past the one-shot duration, so a delayed observation cannot mistake the MIDI fixture's silent tail or finished playback for a failed fallback (#1635).
 - Author-surface routing carries the originating input sequence directly instead of repeatedly searching a shared key's resolved actions; large shared bindings retain their activation and key-claim behavior without quadratic scans (#1631; `docs/spec/engine/display-input-audio.md#act-2`).
 - Engine keyboard and semantic-action routing now visits only changed actions instead of scanning the entire action registry for each event; author-surface action ordering and input claims are preserved (#1435; `docs/spec/engine/display-input-audio.md#act-2`).
