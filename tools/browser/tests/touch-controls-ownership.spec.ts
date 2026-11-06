@@ -697,9 +697,12 @@ test("lost fallback capture keeps a held pointer away from gameplay", async ({ b
   const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 430, height: 932 } });
   const page = await context.newPage();
   try {
-    await openSilentDemo(page, "touch-lost-capture.tpk");
+    const fixture = packageWithStartup("touch-lost-capture.tpk", 'event = waitInput()\nwhile (event.kind != "pointer" || event.newdowns == 0) { event = waitInput(event) }\nmsgbox("Gameplay click")\nend()');
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
     const right = page.getByRole("button", { name: "Move right" });
     await right.waitFor({ state: "visible", timeout: 45_000 });
+    await page.waitForFunction(() => (window.__live?.tick ?? 0) >= 20, undefined, { timeout: 10_000 });
     await installInputTrace(page);
     await page.evaluate(() => {
       const target = window as Window & { __fallbackPointerId?: number; __pointerDomTrace?: unknown[] };
@@ -741,19 +744,23 @@ test("lost fallback capture keeps a held pointer away from gameplay", async ({ b
     expect(await right.evaluate((element, id) => element.hasPointerCapture(id), pointerId)).toBe(true);
     await right.evaluate((element, id) => element.releasePointerCapture(id), pointerId);
     await page.waitForFunction(({ id }) => !document.querySelector(".fallback-touch-button")?.hasPointerCapture(id), { id: pointerId }, { timeout: 10_000 });
+    const beforeReentry = await page.evaluate(() => window.__live?.tick ?? 0);
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
     await page.evaluate(() => {
       const { promise, resolve } = Promise.withResolvers<void>();
       requestAnimationFrame(resolve);
       return promise;
     });
+    await page.waitForFunction((tick) => (window.__live?.tick ?? 0) >= tick + 3, beforeReentry, { timeout: 10_000 });
     expect((await tracedInputs(page)).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1)).toBe(false);
+    expect(await page.evaluate(() => window.__session!.engine.runnerControlPointerPreemption(0, 0))).toBeNull();
     await page.mouse.up();
     await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 2);
     await page.waitForFunction(() => {
       const trace = (window as Window & { __touchInputTrace?: { readonly inputs: readonly TraceInput[] }[] }).__touchInputTrace ?? [];
       return trace.flatMap((entry) => entry.inputs).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1);
     }, undefined, { timeout: 10_000 });
+    await page.waitForFunction(() => typeof window.__session?.engine.runnerControlPointerPreemption(0, 0) === "number", undefined, { timeout: 10_000 });
   } finally {
     await closeLiveSession(page);
     await context.close();
