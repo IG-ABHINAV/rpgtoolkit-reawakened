@@ -670,7 +670,8 @@
         },
         "device": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 3
         },
         "connected": {
           "type": "boolean"
@@ -684,10 +685,14 @@
           ],
           "properties": {
             "x": {
-              "type": "number"
+              "type": "integer",
+              "minimum": -1000,
+              "maximum": 1000
             },
             "y": {
-              "type": "number"
+              "type": "integer",
+              "minimum": -1000,
+              "maximum": 1000
             }
           }
         },
