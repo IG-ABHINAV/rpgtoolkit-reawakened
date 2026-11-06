@@ -201,7 +201,6 @@ Two layers, and they are different shapes on purpose ([ACT-6](#act-6)):
 
 ```
 GameBindings = {                       // .gam block, or a registration's defaults
-  version: 3,
   actions: { [action: string]: {
     controls: readonly ControlId[],    // ordered; first bound control wins on a tie
     locked: boolean,                   // true: the game fixes this action (ACT-6)
@@ -209,7 +208,6 @@ GameBindings = {                       // .gam block, or a registration's defaul
 }
 
 PlayerOverrides = {                    // the save's input section
-  version: 1,
   actions: { [action: string]: {
     added:   readonly ControlId[],     // controls the player put on this action
     removed: readonly ControlId[],     // game-default controls the player took off
@@ -221,7 +219,7 @@ PlayerOverrides = {                    // the save's input section
 
 **Removal is explicit and addition never deletes.** A player who adds `KeyZ` to `confirm` keeps `Enter`, so a 3.1 script that polls `ENTER` still receives it; a control leaves an action only when the player removes that exact game default. That is what makes remapping safe for a ported game whose scripts read raw key names ([A11Y-16](accessibility.md#a11y-16)).
 
-**Which numbers are which (clarification, reconciliation tracked on #1127).** Three version numbers sit near the binding table and are not the same thing: the `TRKINP` block's `u8` schema number (`1` in this version, [main-file.md](../formats/main-file.md#tkr-input-extension)), the save's `input` section schema (`8` in the current core; older sections migrate with deterministic defaults), and the `version` fields inside the two shapes above. These shapes do not version either the `TRKINP` block or the save section.
+**Which numbers are which (resolved on #1127).** Two version numbers sit near the binding table and are not the same thing. The `TRKINP` block's `u8` schema number (`1` in this version, [main-file.md](../formats/main-file.md#tkr-input-extension)) versions that block's on-disk byte layout; the save's `input` section schema (`8` in the current core; older sections migrate with deterministic defaults) versions the serialized `input` section. The two shapes above carry no `version` field of their own: they are in-memory models, so a re-shape of either is a change to the schema that persists it — the block or the section — and not to a number inside the shape.
 
 A `ControlId` is one of three canonical ASCII strings:
 
