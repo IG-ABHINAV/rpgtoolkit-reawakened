@@ -17,6 +17,7 @@ import {
 import { createGameState, hashGameState, restoreGameState, snapshot, snapshotGameSave } from "../src/save/index.ts";
 import { applyInputEffect } from "../src/script/packs/movement.ts";
 import { pollInputKey, pollMenuScreen } from "../src/script/waits.ts";
+import { validateInputEvent } from "../src/validate/input-event.ts";
 
 test("input records have monotonic sequences and claims deliver each key once", () => {
   const state = createInputSection();
@@ -234,6 +235,25 @@ test("registered keyboard and gamepad controls dispatch without extra key aliase
   applyInputEvent(state, { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 });
   processGamepadEvents(state);
   equal(state.actions.confirm, false);
+  equal(state.actions["game.fireball"], false);
+});
+
+test("validated physical pad 9 dispatches its registered action after JSON transport", () => {
+  const action = { name: "game.fireball", label: "Fireball", icon: null, group: null, controls: ["pad:9"], locked: false, hidden: false };
+  const state = createInputSection();
+  equal(registerGameAction(state, action), true);
+  const event = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 9 };
+  const validated = validateInputEvent(JSON.parse(JSON.stringify(event)));
+  equal(validated.ok, true);
+  if (!validated.ok) throw new Error("pad:9 must pass input validation");
+  applyInputEvent(state, validated.value);
+  processGamepadEvents(state);
+  equal(state.actions["game.fireball"], true);
+  equal(state.keys.some((entry) => entry.name === "game.fireball"), true);
+  const release = validateInputEvent({ ...event, buttons: 0 });
+  if (!release.ok) throw new Error("gamepad release must validate");
+  applyInputEvent(state, release.value);
+  processGamepadEvents(state);
   equal(state.actions["game.fireball"], false);
 });
 

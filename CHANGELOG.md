@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The active runner protocol schema now rejects gamepad button masks outside the physical 17-bit range, matching runtime validation while preserving historical v1; conformance vectors cover buttons 9 and 16 and the first invalid bit (#1460; `docs/spec/engine/display-input-audio.md#e-112`).
 - Corrected the stalled-load margin regression to put queued input before the load reply, as live runners do: a successful load discards the old primary tap, preserves unrelated input, and accepts a fresh geometry-sensitive tap after the boundary (#1511; `docs/spec/engine/host-capabilities-and-viewports.md#live-host-state-after-restore`).
 - The battle test rig now counts completed simulation ticks rather than host advances, so asset-loading stalls cannot make its reset assertions run before the script executes (#1328).
 - AudioWorklet playback waits for its own SoundFont decoder before using compressed banks and reports ready only when the worklet opens the voice, preserving late-start/drop behavior. Existing voices, controls and unrelated PCM continue while a bank waits; replacement banks supersede it. Worklet decoder failure leaves the previous bank usable and appears in player status; the desktop page's separate startup decoder failure still stops startup (#1377; `docs/spec/engine/runners.md#audio`).

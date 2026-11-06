@@ -110,6 +110,38 @@ async function tracedInputs(page: Page): Promise<readonly TraceInput[]> {
 }
 
 
+test("physical pad 9 activates a registered game action in the live player", async ({ page }) => {
+  await page.addInitScript(() => {
+    const buttons = Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 }));
+    const gamepad = { id: "pad-9 proof", index: 0, connected: true, mapping: "standard", axes: [0, 0], buttons, timestamp: 0 };
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => [gamepad] });
+    (window as Window & { __pressPad9?: () => void }).__pressPad9 = () => {
+      buttons[9]!.pressed = true;
+      buttons[9]!.value = 1;
+      gamepad.timestamp += 1;
+    };
+  });
+  const fixture = packageWithStartup("physical-pad9.tpk", 'key = ""\nwhile (key != "game.fireball") { key = Get() }\nmsgbox("Pad 9 activated")\nend()');
+  try {
+    await servePackage(page, fixture);
+    await page.goto(`/packages/runner-web/app/index.html?package=fixtures/packages/${fixture.name}`);
+    await page.waitForFunction(() => window.__session !== undefined && (window.__live?.tick ?? 0) > 10);
+    const registered = await page.evaluate(() => window.__session!.engine.registerGameAction({
+      name: "game.fireball", label: "Fireball", icon: null, group: null, controls: ["pad:9"], locked: false, hidden: false,
+    }));
+    expect(registered).toBe(true);
+    await installInputTrace(page);
+    await page.waitForFunction(() => (window.__live?.tick ?? 0) >= 90);
+    const initial = await page.evaluate(() => ({ modal: window.__session!.engine.runnerControlPointerPreemption(0, 0), live: window.__live }));
+    expect(initial.modal, JSON.stringify(initial.live)).toBeNull();
+    await page.evaluate(() => (window as Window & { __pressPad9: () => void }).__pressPad9());
+    await expect.poll(async () => (await tracedInputs(page)).some(({ event }) => event.kind === "gamepad" && event.buttons === 512), { timeout: 10_000 }).toBe(true);
+    await page.waitForFunction(() => typeof window.__session?.engine.runnerControlPointerPreemption(0, 0) === "number", undefined, { timeout: 10_000 });
+  } finally {
+    await closeLiveSession(page);
+  }
+});
+
 test("fallback confirm and cancel wait for same-button pointer release", async ({ browser }) => {
   const fixture = packageWithStartup("touch-ownership-input.tpk", 'msgbox("Touch controls")\nend()');
   for (const [name, action] of [["Confirm", "confirm"], ["Cancel", "cancel"]] as const) {

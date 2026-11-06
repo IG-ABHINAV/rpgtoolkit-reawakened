@@ -4,10 +4,10 @@
   "note": "V2 is the strict two-plane runner contract: every DrawList is {tick,width,height,commands,marginCommands}; both ordered arrays are required, use AD-3 commands, and participate in the draw hash. The v1 schema and vectors remain unchanged. Validate against packages/runner-harness/schema/runner-protocol-v2.schema.json.",
   "counts": {
     "draw": 16,
-    "input": 29,
+    "input": 34,
     "request": 13,
-    "valid": 40,
-    "invalid": 18
+    "valid": 44,
+    "invalid": 19
   },
   "vectors": [
     {
@@ -1016,6 +1016,79 @@
       }
     },
     {
+      "id": "input-gamepad-button-9",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "connected": true,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 512
+        }
+      }
+    },
+    {
+      "id": "input-gamepad-button-16",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "connected": true,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 65536
+        }
+      }
+    },
+    {
+      "id": "input-gamepad-all-physical-buttons",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "connected": true,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 131071
+        }
+      }
+    },
+    {
+      "id": "refuse-gamepad-button-range",
+      "family": "input",
+      "valid": false,
+      "why": "physical button mask is a 17-bit value",
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "gamepad",
+          "device": 0,
+          "connected": true,
+          "axes": {
+            "x": 0,
+            "y": 0
+          },
+          "buttons": 131072
+        }
+      }
+    },
+    {
       "id": "input-host-gamepads-empty",
       "family": "input",
       "valid": true,
@@ -1043,6 +1116,27 @@
                 "y": 0
               },
               "buttons": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "input-host-gamepads-all-physical-buttons",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 8,
+        "event": {
+          "kind": "host.gamepads",
+          "devices": [
+            {
+              "device": 0,
+              "axes": {
+                "x": 0,
+                "y": 0
+              },
+              "buttons": 131071
             }
           ]
         }

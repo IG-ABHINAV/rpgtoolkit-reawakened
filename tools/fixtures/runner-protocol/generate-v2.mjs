@@ -45,6 +45,7 @@ function createSchema() {
   schema.description = `${schema.description} V2 DrawList records require both ordered command planes.`;
   schema.$defs.drawList.required = ["tick", "width", "height", "commands", "marginCommands"];
   schema.$defs.drawList.properties.marginCommands = { type: "array", items: { $ref: "#/$defs/drawCommand" } };
+  schema.$defs.gamepadInput.properties.buttons.maximum = 131071;
   schema.$defs.actionInput = {
     oneOf: [
       {
@@ -123,8 +124,13 @@ function createVectors() {
     { id: "refuse-modal-scoped-game-action", family: "input", valid: false, why: "modal-scoped actions may only confirm or cancel", record: { tick: 8, event: { kind: "action", action: "game.fireball", down: true, source: "runner.fallback", modalId: 3 } } },
     { id: "refuse-action-missing-source", family: "input", valid: false, why: "semantic action records require a source", record: { tick: 8, event: { kind: "action", action: "confirm", down: true, modalId: null } } },
     { id: "refuse-action-missing-modal-id", family: "input", valid: false, why: "semantic action records require explicit modal scope or null", record: { tick: 8, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback" } } },
+    { id: "input-gamepad-button-9", family: "input", valid: true, record: { tick: 8, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 512 } } },
+    { id: "input-gamepad-button-16", family: "input", valid: true, record: { tick: 8, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 65536 } } },
+    { id: "input-gamepad-all-physical-buttons", family: "input", valid: true, record: { tick: 8, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 131071 } } },
+    { id: "refuse-gamepad-button-range", family: "input", valid: false, why: "physical button mask is a 17-bit value", record: { tick: 8, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 131072 } } },
     { id: "input-host-gamepads-empty", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [] } } },
     { id: "input-host-gamepads-connected", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 1000, y: 0 }, buttons: 0 }] } } },
+    { id: "input-host-gamepads-all-physical-buttons", family: "input", valid: true, record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 131071 }] } } },
     { id: "refuse-host-gamepads-button-range", family: "input", valid: false, why: "physical button mask is a 17-bit value", record: { tick: 8, event: { kind: "host.gamepads", devices: [{ device: 0, axes: { x: 0, y: 0 }, buttons: 131072 }] } } }
   );
   return {
