@@ -16,7 +16,7 @@ import type { EffectRecord } from "../src/script/effects.ts";
 import type { WorldBoard, WorldItem, WorldProgram } from "../src/world/model.ts";
 
 import { applyInputEvent } from "../src/input/input.ts";
-import { runInputPhase } from "../src/input/registration.ts";
+import { routePointerUpActivations, runInputPhase } from "../src/input/registration.ts";
 const ref = (text: string) => ({ kind: "inline" as const, text, ir: "1", dialect: "tk3" as const });
 const rectangle = (left: number, top: number, right: number, bottom: number) => [
   { x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom },
@@ -199,6 +199,8 @@ test("an item gesture removes all its movement points without consuming the foll
   for (const [x, buttons] of [[12, 1], [14, 1], [16, 1], [16, 0], [120, 1], [120, 0]] as const) {
     applyInputEvent(state.input, { kind: "pointer", x, y: 0, buttons });
   }
+  routePointerUpActivations(state);
+  deepEqual(state.input.pendingClicks.map(({ x, y }) => ({ x, y })), [{ x: 120, y: 0 }], "only the separate ground gesture remains");
   runInputPhase(state);
   deepEqual(state.input.keys.map((key) => key.target), ["item:0"], "the first gesture confirms its item");
   const route = state.sprites.players[0]!.queue.moves;
