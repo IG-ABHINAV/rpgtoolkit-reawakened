@@ -40,8 +40,10 @@ export function installTapObserverScript() {
 }
 
 export async function prepareTapTarget(page, {
-  timeoutMs = 60_000,
-  maxSliceMs = 15_000,
+  timeoutMs = 90_000,
+  initialSliceMs = 15_000,
+  maxSliceMs = 45_000,
+  sliceFactor = 1.5,
   initialBackoffMs = 500,
   maxBackoffMs = 4_000,
   backoffFactor = 1.5,
@@ -51,10 +53,11 @@ export async function prepareTapTarget(page, {
 } = {}) {
   const deadline = now() + timeoutMs;
   let lastError;
+  let sliceMs = initialSliceMs;
   let backoffMs = initialBackoffMs;
   while (now() < deadline) {
     const remaining = deadline - now();
-    const sliceTimeout = Math.max(2_000, Math.min(maxSliceMs, remaining));
+    const sliceTimeout = Math.max(2_000, Math.min(sliceMs, remaining));
     try {
       const target = await protocolCall(
         "reading canvas tap target and installing observers",
@@ -64,6 +67,7 @@ export async function prepareTapTarget(page, {
       return target;
     } catch (err) {
       lastError = err;
+      sliceMs = Math.min(sliceMs * sliceFactor, maxSliceMs);
       const pause = Math.min(backoffMs, Math.max(0, deadline - now()));
       if (pause > 0) await delay(pause);
       backoffMs = Math.min(backoffMs * backoffFactor, maxBackoffMs);
@@ -113,9 +117,11 @@ export function assertPointerEvents(pointerEvents, target) {
 
 export async function waitForPointerEvents(page, {
   target,
-  timeoutMs = 30_000,
-  sliceMs = 10_000,
-  pollIntervalMs = 250,
+  timeoutMs = 45_000,
+  initialSliceMs = 10_000,
+  maxSliceMs = 30_000,
+  sliceFactor = 1.5,
+  pollIntervalMs = 500,
   delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = Date.now,
   protocolCall = async (_desc, op, _timeout) => op(),
@@ -123,6 +129,7 @@ export async function waitForPointerEvents(page, {
   const deadline = now() + timeoutMs;
   let pointerEvents = [];
   let lastError;
+  let sliceMs = initialSliceMs;
   while (now() < deadline) {
     const remaining = deadline - now();
     const sliceTimeout = Math.max(1_000, Math.min(sliceMs, remaining));
@@ -140,6 +147,7 @@ export async function waitForPointerEvents(page, {
       }
     } catch (err) {
       lastError = err;
+      sliceMs = Math.min(sliceMs * sliceFactor, maxSliceMs);
       if (err.message && (err.message.includes("touch did not reach intended canvas point") ||
           err.message.includes("touch release did not reach intended canvas point"))) {
         throw err;

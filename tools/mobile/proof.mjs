@@ -44,7 +44,7 @@ const ATTACH_BACKOFF_INITIAL_MS = 500;
 const ATTACH_BACKOFF_MAX_MS = 8_000;
 const ATTACH_LOGCAT_LINES = 20;
 const ADB_COMMAND_TIMEOUT_MS = 15_000;
-const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 45_000);
+const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 60_000);
 
 function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   let timer;
@@ -96,24 +96,25 @@ async function report(page, timeoutMs = 15_000) {
   return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null), timeoutMs);
 }
 
-async function waitFor(page, predicate, description, timeoutMs = 60_000) {
+async function waitFor(page, predicate, description, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   let last;
   while (Date.now() < deadline) {
     last = await report(page).catch(() => null);
     if (predicate(last)) return last;
     if (last?.error) throw new Error(`${description}: page error: ${last.error}`);
-    await delay(250);
+    await delay(500);
   }
   throw new Error(`${description} timed out; last page report: ${JSON.stringify(last)}`);
 }
 
-async function captureReading(page, label, options, timeoutMs = 60_000) {
+async function captureReading(page, label, options, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
+  let sliceMs = 15_000;
   while (Date.now() < deadline) {
     try {
-      const remaining = Math.max(5_000, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now()));
+      const remaining = Math.max(5_000, Math.min(sliceMs, deadline - Date.now()));
       const captured = await protocolCall(`capturing ${label} page reading`, () => page.evaluate(() => ({
         report: window.__mobile ?? null,
         documentTitle: document.title,
@@ -123,7 +124,8 @@ async function captureReading(page, label, options, timeoutMs = 60_000) {
       return { report: pageReport, documentTitle: captured.documentTitle };
     } catch (err) {
       lastError = err;
-      await delay(500);
+      sliceMs = Math.min(sliceMs * 1.5, 60_000);
+      await delay(1_000);
     }
   }
   throw lastError;
@@ -261,25 +263,31 @@ async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
   let stableTicks = 0;
   const targetStable = initialReport !== null ? 1 : 2;
   while (Date.now() < deadline) {
-    const current = await report(page, 20_000).catch(() => null);
+    const remaining = Math.max(5_000, Math.min(20_000, deadline - Date.now()));
+    const current = await report(page, remaining).catch(() => null);
     if (current?.error) throw new Error(`waiting for a settled player: ${current.error}`);
     if (current?.board !== null && current?.board !== undefined && current.player !== null) {
       if (previous !== null && current.tick > previous.tick) {
         if (current.player.x === previous.player.x && current.player.y === previous.player.y) stableTicks += 1;
         else stableTicks = 0;
-        if (stableTicks >= targetStable) return captureReading(page, "settled pre-tap baseline");
+        if (stableTicks >= targetStable) {
+          const remainingBudget = Math.max(60_000, deadline - Date.now());
+          return captureReading(page, "settled pre-tap baseline", {}, remainingBudget);
+        }
       }
       previous = current;
     }
-    await delay(250);
+    await delay(500);
   }
   throw new Error(`player did not settle before tap; last report: ${JSON.stringify(previous)}`);
 }
 
 async function canvasTap(page, baseline) {
   const target = await prepareTapTarget(page, {
-    timeoutMs: 60_000,
-    maxSliceMs: 15_000,
+    timeoutMs: 90_000,
+    initialSliceMs: 15_000,
+    maxSliceMs: 45_000,
+    sliceFactor: 1.5,
     initialBackoffMs: 500,
     maxBackoffMs: 4_000,
     delay,
@@ -291,9 +299,11 @@ async function canvasTap(page, baseline) {
 
   const pointerEvents = await waitForPointerEvents(page, {
     target,
-    timeoutMs: 30_000,
-    sliceMs: 10_000,
-    pollIntervalMs: 250,
+    timeoutMs: 45_000,
+    initialSliceMs: 10_000,
+    maxSliceMs: 30_000,
+    sliceFactor: 1.5,
+    pollIntervalMs: 500,
     delay,
     now: Date.now,
     protocolCall,
@@ -379,6 +389,7 @@ async function main() {
       "com.google.android.rkpdapp",
       "com.google.android.adservices.api",
       "com.google.android.ext.services",
+      "com.android.vending",
     ]) {
       try { runAdb("shell", "pm", "disable-user", "--user", "0", pkg); } catch {}
       try { runAdb("shell", "am", "force-stop", pkg); } catch {}
