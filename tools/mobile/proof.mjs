@@ -1,4 +1,4 @@
-// Exercise the built Capacitor APK on an API 33 emulator and retain only readings
+// Exercise the built Capacitor APK on an Android device or emulator and retain only readings
 // observed from its live page. No browser or filesystem mocks are installed here.
 //
 //   pnpm mobile:proof
@@ -12,10 +12,13 @@
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
+import { _android } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
 import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
+import { adbServerOptions, attachPage, boundedAttach, closeDevice, selectDevice } from "./proof-android.mjs";
+import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
+import { probeScreenshotStages } from "./proof-telemetry.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -23,10 +26,9 @@ const appId = "com.tkreawakened.player";
 const activity = `${appId}/.MainActivity`;
 const apk = join(root, "packages", "runner-mobile", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk");
 const output = resolve(process.env.MOBILE_PROOF_DIR ?? join(root, "artifacts", "mobile-proof"));
-const devtoolsPort = 9222;
 const proof = {
   schema: 1,
-  platform: "Android emulator API 33 x86_64",
+  platform: "Android (device details not yet available)",
   apk,
   readings: {},
   screenshots: {},
@@ -70,27 +72,16 @@ function delay(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }
 
-async function livePage(browser, timeoutMs = PROTOCOL_TIMEOUT_MS) {
+async function livePage(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs;
-  let lastError;
   while (Date.now() < deadline) {
-    for (const context of browser.contexts()) {
-      for (const page of context.pages()) {
-        if (page.isClosed()) continue;
-        try {
-          const hasReport = await protocolCall("checking for the mobile page report", () =>
-            page.evaluate(() => window.__mobile !== undefined),
-            Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
-          if (hasReport) return page;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-    }
+    const hasReport = await boundedAttach("checking for the mobile page report",
+      () => page.evaluate(() => window.__mobile !== undefined),
+      Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
+    if (hasReport) return page;
     await delay(Math.min(500, Math.max(0, deadline - Date.now())));
   }
-  const detail = lastError === undefined ? "no usable WebView page was exposed" : `last page protocol error: ${String(lastError)}`;
-  throw new Error(`The Android WebView did not publish window.__mobile before its deadline; ${detail}`, { cause: lastError });
+  throw new Error("The Android WebView did not publish window.__mobile before its deadline");
 }
 
 async function report(page) {
@@ -175,22 +166,22 @@ function assertTitleRendering(reading, canvasContent) {
 
 async function screenshot(page, name) {
   const path = join(output, `${name}.png`);
-  await protocolCall(`saving ${name} screenshot`, () => page.screenshot({ path, animations: "disabled" }));
-  proof.screenshots[name] = path;
+  proof.screenshotTelemetry = proof.screenshotTelemetry ?? {};
+  const probe = await probeScreenshotStages(page, name);
+  proof.screenshotTelemetry[name] = probe;
+  const captureStart = Date.now();
+  try {
+    await protocolCall(`saving ${name} screenshot`, () =>
+      page.screenshot({ path, animations: "disabled", timeout: PROTOCOL_TIMEOUT_MS }),
+      PROTOCOL_TIMEOUT_MS + 500);
+    probe.capture = { durationMs: Date.now() - captureStart, status: "completed" };
+    proof.screenshots[name] = path;
+  } catch (err) {
+    probe.capture = { durationMs: Date.now() - captureStart, error: err.message };
+    throw err;
+  }
 }
 
-async function connectToApp(pid, deadline) {
-  const removeTimeout = Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now()));
-  try { adbWithTimeout(removeTimeout, "forward", "--remove", `tcp:${devtoolsPort}`); } catch { /* no forwarding remains */ }
-  const forwardTimeout = Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now()));
-  adbWithTimeout(forwardTimeout, "forward", `tcp:${devtoolsPort}`, `localabstract:webview_devtools_remote_${pid}`);
-  const remaining = deadline - Date.now();
-  if (remaining <= 0) throw new Error("Android WebView connection exhausted the startup deadline");
-  return chromium.connectOverCDP(`http://127.0.0.1:${devtoolsPort}`, {
-    noDefaults: true,
-    timeout: Math.min(PROTOCOL_TIMEOUT_MS, remaining),
-  });
-}
 
 function attachObservation(stage, attempt, startedAt, deadline) {
   const process = attachAdb(deadline, "shell", "pidof", appId);
@@ -207,9 +198,6 @@ function attachObservation(stage, attempt, startedAt, deadline) {
     logcat: { exitCode: logcat.status, output: logcat.stdout, stderr: logcat.stderr },
   };
 }
-function processDescription(result) {
-  return `exit ${result.exitCode ?? "unknown"}: ${result.stderr || (result.output ? "stdout: " + result.output : "no error output")}`;
-}
 
 // Keep the raw pidof response diagnosable without dumping unbounded bytes into
 // the artifact: strip control characters and cap the retained text (#1080).
@@ -218,72 +206,23 @@ function retainedStdout(text) {
 }
 
 
-async function launchAndConnect(stage, timeoutMs = ATTACH_TIMEOUT_MS) {
-  const startedAt = Date.now();
-  const deadline = startedAt + timeoutMs;
-  let lastError;
-  let attempt = 0;
-  let backoffMs = ATTACH_BACKOFF_INITIAL_MS;
-  while (Date.now() < deadline) {
-    attempt += 1;
-    const observation = attachObservation(stage, attempt, startedAt, deadline);
-    console.log(`Android WebView attach ${stage} attempt ${attempt}: process=${observation.processState}${observation.pid === null ? "" : ` (${observation.pid})`}; logcat=${JSON.stringify(observation.logcat.output)}`);
-    if (observation.processState === "unknown") {
-      observation.attachError = `pidof failed or returned an invalid response: ${processDescription(observation.pidof)}`;
-      lastError = new Error(observation.attachError);
-    } else if (observation.processState === "absent") {
-      const start = Date.now() < deadline
-        ? attachAdb(deadline, "shell", "am", "start", "-n", activity)
-        : { status: null, stdout: "", stderr: "attach deadline expired before am start" };
-      observation.activityStart = { exitCode: start.status, output: start.stdout, stderr: start.stderr };
-      lastError = new Error(`Android process ${appId} was absent at attach attempt ${attempt}`);
-      if (start.status !== 0) {
-        observation.attachError = `am start failed (exit ${start.status ?? "unknown"}): ${start.stderr || start.stdout || "no output"}`;
-        lastError = new Error(observation.attachError);
-      }
-      try {
-        adbWithTimeout(Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now())),
-          "forward", "--remove", `tcp:${devtoolsPort}`);
-      } catch { /* no forwarding remains */ }
-    } else {
-      let browser;
-      try {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) throw new Error("Android WebView connection exhausted the startup deadline");
-        browser = await connectToApp(observation.pid, deadline);
-        const pageRemaining = deadline - Date.now();
-        if (pageRemaining <= 0) throw new Error("Android WebView page discovery exhausted the startup deadline");
-        const page = await livePage(browser, Math.min(PROTOCOL_TIMEOUT_MS, pageRemaining));
-        observation.connected = true;
-        observation.elapsedMs = Date.now() - startedAt;
-        proof.attachAttempts.push(observation);
-        console.log(`Android WebView attach ${stage} succeeded after ${observation.elapsedMs}ms (${attempt} attempts)`);
-        return { browser, page };
-      } catch (error) {
-        lastError = error;
-        observation.attachError = String(error);
-        if (browser !== undefined) {
-          try {
-            await protocolCall("closing failed Android WebView connection", () => browser.close(),
-              Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
-          } catch (closeError) {
-            lastError = new Error(`${String(error)}; closing the failed connection also failed: ${String(closeError)}`, { cause: error });
-            observation.closeError = String(closeError);
-          }
-        }
-        try {
-          adbWithTimeout(Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now())),
-            "forward", "--remove", `tcp:${devtoolsPort}`);
-        } catch { /* no forwarding remains */ }
-      }
-    }
-    proof.attachAttempts.push(observation);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    await delay(Math.min(backoffMs, remaining));
-    backoffMs = Math.min(backoffMs * 2, ATTACH_BACKOFF_MAX_MS);
-  }
-  throw new Error(`could not expose the Android WebView page within ${timeoutMs}ms after ${attempt} attach attempts: ${String(lastError ?? "no attempt completed")}`, { cause: lastError });
+function launchAndConnect(stage, serial, serverOptions, timeoutMs = ATTACH_TIMEOUT_MS) {
+  return retryAttach(stage, serial, timeoutMs, {
+    now: Date.now,
+    observe: attachObservation,
+    start: (deadline) => attachAdb(deadline, "shell", "am", "start", "-n", activity),
+    select: (target, remaining) => selectDevice(_android, target, remaining, serverOptions),
+    attach: attachPage,
+    live: livePage,
+    close: closeDevice,
+    delay,
+    attempts: proof.attachAttempts,
+    log: console.log,
+    appId,
+    protocolTimeoutMs: PROTOCOL_TIMEOUT_MS,
+    initialBackoffMs: ATTACH_BACKOFF_INITIAL_MS,
+    maxBackoffMs: ATTACH_BACKOFF_MAX_MS,
+  });
 }
 
 async function enterBoard(page) {
@@ -404,6 +343,7 @@ function captureFailureEvidence(error) {
   const evidence = {
     error: error instanceof Error ? error.stack ?? error.message : String(error),
     apk: { path: apk, exists: apkExists, sizeBytes: apkExists ? statSync(apk).size : null },
+    screenshotTelemetry: proof.screenshotTelemetry ?? null,
     androidLogcat: {
       command: "adb logcat -d -v threadtime -s chromium:* ActivityManager:* AndroidRuntime:*",
       exitCode: logcat.status,
@@ -428,14 +368,20 @@ function captureFailureEvidence(error) {
   return path;
 }
 async function main() {
+  const serverOptions = adbServerOptions(process.env);
   adb("wait-for-device");
+  const serial = adb("get-serialno");
+  if (!serial || serial === "unknown") throw new Error(`adb did not identify a usable Android device: ${serial}`);
+  process.env.ANDROID_SERIAL = serial;
+  proof.deviceSerial = serial;
+  proof.platform = `Android ${adb("shell", "getprop", "ro.build.version.release")} API ${adb("shell", "getprop", "ro.build.version.sdk")} ${adb("shell", "getprop", "ro.product.cpu.abi")}`;
   installApk(apk);
   if (process.env.CI === "true") {
     const cleared = adb("shell", "pm", "clear", appId);
     if (cleared !== "Success") throw new Error(`could not clear Android app data for a fresh CI proof: ${cleared}`);
   }
-  const initial = await launchAndConnect("initial launch");
-  let browser = initial.browser;
+  const initial = await launchAndConnect("initial launch", serial, serverOptions);
+  let device = initial.device;
   let page = initial.page;
   try {
     const titleCandidate = await waitFor(page,
@@ -519,13 +465,12 @@ async function main() {
     }
     proof.readings.beforeForceStop = beforeStop;
 
-    await protocolCall("closing Android WebView before relaunch", () => browser.close());
-    browser = undefined;
-    adb("forward", "--remove", `tcp:${devtoolsPort}`);
+    await closeDevice(device, PROTOCOL_TIMEOUT_MS);
+    device = undefined;
     adb("shell", "am", "force-stop", appId);
     await delay(1_000);
-    const relaunched = await launchAndConnect("force-stop relaunch");
-    browser = relaunched.browser;
+    const relaunched = await launchAndConnect("force-stop relaunch", serial, serverOptions);
+    device = relaunched.device;
     page = relaunched.page;
     await enterBoard(page);
     const relaunch = await captureReading(page, "relaunch");
@@ -535,8 +480,7 @@ async function main() {
     await screenshot(page, "relaunch");
     proof.readings.relaunch = relaunch;
   } finally {
-    if (browser !== undefined) await protocolCall("closing Android WebView during cleanup", () => browser.close()).catch(() => {});
-    try { adb("forward", "--remove", `tcp:${devtoolsPort}`); } catch { /* no forwarding remains */ }
+    if (device !== undefined) await closeDevice(device, PROTOCOL_TIMEOUT_MS).catch(() => {});
   }
 }
 
