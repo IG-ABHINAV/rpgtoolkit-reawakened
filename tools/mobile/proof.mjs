@@ -18,6 +18,7 @@ import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
 import { adbServerOptions, attachPage, boundedAttach, closeDevice, selectDevice } from "./proof-android.mjs";
 import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
+import { probeScreenshotStages } from "./proof-telemetry.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -165,8 +166,20 @@ function assertTitleRendering(reading, canvasContent) {
 
 async function screenshot(page, name) {
   const path = join(output, `${name}.png`);
-  await protocolCall(`saving ${name} screenshot`, () => page.screenshot({ path, animations: "disabled" }));
-  proof.screenshots[name] = path;
+  proof.screenshotTelemetry = proof.screenshotTelemetry ?? {};
+  const probe = await probeScreenshotStages(page, name);
+  proof.screenshotTelemetry[name] = probe;
+  const captureStart = Date.now();
+  try {
+    await protocolCall(`saving ${name} screenshot`, () =>
+      page.screenshot({ path, animations: "disabled", timeout: PROTOCOL_TIMEOUT_MS }),
+      PROTOCOL_TIMEOUT_MS + 500);
+    probe.capture = { durationMs: Date.now() - captureStart, status: "completed" };
+    proof.screenshots[name] = path;
+  } catch (err) {
+    probe.capture = { durationMs: Date.now() - captureStart, error: err.message };
+    throw err;
+  }
 }
 
 
@@ -330,6 +343,7 @@ function captureFailureEvidence(error) {
   const evidence = {
     error: error instanceof Error ? error.stack ?? error.message : String(error),
     apk: { path: apk, exists: apkExists, sizeBytes: apkExists ? statSync(apk).size : null },
+    screenshotTelemetry: proof.screenshotTelemetry ?? null,
     androidLogcat: {
       command: "adb logcat -d -v threadtime -s chromium:* ActivityManager:* AndroidRuntime:*",
       exitCode: logcat.status,

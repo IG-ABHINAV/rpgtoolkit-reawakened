@@ -616,6 +616,8 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         env:
           CI: "true"
+          # Preserve Playwright screenshot preparation and CDP protocol messages if capture stalls (#1621).
+          DEBUG: "pw:api,pw:protocol*"
         with:
           api-level: 36
           target: google_apis
