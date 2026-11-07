@@ -78,7 +78,14 @@ async function livePage(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
     const hasReport = await boundedAttach("checking for the mobile page report",
       () => page.evaluate(() => window.__mobile !== undefined),
       Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
-    if (hasReport) return page;
+    if (hasReport) {
+      if (typeof page.locator === "function") {
+        await boundedAttach("warming up the page automation context",
+          () => page.locator("#screen").count(),
+          Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now()))).catch(() => {});
+      }
+      return page;
+    }
     await delay(Math.min(500, Math.max(0, deadline - Date.now())));
   }
   throw new Error("The Android WebView did not publish window.__mobile before its deadline");
@@ -167,7 +174,7 @@ function assertTitleRendering(reading, canvasContent) {
 async function screenshot(page, name) {
   const path = join(output, `${name}.png`);
   proof.screenshotTelemetry = proof.screenshotTelemetry ?? {};
-  const probe = await probeScreenshotStages(page, name);
+  const probe = await probeScreenshotStages(page, name, PROTOCOL_TIMEOUT_MS);
   proof.screenshotTelemetry[name] = probe;
   const captureStart = Date.now();
   try {
