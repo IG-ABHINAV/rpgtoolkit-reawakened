@@ -297,6 +297,7 @@ test("mobile CI reserves AVD space and keeps the real emulator proof", () => {
   match(text, /uses: reactivecircus\/android-emulator-runner@v2/u);
   match(text, /api-level: 36/u);
   match(text, /arch: x86_64/u);
+  match(text, /emulator-options:.*-gpu swiftshader_indirect/u);
   match(text, /script: pnpm mobile:proof/u);
   match(text, /name: mobile-android-api36-proof/u);
 

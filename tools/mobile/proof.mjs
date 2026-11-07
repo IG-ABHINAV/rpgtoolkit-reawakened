@@ -16,7 +16,7 @@ import { _android } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
 import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
-import { attachPage, boundedAttach, closeDevice, selectDevice } from "./proof-android.mjs";
+import { adbServerOptions, attachPage, boundedAttach, closeDevice, selectDevice } from "./proof-android.mjs";
 import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -193,12 +193,12 @@ function retainedStdout(text) {
 }
 
 
-function launchAndConnect(stage, serial, timeoutMs = ATTACH_TIMEOUT_MS) {
+function launchAndConnect(stage, serial, serverOptions, timeoutMs = ATTACH_TIMEOUT_MS) {
   return retryAttach(stage, serial, timeoutMs, {
     now: Date.now,
     observe: attachObservation,
     start: (deadline) => attachAdb(deadline, "shell", "am", "start", "-n", activity),
-    select: (target, remaining) => selectDevice(_android, target, remaining),
+    select: (target, remaining) => selectDevice(_android, target, remaining, serverOptions),
     attach: attachPage,
     live: livePage,
     close: closeDevice,
@@ -354,6 +354,7 @@ function captureFailureEvidence(error) {
   return path;
 }
 async function main() {
+  const serverOptions = adbServerOptions(process.env);
   adb("wait-for-device");
   const serial = adb("get-serialno");
   if (!serial || serial === "unknown") throw new Error(`adb did not identify a usable Android device: ${serial}`);
@@ -365,7 +366,7 @@ async function main() {
     const cleared = adb("shell", "pm", "clear", appId);
     if (cleared !== "Success") throw new Error(`could not clear Android app data for a fresh CI proof: ${cleared}`);
   }
-  const initial = await launchAndConnect("initial launch", serial);
+  const initial = await launchAndConnect("initial launch", serial, serverOptions);
   let device = initial.device;
   let page = initial.page;
   try {
@@ -454,7 +455,7 @@ async function main() {
     device = undefined;
     adb("shell", "am", "force-stop", appId);
     await delay(1_000);
-    const relaunched = await launchAndConnect("force-stop relaunch", serial);
+    const relaunched = await launchAndConnect("force-stop relaunch", serial, serverOptions);
     device = relaunched.device;
     page = relaunched.page;
     await enterBoard(page);

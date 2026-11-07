@@ -290,6 +290,8 @@ The mobile proof drives the built Capacitor APK on a booted Android device or em
 
 Build the debug APK as shown in the mobile job in `.github/workflows/ci.yml`: `pnpm mobile:build` prepares the web assets, then Capacitor sync and Gradle assemble the APK. Start an Android 16 (API 36) emulator and make sure `adb` can see it. Install the Playwright Android driver with `pnpm exec playwright install android`, then run `pnpm mobile:proof`. The Android API uses the default driver-install behavior; do not pass `omitDriverInstall`. With multiple devices, set `ANDROID_SERIAL` to the intended device. The proof resolves the serial through `adb`, uses that same device for Playwright and all later `adb` commands, records the actual Android version and ABI, and disconnects other enumerated devices.
 
+For a non-default ADB server, Playwright uses the same `ANDROID_ADB_SERVER_ADDRESS` and `ANDROID_ADB_SERVER_PORT` as `adb`. A TCP `ADB_SERVER_SOCKET` takes precedence; non-TCP sockets are not supported by Playwright's Android API and fail explicitly. `ADB_SERVER_PORT` alone does not select a server for `adb`.
+
 Attachment retains the three-minute startup deadline and records process and logcat observations in `artifacts/mobile-proof/`. A timed-out, uncancellable Playwright page attachment fails without starting another overlapping attach; ordinary connection failures can retry. Failure evidence and the screenshot deadline remain in effect. This migration is an evaluation, not proof that the intermittent screenshot timeout in #1621 is fixed.
 
 ### The loop while you work

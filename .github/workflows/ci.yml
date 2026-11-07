@@ -623,7 +623,7 @@ jobs:
           profile: pixel_2
           # Keep userdata bounded on hosted runners; the demo APK still runs the full proof.
           disk-size: 2048M
-          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none
+          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           disable-animations: true
           script: pnpm mobile:proof
       - uses: actions/upload-artifact@v6

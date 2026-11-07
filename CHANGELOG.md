@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Android proof device selection now connects Playwright to the same configured TCP ADB server as `adb`, including on reconnect; unsupported socket types fail explicitly (#1658).
+- Android CI explicitly experiments with the emulator's `swiftshader_indirect` graphics mode; the screenshot deadline is unchanged (#1621).
 - Android proof attachment retries now have direct regression coverage for transient recovery, deadline exhaustion and terminal uncancelled operations (#1059).
 - The Android CI proof now targets Android 16 (API 36) and records the selected device's actual Android version and ABI. Its existing interaction, persistence and diagnostic checks remain unchanged (#1621).
 - The Android APK proof now evaluates Playwright's experimental Android device/WebView API instead of a manually forwarded CDP connection. Device selection, bounded attachment diagnostics and the existing interaction and screenshot checks remain; this does not establish a fix for the intermittent timeout (#1621).

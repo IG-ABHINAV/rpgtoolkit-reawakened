@@ -24,14 +24,39 @@ export async function boundedAttach(description, operation, timeoutMs, onLate = 
   }
 }
 
+// Match adb's server selection: socket overrides ANDROID_ADB_SERVER_ADDRESS/PORT.
+// Playwright only supports TCP endpoints, not adb's Unix-domain socket specs.
+export function adbServerOptions(env) {
+  const socket = env.ADB_SERVER_SOCKET;
+  let host = env.ANDROID_ADB_SERVER_ADDRESS || undefined;
+  let port = env.ANDROID_ADB_SERVER_PORT || undefined;
+  if (socket) {
+    const match = /^tcp:(?:(\[[^\]]+\]|[^:]+):)?(\d+)$/u.exec(socket);
+    if (match === null) throw new Error(`Playwright Android requires a TCP ADB_SERVER_SOCKET, got ${socket}`);
+    host = match[1]?.replace(/^\[|\]$/gu, "");
+    port = match[2];
+  }
+  const options = {};
+  if (host) options.host = host;
+  if (port !== undefined) {
+    const number = Number(port);
+    if (!/^\d+$/u.test(port) || !Number.isInteger(number) || number < 1 || number > 65535) {
+      throw new Error(`Invalid ADB server port: ${port}`);
+    }
+    options.port = number;
+  }
+  return Object.keys(options).length ? options : undefined;
+}
+
+
 export async function closeDevice(device, timeoutMs) {
   await boundedAttach(`closing Android device ${device.serial()}`, () => device.close(), timeoutMs);
 }
 
-export async function selectDevice(android, serial, timeoutMs) {
+export async function selectDevice(android, serial, timeoutMs, serverOptions) {
   const deadline = Date.now() + timeoutMs;
   const closeAll = (devices) => Promise.allSettled(devices.map((device) => device.close()));
-  const devices = await boundedAttach("enumerating Android devices", () => android.devices(), timeoutMs, closeAll);
+  const devices = await boundedAttach("enumerating Android devices", () => serverOptions === undefined ? android.devices() : android.devices(serverOptions), timeoutMs, closeAll);
   const matches = devices.filter((device) => device.serial() === serial);
   const target = matches.length === 1 ? matches[0] : undefined;
   try {
