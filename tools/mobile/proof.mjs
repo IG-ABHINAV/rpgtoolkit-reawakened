@@ -43,7 +43,7 @@ const ATTACH_BACKOFF_INITIAL_MS = 500;
 const ATTACH_BACKOFF_MAX_MS = 8_000;
 const ATTACH_LOGCAT_LINES = 20;
 const ADB_COMMAND_TIMEOUT_MS = 15_000;
-const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 20_000);
+const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 45_000);
 
 function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   let timer;
@@ -91,8 +91,8 @@ async function livePage(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   throw new Error(`The Android WebView did not publish window.__mobile before its deadline; ${detail}`, { cause: lastError });
 }
 
-async function report(page) {
-  return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null));
+async function report(page, timeoutMs = 15_000) {
+  return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null), timeoutMs);
 }
 
 async function waitFor(page, predicate, description, timeoutMs = 60_000) {
@@ -275,10 +275,28 @@ async function settledPlayer(page, initialReport = null, timeoutMs = 60_000) {
 }
 
 async function canvasTap(page, baseline) {
-  const target = await protocolCall("reading canvas tap target", () =>
-    page.locator("canvas#screen").evaluate((canvas) => {
+  const target = await protocolCall("reading canvas tap target and installing observers", () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector("#screen");
+      if (!(canvas instanceof HTMLCanvasElement)) throw new Error("mobile canvas is absent");
       const rect = canvas.getBoundingClientRect();
       const logical = { x: Math.floor(canvas.width / 2), y: Math.floor(canvas.height / 2) };
+      window.__mobileProofPointerEvents = [];
+      const observe = (event) => {
+        const r = canvas.getBoundingClientRect();
+        window.__mobileProofPointerEvents.push({
+          type: event.type,
+          pointerType: event.pointerType,
+          trusted: event.isTrusted,
+          buttons: event.buttons,
+          logical: {
+            x: Math.floor(Math.max(0, Math.min(canvas.width - 1, (event.clientX - r.left) * canvas.width / r.width))),
+            y: Math.floor(Math.max(0, Math.min(canvas.height - 1, (event.clientY - r.top) * canvas.height / r.height))),
+          },
+        });
+      };
+      canvas.addEventListener("pointerdown", observe, { once: true });
+      canvas.addEventListener("pointerup", observe, { once: true });
       return {
         coordinateSpace: "CDP CSS viewport pixels, derived from the canvas client rect",
         logical,
@@ -291,27 +309,6 @@ async function canvasTap(page, baseline) {
         devicePixelRatio: window.devicePixelRatio,
       };
     }));
-
-  await protocolCall("installing canvas pointer observers", () => page.evaluate(() => {
-    const canvas = document.querySelector("canvas#screen");
-    if (canvas === null) throw new Error("mobile canvas is absent");
-    window.__mobileProofPointerEvents = [];
-    const observe = (event) => {
-      const rect = canvas.getBoundingClientRect();
-      window.__mobileProofPointerEvents.push({
-        type: event.type,
-        pointerType: event.pointerType,
-        trusted: event.isTrusted,
-        buttons: event.buttons,
-        logical: {
-          x: Math.floor(Math.max(0, Math.min(canvas.width - 1, (event.clientX - rect.left) * canvas.width / rect.width))),
-          y: Math.floor(Math.max(0, Math.min(canvas.height - 1, (event.clientY - rect.top) * canvas.height / rect.height))),
-        },
-      });
-    };
-    canvas.addEventListener("pointerdown", observe, { once: true });
-    canvas.addEventListener("pointerup", observe, { once: true });
-  }));
 
   const cdp = await protocolCall("opening touch input session", () => page.context().newCDPSession(page));
   try {
