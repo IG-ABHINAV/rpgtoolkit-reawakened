@@ -50,6 +50,15 @@ test("request counters are hash-neutral while outstanding request IDs remain sta
   ok(hashGameState(waitingA) !== hashGameState(waitingB), "simultaneous pending requests with different IDs are distinguishable");
 });
 
+test("acquired asset visibility remains hash-significant independently of request history", () => {
+  const cold = createGameState({ seed: 31 });
+  const warm = createGameState({ seed: 31 });
+  cold.engine = { ...cold.engine, nextRequestId: 8 };
+  warm.engine = { ...warm.engine, cacheKeys: ["bitmap/red.png"], nextRequestId: 19 };
+  ok(hashGameState(cold) !== hashGameState(warm), "different future acquisition timing is semantic state");
+  equal(hashGameState(warm), referenceHashProjection(warm));
+});
+
 test("game-state hash matches the reference projection after prefix, suffix and non-finite edits", () => {
   const state = createGameState({ seed: 712 });
   const expectReferenceHash = () => equal(hashGameState(state), referenceHashProjection(state));

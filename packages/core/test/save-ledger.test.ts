@@ -272,7 +272,7 @@ function fixture(): GameState {
   state.events.listeners = [{ id: 1, emitter: "object:5", type: "hit", once: false, callable: callable("dead") }];
   state.events.dispatch = { emitter: "object:5", event: 5, order: [1], index: 0, thread: null };
   state.events.emitters = { [boardEmitterKey(BOARD_KEY)]: 5, "object:9": 9 };
-  state.engine = { nextBattleId: 4 } as typeof state.engine;
+  state.engine = { ...state.engine, nextBattleId: 4 };
   return state;
 }
 
@@ -496,7 +496,7 @@ test("each excluded continuation and metadata field changes the full save but no
     ["menu screens", (state) => { state.menu.screens.push({ screen: "items", actorId: null, selection: 2 }); }],
     ["menu graphic", (state) => { state.menu.graphic = "UI/menu.img"; }],
     ["battle", (state) => { state.battle = { ...state.battle, phase: "active" } as typeof state.battle; }],
-    ["engine next battle", (state) => { state.engine = { nextBattleId: 8 } as typeof state.engine; }],
+    ["engine next battle", (state) => { state.engine = { ...state.engine, nextBattleId: 8 }; }],
     ["surface", (state) => { state.surfaces = { shots: [{ rev: 1 }] } as never; }],
     ["sprite state", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, state: "moving" }; }],
     ["sprite queue", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, queue: { moves: [{ source: "keyboard", target: { x: 1, y: 1 }, facing: "E" }], waypoint: null } }; }],

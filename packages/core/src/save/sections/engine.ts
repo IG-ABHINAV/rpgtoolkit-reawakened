@@ -44,6 +44,8 @@ export type BoardTransition = {
 };
 
 export type EngineSection = {
+  /** Global acquired-asset visibility; null denotes legacy saves without historical readiness. */
+  readonly cacheKeys: string[] | null;
   readonly nextRequestId?: number;
   /** The run's next battle number (BAT-2 "battle numbers"); absent before the first battle. */
   readonly nextBattleId?: number;

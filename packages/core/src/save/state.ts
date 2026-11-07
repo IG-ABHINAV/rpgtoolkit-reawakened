@@ -80,7 +80,7 @@ export const SCHEMA_VERSIONS = {
   surfaces: 1,
   rng: 1,
   time: 1,
-  engine: 1,
+  engine: 2,
   events: 1,
   features: HOST_FEATURES_SCHEMA_VERSION,
   display: DISPLAY_SCHEMA_VERSION,
@@ -197,7 +197,7 @@ export function createGameState(init: { seed: number; width?: number; height?: n
     surfaces: {} as SurfacesSection,
     rng: seedRng(init.seed),
     time: createTimeState(),
-    engine: {},
+    engine: { cacheKeys: [] },
     events: createEventsSection(),
   };
 }

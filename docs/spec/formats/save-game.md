@@ -103,6 +103,10 @@ Load uses current installed image and animation content, not historical bytes
 or recovery-style fingerprints (owner choice, 2026-11-07). Exact continuation
 equivalence therefore assumes unchanged game data.
 
+Current installed program sources remain physically accessible to synchronous
+source resolution even when a newer source key was absent from the save.
+Consuming such a source records that key as acquired; Load alone does not.
+
 Older saves migrate with `cacheKeys: null`, meaning historical readiness is
 unknown. Their deterministic fallback retains only the boot-required main file,
 fonts, program sources and initial character, discarding other destination cache
@@ -115,7 +119,7 @@ References: [full-engine Save and Load](#reawakened-full-engine-save-and-load),
 [determinism](../../guardrails.md#g3--determinism).
 
 <a id="state-hash-request-projection"></a>
-**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash, so a bookkeeping difference such as an additional settled boot-time asset request does not move golden baselines.
+**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash. Settled requests with the same acquired-key set therefore do not move golden baselines; acquiring an additional key changes semantic readiness (#1340), so its hash can change even after the request settles.
 
 <a id="state-hash-surface-projection"></a>
 **Surface hash projection — Approved ruling (owner: Jensen, 2026-11-02).**
