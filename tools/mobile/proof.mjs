@@ -92,15 +92,23 @@ async function livePage(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   throw new Error(`The Android WebView did not publish window.__mobile before its deadline; ${detail}`, { cause: lastError });
 }
 
-async function report(page, timeoutMs = 15_000) {
+async function report(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null), timeoutMs);
 }
 
 async function waitFor(page, predicate, description, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   let last;
+  let sliceMs = 15_000;
   while (Date.now() < deadline) {
-    last = await report(page).catch(() => null);
+    const remaining = Math.max(5_000, Math.min(sliceMs, deadline - Date.now()));
+    try {
+      last = await report(page, remaining);
+    } catch {
+      sliceMs = Math.min(sliceMs * 1.5, PROTOCOL_TIMEOUT_MS);
+      await delay(1_000);
+      continue;
+    }
     if (predicate(last)) return last;
     if (last?.error) throw new Error(`${description}: page error: ${last.error}`);
     await delay(500);
@@ -262,12 +270,20 @@ async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
   let previous = initialReport ?? null;
   let stableTicks = 0;
   const targetStable = initialReport !== null ? 1 : 2;
+  let sliceMs = 15_000;
   while (Date.now() < deadline) {
-    const remaining = Math.max(5_000, Math.min(20_000, deadline - Date.now()));
-    const reading = await protocolCall("reading settled player report", () => page.evaluate(() => ({
-      report: window.__mobile ?? null,
-      documentTitle: document.title,
-    })), remaining).catch(() => null);
+    const remaining = Math.max(5_000, Math.min(sliceMs, deadline - Date.now()));
+    let reading = null;
+    try {
+      reading = await protocolCall("reading settled player report", () => page.evaluate(() => ({
+        report: window.__mobile ?? null,
+        documentTitle: document.title,
+      })), remaining);
+    } catch {
+      sliceMs = Math.min(sliceMs * 1.5, PROTOCOL_TIMEOUT_MS);
+      await delay(1_000);
+      continue;
+    }
 
     const current = reading?.report;
     if (current?.error) throw new Error(`waiting for a settled player: ${current.error}`);
