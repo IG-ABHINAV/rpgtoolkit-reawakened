@@ -125,7 +125,7 @@ import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.t
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
-import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, resetScriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
+import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, resetScriptScreen, copyPresentedFrameToScriptScreen, SCRIPT_SCREEN, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
 import { rasterizeAuthorMargin } from "../raster/raster.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
@@ -667,10 +667,7 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     const kind = blockingAlive() ? "board" : "blocking";
-    if (kind === "blocking") {
-      resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
-      resetScriptScreen(state.surfaces);
-    }
+    if (kind === "blocking") beginOutermostProgram();
     const ref: ProgramRef = {
       kind: "inline",
       text: `${command}(${JSON.stringify(encodeInlineScriptString(serialized))})`,
@@ -697,8 +694,7 @@ export function createEngine(init: EngineInit): Engine {
         return;
       }
       if (!blockingAlive()) {
-        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
-        resetScriptScreen(state.surfaces);
+        beginOutermostProgram();
         startProgram(state.vm, { kind: "inline", text: "wait()", ir: IR_VERSION });
       }
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
@@ -771,6 +767,12 @@ export function createEngine(init: EngineInit): Engine {
   let surfaceCacheEpoch = 0;
   let generatedMarginPixels: { readonly id: SurfaceId; readonly rev: number; readonly pixels: SurfacePixels } | null = null;
   let frameHash: string | null = null;
+  /** Set when an outermost program ended in the current tick; suppresses tick-end and tail presentation so its final screen stays committed as surface 0 until the next free-roam draw (ADR 0018 R5). */
+  let endedProgramThisTick = false;
+  /** When true, `engine.drawList` presents surface 0 (the committed final program screen) instead of re-rasterising the board; cleared when a free-roam frame is actually committed. */
+  let holdProgramFrame = false;
+  /** Transient flag set while committing the final program screen before hiding the message window (ADR 0018 R5, #1186). */
+  let committingFinalProgramScreen = false;
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
   let frameFailure: { readonly hash: string; readonly message: string } | null = null;
   // Presentation inputs are plain draw-list data; decoded textures remain runner-owned (AD-29).
@@ -1273,6 +1275,8 @@ export function createEngine(init: EngineInit): Engine {
       surfaceCache.clear();
       frameHash = null;
       frameFailure = null;
+      endedProgramThisTick = false;
+      holdProgramFrame = false;
       refreshFrame(true);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       pendingTileBitmapAnimations.clear();
@@ -1298,8 +1302,7 @@ export function createEngine(init: EngineInit): Engine {
     const ref: ProgramRef = typeof init.program === "string"
       ? { kind: "inline", text: init.program, ir: IR_VERSION, dialect: "tk3" }
       : init.program;
-    resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
-    resetScriptScreen(state.surfaces);
+    beginOutermostProgram();
     startProgram(state.vm, ref);
   }
 
@@ -2096,6 +2099,8 @@ export function createEngine(init: EngineInit): Engine {
     generatedMarginPixels = null;
     frameHash = null;
     frameFailure = null;
+    endedProgramThisTick = false;
+    holdProgramFrame = false;
     surfaceCacheEpoch += 1;
     state.rng = rng;
     state.time = time;
@@ -2150,6 +2155,12 @@ export function createEngine(init: EngineInit): Engine {
   }
   function blockingAlive(): boolean {
     return hasLiveBlockingThread(state.vm);
+  }
+
+  /** Start of an outermost program: reset the UI for a program start, and reset the script screen to transparent black (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle). */
+  function beginOutermostProgram(): void {
+    resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+    resetScriptScreen(state.surfaces);
   }
 
   /** Hydrate board `key`, requesting its file and then each missing tile asset in turn. */
@@ -2467,8 +2478,8 @@ export function createEngine(init: EngineInit): Engine {
       // A blocking enter program is a new outermost program; reset the message window.
       const blocking = blockingAlive();
       if (!blocking) {
-        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
-        resetScriptScreen(state.surfaces);
+        if (fromSend) refreshFrame(false);
+        beginOutermostProgram();
       }
       const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
       if (blocking && enterThread !== null) state.engine.pendingEnterThread = enterThread.id;
@@ -2494,8 +2505,7 @@ export function createEngine(init: EngineInit): Engine {
       clearPendingExit(player.id);
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // An edge link that runs a program starts a new outermost program.
-      resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
-      resetScriptScreen(state.surfaces);
+      beginOutermostProgram();
       startFileProgram(link, board.key, "blocking");
       return;
     }
@@ -2698,8 +2708,7 @@ export function createEngine(init: EngineInit): Engine {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
       }
       if (mainFile.startupPrg !== "") {
-        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
-        resetScriptScreen(state.surfaces);
+        beginOutermostProgram();
         startFileProgram(mainFile.startupPrg, mainKey, "blocking");
       }
       boot.stage = "startup";
@@ -3008,10 +3017,7 @@ export function createEngine(init: EngineInit): Engine {
       for (const ref of prepared.boardPrograms) startThread(stagedVm, { ref, kind: "board", owner: "world" });
       if (prepared.entryProgram !== null) {
         const blocking = stagedVm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
-        if (!blocking) {
-          resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
-          resetScriptScreen(state.surfaces);
-        }
+        if (!blocking) beginOutermostProgram();
         startThread(stagedVm, { ref: prepared.entryProgram, kind: blocking ? "board" : "blocking", owner: blocking ? "world" : "script" });
       }
     } catch (error) {
@@ -4097,12 +4103,21 @@ export function createEngine(init: EngineInit): Engine {
       }
     }
   }
-  /** Hide the message window when an outermost (blocking) program ends, without clearing its text. */
+  /** Hide the message window when an outermost (blocking) program ends, without clearing its text, and commit
+   * the program's final screen (surface + window pixels) as the presented frame before the window is hidden
+   * (ADR 0018 R5, fixes #1186). */
   function onBlockingThreadFinished(thread: Thread): void {
     if (thread.kind !== "blocking") return;
     if (blockingAlive()) return;
-    if (state.ui.message === undefined) return;
-    state.ui.message = { ...state.ui.message, visible: false };
+    committingFinalProgramScreen = true;
+    try {
+      refreshFrame(false);
+    } finally {
+      committingFinalProgramScreen = false;
+    }
+    endedProgramThisTick = true;
+    holdProgramFrame = true;
+    if (state.ui.message !== undefined) state.ui.message = { ...state.ui.message, visible: false };
     state.ui.modal = null;
   }
 
@@ -4200,8 +4215,9 @@ export function createEngine(init: EngineInit): Engine {
       return commands;
     };
     const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"], marginCommands: [] as DrawList["marginCommands"] };
+    const held = (holdProgramFrame || (board === null && !blockingAlive() && frameHash !== null)) ? surfaceBlit(state.surfaces, 0 as SurfaceId) : null;
     const base = board === null
-      ? empty
+      ? (held === null ? empty : { ...empty, commands: [held] })
       : composeBoard({
         board,
         tick: state.time.tick,
@@ -4225,8 +4241,8 @@ export function createEngine(init: EngineInit): Engine {
       return imageTexture(frame.asset);
     };
     const withFx = applyFxDrawList(base, fx, sourceSize);
-    // A script-screen layer is visible only while an outermost program runs (#1045).
-    const activeSurface = blockingAlive();
+    // A script-screen layer is visible only while an outermost program runs (#1045) or when committing its final frame (ADR 0018 R5, #1186).
+    const activeSurface = blockingAlive() || committingFinalProgramScreen;
     const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
     // E-57: the enabled render-now canvas sits above the board, sprites and animations and below UI text and the message window.
     const overlay = renderNowBlit(state.surfaces);
@@ -4309,6 +4325,17 @@ export function createEngine(init: EngineInit): Engine {
     if (report && frameFailure !== null) reportRenderFailure(frameFailure.message);
     replaceSurface(state.surfaces, 0 as SurfaceId, rendered.width, rendered.height, rendered.rgba);
     frameHash = nextHash;
+  }
+
+  /** Refresh the presented frame (surface 0) unless an outermost program ended this tick, in which case its
+   * final committed screen must survive until the next free-roam draw. Also does nothing when there is no board
+   * and no live blocking program (fixes #1171's boot interval). Clears `holdProgramFrame` when it actually
+   * commits a board frame. */
+  function refreshPresentedFrame(): void {
+    if (endedProgramThisTick) return;
+    if (!blockingAlive() && state.world.board === null) return;
+    holdProgramFrame = false;
+    refreshFrame(false);
   }
   function reportRenderFailure(message: string): void {
     diagnostics.push({ code: "render.failed", file: state.world.board?.key ?? "", line: 0, message });
@@ -4404,6 +4431,8 @@ export function createEngine(init: EngineInit): Engine {
       let ticksRun = 0;
       let paused: Paused | null = null;
       while (canTick() && state.input.focused && (state.engine.openTick !== undefined || ticksRun < bounded)) {
+        // A program-end frame must survive the tail of the tick it ends in; the flag clears on the next tick.
+        endedProgramThisTick = false;
         if (state.engine.openTick === undefined) {
           runPhase("input", consumed);
           if (!state.input.focused) break;
@@ -4421,12 +4450,13 @@ export function createEngine(init: EngineInit): Engine {
         ticksRun += 1;
         resume = "continue";
         drive();
+        refreshPresentedFrame();
       }
       syncEngineState();
       settlePostQuitWriteFailures();
       finalizeBlobRequests();
       publishQuitRequest();
-      refreshFrame(false);
+      refreshPresentedFrame();
       const reportDiagnostics = [...diagnostics.splice(0), ...drainDiagnostics(services)];
       return {
         ticksRun,
