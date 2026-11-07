@@ -534,7 +534,12 @@ export function createEngine(init: EngineInit): Engine {
     },
   );
   for (const section of ["party", "inventory", "menu"] as const) {
-    bus.register(section, (effect) => applyMenuStateEffect(menuOwners, effect));
+    bus.register(section, (effect) => {
+      applyMenuStateEffect(menuOwners, effect);
+      if (effect.name === "destroyplayer") {
+        boardRedraw();
+      }
+    });
   }
   // The script-facing media owner (MEDIA-1): starts post through the one bus so
   // the audio applier stays the only start route; `bind` fills the returned voice.
@@ -553,8 +558,13 @@ export function createEngine(init: EngineInit): Engine {
   );
   bus.register("world", (effect) => {
     applyWorldEffect(state, effect);
-    if (effect.name === "forceredraw" || effect.name === "setambientlevel") {
-      captureProgramOverlay();
+    if (
+      effect.name === "forceredraw" ||
+      effect.name === "setambientlevel" ||
+      effect.name === "layerput" ||
+      effect.name === "put"
+    ) {
+      boardRedraw();
     }
   });
   bus.register("camera", (effect) => applyCameraEffect(state, effect));
@@ -659,6 +669,9 @@ export function createEngine(init: EngineInit): Engine {
     }
     applySpriteEffect(state, effect.name, values, effect.thread);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
+    if (isSpriteRedrawCommand(effect.name) && blockingAlive()) {
+      boardRedraw();
+    }
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
   /**
@@ -828,6 +841,44 @@ export function createEngine(init: EngineInit): Engine {
       blend: "normal",
       iso2d: false,
     };
+  }
+
+  function isSpriteRedrawCommand(name: string): boolean {
+    switch (name.toLowerCase()) {
+      case "playerstep":
+      case "itemstep":
+      case "push":
+      case "pushitem":
+      case "wander":
+      case "playerpath":
+      case "itempath":
+      case "playerdirection":
+      case "itemdirection":
+      case "playerstance":
+      case "itemstance":
+      case "stance":
+      case "posture":
+      case "putplayer":
+      case "eraseplayer":
+      case "destroyplayer":
+      case "putitem":
+      case "eraseitem":
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * P2 commands redraw the whole board (board, sprites, thread animations, overlay if on)
+   * into the program surface from scratch, erasing whatever the program had drawn, then
+   * present it with the message window on top (3.1 P2, #1182, ADR 0018).
+   */
+  function boardRedraw(): void {
+    resetScriptScreen(state.surfaces);
+    state.ui.draws = [];
+    captureProgramOverlay();
+    if (state.world.board !== null) refreshFrame(false);
   }
 
   function currentSurfaceTextures(): ReadonlyMap<SurfaceId, DecodedTexture> {
@@ -1348,7 +1399,7 @@ export function createEngine(init: EngineInit): Engine {
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       pendingTileBitmapAnimations.clear();
       surfaceCacheEpoch += 1;
-      captureProgramOverlay();
+      boardRedraw();
     } catch (error) {
       Object.assign(state, previous);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
@@ -2545,7 +2596,11 @@ export function createEngine(init: EngineInit): Engine {
     postBoardMusic(board);
     postPrefetch(board);
     boardLifecycle("entered", board, player);
-    captureProgramOverlay();
+    if (fromSend) {
+      boardRedraw();
+    } else {
+      captureProgramOverlay();
+    }
     // An empty list is stored as one empty string and empty entries are ignored (docs/spec/formats/board.md#threads-constants-and-settings).
     for (const name of board.threads ?? []) if (name !== "") startFileProgram(name, board.key, "board");
     if (board.enterPrg !== undefined && board.enterPrg !== "") {
@@ -4018,6 +4073,9 @@ export function createEngine(init: EngineInit): Engine {
       case "movement":
         state.camera = updateCamera(state.camera, state.world.board ?? null, init.cameraTarget ?? init.spriteRuntime);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state, (section, effect) => bus.postEffect(section, effect));
+        if (state.vm.threads.some((thread) => thread.kind === "blocking" && (thread.wait?.kind === "sprite.movement" || thread.wait?.kind === "movement" || thread.wait?.kind === "sprite.stance"))) {
+          boardRedraw();
+        }
         return;
       case "edges":
         runEdgesPhase();
