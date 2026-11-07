@@ -5,6 +5,8 @@ import { enqueueDirectionMove } from "../sprites/movement.ts";
 import type { Facing } from "../sprites/model.ts";
 import { enqueuePathMove } from "../sprites/runtime.ts";
 import type { GameState } from "../save/state.ts";
+import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { killSurface, resetScriptScreen } from "../raster/surfaces.ts";
 import { applySemanticActionEdge, createInputSection, heldPointerGoal, processGamepadEvents, registeredActionNames, takeInputActions, type InputConfig } from "./input.ts";
 import { selectPointerActivationTarget } from "../triggers/runtime.ts";
 import { positionAt } from "../world/camera.ts";
@@ -42,6 +44,8 @@ export function openMainMenu(state: GameState): boolean {
   if (state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished")) return false;
   if (state.world.board == null) return false;
   if (!state.actors.actors.some((actor) => actor.kind === "party" && state.party.members.includes(actor.id) && actor.stats.hp > 0)) return false;
+  resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+  resetScriptScreen(state.surfaces);
   startThread(state.vm, { ref: { kind: "inline", text: "mainmenu()", ir: IR_VERSION }, kind: "blocking", owner: "script" });
   return true;
 }

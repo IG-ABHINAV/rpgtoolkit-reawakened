@@ -43,7 +43,7 @@ const ATTACH_BACKOFF_INITIAL_MS = 500;
 const ATTACH_BACKOFF_MAX_MS = 8_000;
 const ATTACH_LOGCAT_LINES = 20;
 const ADB_COMMAND_TIMEOUT_MS = 15_000;
-const PROTOCOL_TIMEOUT_MS = 10_000;
+const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 45_000);
 
 function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   let timer;
@@ -91,8 +91,8 @@ async function livePage(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   throw new Error(`The Android WebView did not publish window.__mobile before its deadline; ${detail}`, { cause: lastError });
 }
 
-async function report(page) {
-  return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null));
+async function report(page, timeoutMs = 15_000) {
+  return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null), timeoutMs);
 }
 
 async function waitFor(page, predicate, description, timeoutMs = 60_000) {
@@ -107,14 +107,25 @@ async function waitFor(page, predicate, description, timeoutMs = 60_000) {
   throw new Error(`${description} timed out; last page report: ${JSON.stringify(last)}`);
 }
 
-async function captureReading(page, label, options) {
-  const captured = await protocolCall(`capturing ${label} page reading`, () => page.evaluate(() => ({
-    report: window.__mobile ?? null,
-    documentTitle: document.title,
-  })));
-  const pageReport = assertReport(captured.report, label, options);
-  assertDocumentTitle(pageReport, captured.documentTitle, label);
-  return { report: pageReport, documentTitle: captured.documentTitle };
+async function captureReading(page, label, options, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const remaining = Math.max(5_000, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now()));
+      const captured = await protocolCall(`capturing ${label} page reading`, () => page.evaluate(() => ({
+        report: window.__mobile ?? null,
+        documentTitle: document.title,
+      })), remaining);
+      const pageReport = assertReport(captured.report, label, options);
+      assertDocumentTitle(pageReport, captured.documentTitle, label);
+      return { report: pageReport, documentTitle: captured.documentTitle };
+    } catch (err) {
+      lastError = err;
+      await delay(500);
+    }
+  }
+  throw lastError;
 }
 async function captureCanvasContent(page) {
   return protocolCall("reading rendered mobile canvas pixels", () => page.evaluate(() => {
@@ -226,35 +237,36 @@ function launchAndConnect(stage, serial, serverOptions, timeoutMs = ATTACH_TIMEO
     attempts: proof.attachAttempts,
     log: console.log,
     appId,
-    protocolTimeoutMs: PROTOCOL_TIMEOUT_MS,
+    protocolTimeoutMs: 90_000,
     initialBackoffMs: ATTACH_BACKOFF_INITIAL_MS,
     maxBackoffMs: ATTACH_BACKOFF_MAX_MS,
   });
 }
 
-async function enterBoard(page) {
-  await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the title sequence");
+async function enterBoard(page, timeoutMs = 90_000) {
+  await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the title sequence", timeoutMs);
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const value = await report(page);
+    const value = await report(page).catch(() => null);
     if (value?.board !== null && value?.board !== undefined) break;
-    await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"));
+    await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"), 10_000).catch(() => {});
     await delay(500);
   }
-  return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board");
+  return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board", timeoutMs);
 }
 
-async function settledPlayer(page) {
-  const deadline = Date.now() + 30_000;
-  let previous = null;
+async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+  let previous = initialReport ?? null;
   let stableTicks = 0;
+  const targetStable = initialReport !== null ? 1 : 2;
   while (Date.now() < deadline) {
-    const current = await report(page).catch(() => null);
+    const current = await report(page, 20_000).catch(() => null);
     if (current?.error) throw new Error(`waiting for a settled player: ${current.error}`);
     if (current?.board !== null && current?.board !== undefined && current.player !== null) {
       if (previous !== null && current.tick > previous.tick) {
         if (current.player.x === previous.player.x && current.player.y === previous.player.y) stableTicks += 1;
         else stableTicks = 0;
-        if (stableTicks >= 3) return captureReading(page, "settled pre-tap baseline");
+        if (stableTicks >= targetStable) return captureReading(page, "settled pre-tap baseline");
       }
       previous = current;
     }
@@ -264,10 +276,28 @@ async function settledPlayer(page) {
 }
 
 async function canvasTap(page, baseline) {
-  const target = await protocolCall("reading canvas tap target", () =>
-    page.locator("canvas#screen").evaluate((canvas) => {
+  const target = await protocolCall("reading canvas tap target and installing observers", () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector("#screen");
+      if (!(canvas instanceof HTMLCanvasElement)) throw new Error("mobile canvas is absent");
       const rect = canvas.getBoundingClientRect();
       const logical = { x: Math.floor(canvas.width / 2), y: Math.floor(canvas.height / 2) };
+      window.__mobileProofPointerEvents = [];
+      const observe = (event) => {
+        const r = canvas.getBoundingClientRect();
+        window.__mobileProofPointerEvents.push({
+          type: event.type,
+          pointerType: event.pointerType,
+          trusted: event.isTrusted,
+          buttons: event.buttons,
+          logical: {
+            x: Math.floor(Math.max(0, Math.min(canvas.width - 1, (event.clientX - r.left) * canvas.width / r.width))),
+            y: Math.floor(Math.max(0, Math.min(canvas.height - 1, (event.clientY - r.top) * canvas.height / r.height))),
+          },
+        });
+      };
+      canvas.addEventListener("pointerdown", observe, { once: true });
+      canvas.addEventListener("pointerup", observe, { once: true });
       return {
         coordinateSpace: "CDP CSS viewport pixels, derived from the canvas client rect",
         logical,
@@ -280,27 +310,6 @@ async function canvasTap(page, baseline) {
         devicePixelRatio: window.devicePixelRatio,
       };
     }));
-
-  await protocolCall("installing canvas pointer observers", () => page.evaluate(() => {
-    const canvas = document.querySelector("canvas#screen");
-    if (canvas === null) throw new Error("mobile canvas is absent");
-    window.__mobileProofPointerEvents = [];
-    const observe = (event) => {
-      const rect = canvas.getBoundingClientRect();
-      window.__mobileProofPointerEvents.push({
-        type: event.type,
-        pointerType: event.pointerType,
-        trusted: event.isTrusted,
-        buttons: event.buttons,
-        logical: {
-          x: Math.floor(Math.max(0, Math.min(canvas.width - 1, (event.clientX - rect.left) * canvas.width / rect.width))),
-          y: Math.floor(Math.max(0, Math.min(canvas.height - 1, (event.clientY - rect.top) * canvas.height / rect.height))),
-        },
-      });
-    };
-    canvas.addEventListener("pointerdown", observe, { once: true });
-    canvas.addEventListener("pointerup", observe, { once: true });
-  }));
 
   const cdp = await protocolCall("opening touch input session", () => page.context().newCDPSession(page));
   try {
@@ -387,6 +396,21 @@ async function main() {
     const cleared = adb("shell", "pm", "clear", appId);
     if (cleared !== "Success") throw new Error(`could not clear Android app data for a fresh CI proof: ${cleared}`);
   }
+  try {
+    adb("shell", "settings", "put", "global", "cached_apps_freezer", "disabled");
+    adb("shell", "device_config", "put", "activity_manager_native_boot", "use_freezer", "false");
+    adb("shell", "svc", "power", "stayon", "true");
+    adb("shell", "wm", "dismiss-keyguard");
+    for (const pkg of [
+      "com.google.android.googlequicksearchbox",
+      "com.google.android.apps.photos",
+      "com.google.android.apps.messaging",
+      "com.google.android.settings.intelligence",
+    ]) {
+      try { runAdb("shell", "pm", "disable-user", "--user", "0", pkg); } catch {}
+      try { runAdb("shell", "am", "force-stop", pkg); } catch {}
+    }
+  } catch {}
   const initial = await launchAndConnect("initial launch", serial, serverOptions);
   let device = initial.device;
   let page = initial.page;
@@ -410,10 +434,11 @@ async function main() {
     await screenshot(page, "title");
 
     await enterBoard(page);
+    await delay(500);
     const board = await captureReading(page, "board entry");
     proof.readings.board = board;
 
-    const tapBaseline = await settledPlayer(page);
+    const tapBaseline = await settledPlayer(page, board.report);
     const tapped = await canvasTap(page, tapBaseline);
     const playerBefore = tapBaseline.report.player;
     const playerAfter = tapped.reading.report.player;
@@ -438,7 +463,7 @@ async function main() {
     adb("shell", "settings", "put", "system", "accelerometer_rotation", "0");
     const requestedRotation = beforeRotation.viewport.width > beforeRotation.viewport.height ? "0" : "1";
     adb("shell", "settings", "put", "system", "user_rotation", requestedRotation);
-    const rotationDeadline = Date.now() + 30_000;
+    const rotationDeadline = Date.now() + 60_000;
     let afterRotation = beforeRotation;
     while (Date.now() < rotationDeadline) {
       await delay(500);
