@@ -125,7 +125,7 @@ import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.t
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
-import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, resetScriptScreen, copyPresentedFrameToScriptScreen, SCRIPT_SCREEN, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
+import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, resetScriptScreen, copyPresentedFrameToScriptScreen, SCRIPT_SCREEN, renderNowCanvas, renderNowEnabled, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
 import { rasterizeAuthorMargin } from "../raster/raster.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
@@ -551,7 +551,12 @@ export function createEngine(init: EngineInit): Engine {
       diagnostics.push({ code, file: typeof file === "string" ? file : "", line: 0, message: `${op}: ${code} ${text}`.trimEnd() });
     },
   );
-  bus.register("world", (effect) => applyWorldEffect(state, effect));
+  bus.register("world", (effect) => {
+    applyWorldEffect(state, effect);
+    if (effect.name === "forceredraw" || effect.name === "setambientlevel") {
+      captureProgramOverlay();
+    }
+  });
   bus.register("camera", (effect) => applyCameraEffect(state, effect));
   bus.register("ui", (effect) => {
     const lower = effect.name.toLowerCase();
@@ -775,9 +780,66 @@ export function createEngine(init: EngineInit): Engine {
   let committingFinalProgramScreen = false;
   /** Animation ID watermark when the currently running outermost program started; used to filter thread animations started earlier (#1183). */
   let outermostProgramStartAnimationId = 1;
-  /** RenderNow surface revision and on/off state when the outermost program started (#1183). */
-  let outermostProgramStartRenderNowRev = -1;
-  let outermostProgramStartRenderNowOn: boolean | undefined = undefined;
+  /** The baked overlay command active during a running program; updated only at board redraws (3.1 P3, #1184). */
+  let programActiveOverlay: DrawCommand | null = null;
+  /** Snapshot of canvas pixels captured at the last board redraw (3.1 P3, #1184). */
+  let programOverlayPixels: { readonly w: number; readonly h: number; readonly rgba: Uint8Array } | null = null;
+  let programOverlayRev = 0;
+
+  function activeProgramForCompose(): boolean {
+    const activeSurface = blockingAlive() || committingFinalProgramScreen;
+    return activeSurface && state.world.board != null && state.battle === null && state.menu.screens.length === 0;
+  }
+
+  function captureProgramOverlay(): void {
+    if (!renderNowEnabled(state.surfaces)) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const canvasId = renderNowCanvas(state.surfaces);
+    if (canvasId === null) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const canvasEntry = state.surfaces.entries[String(canvasId)];
+    if (canvasEntry === undefined) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const pixels = readSurfacePixels(state.surfaces, canvasId, canvasEntry.rev, surfaceCache);
+    if (pixels === null) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    programOverlayRev = canvasEntry.rev;
+    programOverlayPixels = { w: pixels.w, h: pixels.h, rgba: new Uint8Array(pixels.rgba) };
+    programActiveOverlay = {
+      kind: "blit",
+      source: { surface: canvasId, rev: programOverlayRev },
+      src: { x: 0, y: 0, w: pixels.w, h: pixels.h },
+      dst: { x: 0, y: 0, w: pixels.w, h: pixels.h },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: 255,
+      blend: "normal",
+      iso2d: false,
+    };
+  }
+
+  function currentSurfaceTextures(): ReadonlyMap<SurfaceId, DecodedTexture> {
+    const textures = new Map<SurfaceId, DecodedTexture>(surfaceTextures(state.surfaces, surfaceCache));
+    if (activeProgramForCompose() && programOverlayPixels !== null) {
+      const rnId = renderNowCanvas(state.surfaces);
+      if (rnId !== null) {
+        textures.set(rnId, { w: programOverlayPixels.w, h: programOverlayPixels.h, rgba: new Uint8Array(programOverlayPixels.rgba) });
+      }
+    }
+    return textures;
+  }
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
   let frameFailure: { readonly hash: string; readonly message: string } | null = null;
   // Presentation inputs are plain draw-list data; decoded textures remain runner-owned (AD-29).
@@ -1286,6 +1348,7 @@ export function createEngine(init: EngineInit): Engine {
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       pendingTileBitmapAnimations.clear();
       surfaceCacheEpoch += 1;
+      captureProgramOverlay();
     } catch (error) {
       Object.assign(state, previous);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
@@ -2106,6 +2169,9 @@ export function createEngine(init: EngineInit): Engine {
     frameFailure = null;
     endedProgramThisTick = false;
     holdProgramFrame = false;
+    programActiveOverlay = null;
+    programOverlayPixels = null;
+    programOverlayRev = 0;
     surfaceCacheEpoch += 1;
     state.rng = rng;
     state.time = time;
@@ -2167,19 +2233,8 @@ export function createEngine(init: EngineInit): Engine {
     resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
     resetScriptScreen(state.surfaces);
     outermostProgramStartAnimationId = (state.fx as Partial<FxSection>)?.nextAnimationId ?? 1;
-    const rn = state.surfaces.renderNow;
-    outermostProgramStartRenderNowRev = (typeof rn === "number" && state.surfaces.entries[String(rn)] !== undefined)
-      ? state.surfaces.entries[String(rn)]!.rev
-      : -1;
-    outermostProgramStartRenderNowOn = state.surfaces.renderNowOn;
-  }
-  function programTouchedOverlay(): boolean {
-    if (state.surfaces.renderNowOn !== outermostProgramStartRenderNowOn) return true;
-    const rn = state.surfaces.renderNow;
-    const currentRev = (typeof rn === "number" && state.surfaces.entries[String(rn)] !== undefined)
-      ? state.surfaces.entries[String(rn)]!.rev
-      : -1;
-    return currentRev !== outermostProgramStartRenderNowRev;
+    programActiveOverlay = null;
+    programOverlayPixels = null;
   }
 
   /** Hydrate board `key`, requesting its file and then each missing tile asset in turn. */
@@ -2490,6 +2545,7 @@ export function createEngine(init: EngineInit): Engine {
     postBoardMusic(board);
     postPrefetch(board);
     boardLifecycle("entered", board, player);
+    captureProgramOverlay();
     // An empty list is stored as one empty string and empty entries are ignored (docs/spec/formats/board.md#threads-constants-and-settings).
     for (const name of board.threads ?? []) if (name !== "") startFileProgram(name, board.key, "board");
     if (board.enterPrg !== undefined && board.enterPrg !== "") {
@@ -4181,7 +4237,7 @@ export function createEngine(init: EngineInit): Engine {
     const rendered = rasterizeAuthorMargin(
       { tick: state.time.tick, width, height, commands: shifted, marginCommands: [] },
       rasterAssets(),
-      surfaceTextures(state.surfaces, surfaceCache),
+      currentSurfaceTextures(),
     );
     if (rendered.error !== null) return [...commands];
     const id = state.surfaces.nextId as SurfaceId;
@@ -4261,15 +4317,16 @@ export function createEngine(init: EngineInit): Engine {
     };
     const activeSurface = blockingAlive() || committingFinalProgramScreen;
     const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
-    // While a program runs outside battle, neither the render-now overlay nor thread animations
+    // While a program runs outside battle and menu, neither the render-now overlay nor thread animations
     // started earlier are composed live (3.1 P1, #1183, ADR 0018).
-    const activeProgram = activeSurface && state.battle === null;
+    const activeProgram = activeProgramForCompose();
     const fxForCompose = activeProgram
       ? { ...fx, animations: fx.animations.filter((a) => a.pinned === true || a.id >= outermostProgramStartAnimationId) }
       : fx;
     const withFx = applyFxDrawList(base, fxForCompose, sourceSize);
     // E-57: the enabled render-now canvas sits above the board, sprites and animations and below UI text and the message window.
-    const overlay = (activeProgram && !programTouchedOverlay()) ? null : renderNowBlit(state.surfaces);
+    // While a program runs outside battle, the overlay is baked at board redraws, not composed live (3.1 P3, #1184).
+    const overlay = activeProgram ? programActiveOverlay : renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
     const withOverlay = {
@@ -4350,7 +4407,7 @@ export function createEngine(init: EngineInit): Engine {
     // A font the game does not ship (a legacy family name such as "Comic Sans MS") draws in the default bitmap font.
     const fallbackFont = assets.get(defaultFontAsset);
     if (fallbackFont !== undefined) for (const command of list.commands) if (command.kind === "text" && !assets.has(command.font.asset)) assets.set(command.font.asset, fallbackFont);
-    const rendered = rasterize(list, assets, surfaceTextures(state.surfaces, surfaceCache));
+    const rendered = rasterize(list, assets, currentSurfaceTextures());
     // A frame that could not be replayed is never left as a silently blank or partial image.
     frameFailure = rendered.error === null ? null : { hash: nextHash, message: rendered.error };
     if (report && frameFailure !== null) reportRenderFailure(frameFailure.message);
@@ -4572,6 +4629,10 @@ export function createEngine(init: EngineInit): Engine {
       return surfaceCacheEpoch;
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
+      const rnId = renderNowCanvas(state.surfaces);
+      if (activeProgramForCompose() && programOverlayPixels !== null && rnId !== null && id === rnId && rev === programOverlayRev) {
+        return { w: programOverlayPixels.w, h: programOverlayPixels.h, rgba: new Uint8Array(programOverlayPixels.rgba) };
+      }
       if (generatedMarginPixels?.id === id && generatedMarginPixels.id === state.surfaces.nextId && generatedMarginPixels.rev === rev) {
         const { w, h, rgba } = generatedMarginPixels.pixels;
         return { w, h, rgba: new Uint8Array(rgba) };
