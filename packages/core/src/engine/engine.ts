@@ -347,7 +347,7 @@ export function createEngine(init: EngineInit): Engine {
       if (registerGameAction(state.input, action)) registered.add(action.name);
     }
   }
-  state.engine = { claims: [] };
+  state.engine = { cacheKeys: [], claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
   let mainFile: MainFile | null = null;
@@ -364,6 +364,10 @@ export function createEngine(init: EngineInit): Engine {
   let mainKey: AssetKey | null = null;
   const installedFonts = new Map<AssetKey, Uint8Array>();
   const cache = new Map<AssetKey, Uint8Array>();
+  // Source resolution is synchronous; installed sources remain physically available when Load hides newer keys.
+  const programSources = new Map<AssetKey, Uint8Array>();
+  let cacheKeysSnapshot: string[] = [];
+  let cacheKeysDirty = true;
   const inventoryItemDefinitions = new Map<AssetKey, Item>();
   const inventoryCharacterDefinitions = new Map<AssetKey, Character>();
   const decodedImages = new Map<AssetKey, DecodedTexture>();
@@ -383,6 +387,11 @@ export function createEngine(init: EngineInit): Engine {
   const canvasTextAssets = new Map<AssetKey, RasterAsset>();
   const pending = new Map<number, RequestEntry>();
   const pendingTileBitmapAnimations = new Set<number>();
+  const restoreAssetRequests = new Set<number>();
+  let restoringSavedAssets = false;
+  let savedAssetRestoreKeys: readonly AssetKey[] = [];
+  let nextRestoreRequestId = 0x20000000;
+  const deferredRestoreDecode = new Set<AssetKey>();
   const pendingBlobs = new Map<number, PendingBlobRequest>();
   const pendingImageEffects: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
   const pendingBoardPreviews: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
@@ -1326,6 +1335,17 @@ export function createEngine(init: EngineInit): Engine {
     callingThread?: Thread,
     savedMessage?: UiMessageWindow,
   ): void {
+    const previousCache = new Map(cache);
+    const previousDeferredDecode = new Set(deferredRestoreDecode);
+    const savedKeys = candidate.engine.cacheKeys;
+    const retainedKeys = savedKeys === null
+      ? new Set<AssetKey>([
+          ...(mainKey === null ? [] : [mainKey]),
+          ...installedFonts.keys(),
+          ...programKeys(index, root),
+          ...(initialCharacterKey === null ? [] : [initialCharacterKey]),
+        ].filter((key) => cache.has(key)))
+      : new Set(savedKeys.filter((key) => index.byKey.has(assetKey(key))).map(assetKey));
     const modalIdFloor = state.ui.nextModalId;
     const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
@@ -1484,7 +1504,29 @@ export function createEngine(init: EngineInit): Engine {
 
       startupServicesReady = true;
       audio.load(projection);
+      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       clearPathfindingCache();
+      cache.clear();
+      cacheKeysDirty = true;
+      for (const key of retainedKeys) {
+        const bytes = previousCache.get(key);
+        if (bytes !== undefined) cacheAsset(key, bytes);
+      }
+      savedAssetRestoreKeys = [...retainedKeys];
+      restoringSavedAssets = true;
+      inventoryItemDefinitions.clear();
+      inventoryCharacterDefinitions.clear();
+      decodedImages.clear();
+      decodedTiles.clear();
+      spriteAnimations.clear();
+      spriteAnimationSourceBytes.clear();
+      spriteGifPageAssets.clear();
+      spriteCellSizes.clear();
+      missingSpriteAnimationAssets.clear();
+      decodedBundled.clear();
+      canvasTextAssets.clear();
+      deferredRestoreDecode.clear();
+      for (const key of retainedKeys) if (cache.has(key)) deferredRestoreDecode.add(key);
       surfaceCache.clear();
       frameHash = null;
       frameFailure = null;
@@ -1492,8 +1534,6 @@ export function createEngine(init: EngineInit): Engine {
       holdProgramFrame = false;
       presentedFrameDirty = false;
       blockingWasAlive = blockingAlive();
-      refreshFrame(true);
-      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       pendingTileBitmapAnimations.clear();
       surfaceCacheEpoch += 1;
       boardRedraw();
@@ -1508,6 +1548,13 @@ export function createEngine(init: EngineInit): Engine {
       frameHash = previousFrameHash;
       frameFailure = previousFrameFailure;
       nextRequestId = previousNextRequestId;
+      cache.clear();
+      cacheKeysDirty = true;
+      for (const [key, bytes] of previousCache) cacheAsset(key, bytes);
+      restoringSavedAssets = false;
+      restoreAssetRequests.clear();
+      deferredRestoreDecode.clear();
+      for (const key of previousDeferredDecode) deferredRestoreDecode.add(key);
       throw error;
     }
   }
@@ -1529,6 +1576,49 @@ export function createEngine(init: EngineInit): Engine {
     pending.set(entry.reqId, entry);
     requestsOut.push({ kind: "asset", reqId: entry.reqId, key });
   }
+  function cacheAsset(key: AssetKey, bytes: Uint8Array): void {
+    if (!cache.has(key)) cacheKeysDirty = true;
+    cache.set(key, bytes);
+  }
+  function readProgramSource(key: AssetKey): Uint8Array | undefined {
+    const cached = cache.get(key);
+    if (cached !== undefined) {
+      if (programSources.get(key) !== cached) programSources.set(key, cached);
+      return cached;
+    }
+    const source = programSources.get(key);
+    if (source !== undefined) cacheAsset(key, source);
+    return source;
+  }
+  function beginSavedAssetRestore(): void {
+    restoreAssetRequests.clear();
+    for (const key of savedAssetRestoreKeys) {
+      if (cache.has(key)) continue;
+      const reqId = nextRestoreRequestId++;
+      const entry: RequestEntry = { reqId, key, kind: requestKindFor(key) };
+      pending.set(reqId, entry);
+      restoreAssetRequests.add(reqId);
+      requestsOut.push({ kind: "asset", reqId, key });
+    }
+    if (restoreAssetRequests.size === 0) finishSavedAssetRestore();
+  }
+  function finishSavedAssetRestore(): void {
+    restoringSavedAssets = false;
+    const board = state.world.board;
+    // Background/free-image blits need decoded dimensions before they appear in a draw list.
+    if (board !== null && board !== undefined) {
+      for (const reference of [board.backgroundImage ?? "", ...(board.images ?? []).map((image) => image.file)]) {
+        if (reference === "") continue;
+        const resolved = resolveAsset(index, root, "bitmaps", reference);
+        if (!resolved.ok) continue;
+        if (cache.has(resolved.value)) imageTexture(resolved.value);
+        else request(resolved.value, "image");
+      }
+    }
+    primeMessageGraphic();
+    if (pending.size === 0) refreshFrame(true);
+  }
+
   const IMAGE_EFFECTS: Record<string, true> = {
     bitmap: true,
     setimage: true,
@@ -1539,6 +1629,7 @@ export function createEngine(init: EngineInit): Engine {
     [MENU_HAND_EFFECT]: true,
   };
   function imageTexture(key: AssetKey): DecodedTexture | null {
+    deferredRestoreDecode.delete(key);
     const cached = decodedImages.get(key);
     if (cached !== undefined) return cached;
     // A tile bitmap is an image like any other for `bitmap` and the `setimage*` family
@@ -1674,6 +1765,7 @@ export function createEngine(init: EngineInit): Engine {
     return ok({ w: tileWidth, h: strip.h, rgba });
   }
   function tileTexture(key: AssetKey): DecodedTexture | null {
+    deferredRestoreDecode.delete(key);
     const cached = decodedTiles.get(key);
     if (cached !== undefined) return cached;
     const bytes = cache.get(key);
@@ -1748,10 +1840,13 @@ export function createEngine(init: EngineInit): Engine {
   }
   /** Ask for the message-window image's bytes; the draw list shows the picture once its texture is decoded. */
   function primeMessageGraphic(): void {
+    if (restoringSavedAssets) return;
     const reference = state.ui.message?.graphic ?? "";
     if (reference === "") return;
     const key = messageGraphicAsset(reference);
-    if (key !== null) request(key, "image");
+    if (key === null) return;
+    if (cache.has(key)) imageTexture(key);
+    else request(key, "image");
   }
   /** The message-window image's key while its texture is decoded, so the draw list never names a texture a renderer lacks. */
   function messageGraphicKey(): AssetKey | null {
@@ -1918,7 +2013,12 @@ export function createEngine(init: EngineInit): Engine {
     applySurfaceImage(effect, texture, key);
   }
   function syncEngineState(): void {
+    if (cacheKeysDirty) {
+      cacheKeysSnapshot = Array.from(cache.keys()).sort();
+      cacheKeysDirty = false;
+    }
     const next: EngineSection = {
+      cacheKeys: cacheKeysSnapshot,
       nextRequestId,
       ...(state.engine.nextBattleId === undefined ? {} : { nextBattleId: state.engine.nextBattleId }),
       pending: Array.from(pending.values(), (entry) => ({ reqId: entry.reqId, key: entry.key, kind: entry.kind })),
@@ -2011,12 +2111,20 @@ export function createEngine(init: EngineInit): Engine {
     if (entry === undefined) return;
     pending.delete(entry.reqId);
     consumed.push(record);
+    if (restoreAssetRequests.delete(entry.reqId)) {
+      if (record.event.bytes !== null) {
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
+        deferredRestoreDecode.add(entry.key);
+      }
+      if (restoreAssetRequests.size === 0) finishSavedAssetRestore();
+      return;
+    }
     if (entry.kind === "initial-character") {
       initialCharacterResolved = true;
       if (record.event.bytes === null) {
         diagnostics.push({ code: "asset.missing", file: entry.key, line: 0, message: `asset not found: ${entry.key}` });
       } else {
-        cache.set(entry.key, new Uint8Array(record.event.bytes));
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
       }
       return;
     }
@@ -2026,7 +2134,7 @@ export function createEngine(init: EngineInit): Engine {
       } else {
         let hex = "";
         for (const byte of record.event.bytes) hex += byte.toString(16).padStart(2, "0");
-        cache.set(entry.key, new Uint8Array(record.event.bytes));
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
         replyToRequest(state.vm, entry.reqId - SCRIPT_REQUEST_BASE, { ok: true, value: hex });
       }
       return;
@@ -2051,7 +2159,7 @@ export function createEngine(init: EngineInit): Engine {
       if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
       return;
     }
-    cache.set(entry.key, new Uint8Array(record.event.bytes));
+    cacheAsset(entry.key, new Uint8Array(record.event.bytes));
     if (entry.kind === "image") {
       imageTexture(entry.key);
     } else if (entry.kind === "tile") {
@@ -2116,6 +2224,7 @@ export function createEngine(init: EngineInit): Engine {
         pendingBlobs.clear();
         pendingImageEffects.length = 0;
         pendingBoardPreviews.length = 0;
+        beginSavedAssetRestore();
         return "loaded";
       } catch (error) {
         if (error instanceof ScriptError) diagnostics.push(toDiagnostic(error));
@@ -2155,6 +2264,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function rasterAssets(assets = new Map<AssetKey, RasterAsset>()): Map<AssetKey, RasterAsset> {
     for (const key of cache.keys()) {
+      if (deferredRestoreDecode.has(key)) continue;
       if (isBitmapKey(key)) imageTexture(key);
       else {
         const lower = key.toLowerCase();
@@ -2339,6 +2449,9 @@ export function createEngine(init: EngineInit): Engine {
     state.time = time;
     shopSession.reset();
     pending.clear();
+    restoringSavedAssets = false;
+    restoreAssetRequests.clear();
+    savedAssetRestoreKeys = [];
     pendingTileBitmapAnimations.clear();
     pendingImageEffects.length = 0;
     pendingBoardPreviews.length = 0;
@@ -2348,7 +2461,7 @@ export function createEngine(init: EngineInit): Engine {
     decodedTiles.clear();
     failed = false;
     postQuitWriteFailures.length = 0;
-    state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
+    state.engine = mainKey === null ? { cacheKeys: [], claims: [] } : { cacheKeys: [], claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
     init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
@@ -2417,6 +2530,14 @@ export function createEngine(init: EngineInit): Engine {
       return "pending";
     }
     const board = result.value?.board ?? null;
+    for (const dependency of result.value?.dependencies ?? []) {
+      if (!deferredRestoreDecode.has(dependency)) continue;
+      if (isBitmapKey(dependency)) imageTexture(dependency);
+      else {
+        const lower = dependency.toLowerCase();
+        if (lower.endsWith(".tst") || lower.endsWith(".iso") || lower.endsWith(".gph")) tileTexture(dependency);
+      }
+    }
     if (board !== null && active) {
       for (const item of board.items ?? []) {
         const resolved = resolveAsset(index, root, "items", item.itemFile);
@@ -2918,6 +3039,8 @@ export function createEngine(init: EngineInit): Engine {
       if (mainFile === null) return false;
       const fonts = privateFontKeys(index, root);
       const programs = programKeys(index, root);
+      for (const key of fonts) request(key, "font");
+      for (const key of programs) if (readProgramSource(key) === undefined) request(key, "program");
       if (!initialCharacterResolved || ![...fonts, ...programs].every((key) => cache.has(key))) return false;
       for (const key of fonts) {
         const gated = gateTrueType(cache.get(key) ?? new Uint8Array(), key);
@@ -2931,7 +3054,7 @@ export function createEngine(init: EngineInit): Engine {
       const manifest = pluginManifestFor(mainFile, mainKey, init.packageCatalogue ?? []);
       const resolvedPlugins = resolveManifestPlugins(manifest.manifest, mainKey, init.packageCatalogue ?? []);
       diagnostics.push(...manifest.diagnostics, ...resolvedPlugins.diagnostics);
-      loader = { index, root, read: (key) => cache.get(key) };
+      loader = { index, root, read: readProgramSource };
       activePlugins = init.plugins ?? resolvedPlugins.plugins;
       if (mainFileAudioNeedsApply) {
         applyMainFileAudio(mainFile, activePlugins);
@@ -3404,6 +3527,7 @@ export function createEngine(init: EngineInit): Engine {
    * `send`, the scene board) until one waits for a host reply or a tick.
    */
   function drive(): void {
+    if (restoringSavedAssets) return;
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
       prepareSpriteVisuals();
@@ -3476,11 +3600,15 @@ export function createEngine(init: EngineInit): Engine {
       if (frame.asset === null || frame.surface !== undefined) continue;
       const isTileBitmap = frame.asset.toLowerCase().endsWith(".tbm");
       if (isTileBitmap) pendingTileBitmapAnimations.add(animation.id);
+      const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
       if (cache.has(frame.asset)) {
+        if (deferredRestoreDecode.has(frame.asset)) {
+          if (kind === "tile") tileTexture(frame.asset);
+          else imageTexture(frame.asset);
+        }
         if (isTileBitmap && imageTexture(frame.asset) === null) waiting = true;
         continue;
       }
-      const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
       request(frame.asset, kind);
       waiting = true;
     }
@@ -4544,33 +4672,38 @@ export function createEngine(init: EngineInit): Engine {
       iso2d: false,
     };
   }
+  function primeCurrentDrawAssets(list: DrawList): boolean {
+    let ready = true;
+    for (let layer = 0; layer < 2; layer += 1) {
+      const commands = layer === 0 ? list.commands : list.marginCommands;
+      for (const command of commands) {
+        if (command.kind !== "blit" || !("asset" in command.source)) continue;
+        const asset = command.source.asset;
+        if (decodedImages.has(asset) || decodedTiles.has(asset)) continue;
+        const kind = command.source.tile !== null || asset.endsWith(".gph") ? "tile" : "image";
+        if (cache.has(asset) || init.bundled?.has(asset)) {
+          const texture = kind === "tile" ? tileTexture(asset) : imageTexture(asset);
+          if (texture === null) ready = false;
+        } else if (layer === 1 || index.byKey.has(asset)) {
+          request(asset, kind);
+          ready = false;
+        }
+      }
+    }
+    return ready;
+  }
+
   /**
    * Rebuild the presented screen (surface 0) from the current state. `report` is true only for the deterministic
    * operations a script or a restore asks for; the presentation refresh at the end of `advance` renders the same frame
    * silently, so a simulation that never reads the screen never reports a presentation failure, and a script that
    * reads a frame that cannot be replayed is told (docs/spec/engine/runners.md#surface-read-and-state-hash).
    */
-  function primeMarginAssets(list: DrawList): void {
-    const visited = new Set<AssetKey>();
-    for (const command of list.marginCommands) {
-      if (command.kind !== "blit" || !("asset" in command.source)) continue;
-      const asset = command.source.asset;
-      if (visited.has(asset)) continue;
-      visited.add(asset);
-      if (command.source.tile === null) {
-        if (cache.has(asset) || init.bundled?.has(asset)) imageTexture(asset);
-        else request(asset, "image");
-      } else if (cache.has(asset)) {
-        tileTexture(asset);
-      } else {
-        request(asset, "tile");
-      }
-    }
-  }
   function refreshFrame(report: boolean): void {
+    if (restoringSavedAssets) return;
     presentedFrameDirty = false;
     const list = currentDrawList(0);
-    primeMarginAssets(list);
+    if (!primeCurrentDrawAssets(list)) return;
     // The rasteriser reads the list's size and commands, never its tick, so a static scene is rebuilt once, not every
     // tick. A rebuild is also forced when an asset has arrived, because a command that named it may now replay.
     const nextHash = `${hashDrawList({ ...list, tick: 0 })}:${cache.size}:${installedFonts.size}`;

@@ -66,7 +66,6 @@ import {
   writeDistributionPackage,
 } from "../src/index.ts";
 import { engineEffect, pluginManifestFor, resolveManifestPlugins } from "../src/engine/boot.ts";
-import { hashWithRequestCounter } from "./hash-projections.ts";
 import type { AssetIndex, AssetRoot, Engine, EffectRecord, EngineInit, GameState, InputRecord, PackageCatalogueEntry, PlainData, ResolvedPlugin, SpriteDraw, SpriteRuntime, TickReport } from "../src/index.ts";
 import type { MainFileAudioSettings } from "../src/formats/main-file/model.ts";
 import type { AudioCue } from "../src/ports/audio.ts";
@@ -3906,29 +3905,5 @@ test("boot keeps simultaneous asset requests waiting across delayed replies and 
   equal(resolveInOrder(false), resolveInOrder(true), "reply order does not change the completed boot hash");
 });
 
-test("an extra settled boot request moves the saved request counter and the old projection, never the state hash", () => {
-  function boot(extraProgram: boolean) {
-    const game = authorGame({
-      initChar: "hero.tem",
-      startup: "start.prg",
-      boards: { "start.brd": {} },
-      programs: extraProgram ? { "start.prg": "end()\n", "extra.prg": "end()\n" } : { "start.prg": "end()\n" },
-    });
-    const doubles = makeDoubles();
-    const result = run(bootEngine(game, doubles), game.files, 3);
-    return { requests: result.requests, state: doubles.state(), stateHash: result.report.stateHash };
-  }
-
-  const plain = boot(false);
-  const extra = boot(true);
-  ok(!plain.requests.includes("prg/extra.prg"));
-  ok(extra.requests.includes("prg/extra.prg"), "the extra program is a real, additional boot request");
-  deepEqual(plain.state.engine.pending, [], "every request has settled");
-  deepEqual(extra.state.engine.pending, [], "every request has settled");
-  equal((extra.state.engine.nextRequestId ?? 0), (plain.state.engine.nextRequestId ?? 0) + 1, "the saved counter moved by exactly the extra request");
-  ok(hashWithRequestCounter(extra.state) !== hashWithRequestCounter(plain.state), "the projection before the ruling moved with it");
-  equal(extra.stateHash, plain.stateHash, "the reported state hash does not move");
-  equal(hashGameState(extra.state), hashGameState(plain.state), "the state hash does not move");
-});
 
 

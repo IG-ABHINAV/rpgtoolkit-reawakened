@@ -87,8 +87,48 @@ which a restore would drop and strand.
 
 **Item-action clarification (#589; TKR engineering rule).** A pending item-asset acquisition obeys this same in-flight request rule. A request-free saved item-action continuation may need to acquire its definitions again on a cold restore; an unanswered host request itself is never serialized. The [item-action contract](../engine/plugins-and-battle.md#epic-85-item-action-proposal) specifies request phases and distinguishes normal save continuation from interruption recovery.
 
+<a id="saved-asset-readiness"></a>
+**Shared asset readiness (#1340).** A save records which game assets the core
+had successfully acquired, so an unloaded animation and every other consumer
+resume with the same availability instead of inheriting the destination's cache.
+The saved engine section carries `cacheKeys`, a sorted, duplicate-free array of
+canonical asset keys. This is semantic continuation state and remains in the
+replay hash; asset bytes, decoded textures and prefetch-only facts are not saved
+by this field. The engine section is version 2; instruction positions are unchanged.
+
+Load first validates current program sources under the existing compatibility
+rules. It then replaces destination cache visibility with the saved set and
+reacquires absent saved-warm assets before running scripts or rebuilding frames.
+No simulation tick passes during that acquisition. Assets absent from the saved
+set remain cold until their ordinary consumers request them. This preserves
+shared consumers and lets resumed scripts cancel animations without fetching
+their previously cold pictures.
+
+This deliberately restores **all previously acquired assets**, even files the
+continuation never uses again. A missing or invalid unused asset does not fail
+Load or the game merely because restoration reads it: decoding and failure
+handling remain with the normal consumer if it later needs the file. Ordinary
+Load uses current installed image and animation content, not historical bytes
+or recovery-style fingerprints (owner choice, 2026-11-07). Exact continuation
+equivalence therefore assumes unchanged game data.
+
+Current installed program sources remain physically accessible to synchronous
+source resolution even when a newer source key was absent from the save.
+Consuming such a source records that key as acquired; Load alone does not.
+
+Older saves migrate with `cacheKeys: null`, meaning historical readiness is
+unknown. Their deterministic fallback retains only the boot-required main file,
+fonts, program sources and initial character, discarding other destination cache
+warmth. Already loaded animations retain their saved clocks; unloaded animations
+cannot recover historical timing information the old save never recorded.
+Malformed new manifests refuse the save before replacing live state or caches.
+
+References: [full-engine Save and Load](#reawakened-full-engine-save-and-load),
+[save compatibility](#save-compatibility-and-instruction-versions-owner-ruling),
+[determinism](../../guardrails.md#g3--determinism).
+
 <a id="state-hash-request-projection"></a>
-**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash, so a bookkeeping difference such as an additional settled boot-time asset request does not move golden baselines.
+**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash. Settled requests with the same acquired-key set therefore do not move golden baselines; acquiring an additional key changes semantic readiness (#1340), so its hash can change even after the request settles.
 
 <a id="state-hash-surface-projection"></a>
 **Surface hash projection — Approved ruling (owner: Jensen, 2026-11-02).**

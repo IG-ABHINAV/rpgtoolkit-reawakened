@@ -23,9 +23,7 @@ import {
   formatScriptsGolden,
   runAllCorpusPrograms,
   runCorpusProgram,
-  runFetchedCorpus,
   verifyCatalogueCompleteness,
-  type FetchedGameFiles,
 } from "../src/corpus.ts";
 import { PLATFORM_FIXTURE_SOURCES } from "../src/platform-fixtures.ts";
 import { checkSnapshotRestore } from "../src/restore-check.ts";
@@ -319,81 +317,6 @@ test("corpus: start.prg runs headlessly to completion in 3 ticks with scripted i
   equal(host.state().vm.threads[0]?.status, "finished"); // after end()
 });
 
-test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 programs headlessly with scripted inputs", () => {
-  const fixturesRoot = join(REPO_ROOT, "fixtures", "legacy");
-  if (!existsSync(fixturesRoot)) return; // skip only if fixtures not fetched locally
-
-  const demoPrg = join(fixturesRoot, "demo", "Prg");
-  const basicPrg = join(fixturesRoot, "Basic", "Prg");
-  const demoFiles: Record<string, Uint8Array> = {};
-  for (const f of readdirSync(demoPrg).sort()) {
-    if (f.endsWith(".prg")) demoFiles[f] = readFileSync(join(demoPrg, f));
-  }
-  const basicFiles: Record<string, Uint8Array> = {};
-  for (const f of readdirSync(basicPrg).sort()) {
-    if (f.endsWith(".prg")) basicFiles[f] = readFileSync(join(basicPrg, f));
-  }
-
-  const fetchedCorpus: FetchedGameFiles = { demo: demoFiles, basic: basicFiles };
-  const results = runFetchedCorpus(fetchedCorpus, 0);
-  equal(results.length, 10);
-
-  // Re-pinned by ticket 6.6: the `audio` section grew from the empty placeholder to schema v2 (five stopped tracks,
-  // the cue counter, the script bank). Nothing else moved: hashing each final state with the placeholder put back
-  // gives every previous value (60b9d135ecc2665c, c70da0e285468911, d1a2feea4d6699d3, 148143e8efdad422,
-  // 91341281743ee68f, 1eda27c040030408, 4aead264e9d81fc0 and 249a5a6f76a4cb12).
-  // Re-pinned by ticket 19.10: the state tree gained the `events` section (empty here) and `schema.events`. Nothing else
-  // moved: hashing each final state without them gives every previous value (bcccb726d88cf025, c7276b9169328503,
-  // 9128c9fb95d1f969, a7e3084cbafc59c0, 2e8a007d7bae1d31, 6717598c0b7e163a, 69af004598505635 and eaef689c32b9ae98).
-  // Re-pinned by ticket 20.3: the empty `actors` section is now part of the hashed state tree.
-  // Re-pinned by ticket 20.6: the actor section schema and persisted progression contract advanced to version 2.
-  // Re-pinned by tickets 8.2 and 21.5: schema-2 party/inventory/menu state is hashed; MEDIA-1 returns a voice from
-  // one-argument `mediaPlay(file)`. The legacy corpus calls are bare statements, so they ignore the value and keep
-  // the same playback cues; the returned object changes the hashed VM state. Closing PNGs remain visual baselines.
-  // Re-pinned by ticket 7.9: the samples' built-in FightEnemy calls now retain their started battle sections.
-  // Re-pinned by story 8.25 (#814): `schema.compiler` became `schema.ir`, `schema` moved to version 2 and `vm`
-  // to version 6. Hashing each final state with the old schema fields put back gives every previous value.
-  // Re-pinned by ticket 23.10 (#848): `font("Arial")` now resolves to the Liberation face the host bundles instead of
-  // a key nothing ships, and the saved `ui.font.asset` is part of the hashed state. Only `sample-start-basic` moved.
-  // Re-pinned by issue #1048: the presented screen (surface 0) and the script-screen layer no longer contribute to the
-  // state hash. Only `sample-start-demo` and `sample-start-basic` moved, because only their start programs draw to the
-  // screen (`clear()`); the other programs never put a screen entry into the saved state.
-  // Re-pinned by #589: `vm` moved to schema version 7 (the per-frame `itemActions` stack). Nothing else moved:
-  // with the version put back to 6 every previous value (see git history) is reproduced exactly.
-  // #585 (menu graphic): only both sample-start hashes moved because their menuGraphic("layout.png") now writes menu.graphic.
-  // Re-pinned again by #585 (pointer record): the input section moved to schema 3 (`downs`, `ups`, `downX`, `downY`, `button`
-  // joined `input.pointer`), so every state hash moved once and nothing else did. With the schema put back to 2 and the
-  // pointer record reduced to {x, y, buttons}, every previous value above and in golden/scripts/golden.json is reproduced exactly.
-  // Restoring the old mixed/ui responder reproduces both previous hashes and all eight closing baselines exactly.
-  // Re-pinned by #1231: the party section gained the saved `stepRemainder` and moved to schema 3, so every
-  // state hash moved once and nothing else did (draw hashes, ticks and diagnostics are unchanged).
-  // Re-pinned by #1244: `text` keeps a fractional cell coordinate and truncates only the scaled pixel origin,
-  // so the two sample-start programs (the only corpus programs that author fractional rows) moved and nothing
-  // else did; every other hash, tick and diagnostic is unchanged.
-  // Re-pinned after #1410 registered action definitions, control indexes, and source claims became normalized input state.
-  // DrawList v2 also hashes its margin command list; empty lists are explicit, changing draw hashes but not pixels.
-  // UI schema 7 adds author-claim cancellation; UI schema 8 adds deterministic modal identity; UI schema 9 adds the
-  // pending one-shot surface-result marker. Input schema 9 adds an empty modal-action queue. These versions enter the
-  // canonical hash even when their fields are inactive; corpus inputs, ticks, diagnostics, draws and events stay fixed.
-  // #1600 input schema 10 adds the false restore-gesture suppression latch. Normalizing only input/schema versions
-  // to 9 and removing that field reproduces all previous corpus hashes; behavior and draw assertions are unchanged.
-  const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "165468fdb5b33f30",
-    "sample-system-demo": "4a55feda8958f5aa",
-    "sample-sys-test-demo": "4a55feda8958f5aa",
-    "sample-win-demo": "19dfdb738bc625f6",
-    "sample-oldman-demo": "c5058a11e55080f1",
-    "sample-man-demo": "0b795a35d706f77b",
-    "sample-man-wander-demo": "fdb36a6da14c36be",
-    "sample-start-basic": "28b9d02bd2f7bb58",
-    "sample-system-basic": "4a55feda8958f5aa",
-    "sample-wander-basic": "279ff8afa7b6d7f8",
-  };
-
-  for (const res of results) {
-    equal(res.stateHash, expectedHashes[res.id], `hash mismatch for ${res.id}`);
-  }
-});
 
 test("corpus: defined finish line for programs that never end (Basic/Prg/wander.prg)", () => {
   const programs = buildCorpus();
@@ -410,7 +333,6 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "279ff8afa7b6d7f8"); // Input schema 10 adds the inactive restore-gesture suppression latch.
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

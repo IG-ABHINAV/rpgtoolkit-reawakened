@@ -205,12 +205,12 @@ test("a battle counter that is not a positive whole number is refused at restore
   const saved = JSON.parse(snapshot(createGameState({ seed: 1 }))) as { engine: unknown };
   for (const nextBattleId of [0, -1, 1.5, "2", null, true]) {
     throws(
-      () => restoreGameState(JSON.stringify({ ...saved, engine: { nextBattleId } })),
+      () => restoreGameState(JSON.stringify({ ...saved, engine: { cacheKeys: [], nextBattleId } })),
       (error: unknown) => (error as { code?: string }).code === "restore.shape",
       `${JSON.stringify(nextBattleId)} must be refused`,
     );
   }
-  equal(restoreGameState(JSON.stringify({ ...saved, engine: { nextBattleId: 3 } })).engine.nextBattleId, 3);
+  equal(restoreGameState(JSON.stringify({ ...saved, engine: { cacheKeys: [], nextBattleId: 3 } })).engine.nextBattleId, 3);
 });
 
 /** Boot the real engine on one authored board; `run` sees every audio-phase tick and its state. */

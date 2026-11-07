@@ -17,6 +17,7 @@ import {
   createGameState,
   fileProgramRef,
   IR_VERSION,
+  SCHEMA_VERSIONS,
   startProgram,
   restoreRecoveryCandidate,
   snapshotRecoveryCandidate,
@@ -290,7 +291,7 @@ test("a save from a newer engine section is refused whole, like every other sect
   const loader = boot(LOADER);
   const bytes = tamper(capturedSave(), (json) => {
     if (json.schema === null) throw new Error("the saved game has no schema object");
-    json.schema.engine = 2;
+    json.schema.engine = SCHEMA_VERSIONS.engine + 1;
   });
   const { codes } = run(loader, bytes);
   ok(codes.includes("restore.shape"), `diagnostics: ${JSON.stringify(codes)}`);

@@ -12,7 +12,7 @@
       "area": "saves",
       "path": "e51127c773b867e0/saved/slot.sav",
       "key": "saves:e51127c773b867e0/saved/slot.sav",
-      "byteLength": 1645896
+      "byteLength": 1645975
     },
     "loadRequest": {
       "area": "saves",
@@ -23,19 +23,19 @@
     "stateHashes": {
       "fresh": {
         "tick": 2,
-        "stateHash": "32f66e363c6899d3"
+        "stateHash": "88ee3e5e5dfa5e05"
       },
       "preSave": {
         "tick": 3,
-        "stateHash": "8a5ec0dea1e14853"
+        "stateHash": "8ec5145045168ae1"
       },
       "postLoad": {
         "tick": 4,
-        "stateHash": "4171fd126218b329"
+        "stateHash": "965397352a539fb1"
       },
       "final": {
         "tick": 151,
-        "stateHash": "1aacd0c6394ade44"
+        "stateHash": "e92baa358b682ef6"
       }
     },
     "tick": 151
