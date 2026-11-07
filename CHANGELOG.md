@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Android proof attachment retries now have direct regression coverage for transient recovery, deadline exhaustion and terminal uncancelled operations (#1059).
 - The Android CI proof now targets Android 16 (API 36) and records the selected device's actual Android version and ABI. Its existing interaction, persistence and diagnostic checks remain unchanged (#1621).
 - The Android APK proof now evaluates Playwright's experimental Android device/WebView API instead of a manually forwarded CDP connection. Device selection, bounded attachment diagnostics and the existing interaction and screenshot checks remain; this does not establish a fix for the intermittent timeout (#1621).
 - The Electron desktop smoke now checks that the real `app://` player loads its package and rejects an injected inline script with a CSP violation, without changing the desktop policy (#1230).

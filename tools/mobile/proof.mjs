@@ -16,7 +16,8 @@ import { _android } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
 import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
-import { attachPage, boundedAttach, closeDevice, selectDevice, UncancelledAttachError } from "./proof-android.mjs";
+import { attachPage, boundedAttach, closeDevice, selectDevice } from "./proof-android.mjs";
+import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -184,9 +185,6 @@ function attachObservation(stage, attempt, startedAt, deadline) {
     logcat: { exitCode: logcat.status, output: logcat.stdout, stderr: logcat.stderr },
   };
 }
-function processDescription(result) {
-  return `exit ${result.exitCode ?? "unknown"}: ${result.stderr || (result.output ? "stdout: " + result.output : "no error output")}`;
-}
 
 // Keep the raw pidof response diagnosable without dumping unbounded bytes into
 // the artifact: strip control characters and cap the retained text (#1080).
@@ -195,69 +193,23 @@ function retainedStdout(text) {
 }
 
 
-async function launchAndConnect(stage, serial, timeoutMs = ATTACH_TIMEOUT_MS) {
-  const startedAt = Date.now();
-  const deadline = startedAt + timeoutMs;
-  let lastError;
-  let attempt = 0;
-  let backoffMs = ATTACH_BACKOFF_INITIAL_MS;
-  while (Date.now() < deadline) {
-    attempt += 1;
-    const observation = attachObservation(stage, attempt, startedAt, deadline);
-    console.log(`Android WebView attach ${stage} attempt ${attempt}: process=${observation.processState}${observation.pid === null ? "" : ` (${observation.pid})`}; logcat=${JSON.stringify(observation.logcat.output)}`);
-    if (observation.processState === "unknown") {
-      observation.attachError = `pidof failed or returned an invalid response: ${processDescription(observation.pidof)}`;
-      lastError = new Error(observation.attachError);
-    } else if (observation.processState === "absent") {
-      const start = Date.now() < deadline
-        ? attachAdb(deadline, "shell", "am", "start", "-n", activity)
-        : { status: null, stdout: "", stderr: "attach deadline expired before am start" };
-      observation.activityStart = { exitCode: start.status, output: start.stdout, stderr: start.stderr };
-      lastError = new Error(`Android process ${appId} was absent at attach attempt ${attempt}`);
-      if (start.status !== 0) {
-        observation.attachError = `am start failed (exit ${start.status ?? "unknown"}): ${start.stderr || start.stdout || "no output"}`;
-        lastError = new Error(observation.attachError);
-      }
-    } else {
-      let device;
-      try {
-        const remaining = () => {
-          const time = deadline - Date.now();
-          if (time <= 0) throw new Error("Android WebView connection exhausted the startup deadline");
-          return Math.min(PROTOCOL_TIMEOUT_MS, time);
-        };
-        device = await selectDevice(_android, serial, remaining());
-        const page = await attachPage(device, appId, observation.pid, remaining());
-        await livePage(page, remaining());
-        observation.connected = true;
-        observation.elapsedMs = Date.now() - startedAt;
-        proof.attachAttempts.push(observation);
-        console.log(`Android WebView attach ${stage} succeeded after ${observation.elapsedMs}ms (${attempt} attempts)`);
-        return { device, page };
-      } catch (error) {
-        lastError = error;
-        observation.attachError = String(error);
-        if (device !== undefined) {
-          try {
-            await closeDevice(device, Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
-          } catch (closeError) {
-            observation.closeError = String(closeError);
-            lastError = new UncancelledAttachError(`${String(error)}; closing the failed connection also failed: ${String(closeError)}`, { cause: error });
-          }
-        }
-        if (error instanceof UncancelledAttachError || lastError instanceof UncancelledAttachError) {
-          proof.attachAttempts.push(observation);
-          throw new Error(`Android WebView attachment stopped without retrying an uncancelled operation: ${String(lastError)}`, { cause: lastError });
-        }
-      }
-    }
-    proof.attachAttempts.push(observation);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    await delay(Math.min(backoffMs, remaining));
-    backoffMs = Math.min(backoffMs * 2, ATTACH_BACKOFF_MAX_MS);
-  }
-  throw new Error(`could not expose the Android WebView page within ${timeoutMs}ms after ${attempt} attach attempts: ${String(lastError ?? "no attempt completed")}`, { cause: lastError });
+function launchAndConnect(stage, serial, timeoutMs = ATTACH_TIMEOUT_MS) {
+  return retryAttach(stage, serial, timeoutMs, {
+    now: Date.now,
+    observe: attachObservation,
+    start: (deadline) => attachAdb(deadline, "shell", "am", "start", "-n", activity),
+    select: (target, remaining) => selectDevice(_android, target, remaining),
+    attach: attachPage,
+    live: livePage,
+    close: closeDevice,
+    delay,
+    attempts: proof.attachAttempts,
+    log: console.log,
+    appId,
+    protocolTimeoutMs: PROTOCOL_TIMEOUT_MS,
+    initialBackoffMs: ATTACH_BACKOFF_INITIAL_MS,
+    maxBackoffMs: ATTACH_BACKOFF_MAX_MS,
+  });
 }
 
 async function enterBoard(page) {
