@@ -56,6 +56,8 @@ pnpm desktop:input --package fixtures/packages/demo.tpk
 pnpm desktop:run --package fixtures/packages/demo.tpk
 ```
 
+The rebuilt demo package names the stock menu and battle systems. Once the title screens have finished and the player is on the board, press **Enter** to open the menu and **Escape** to close it. Rebuild both the package and the player after updating: an older package made from the sample may not name the stock systems.
+
 `pnpm desktop:input` opens the player, sends real key events through Chromium's debugging protocol, and prints the player position before and after — it exits non-zero when the key did not move the player.
 
 `pnpm desktop:measure` emits machine-readable closing-suite and renderer evidence and closes its window. It compares the `demo` tick-120 result against the committed closing baseline in `golden/regression/closing.json`, which currently expects state `32e892e98b3d2a85`, draw `9c0e4d56e59619da` and 122 commands — it does not check hard-coded literals in this page. The committed macOS report `tools/desktop/measurements/macos.json` is a historical artefact of the date its `measuredAt` field records (2026-11-01); it was taken before the closing-baseline re-record for issue #1048, so it does not describe what a measurement reports on `main` today — its recorded hashes (`91172695de52cfd6` / `9a40be8a0b5ca816`, 128 commands) are superseded — a current measurement is judged against `closing.json`. Rebuild after source changes: the measurement runs the existing desktop build.

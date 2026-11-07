@@ -32,7 +32,7 @@ import {
   type RunnerRequest,
   type SurfaceId,
 } from "@tk-reawakened/core";
-import { parseClosingPlan, type ClosingFiles } from "@tk-reawakened/runner-harness";
+import { catalogueEntry, parseClosingPlan, parsePackageManifest, type ClosingFiles } from "@tk-reawakened/runner-harness";
 import { createWebgl2Renderer, type RenderStats } from "@tk-reawakened/render-webgl2";
 import { BUNDLED_BANK, CuePlayer, describePatchGap } from "@tk-reawakened/synth";
 import { connectSinkToGraph, defaultWorkletUrl, PcmSink, type ScheduledPlay } from "./audio-sink.ts";
@@ -42,6 +42,22 @@ import type { PackageSource } from "./package-source.ts";
 import { createSessionAssets, packageOrigin, type AssetLoadState } from "./session-assets.ts";
 import { dispatchRequests } from "./dispatch-requests.ts";
 import { interactiveMenuBinding } from "./input-bindings.ts";
+
+/** Resolve the shipped package manifests before boot; core never reads package files (G2). */
+function bundledPackageCatalogue(bundled: ReadonlyMap<AssetKey, Uint8Array>) {
+  const decoder = new TextDecoder();
+  const entries = [];
+  for (const [key, bytes] of bundled) {
+    if (!/^stock\/[^/]+\/manifest\.json$/.test(key)) continue;
+    const parsed = parsePackageManifest(decoder.decode(bytes), key);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const folder = key.slice(0, key.lastIndexOf("/") + 1);
+    const source = bundled.get(assetKey(folder + parsed.manifest.program.replaceAll("\\", "/")));
+    if (source === undefined) throw new Error(`${key}: missing startup program ${parsed.manifest.program}`);
+    entries.push(catalogueEntry(parsed.manifest, decoder.decode(source)));
+  }
+  return entries;
+}
 
 export type LiveBlobHost = {
   read(area: "saves" | "files", gameId: string, path: string): Promise<Uint8Array | null>;
@@ -243,6 +259,7 @@ export async function createLiveSession(options: LiveSessionOptions): Promise<Li
     displayGeometry: initialGeometry,
     maxTicks: plan?.maxTicks ?? Number.MAX_SAFE_INTEGER,
     include: { shading: true, images: true, sprites: true },
+    packageCatalogue: bundledPackageCatalogue(bundled),
     bundled,
     cameraTarget: {
       getPlayerPosition: () => {

@@ -193,22 +193,36 @@ function assertTitleRendering(reading, canvasContent) {
 }
 
 
-async function screenshot(page, name) {
+async function screenshot(page, name, reconnect = null) {
   const path = join(output, `${name}.png`);
   proof.screenshotTelemetry = proof.screenshotTelemetry ?? {};
   const probe = await probeScreenshotStages(page, name, PROTOCOL_TIMEOUT_MS);
   proof.screenshotTelemetry[name] = probe;
+  await delay(500);
   const captureStart = Date.now();
-  try {
-    await protocolCall(`saving ${name} screenshot`, () =>
-      page.screenshot({ path, animations: "disabled", timeout: PROTOCOL_TIMEOUT_MS }),
-      PROTOCOL_TIMEOUT_MS + 500);
-    probe.capture = { durationMs: Date.now() - captureStart, status: "completed" };
-    proof.screenshots[name] = path;
-  } catch (err) {
-    probe.capture = { durationMs: Date.now() - captureStart, error: err.message };
-    throw err;
+  const slices = [20_000, 30_000, PROTOCOL_TIMEOUT_MS];
+  let lastError;
+  for (let attempt = 0; attempt < slices.length; attempt += 1) {
+    const sliceMs = slices[attempt];
+    try {
+      await protocolCall(`saving ${name} screenshot (attempt ${attempt + 1})`, () =>
+        page.screenshot({ path, animations: "disabled", timeout: sliceMs }),
+        sliceMs + 500);
+      probe.capture = { durationMs: Date.now() - captureStart, status: "completed", attempts: attempt + 1 };
+      proof.screenshots[name] = path;
+      return page;
+    } catch (err) {
+      lastError = err;
+      if (attempt + 1 < slices.length) {
+        await delay(1_000 * (attempt + 1));
+        if (reconnect !== null && (page.isClosed?.() === true || /closed/i.test(String(err?.message ?? err)))) {
+          page = await reconnect();
+        }
+      }
+    }
   }
+  probe.capture = { durationMs: Date.now() - captureStart, error: lastError.message, attempts: slices.length };
+  throw lastError;
 }
 
 
@@ -447,7 +461,26 @@ async function main() {
     }
     if (titleReading.report.board !== null) throw new Error(`title screenshot is not on the title screen: ${JSON.stringify(titleReading.report)}`);
     proof.readings.title = titleReading;
-    await screenshot(page, "title");
+    await delay(500);
+    page = await screenshot(page, "title", async () => {
+      await closeDevice(device, PROTOCOL_TIMEOUT_MS).catch(() => {});
+      device = undefined;
+      const reconnected = await launchAndConnect("title screenshot reconnect", serial, serverOptions);
+      device = reconnected.device;
+      page = reconnected.page;
+      return page;
+    });
+
+    const reconnectBoardPage = async (stage) => {
+      await closeDevice(device, PROTOCOL_TIMEOUT_MS).catch(() => {});
+      device = undefined;
+      const reconnected = await launchAndConnect(stage, serial, serverOptions);
+      device = reconnected.device;
+      page = reconnected.page;
+      await enterBoard(page);
+      await delay(1_000);
+      return page;
+    };
 
     await enterBoard(page);
     await delay(1_000);
@@ -472,7 +505,12 @@ async function main() {
         playerAfter,
       },
     };
-    await screenshot(page, "tap");
+    await delay(500);
+    page = await screenshot(page, "tap", async () => {
+      const reconnectedPage = await reconnectBoardPage("tap screenshot reconnect");
+      tapped.reading = await captureReading(reconnectedPage, "tap after reconnect");
+      return reconnectedPage;
+    });
     await delay(1_000);
 
     const beforeRotation = await protocolCall("reading viewport before rotation", () => page.evaluate(() => ({
@@ -508,7 +546,8 @@ async function main() {
       throw new Error(`rotation replaced the live document instead of preserving its session: ${beforeRotation.timeOrigin} -> ${afterRotation.timeOrigin}`);
     }
     proof.readings.rotation = { ...rotated, viewportBefore: beforeRotation, viewportAfter: afterRotation };
-    await screenshot(page, "rotation");
+    await delay(500);
+    page = await screenshot(page, "rotation", () => reconnectBoardPage("rotation screenshot reconnect"));
     await delay(1_000);
 
     const beforeStop = await captureReading(page, "before force-stop");
@@ -530,7 +569,8 @@ async function main() {
     if (relaunch.report.save?.blobPresent !== true) {
       throw new Error(`relaunch did not observe the previously written host blob: ${JSON.stringify(relaunch.report.save)}`);
     }
-    await screenshot(page, "relaunch");
+    await delay(500);
+    page = await screenshot(page, "relaunch", () => reconnectBoardPage("relaunch screenshot reconnect"));
     proof.readings.relaunch = relaunch;
   } finally {
     if (device !== undefined) await closeDevice(device, PROTOCOL_TIMEOUT_MS).catch(() => {});
