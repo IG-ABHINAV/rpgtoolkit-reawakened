@@ -20,6 +20,7 @@ import { adbServerOptions, attachPage, closeDevice, selectDevice } from "./proof
 import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
 import { probeScreenshotStages } from "./proof-telemetry.mjs";
 import { scheduleEmulatorCleanup } from "./proof-cleanup.mjs";
+import { dispatchCanvasTap, prepareTapTarget, waitForPointerEvents } from "./proof-tap.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -276,78 +277,42 @@ async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
 }
 
 async function canvasTap(page, baseline) {
-  const target = await protocolCall("reading canvas tap target and installing observers", () =>
-    page.evaluate(() => {
-      const canvas = document.querySelector("#screen");
-      if (!(canvas instanceof HTMLCanvasElement)) throw new Error("mobile canvas is absent");
-      const rect = canvas.getBoundingClientRect();
-      const logical = { x: Math.floor(canvas.width / 2), y: Math.floor(canvas.height / 2) };
-      window.__mobileProofPointerEvents = [];
-      const observe = (event) => {
-        const r = canvas.getBoundingClientRect();
-        window.__mobileProofPointerEvents.push({
-          type: event.type,
-          pointerType: event.pointerType,
-          trusted: event.isTrusted,
-          buttons: event.buttons,
-          logical: {
-            x: Math.floor(Math.max(0, Math.min(canvas.width - 1, (event.clientX - r.left) * canvas.width / r.width))),
-            y: Math.floor(Math.max(0, Math.min(canvas.height - 1, (event.clientY - r.top) * canvas.height / r.height))),
-          },
-        });
-      };
-      canvas.addEventListener("pointerdown", observe, { once: true });
-      canvas.addEventListener("pointerup", observe, { once: true });
-      return {
-        coordinateSpace: "CDP CSS viewport pixels, derived from the canvas client rect",
-        logical,
-        cssViewport: {
-          x: rect.left + ((logical.x + 0.5) / canvas.width) * rect.width,
-          y: rect.top + ((logical.y + 0.5) / canvas.height) * rect.height,
-        },
-        canvas: { width: canvas.width, height: canvas.height },
-        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-        devicePixelRatio: window.devicePixelRatio,
-      };
-    }));
+  const target = await prepareTapTarget(page, {
+    timeoutMs: 60_000,
+    maxSliceMs: 15_000,
+    initialBackoffMs: 500,
+    maxBackoffMs: 4_000,
+    delay,
+    now: Date.now,
+    protocolCall,
+  });
 
-  const cdp = await protocolCall("opening touch input session", () => page.context().newCDPSession(page));
-  try {
-    const point = { x: target.cssViewport.x, y: target.cssViewport.y, radiusX: 1, radiusY: 1, force: 1, id: 0 };
-    await protocolCall("dispatching Android touch start", () =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] }));
-    await protocolCall("dispatching Android touch end", () =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }));
-    const pointerEvents = await protocolCall("reading trusted canvas pointer events", () =>
-      page.evaluate(() => window.__mobileProofPointerEvents ?? []));
-    const down = pointerEvents.find((event) => event.type === "pointerdown");
-    const up = pointerEvents.find((event) => event.type === "pointerup");
-    if (down?.trusted !== true || down.pointerType !== "touch" || down.buttons !== 1 ||
-      down.logical.x !== target.logical.x || down.logical.y !== target.logical.y) {
-      throw new Error(`touch did not reach intended canvas point ${JSON.stringify(target.logical)}: ${JSON.stringify(pointerEvents)}`);
-    }
-    if (up?.trusted !== true || up.pointerType !== "touch" ||
-      up.logical.x !== target.logical.x || up.logical.y !== target.logical.y) {
-      throw new Error(`touch release did not reach intended canvas point ${JSON.stringify(target.logical)}: ${JSON.stringify(pointerEvents)}`);
-    }
+  await dispatchCanvasTap(page, target, { protocolCall });
 
-    const beforePlayer = baseline.report.player;
-    const changed = await waitFor(page,
-      (value) => value?.player !== null && value?.player !== undefined &&
-        (value.player.x !== beforePlayer.x || value.player.y !== beforePlayer.y),
-      `waiting for player position to change after canvas tap at ${target.logical.x},${target.logical.y}`,
-      90_000);
-    const reading = await captureReading(page, "canvas tap");
-    return {
-      reading,
-      target,
-      pointerEvents,
-      playerBefore: beforePlayer,
-      playerAfter: changed.player,
-    };
-  } finally {
-    await protocolCall("closing Android touch input session", () => cdp.detach()).catch(() => {});
-  }
+  const pointerEvents = await waitForPointerEvents(page, {
+    target,
+    timeoutMs: 30_000,
+    sliceMs: 10_000,
+    pollIntervalMs: 250,
+    delay,
+    now: Date.now,
+    protocolCall,
+  });
+
+  const beforePlayer = baseline.report.player;
+  const changed = await waitFor(page,
+    (value) => value?.player !== null && value?.player !== undefined &&
+      (value.player.x !== beforePlayer.x || value.player.y !== beforePlayer.y),
+    `waiting for player position to change after canvas tap at ${target.logical.x},${target.logical.y}`,
+    90_000);
+  const reading = await captureReading(page, "canvas tap");
+  return {
+    reading,
+    target,
+    pointerEvents,
+    playerBefore: beforePlayer,
+    playerAfter: changed.player,
+  };
 }
 
 function captureFailureEvidence(error) {
@@ -406,6 +371,14 @@ async function main() {
       "com.google.android.apps.photos",
       "com.google.android.apps.messaging",
       "com.google.android.settings.intelligence",
+      "com.google.android.federatedcompute",
+      "com.google.android.healthconnect.controller",
+      "com.google.android.nfc",
+      "com.google.android.ondevicepersonalization.services",
+      "com.google.android.projection.gearhead",
+      "com.google.android.rkpdapp",
+      "com.google.android.adservices.api",
+      "com.google.android.ext.services",
     ]) {
       try { runAdb("shell", "pm", "disable-user", "--user", "0", pkg); } catch {}
       try { runAdb("shell", "am", "force-stop", pkg); } catch {}
@@ -434,11 +407,13 @@ async function main() {
     await screenshot(page, "title");
 
     await enterBoard(page);
-    await delay(500);
+    await delay(1_000);
     const board = await captureReading(page, "board entry");
     proof.readings.board = board;
+    await delay(1_000);
 
     const tapBaseline = await settledPlayer(page, board.report);
+    await delay(1_000);
     const tapped = await canvasTap(page, tapBaseline);
     const playerBefore = tapBaseline.report.player;
     const playerAfter = tapped.reading.report.player;
@@ -455,6 +430,7 @@ async function main() {
       },
     };
     await screenshot(page, "tap");
+    await delay(1_000);
 
     const beforeRotation = await protocolCall("reading viewport before rotation", () => page.evaluate(() => ({
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
@@ -490,6 +466,7 @@ async function main() {
     }
     proof.readings.rotation = { ...rotated, viewportBefore: beforeRotation, viewportAfter: afterRotation };
     await screenshot(page, "rotation");
+    await delay(1_000);
 
     const beforeStop = await captureReading(page, "before force-stop");
     if (beforeStop.report.save?.written !== true) {
@@ -505,6 +482,7 @@ async function main() {
     device = relaunched.device;
     page = relaunched.page;
     await enterBoard(page);
+    await delay(1_000);
     const relaunch = await captureReading(page, "relaunch");
     if (relaunch.report.save?.blobPresent !== true) {
       throw new Error(`relaunch did not observe the previously written host blob: ${JSON.stringify(relaunch.report.save)}`);
