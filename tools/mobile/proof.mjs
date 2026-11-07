@@ -16,7 +16,7 @@ import { _android } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
 import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
-import { adbServerOptions, attachPage, boundedAttach, closeDevice, selectDevice } from "./proof-android.mjs";
+import { adbServerOptions, attachPage, closeDevice, selectDevice } from "./proof-android.mjs";
 import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
 import { probeScreenshotStages } from "./proof-telemetry.mjs";
 
@@ -74,21 +74,20 @@ function delay(ms) {
 
 async function livePage(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs;
+  let lastError;
   while (Date.now() < deadline) {
-    const hasReport = await boundedAttach("checking for the mobile page report",
-      () => page.evaluate(() => window.__mobile !== undefined),
-      Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
-    if (hasReport) {
-      if (typeof page.locator === "function") {
-        await boundedAttach("warming up the page automation context",
-          () => page.locator("#screen").count(),
-          Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now()))).catch(() => {});
-      }
-      return page;
+    try {
+      const hasReport = await protocolCall("checking for the mobile page report",
+        () => page.evaluate(() => window.__mobile !== undefined),
+        Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
+      if (hasReport) return page;
+    } catch (error) {
+      lastError = error;
     }
     await delay(Math.min(500, Math.max(0, deadline - Date.now())));
   }
-  throw new Error("The Android WebView did not publish window.__mobile before its deadline");
+  const detail = lastError === undefined ? "window.__mobile remained undefined" : `last error: ${String(lastError)}`;
+  throw new Error(`The Android WebView did not publish window.__mobile before its deadline; ${detail}`, { cause: lastError });
 }
 
 async function report(page) {
