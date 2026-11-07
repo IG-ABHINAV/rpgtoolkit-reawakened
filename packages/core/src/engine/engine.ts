@@ -773,6 +773,11 @@ export function createEngine(init: EngineInit): Engine {
   let holdProgramFrame = false;
   /** Transient flag set while committing the final program screen before hiding the message window (ADR 0018 R5, #1186). */
   let committingFinalProgramScreen = false;
+  /** Animation ID watermark when the currently running outermost program started; used to filter thread animations started earlier (#1183). */
+  let outermostProgramStartAnimationId = 1;
+  /** RenderNow surface revision and on/off state when the outermost program started (#1183). */
+  let outermostProgramStartRenderNowRev = -1;
+  let outermostProgramStartRenderNowOn: boolean | undefined = undefined;
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
   let frameFailure: { readonly hash: string; readonly message: string } | null = null;
   // Presentation inputs are plain draw-list data; decoded textures remain runner-owned (AD-29).
@@ -2161,6 +2166,20 @@ export function createEngine(init: EngineInit): Engine {
   function beginOutermostProgram(): void {
     resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
     resetScriptScreen(state.surfaces);
+    outermostProgramStartAnimationId = (state.fx as Partial<FxSection>)?.nextAnimationId ?? 1;
+    const rn = state.surfaces.renderNow;
+    outermostProgramStartRenderNowRev = (typeof rn === "number" && state.surfaces.entries[String(rn)] !== undefined)
+      ? state.surfaces.entries[String(rn)]!.rev
+      : -1;
+    outermostProgramStartRenderNowOn = state.surfaces.renderNowOn;
+  }
+  function programTouchedOverlay(): boolean {
+    if (state.surfaces.renderNowOn !== outermostProgramStartRenderNowOn) return true;
+    const rn = state.surfaces.renderNow;
+    const currentRev = (typeof rn === "number" && state.surfaces.entries[String(rn)] !== undefined)
+      ? state.surfaces.entries[String(rn)]!.rev
+      : -1;
+    return currentRev !== outermostProgramStartRenderNowRev;
   }
 
   /** Hydrate board `key`, requesting its file and then each missing tile asset in turn. */
@@ -4240,15 +4259,27 @@ export function createEngine(init: EngineInit): Engine {
       if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) return spriteTileCellSize(frame.asset);
       return imageTexture(frame.asset);
     };
-    const withFx = applyFxDrawList(base, fx, sourceSize);
-    // A script-screen layer is visible only while an outermost program runs (#1045) or when committing its final frame (ADR 0018 R5, #1186).
     const activeSurface = blockingAlive() || committingFinalProgramScreen;
     const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
+    // While a program runs outside battle, neither the render-now overlay nor thread animations
+    // started earlier are composed live (3.1 P1, #1183, ADR 0018).
+    const activeProgram = activeSurface && state.battle === null;
+    const fxForCompose = activeProgram
+      ? { ...fx, animations: fx.animations.filter((a) => a.pinned === true || a.id >= outermostProgramStartAnimationId) }
+      : fx;
+    const withFx = applyFxDrawList(base, fxForCompose, sourceSize);
     // E-57: the enabled render-now canvas sits above the board, sprites and animations and below UI text and the message window.
-    const overlay = renderNowBlit(state.surfaces);
+    const overlay = (activeProgram && !programTouchedOverlay()) ? null : renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
-    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true, sourceSize)] };
+    const withOverlay = {
+      ...withScript,
+      commands: [
+        ...withScript.commands,
+        ...(overlay === null ? [] : [overlay]),
+        ...animationBlits(fxForCompose, true, sourceSize),
+      ],
+    };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const uiForCompose = activeSurface
       ? state.ui
