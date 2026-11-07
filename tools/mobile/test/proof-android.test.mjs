@@ -32,12 +32,12 @@ test("selects adb serial and closes all other devices without installing a drive
 });
 
 test("ADB endpoint follows adb socket and host/port precedence without changing driver defaults", async () => {
-  equal(adbServerOptions({}), undefined);
-  equal(adbServerOptions({ ADB_SERVER_PORT: "5038" }), undefined); // adb uses ANDROID_ADB_SERVER_PORT.
-  deepEqual(adbServerOptions({ ANDROID_ADB_SERVER_PORT: "5038" }), { port: 5038 });
+  deepEqual(adbServerOptions({}), { host: "localhost" });
+  deepEqual(adbServerOptions({ ADB_SERVER_PORT: "5038" }), { host: "localhost" }); // adb uses ANDROID_ADB_SERVER_PORT.
+  deepEqual(adbServerOptions({ ANDROID_ADB_SERVER_PORT: "5038" }), { host: "localhost", port: 5038 });
   deepEqual(adbServerOptions({ ANDROID_ADB_SERVER_ADDRESS: "example", ANDROID_ADB_SERVER_PORT: "5039" }), { host: "example", port: 5039 });
   deepEqual(adbServerOptions({ ADB_SERVER_SOCKET: "tcp:127.0.0.1:5040", ANDROID_ADB_SERVER_PORT: "5038" }), { host: "127.0.0.1", port: 5040 });
-  deepEqual(adbServerOptions({ ADB_SERVER_SOCKET: "tcp:5041" }), { port: 5041 });
+  deepEqual(adbServerOptions({ ADB_SERVER_SOCKET: "tcp:5041" }), { host: "localhost", port: 5041 });
   deepEqual(adbServerOptions({ ADB_SERVER_SOCKET: "tcp:[::1]:5042" }), { host: "::1", port: 5042 });
   for (const value of ["0", "65536", "abc"]) throws(() => adbServerOptions({ ANDROID_ADB_SERVER_PORT: value }), /Invalid ADB server port/u);
   throws(() => adbServerOptions({ ADB_SERVER_SOCKET: "localfilesystem:/tmp/adb.sock" }), /requires a TCP/u);
@@ -63,7 +63,7 @@ test("real Playwright enumeration reaches the configured ADB server", async () =
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
-    const options = adbServerOptions({ ANDROID_ADB_SERVER_PORT: String(server.address().port) });
+    const options = adbServerOptions({ ANDROID_ADB_SERVER_ADDRESS: "127.0.0.1", ANDROID_ADB_SERVER_PORT: String(server.address().port) });
     await rejects(selectDevice(_android, "emulator-5560", 5000, options), /matching adb-selected serial/u);
     deepEqual(commands, ["host:devices"]);
   } finally {

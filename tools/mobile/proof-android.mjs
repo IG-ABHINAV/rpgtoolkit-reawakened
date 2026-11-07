@@ -45,7 +45,9 @@ export function adbServerOptions(env) {
     }
     options.port = number;
   }
-  return Object.keys(options).length ? options : undefined;
+  // adb resolves its default server host as localhost; Playwright defaults to 127.0.0.1.
+  if (!options.host) options.host = "localhost";
+  return options;
 }
 
 
