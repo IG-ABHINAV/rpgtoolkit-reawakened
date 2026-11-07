@@ -237,7 +237,7 @@ function launchAndConnect(stage, serial, serverOptions, timeoutMs = ATTACH_TIMEO
     attempts: proof.attachAttempts,
     log: console.log,
     appId,
-    protocolTimeoutMs: PROTOCOL_TIMEOUT_MS,
+    protocolTimeoutMs: 90_000,
     initialBackoffMs: ATTACH_BACKOFF_INITIAL_MS,
     maxBackoffMs: ATTACH_BACKOFF_MAX_MS,
   });
