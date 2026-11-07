@@ -407,7 +407,8 @@ belong to a release owner that does not exist yet.
 The wrapper **MUST NOT** fork the player: a platform difference is a host service or a policy on this page, never a
 second rendering or input path. Host blob persistence records existence (`save.blobPresent`) and write confirmation
 (`save.written`). The mobile wrapper confirms its initial save blob upon session startup and preserves it across
-restarts; it **MUST NOT** dispatch unthrottled asynchronous filesystem bridge I/O on every animation frame.
+restarts; it writes this startup save blob once and **MUST NOT** dispatch recurring filesystem bridge writes on
+subsequent animation frames or game ticks.
 
 <a id="build"></a>
 ## Build and artefact shape
