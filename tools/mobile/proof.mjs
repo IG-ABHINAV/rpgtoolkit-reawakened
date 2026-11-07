@@ -248,7 +248,7 @@ async function enterBoard(page) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const value = await report(page).catch(() => null);
     if (value?.board !== null && value?.board !== undefined) break;
-    await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"));
+    await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"), 10_000).catch(() => {});
     await delay(500);
   }
   return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board");
