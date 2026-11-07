@@ -125,7 +125,7 @@ import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.t
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
-import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
+import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, resetScriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
 import { rasterizeAuthorMargin } from "../raster/raster.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
@@ -667,7 +667,10 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     const kind = blockingAlive() ? "board" : "blocking";
-    if (kind === "blocking") resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+    if (kind === "blocking") {
+      resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+      resetScriptScreen(state.surfaces);
+    }
     const ref: ProgramRef = {
       kind: "inline",
       text: `${command}(${JSON.stringify(encodeInlineScriptString(serialized))})`,
@@ -695,6 +698,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       if (!blockingAlive()) {
         resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+        resetScriptScreen(state.surfaces);
         startProgram(state.vm, { kind: "inline", text: "wait()", ir: IR_VERSION });
       }
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
@@ -1295,6 +1299,7 @@ export function createEngine(init: EngineInit): Engine {
       ? { kind: "inline", text: init.program, ir: IR_VERSION, dialect: "tk3" }
       : init.program;
     resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+    resetScriptScreen(state.surfaces);
     startProgram(state.vm, ref);
   }
 
@@ -2461,7 +2466,10 @@ export function createEngine(init: EngineInit): Engine {
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // A blocking enter program is a new outermost program; reset the message window.
       const blocking = blockingAlive();
-      if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+      if (!blocking) {
+        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+        resetScriptScreen(state.surfaces);
+      }
       const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
       if (blocking && enterThread !== null) state.engine.pendingEnterThread = enterThread.id;
       else delete state.engine.pendingEnterThread;
@@ -2487,6 +2495,7 @@ export function createEngine(init: EngineInit): Engine {
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // An edge link that runs a program starts a new outermost program.
       resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+      resetScriptScreen(state.surfaces);
       startFileProgram(link, board.key, "blocking");
       return;
     }
@@ -2690,6 +2699,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       if (mainFile.startupPrg !== "") {
         resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+        resetScriptScreen(state.surfaces);
         startFileProgram(mainFile.startupPrg, mainKey, "blocking");
       }
       boot.stage = "startup";
@@ -2998,7 +3008,10 @@ export function createEngine(init: EngineInit): Engine {
       for (const ref of prepared.boardPrograms) startThread(stagedVm, { ref, kind: "board", owner: "world" });
       if (prepared.entryProgram !== null) {
         const blocking = stagedVm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
-        if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+        if (!blocking) {
+          resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+          resetScriptScreen(state.surfaces);
+        }
         startThread(stagedVm, { ref: prepared.entryProgram, kind: blocking ? "board" : "blocking", owner: blocking ? "world" : "script" });
       }
     } catch (error) {
