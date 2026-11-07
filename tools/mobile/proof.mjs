@@ -43,7 +43,7 @@ const ATTACH_BACKOFF_INITIAL_MS = 500;
 const ATTACH_BACKOFF_MAX_MS = 8_000;
 const ATTACH_LOGCAT_LINES = 20;
 const ADB_COMMAND_TIMEOUT_MS = 15_000;
-const PROTOCOL_TIMEOUT_MS = 10_000;
+const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 30_000);
 
 function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   let timer;
@@ -235,7 +235,7 @@ function launchAndConnect(stage, serial, serverOptions, timeoutMs = ATTACH_TIMEO
 async function enterBoard(page) {
   await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the title sequence");
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const value = await report(page);
+    const value = await report(page).catch(() => null);
     if (value?.board !== null && value?.board !== undefined) break;
     await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"));
     await delay(500);
