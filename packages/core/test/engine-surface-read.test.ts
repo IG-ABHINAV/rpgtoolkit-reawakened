@@ -28,6 +28,8 @@ import {
   type TickReport,
 } from "../src/index.ts";
 import { SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
+import { actorFromSource } from "../src/sprites/model.ts";
+import { triggerPhaseRegistration } from "../src/triggers/runtime.ts";
 
 const BOARD_COLOUR = { r: 19, g: 37, b: 53 } as const;
 const boardBytes = (() => {
@@ -656,4 +658,171 @@ test("a save taken before any presentation equals one taken after every tick was
    */
   equal(presented.at(-1)!.save, unpresented.at(-1)!.save, "the save without any presentation equals the presented save");
   deepEqual(presented.at(-1)!.diagnostics, unpresented.at(-1)!.diagnostics);
+});
+
+test("pixels a finished program drew on the script screen are reset at later outermost program starts (#1172)", () => {
+  const main = writeMainFile({
+    ...createEmptyMainFile(),
+    major: 2,
+    minor: 9,
+    startupPrg: "start.prg",
+    initBoard: "start.brd",
+  });
+  if (!main.ok) throw new Error(main.error.message);
+
+  const rect = [
+    { x: -32, y: -32 }, { x: 32, y: -32 }, { x: 32, y: 32 }, { x: -32, y: 32 },
+  ];
+  const empty = createEmptyBoard();
+  const boardResult = writeBoard({
+    ...empty,
+    sizeX: 10,
+    sizeY: 10,
+    properties: { ...empty.properties, enterPrg: "enter.prg", backgroundColour: BOARD_COLOUR },
+    programs: [{
+      program: "trigger.prg",
+      graphic: "",
+      initialVar: "",
+      initialValue: "",
+      finalVar: "",
+      finalValue: "",
+      activate: 0,
+      activationType: 1, // Key activation (type === 1)
+      repeatDistance: 0,
+      layer: 1,
+      points: rect,
+      closed: 1,
+      handle: "r0",
+    }],
+  });
+  if (!boardResult.ok) throw new Error(boardResult.error.message);
+
+  const files = new Map<AssetKey, Uint8Array>([
+    [assetKey("main.gam"), main.value],
+    [assetKey("boards/start.brd"), new Uint8Array(boardResult.value)],
+    // Program 1: startup program draws red rectangle to the script screen, then ends.
+    [assetKey("prg/start.prg"), new TextEncoder().encode("colorrgb(255, 0, 0)\nfillrect(0, 0, 8, 8)\nend()\n")],
+    // Program 2: board enter program waits first, then draws green rectangle and waits again.
+    [assetKey("prg/enter.prg"), new TextEncoder().encode("wait()\ncolorrgb(0, 255, 0)\nfillrect(0, 0, 8, 8)\nwait()\nend()\n")],
+    // Program 3: trigger program starts, waiting on input.
+    [assetKey("prg/trigger.prg"), new TextEncoder().encode("wait()\nend()\n")],
+  ]);
+
+  let current: GameState | null = null;
+  const state = (): GameState => {
+    if (!current) throw new Error("expected state");
+    return current;
+  };
+  const engine = createEngine({
+    seed: 41,
+    assetIndex: createAssetIndex(["main.gam", "Boards/start.brd", "Prg/start.prg", "Prg/enter.prg", "Prg/trigger.prg"]),
+    assetRoot: PACKAGE_ROOT,
+    mainFile: "main.gam",
+    gameIdentity: "surface-reset-test",
+    width: 8,
+    height: 8,
+    maxTicks: 100,
+    startup: {
+      presence: { hasPlayer: () => true },
+      savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+    },
+    phaseRegistrations: [
+      {
+        phase: "events",
+        run: (s) => {
+          current = s;
+          if (s.sprites.players.length === 0 && s.world.board != null) {
+            const player = {
+              ...actorFromSource({ id: "player", kind: "player", source: "hero", x: 0, y: 0, layer: 1, facing: "E", controlled: true }, s.world.board, 0, null),
+              collisionBase: { points: rect },
+            };
+            s.sprites.players = [player];
+            s.sprites.selectedPlayer = player.id;
+          }
+        },
+      },
+      triggerPhaseRegistration({ programRef: () => ({ kind: "inline", text: "wait()\nend()\n", ir: IR_VERSION }) }),
+    ],
+  });
+
+  let replies: InputRecord[] = [];
+  const advanceTicks = (count: number) => {
+    for (let i = 0; i < count; i += 1) {
+      const report = engine.advance(1, replies);
+      replies = [];
+      for (const request of report.requests) {
+        if (request.kind === "asset") {
+          replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: files.get(request.key) ?? null } });
+        }
+      }
+    }
+  };
+
+  // Phase 1: Boot through startup.prg to enter.prg waiting
+  // On enter.prg start, resetScriptScreen reset surface -1 (clearing startup.prg's red rectangle).
+  advanceTicks(10);
+  const state1 = state();
+  ok(state1.vm.threads.some((t: { readonly kind: string; readonly status: string }) => t.kind === "blocking" && t.status !== "finished"), "enter.prg is running as outermost blocking program");
+
+  // Program 1's red pixels must NOT be in surface -1 (reset to transparent black)
+  const scriptSurface1 = state1.surfaces.entries[String(SCRIPT_SCREEN)];
+  ok(scriptSurface1 !== undefined, "script surface exists because startupPrg drew to it");
+  const scriptPixels1 = engine.surfacePixels(SCRIPT_SCREEN, scriptSurface1.rev);
+  ok(scriptPixels1 !== null);
+  ok(scriptPixels1.rgba.every((byte) => byte === 0), "surface -1 pixels must be reset to transparent black at enterPrg start");
+
+  // Composed frame (surface 0) must show the board background, NOT program 1's red pixels
+  const screenSurface1 = state1.surfaces.entries["0"];
+  ok(screenSurface1 !== undefined);
+  const screenPixels1 = engine.surfacePixels(0 as SurfaceId, screenSurface1.rev);
+  ok(screenPixels1 !== null);
+  deepEqual([...screenPixels1.rgba.slice(0, 3)], [BOARD_COLOUR.r, BOARD_COLOUR.g, BOARD_COLOUR.b], "composed frame contains board colour, not startup.prg's red pixels");
+
+  // Phase 2: Resume enter.prg to let it draw green and park in wait()
+  replies.push({
+    tick: state1.time.tick,
+    event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true },
+  });
+  advanceTicks(1);
+  replies.push({
+    tick: state().time.tick,
+    event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: false },
+  });
+  advanceTicks(2);
+
+  // enter.prg drew green pixels and is waiting again
+  const scriptSurfaceMid = state().surfaces.entries[String(SCRIPT_SCREEN)];
+  ok(scriptSurfaceMid !== undefined);
+  const scriptPixelsMid = engine.surfacePixels(SCRIPT_SCREEN, scriptSurfaceMid.rev);
+  ok(scriptPixelsMid !== null);
+  deepEqual([...scriptPixelsMid.rgba.slice(0, 4)], [0, 255, 0, 255], "enter.prg drew green pixels");
+
+  // Phase 3: Resume enter.prg to let it finish. The trigger region then activates trigger.prg.
+  replies.push({
+    tick: state().time.tick,
+    event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true },
+  });
+  advanceTicks(1);
+  replies.push({
+    tick: state().time.tick,
+    event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: false },
+  });
+  advanceTicks(5);
+
+  const state2 = state();
+  ok(state2.vm.threads.some((t: { readonly kind: string; readonly status: string }) => t.kind === "blocking" && t.status !== "finished"), "trigger.prg is running as outermost blocking program");
+
+  // Program 2's green pixels must NOT be in surface -1 (reset to transparent black on trigger.prg start)
+  const scriptSurface2 = state2.surfaces.entries[String(SCRIPT_SCREEN)];
+  ok(scriptSurface2 !== undefined);
+  const scriptPixels2 = engine.surfacePixels(SCRIPT_SCREEN, scriptSurface2.rev);
+  ok(scriptPixels2 !== null);
+  ok(scriptPixels2.rgba.every((byte) => byte === 0), "surface -1 pixels must be reset to transparent black at trigger.prg start");
+
+  // Composed frame (surface 0) must show the board background, NOT program 2's green pixels
+  const screenSurface2 = state2.surfaces.entries["0"];
+  ok(screenSurface2 !== undefined);
+  const screenPixels2 = engine.surfacePixels(0 as SurfaceId, screenSurface2.rev);
+  ok(screenPixels2 !== null);
+  deepEqual([...screenPixels2.rgba.slice(0, 3)], [BOARD_COLOUR.r, BOARD_COLOUR.g, BOARD_COLOUR.b], "composed frame contains board colour, not enter.prg's green pixels");
 });

@@ -406,6 +406,21 @@ export function scriptScreen(state: SurfacesSection): SurfaceId | null {
   return Object.hasOwn(state.entries, String(SCRIPT_SCREEN)) ? SCRIPT_SCREEN : null;
 }
 
+/**
+ * Reset the script-screen layer to transparent black at outermost program start
+ * (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle).
+ * If the layer has not been created yet, do nothing so games that never draw do not allocate it.
+ */
+export function resetScriptScreen(state: SurfacesSection): void {
+  const current = state?.entries?.[String(SCRIPT_SCREEN)];
+  if (current === undefined) return;
+  const frame = entry(state, 0 as SurfaceId);
+  const width = frame?.bitmap.w ?? current.bitmap.w;
+  const height = frame?.bitmap.h ?? current.bitmap.h;
+  const pixels = new Uint8Array(byteCount(width, height));
+  replaceSurface(state, SCRIPT_SCREEN, width, height, pixels);
+}
+
 /** Allocate a monotonically increasing surface id. Ids are never reused. */
 export function createSurface(state: SurfacesSection, width: number, height: number, rgba?: Uint8Array): SurfaceId {
   const pixels = rgba === undefined ? new Uint8Array(byteCount(width, height)) : new Uint8Array(rgba);
