@@ -38,6 +38,169 @@ const DIRECTIONS: Readonly<Record<string, true>> = { up: true, down: true, left:
 // only the actions claimed by that one control, never every action held in the game.
 const keyboardClaimsByControl = new WeakMap<InputSection, Map<string, Set<string>>>();
 
+const PHYSICAL_KEY_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  Equal: ["=", "+"],
+  Minus: ["-", "_"],
+  BracketLeft: ["[", "{"],
+  BracketRight: ["]", "}"],
+  Backslash: ["\\", "|"],
+  Semicolon: [";", ":"],
+  Quote: ["'", '"'],
+  Backquote: ["`", "~"],
+  Comma: [",", "<"],
+  Period: [".", ">"],
+  Slash: ["/", "?"],
+  Digit0: ["0", ")"],
+  Digit1: ["1", "!"],
+  Digit2: ["2", "@"],
+  Digit3: ["3", "#"],
+  Digit4: ["4", "$"],
+  Digit5: ["5", "%"],
+  Digit6: ["6", "^"],
+  Digit7: ["7", "&"],
+  Digit8: ["8", "*"],
+  Digit9: ["9", "("],
+  Numpad0: ["0"],
+  Numpad1: ["1"],
+  Numpad2: ["2"],
+  Numpad3: ["3"],
+  Numpad4: ["4"],
+  Numpad5: ["5"],
+  Numpad6: ["6"],
+  Numpad7: ["7"],
+  Numpad8: ["8"],
+  Numpad9: ["9"],
+  NumpadAdd: ["+"],
+  NumpadSubtract: ["-"],
+  NumpadMultiply: ["*"],
+  NumpadDivide: ["/"],
+  NumpadDecimal: [".", ","],
+  NumpadEqual: ["="],
+  Space: [" ", "SPACE"],
+  Enter: ["ENTER"],
+  Escape: ["ESC", "ESCAPE"],
+  ArrowUp: ["UP"],
+  ArrowDown: ["DOWN"],
+  ArrowLeft: ["LEFT"],
+  ArrowRight: ["RIGHT"],
+};
+
+function isPhysicalKeyboardCode(code: string): boolean {
+  return /^Key[A-Z]$/.test(code)
+    || /^(?:Digit|Numpad)[0-9]$/.test(code)
+    || /^(?:Arrow(?:Up|Down|Left|Right)|Enter|Escape|Space|Tab|Backspace|Delete|Insert|Home|End|PageUp|PageDown|CapsLock|NumLock|ScrollLock|Pause|ContextMenu|PrintScreen|(?:Shift|Control|Alt|Meta)(?:Left|Right)|F(?:[1-9]|1[0-2])|Numpad(?:Add|Subtract|Multiply|Divide|Decimal|Enter|Equal|Comma|ParenLeft|ParenRight|Backspace)|Intl(?:Backslash|Ro|Yen)|Lang[1-5]|Equal|Minus|BracketLeft|BracketRight|Backquote|Semicolon|Quote|Comma|Period|Slash|Backslash)$/.test(code);
+}
+
+function aliasesForPhysicalCode(code: string, bindings?: Record<string, string>): readonly string[] {
+  const aliases: string[] = [code];
+  if (/^Key[A-Z]$/.test(code)) {
+    const ch = code.slice(3);
+    aliases.push(ch, ch.toLowerCase());
+  } else if (Object.hasOwn(PHYSICAL_KEY_ALIASES, code)) {
+    aliases.push(...PHYSICAL_KEY_ALIASES[code]!);
+  }
+  if (bindings !== undefined && typeof bindings[code] === "string") {
+    aliases.push(bindings[code]!);
+  }
+  return aliases;
+}
+
+type HeldClaimsIndex = {
+  readonly byControl: Map<string, Set<string>>;
+  readonly byName: Map<string, Set<string>>;
+};
+
+const keyboardHeldClaims = new WeakMap<InputSection, HeldClaimsIndex>();
+
+export function rebuildKeyboardKeyClaimIndex(state: InputSection): void {
+  const byControl = new Map<string, Set<string>>();
+  const byName = new Map<string, Set<string>>();
+
+  const addClaim = (control: string, name: string) => {
+    let names = byControl.get(control);
+    if (names === undefined) byControl.set(control, names = new Set());
+    names.add(name);
+
+    let controls = byName.get(name);
+    if (controls === undefined) byName.set(name, controls = new Set());
+    controls.add(control);
+  };
+
+  const heldEntries = Object.keys(state.held).filter((key) => state.held[key] === true);
+  const physicalCodes = heldEntries.filter(isPhysicalKeyboardCode);
+
+  for (const code of physicalCodes) {
+    addClaim(code, code);
+    const aliases = aliasesForPhysicalCode(code, state.bindings?.keys);
+    for (const alias of aliases) {
+      if (state.held[alias] === true) {
+        addClaim(code, alias);
+      }
+    }
+  }
+
+  for (const name of heldEntries) {
+    if (!byName.has(name) || byName.get(name)!.size === 0) {
+      if (physicalCodes.length === 1) {
+        addClaim(physicalCodes[0]!, name);
+      } else {
+        addClaim(name, name);
+      }
+    }
+  }
+
+  keyboardHeldClaims.set(state, { byControl, byName });
+}
+
+function keyboardHeldClaimsIndex(state: InputSection): HeldClaimsIndex {
+  let index = keyboardHeldClaims.get(state);
+  if (index === undefined) {
+    rebuildKeyboardKeyClaimIndex(state);
+    index = keyboardHeldClaims.get(state)!;
+  }
+  return index;
+}
+
+function updateHeldClaims(state: InputSection, control: string, name: string, down: boolean): void {
+  const index = keyboardHeldClaimsIndex(state);
+  if (down) {
+    let names = index.byControl.get(control);
+    if (names === undefined) index.byControl.set(control, names = new Set());
+    names.add(name);
+    names.add(control);
+
+    let controlsForName = index.byName.get(name);
+    if (controlsForName === undefined) index.byName.set(name, controlsForName = new Set());
+    controlsForName.add(control);
+
+    let controlsForCode = index.byName.get(control);
+    if (controlsForCode === undefined) index.byName.set(control, controlsForCode = new Set());
+    controlsForCode.add(control);
+
+    state.held[name] = true;
+    if (control !== name) state.held[control] = true;
+    return;
+  }
+
+  const claimed = new Set<string>(index.byControl.get(control) ?? []);
+  claimed.add(name);
+  claimed.add(control);
+  index.byControl.delete(control);
+
+  for (const claimedName of claimed) {
+    const controls = index.byName.get(claimedName);
+    if (controls !== undefined) {
+      controls.delete(control);
+      if (controls.size === 0) {
+        index.byName.delete(claimedName);
+        state.held[claimedName] = false;
+      }
+    } else {
+      state.held[claimedName] = false;
+    }
+  }
+}
+
 /** Rebuild the derived per-control claim index after a snapshot restore. */
 export function rebuildKeyboardActionClaimIndex(state: InputSection): void {
   const byControl = new Map<string, Set<string>>();
@@ -50,6 +213,7 @@ export function rebuildKeyboardActionClaimIndex(state: InputSection): void {
     }
   }
   keyboardClaimsByControl.set(state, byControl);
+  rebuildKeyboardKeyClaimIndex(state);
 }
 
 function keyboardClaimIndex(state: InputSection): Map<string, Set<string>> {
@@ -327,8 +491,8 @@ function updatePadActions(
 function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (action: string) => void, onActionTransition?: (action: string, down: boolean, firstSeq: number) => void): void {
   if (event.down && event.repeat === true && state.held[event.name] !== true) return;
   const priorRaw = state.held[event.name] === true;
-  state.held[event.name] = event.down;
-  if (event.code !== event.name) state.held[event.code] = event.down;
+  const physicalControl = event.code.length > 0 ? event.code : event.name;
+  updateHeldClaims(state, physicalControl, event.name, event.down);
   const control = `key:${event.code}`;
   const configured = mappedAction(state, event);
   const defaultActions = DEFAULT_KEY_ACTIONS[event.code] ?? [];
@@ -383,6 +547,7 @@ function applyKey(state: InputSection, event: KeyInput, onUnknownAction?: (actio
  */
 function releaseHeld(state: InputSection): void {
   for (const name of Object.keys(state.held)) if (state.held[name] === true) state.held[name] = false;
+  keyboardHeldClaims.delete(state);
   for (const action of Object.keys(state.keyboardActions)) if (state.keyboardActions[action] === true) state.keyboardActions[action] = false;
   for (const sources of Object.values(state.keyboardActionSources)) for (const source of Object.keys(sources)) delete sources[source];
   rebuildKeyboardActionClaimIndex(state);

@@ -686,3 +686,74 @@ test("a native menu wait wakes for a pointer change against its parked baseline"
   equal(tie?.value, "ENTER", "a key wins a same-tick tie");
   equal(tie?.record, undefined);
 });
+
+test("shift release before physical key-up clears logical held alias (#1646)", () => {
+  const state = createInputSection();
+  applyInputEvent(state, { kind: "key", name: "+", code: "Equal", char: "+", down: true });
+  equal(state.held["+"], true);
+  equal(state.held.Equal, true);
+
+  applyInputEvent(state, { kind: "key", name: "=", code: "Equal", char: "=", down: false });
+  equal(state.held["+"], false, "releasing Shift before key-up must not leave + alias held");
+  equal(state.held.Equal, false);
+  equal(state.held["="], false);
+});
+
+test("multiple physical keys holding the same logical name only clear on last release (#1646)", () => {
+  const state = createInputSection();
+  applyInputEvent(state, { kind: "key", name: "+", code: "Equal", char: "+", down: true });
+  applyInputEvent(state, { kind: "key", name: "+", code: "NumpadAdd", char: "+", down: true });
+  equal(state.held["+"], true);
+  equal(state.held.Equal, true);
+  equal(state.held.NumpadAdd, true);
+
+  // Release first key after modifier release
+  applyInputEvent(state, { kind: "key", name: "=", code: "Equal", char: "=", down: false });
+  equal(state.held.Equal, false);
+  equal(state.held["="], false);
+  equal(state.held["+"], true, "logical name + remains held while NumpadAdd is still down");
+
+  // Release second key
+  applyInputEvent(state, { kind: "key", name: "+", code: "NumpadAdd", char: "+", down: false });
+  equal(state.held.NumpadAdd, false);
+  equal(state.held["+"], false, "logical name + clears when all claiming physical keys are released");
+});
+
+test("held alias ownership survives snapshot save and restore (#1646)", () => {
+  const state = createGameState({ seed: 0 });
+  applyInputEvent(state.input, { kind: "key", name: "+", code: "Equal", char: "+", down: true });
+  applyInputEvent(state.input, { kind: "key", name: "+", code: "NumpadAdd", char: "+", down: true });
+  equal(state.input.held["+"], true);
+
+  const snap = snapshot(state);
+  const restored = restoreGameState(snap);
+  equal(restored.input.held["+"], true);
+  equal(restored.input.held.Equal, true);
+  equal(restored.input.held.NumpadAdd, true);
+
+  // Release Equal with unshifted name on restored state
+  applyInputEvent(restored.input, { kind: "key", name: "=", code: "Equal", char: "=", down: false });
+  equal(restored.input.held.Equal, false);
+  equal(restored.input.held["+"], true, "restored state preserves multi-key ownership on logical alias");
+
+  // Release NumpadAdd on restored state
+  applyInputEvent(restored.input, { kind: "key", name: "+", code: "NumpadAdd", char: "+", down: false });
+  equal(restored.input.held.NumpadAdd, false);
+  equal(restored.input.held["+"], false, "restored state clears alias when last key is released");
+});
+
+test("focus loss clears held aliases and resets ownership claims (#1646)", () => {
+  const state = createInputSection();
+  applyInputEvent(state, { kind: "key", name: "+", code: "Equal", char: "+", down: true });
+  equal(state.held["+"], true);
+  equal(state.held.Equal, true);
+
+  applyInputEvent(state, { kind: "focus", state: "lost" });
+  equal(state.held["+"], false);
+  equal(state.held.Equal, false);
+
+  // Refocus and ensure clean slate
+  applyInputEvent(state, { kind: "focus", state: "gained" });
+  equal(state.held["+"], false);
+  equal(state.held.Equal, false);
+});
