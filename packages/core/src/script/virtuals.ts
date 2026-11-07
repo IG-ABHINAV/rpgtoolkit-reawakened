@@ -186,7 +186,13 @@ export function createDefaultVirtuals(
         const world = asRecord(state.world);
         const board = asRecord(world?.board);
         const ambient = asRecord(board?.ambient);
-        if (ambient === undefined || typeof value !== "number") return "read-only";
+        if (board === undefined || ambient === undefined || typeof value !== "number") return "read-only";
+        if (board.activeAmbient === undefined) {
+          const r = typeof ambient.r === "number" ? ambient.r : 0;
+          const g = typeof ambient.g === "number" ? ambient.g : 0;
+          const b = typeof ambient.b === "number" ? ambient.b : 0;
+          board.activeAmbient = { r, g, b };
+        }
         const field = name === "ambientred" ? "r" : name === "ambientgreen" ? "g" : "b";
         ambient[field] = value;
         return "written";

@@ -22,8 +22,8 @@ function addRgb(a: WorldRgb | Tint, b: WorldRgb | Tint): Tint {
 }
 
 /** Add board and script ambient once, before a tile blit is emitted. */
-export function ambientTint(board: Pick<WorldBoard, "ambient">, globalAmbient: Tint = zero()): Tint {
-  return addRgb(board.ambient, globalAmbient);
+export function ambientTint(board: Pick<WorldBoard, "ambient"> & { readonly activeAmbient?: WorldRgb }, globalAmbient: Tint = zero()): Tint {
+  return addRgb(board.activeAmbient ?? board.ambient, globalAmbient);
 }
 
 function recordTint(records: readonly WorldShadeRecord[], cell: number): Tint {
@@ -41,15 +41,16 @@ function recordTint(records: readonly WorldShadeRecord[], cell: number): Tint {
  * Shade records are data: no legacy/pre-vector conversion is repeated here.
  */
 export function cellTint(
-  board: Pick<WorldBoard, "ambient" | "gridWidth" | "sizeX" | "shadeLayers">,
+  board: Pick<WorldBoard, "ambient" | "gridWidth" | "sizeX" | "shadeLayers"> & { readonly activeAmbient?: WorldRgb },
   layer: number,
   x: number,
   y: number,
   globalAmbient: Tint = zero(),
 ): Tint {
-  let red = board.ambient.r + globalAmbient.r;
-  let green = board.ambient.g + globalAmbient.g;
-  let blue = board.ambient.b + globalAmbient.b;
+  const ambient = board.activeAmbient ?? board.ambient;
+  let red = ambient.r + globalAmbient.r;
+  let green = ambient.g + globalAmbient.g;
+  let blue = ambient.b + globalAmbient.b;
   const width = board.gridWidth ?? board.sizeX;
   if (x < 0 || y < 0 || x >= width) return { r: clamp(red, -MAX_TINT, MAX_TINT), g: clamp(green, -MAX_TINT, MAX_TINT), b: clamp(blue, -MAX_TINT, MAX_TINT) };
   const cell = y * width + x;

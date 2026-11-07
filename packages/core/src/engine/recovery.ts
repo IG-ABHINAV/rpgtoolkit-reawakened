@@ -284,6 +284,7 @@ function restoreBoard(authored: WorldBoard, saved: LedgerBoard): WorldBoard {
   return {
     ...authored,
     ambient: { ...saved.ambient },
+    ...((saved as any).activeAmbient !== undefined ? { activeAmbient: { ...(saved as any).activeAmbient } } : {}),
     vectors: saved.vectors.map((vector) => ({ ...vector, points: vector.points.map((point) => ({ ...point })) })),
     programs: saved.programs.map((program) => ({ ...program, points: program.points.map((point) => ({ ...point })) })),
     rawItems,
