@@ -500,8 +500,8 @@ jobs:
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm browser:test
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
-  # The mobile lane builds and drives the real Capacitor APK on API 33. The
-  # proof script captures the page's own readings and fails instead of
+  # The mobile lane builds and drives the real Capacitor APK on Android 16.
+  # The proof script captures the page's own readings and fails instead of
   # substituting browser stubs or synthetic reports.
   mobile:
     needs: [changes]
@@ -549,7 +549,7 @@ jobs:
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         with:
           packages: platform-tools
-      - run: sdkmanager "emulator" "platforms;android-33" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "build-tools;37.0.0" "system-images;android-33;google_apis;x86_64"
+      - run: sdkmanager "emulator" "platforms;android-33" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "build-tools;37.0.0" "system-images;android-36;google_apis;x86_64"
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: mkdir -p artifacts/mobile-proof
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
@@ -611,13 +611,13 @@ jobs:
               exit 1
             fi
           }
-      - name: Exercise APK on API 33 emulator
+      - name: Exercise APK on API 36 emulator
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         uses: reactivecircus/android-emulator-runner@v2
         env:
           CI: "true"
         with:
-          api-level: 33
+          api-level: 36
           target: google_apis
           arch: x86_64
           profile: pixel_2
@@ -629,7 +629,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always() && (needs.changes.result != 'success' || needs.changes.outputs.full != 'false')
         with:
-          name: mobile-android-api33-proof
+          name: mobile-android-api36-proof
           path: artifacts/mobile-proof/
           if-no-files-found: error
   gate:

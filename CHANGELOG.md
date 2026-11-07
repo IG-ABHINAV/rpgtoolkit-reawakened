@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- The Android CI proof now targets Android 16 (API 36) and records the selected device's actual Android version and ABI. Its existing interaction, persistence and diagnostic checks remain unchanged (#1621).
 - The Android APK proof now evaluates Playwright's experimental Android device/WebView API instead of a manually forwarded CDP connection. Device selection, bounded attachment diagnostics and the existing interaction and screenshot checks remain; this does not establish a fix for the intermittent timeout (#1621).
 - The Electron desktop smoke now checks that the real `app://` player loads its package and rejects an injected inline script with a CSP violation, without changing the desktop policy (#1230).
 - Browser and mobile quit-restart probes no longer compare independently sampled session ticks; the mobile probe latches the reset and new frame, deliberately allows tick overtaking, and checks old input listeners were replaced (#1612).

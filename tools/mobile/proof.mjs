@@ -1,4 +1,4 @@
-// Exercise the built Capacitor APK on an API 33 emulator and retain only readings
+// Exercise the built Capacitor APK on an Android device or emulator and retain only readings
 // observed from its live page. No browser or filesystem mocks are installed here.
 //
 //   pnpm mobile:proof
@@ -26,7 +26,7 @@ const apk = join(root, "packages", "runner-mobile", "android", "app", "build", "
 const output = resolve(process.env.MOBILE_PROOF_DIR ?? join(root, "artifacts", "mobile-proof"));
 const proof = {
   schema: 1,
-  platform: "Android emulator API 33 x86_64",
+  platform: "Android (device details not yet available)",
   apk,
   readings: {},
   screenshots: {},
@@ -407,6 +407,7 @@ async function main() {
   if (!serial || serial === "unknown") throw new Error(`adb did not identify a usable Android device: ${serial}`);
   process.env.ANDROID_SERIAL = serial;
   proof.deviceSerial = serial;
+  proof.platform = `Android ${adb("shell", "getprop", "ro.build.version.release")} API ${adb("shell", "getprop", "ro.build.version.sdk")} ${adb("shell", "getprop", "ro.product.cpu.abi")}`;
   installApk(apk);
   if (process.env.CI === "true") {
     const cleared = adb("shell", "pm", "clear", appId);
