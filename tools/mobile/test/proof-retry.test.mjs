@@ -20,7 +20,7 @@ function rig() {
     attempts, log: () => {}, appId: "test.app", protocolTimeoutMs: 10000,
     initialBackoffMs: 500, maxBackoffMs: 8000,
   };
-  return { context, attempts, sleeps, closed };
+  return { context, attempts, sleeps, closed, advance: (ms) => { clock += ms; } };
 }
 
 test("production retry loop closes a transient failure and returns the recovered live page", async () => {
@@ -61,6 +61,25 @@ test("persistent failures exhaust the shared deadline and retain all diagnostics
   match(attempts.at(-1).attachError, /connection refused/u);
 });
 
+
+test("adapter time consumes the shared deadline and reduces subsequent call budgets", async () => {
+  const { context, attempts, sleeps, advance } = rig();
+  const selectBudgets = [];
+  const attachBudgets = [];
+  context.select = async (_serial, budget) => { selectBudgets.push(budget); return {}; };
+  context.close = async () => {};
+  context.attach = async (_device, _app, _pid, budget) => {
+    attachBudgets.push(budget);
+    advance(attachBudgets.length === 1 ? 7000 : 2500);
+    throw new Error("connection refused");
+  };
+  await rejects(launchAndConnect("initial", "serial", 10000, context), /within 10000ms/u);
+  deepEqual(selectBudgets, [10000, 2500]);
+  deepEqual(attachBudgets, [10000, 2500]);
+  deepEqual(sleeps, [500]);
+  equal(attempts.length, 2);
+  match(attempts[1].attachError, /connection refused/u);
+});
 test("uncancelled attachment is terminal and is not retried", async () => {
   const { context, attempts, sleeps, closed } = rig();
   context.attach = async () => { throw new UncancelledAttachError("still pending"); };
