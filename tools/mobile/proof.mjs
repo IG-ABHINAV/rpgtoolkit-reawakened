@@ -264,15 +264,21 @@ async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
   const targetStable = initialReport !== null ? 1 : 2;
   while (Date.now() < deadline) {
     const remaining = Math.max(5_000, Math.min(20_000, deadline - Date.now()));
-    const current = await report(page, remaining).catch(() => null);
+    const reading = await protocolCall("reading settled player report", () => page.evaluate(() => ({
+      report: window.__mobile ?? null,
+      documentTitle: document.title,
+    })), remaining).catch(() => null);
+
+    const current = reading?.report;
     if (current?.error) throw new Error(`waiting for a settled player: ${current.error}`);
-    if (current?.board !== null && current?.board !== undefined && current.player !== null) {
+    if (current?.board !== null && current?.board !== undefined && current?.player !== null && current?.player !== undefined) {
       if (previous !== null && current.tick > previous.tick) {
         if (current.player.x === previous.player.x && current.player.y === previous.player.y) stableTicks += 1;
         else stableTicks = 0;
         if (stableTicks >= targetStable) {
-          const remainingBudget = Math.max(60_000, deadline - Date.now());
-          return captureReading(page, "settled pre-tap baseline", {}, remainingBudget);
+          const pageReport = assertReport(reading.report, "settled pre-tap baseline");
+          assertDocumentTitle(pageReport, reading.documentTitle, "settled pre-tap baseline");
+          return { report: pageReport, documentTitle: reading.documentTitle };
         }
       }
       previous = current;
