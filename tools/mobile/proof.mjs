@@ -19,6 +19,7 @@ import { classifyProcess } from "./proof-process.mjs";
 import { adbServerOptions, attachPage, closeDevice, selectDevice } from "./proof-android.mjs";
 import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
 import { probeScreenshotStages } from "./proof-telemetry.mjs";
+import { scheduleEmulatorCleanup } from "./proof-cleanup.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -508,6 +509,7 @@ try {
   writeFileSync(path, `${JSON.stringify(proof, null, 2)}\n`);
   console.log(`Mobile emulator proof ${proof.result}; readings: ${path}`);
   if (proof.error) console.error(proof.error);
+  scheduleEmulatorCleanup();
   if (process.exitCode !== undefined) {
     const exitCode = process.exitCode;
     const forceExit = setTimeout(() => process.exit(exitCode), 3_000);
