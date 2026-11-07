@@ -171,7 +171,9 @@ test("frame sounds follow the uninterrupted animation phase after a cold restore
   const sound = new Uint8Array(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures", "audio", "files", "pcm8-mono-8000.wav")));
   const extras = { "misc/spin.anm": animation("step.wav"), "media/step.wav": sound };
   const source = save(`id=pinnedanimation("spin.anm",0,0,1)\nSave("slot")\n${sleep}`, extras);
-  const restored = host({ bytes: source.bytes }, 'load("slot")\nend()', extras);
+  const restored = host({ bytes: source.bytes }, "end()", extras);
+  until(restored, (report) => report.ticksRun > 0 && restored.state.engine.boot?.stage === "running");
+  run(restored, 'load("slot")\nend()');
   atTick(source.game, 10);
   atTick(restored, 10);
   const plays = (game: Host) => game.cues.filter((cue) => cue.kind === "media.play").map((cue) => [cue.tick, cue.asset]);
@@ -297,7 +299,9 @@ test(`a message-window graphic ${timing} uses its saved-warm picture`, () => {
   const extras = { "bitmap/red.png": encodePng(600, 100, Uint8Array.from({ length: 600 * 100 * 4 }, (_, index) => index % 4 === 0 || index % 4 === 3 ? 255 : 0)) };
   const window = 'winGraphic("red.png")\nmwin("")\n';
   const source = save(`${timing === "visible at Save" ? window : warmPictures}Save("slot")\n${timing === "created after Load" ? window : ""}continued=42\n${sleep}`, extras, "blocking");
-  const restored = host({ bytes: source.bytes }, 'load("slot")\nend()', extras);
+  const restored = host({ bytes: source.bytes }, "end()", extras);
+  until(restored, (report) => report.ticksRun > 0 && restored.state.engine.boot?.stage === "running");
+  run(restored, 'load("slot")\nend()');
   atTick(source.game, 10);
   atTick(restored, 10);
   const backgrounds = (game: Host) => game.engine.drawList().commands.filter((command) =>
@@ -381,7 +385,9 @@ function regionalBoard(): Readonly<Record<string, Uint8Array>> {
 test("moving the restored camera activates a previously offscreen saved-warm tileset", () => {
   const extras = regionalBoard();
   const source = save(`Save("slot")\ncontinued=42\n${sleep}`, extras);
-  const restored = host({ bytes: source.bytes }, 'load("slot")\nend()', extras);
+  const restored = host({ bytes: source.bytes }, "end()", extras);
+  until(restored, (report) => report.ticksRun > 0 && restored.state.engine.boot?.stage === "running");
+  run(restored, 'load("slot")\nend()');
   atTick(source.game, 10);
   atTick(restored, 10);
   const before = pixels(source.game);

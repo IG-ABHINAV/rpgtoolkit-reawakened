@@ -109,6 +109,7 @@ import {
   IR_VERSION,
   fileProgramRef,
   restartProgramRef,
+  withOwner,
   withRedirects,
   type ProgramLoader,
   type FunctionInfo,
@@ -213,6 +214,8 @@ export type ScriptServices = ScriptObservers & {
    * rebuilt by package start-up and not saved. A call reaches them through the first entry of the environment table.
    */
   readonly layers: PluginLayers;
+  /** Session inline/file startup references keyed by package owner name (#1676). */
+  readonly packageStartupRefs: ReadonlyMap<string, ProgramRef>;
   /** Native whole-screen transition handlers, session-only; keys include manifest identity. */
   readonly menuProviders: ReadonlyMap<string, MenuProvider>;
   readonly menuProviderIdentityExists: (id: string) => boolean;
@@ -849,8 +852,13 @@ export function createScriptServices(
     });
   }
   const pluginOptions = new Map<string, PlainData>();
+  const packageStartupRefs = new Map<string, ProgramRef>();
   const menuProviders = new Map<string, MenuProvider>();
   for (const plugin of plugins) {
+    if (plugin.startup !== undefined) {
+      const owner = plugin.startup.owner ?? plugin.package?.name ?? plugin.definition.id;
+      if (owner !== "") packageStartupRefs.set(owner, withOwner(plugin.startup, owner));
+    }
     for (const [screen, provider] of Object.entries(plugin.definition.menuProviders ?? {})) {
       if (provider === undefined) continue;
       const id = `${plugin.definition.id}@${plugin.definition.version}:menu:${screen}`;
@@ -945,6 +953,7 @@ export function createScriptServices(
     hiddenFileWarned: new Set(),
     hostTypes: hydratedTypes,
     layers,
+    packageStartupRefs,
     menuProviders,
     menuProviderIdentityExists: (id) =>
       menuProviders.has(id) || (layers.menuLayers.get(id) !== undefined && !layers.menuLayers.get(id)!.removed),

@@ -269,10 +269,40 @@ for (const mode of [0, 1, 2] as const) {
   });
 }
 
+test("the packaged demo opens the stock menu with Enter", async ({ page }) => {
+  await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
+  await page.waitForFunction(() => (window.__live?.tick ?? 0) > 30, undefined, { timeout: 45_000 });
+  for (const tick of [30, 60]) {
+    await page.waitForFunction((point) => (window.__live?.tick ?? 0) >= point, tick, { timeout: 45_000 });
+    await page.keyboard.press("Enter");
+  }
+  await page.waitForFunction(() => window.__live?.board !== null && window.__live?.player !== null, undefined, { timeout: 45_000 });
+  // The main screen's initial Items selection fills its first row with the stock blue focus bar.
+  // Sample the middle of that exact row, not just any blue pixel elsewhere in the game.
+  const itemsFocused = () => page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#screen");
+    const gl = canvas?.getContext("webgl2");
+    if (canvas === null || canvas === undefined || gl === null || gl === undefined) return false;
+    const scale = Math.floor(Math.min(canvas.width / 640, canvas.height / 480));
+    if (scale < 1) return false;
+    const y = Math.floor((canvas.height - 480 * scale) / 2 + (480 - 155 + 12) * scale);
+    const pixel = new Uint8Array(4);
+    gl.readPixels(Math.floor(canvas.width / 2), canvas.height - y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    return pixel[0] === 40 && pixel[1] === 64 && pixel[2] === 140;
+  });
+  expect(await itemsFocused()).toBe(false);
+  await page.keyboard.press("Enter");
+  await expect.poll(itemsFocused, { timeout: 45_000 }).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect.poll(itemsFocused, { timeout: 45_000 }).toBe(false);
+  const report = await page.evaluate(() => window.__live as LiveReport);
+  expect(report.diagnostics ?? []).toEqual([]);
+});
+
 test("live demo attaches a board canvas and movement changes the player and presented frame", async ({ page }) => {
   await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
   await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
-  for (const tick of [30, 60, 90]) {
+  for (const tick of [30, 60]) {
     await page.waitForFunction((point) => (window.__live?.tick ?? 0) >= point, tick, { timeout: 45_000 });
     await page.keyboard.press("Enter");
   }

@@ -133,7 +133,8 @@ test("collision-sprite-blocking: R-51 loser order, 120-tick freeze, diversion, w
   equal(actorAt(thaw, 143, "npc")[4], "frozen"); // 120 ticks: 24 .. 143
   equal(actorAt(thaw, 144, "npc")[4], "waiting");
   deepEqual(events(thaw, "thaw").map((e) => e.t), [144]);
-  deepEqual(events(thaw, "sprite-collision").map((e) => e.t), [24, 145]); // still stationary, so it loses again
+  equal(actorAt(thaw, 144, "hero")[4], "waiting");
+  deepEqual(events(thaw, "sprite-collision").map((e) => e.t), [24, 145]); // only a fresh explicit attempt refreezes it
   deepEqual(events(theCase(sc, "controlled-player-wins-between-movers"), "sprite-collision").map((e) => e.winner), ["hero"]);
   deepEqual(events(theCase(sc, "faster-sprite-wins"), "sprite-collision").map((e) => [e.winner, e.loser]), [["fast", "slow"]]);
   deepEqual(events(theCase(sc, "equal-speed-larger-drawid-loses"), "sprite-collision").map((e) => [e.winner, e.loser]), [["first", "second"]]);

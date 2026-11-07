@@ -681,11 +681,11 @@ export class World {
       this.resolveCollision(a, blocker, tpa);
       return;
     }
-    this.resolveCollision(a, blocker, tpa);
+    this.resolveCollision(a, blocker, tpa, () => finish(true));
   }
 
   /** R-51 item 2: who loses, then the 120-tick freeze. */
-  resolveCollision(a, blocker, tpa) {
+  resolveCollision(a, blocker, tpa, finish) {
     const moving = (s) => s.state === "moving";
     let loser;
     if (moving(a) !== moving(blocker)) loser = moving(a) ? blocker : a; // a stationary sprite loses to a moving one
@@ -693,8 +693,12 @@ export class World {
     else if (tpa !== this.tpaFor(blocker)) loser = tpa < this.tpaFor(blocker) ? blocker : a; // the faster sprite wins
     else loser = this.drawId(a) > this.drawId(blocker) ? a : blocker; // the larger drawId loses
     const winner = loser === a ? blocker : a;
+    // Owner 2026-11-07: resolve priority first, then end the blocked direct step.
+    finish?.();
     if (loser.state !== "frozen") {
       loser.state = "frozen";
+      loser.cur = null;
+      loser.waitLeft = 0;
       loser.frozenUntil = this.tick + FREEZE_TICKS; // frozen on ticks F .. F + 119 whatever the iteration order
       this.emit("sprite-collision", { winner: winner.id, loser: loser.id });
     }
