@@ -709,6 +709,10 @@ test("pixels a finished program drew on the script screen are reset at later out
   ]);
 
   let current: GameState | null = null;
+  const state = (): GameState => {
+    if (!current) throw new Error("expected state");
+    return current;
+  };
   const engine = createEngine({
     seed: 41,
     assetIndex: createAssetIndex(["main.gam", "Boards/start.brd", "Prg/start.prg", "Prg/enter.prg", "Prg/trigger.prg"]),
@@ -725,13 +729,15 @@ test("pixels a finished program drew on the script screen are reset at later out
     phaseRegistrations: [
       {
         phase: "events",
-        run: (state) => {
-          current = state;
-          if (state.sprites.players.length === 0 && state.world.board != null) {
-            const player = actorFromSource({ id: "player", kind: "player", source: "hero", x: 0, y: 0, layer: 1, facing: "E", controlled: true }, state.world.board, 0, null);
-            player.collisionBase = { points: rect };
-            state.sprites.players = [player];
-            state.sprites.selectedPlayer = player.id;
+        run: (s) => {
+          current = s;
+          if (s.sprites.players.length === 0 && s.world.board != null) {
+            const player = {
+              ...actorFromSource({ id: "player", kind: "player", source: "hero", x: 0, y: 0, layer: 1, facing: "E", controlled: true }, s.world.board, 0, null),
+              collisionBase: { points: rect },
+            };
+            s.sprites.players = [player];
+            s.sprites.selectedPlayer = player.id;
           }
         },
       },
@@ -755,9 +761,8 @@ test("pixels a finished program drew on the script screen are reset at later out
   // Phase 1: Boot through startup.prg to enter.prg waiting
   // On enter.prg start, resetScriptScreen reset surface -1 (clearing startup.prg's red rectangle).
   advanceTicks(10);
-  const state1 = current;
-  ok(state1 !== null);
-  ok(state1.vm.threads.some((t) => t.kind === "blocking" && t.status !== "finished"), "enter.prg is running as outermost blocking program");
+  const state1 = state();
+  ok(state1.vm.threads.some((t: { readonly kind: string; readonly status: string }) => t.kind === "blocking" && t.status !== "finished"), "enter.prg is running as outermost blocking program");
 
   // Program 1's red pixels must NOT be in surface -1 (reset to transparent black)
   const scriptSurface1 = state1.surfaces.entries[String(SCRIPT_SCREEN)];
@@ -780,13 +785,13 @@ test("pixels a finished program drew on the script screen are reset at later out
   });
   advanceTicks(1);
   replies.push({
-    tick: current!.time.tick,
+    tick: state().time.tick,
     event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: false },
   });
   advanceTicks(2);
 
   // enter.prg drew green pixels and is waiting again
-  const scriptSurfaceMid = current!.surfaces.entries[String(SCRIPT_SCREEN)];
+  const scriptSurfaceMid = state().surfaces.entries[String(SCRIPT_SCREEN)];
   ok(scriptSurfaceMid !== undefined);
   const scriptPixelsMid = engine.surfacePixels(SCRIPT_SCREEN, scriptSurfaceMid.rev);
   ok(scriptPixelsMid !== null);
@@ -794,19 +799,18 @@ test("pixels a finished program drew on the script screen are reset at later out
 
   // Phase 3: Resume enter.prg to let it finish. The trigger region then activates trigger.prg.
   replies.push({
-    tick: current!.time.tick,
+    tick: state().time.tick,
     event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true },
   });
   advanceTicks(1);
   replies.push({
-    tick: current!.time.tick,
+    tick: state().time.tick,
     event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: false },
   });
   advanceTicks(5);
 
-  const state2 = current;
-  ok(state2 !== null);
-  ok(state2.vm.threads.some((t) => t.kind === "blocking" && t.status !== "finished"), "trigger.prg is running as outermost blocking program");
+  const state2 = state();
+  ok(state2.vm.threads.some((t: { readonly kind: string; readonly status: string }) => t.kind === "blocking" && t.status !== "finished"), "trigger.prg is running as outermost blocking program");
 
   // Program 2's green pixels must NOT be in surface -1 (reset to transparent black on trigger.prg start)
   const scriptSurface2 = state2.surfaces.entries[String(SCRIPT_SCREEN)];
