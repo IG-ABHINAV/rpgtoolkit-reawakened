@@ -775,11 +775,9 @@ test("lost fallback capture keeps a held pointer away from gameplay", async ({ b
     await page.waitForFunction(({ id }) => !document.querySelector(".fallback-touch-button")?.hasPointerCapture(id), { id: pointerId }, { timeout: 10_000 });
     const beforeReentry = await page.evaluate(() => window.__live?.tick ?? 0);
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
-    await page.evaluate(() => {
-      const { promise, resolve } = Promise.withResolvers<void>();
-      requestAnimationFrame(resolve);
-      return promise;
-    });
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    }));
     await page.waitForFunction((tick) => (window.__live?.tick ?? 0) >= tick + 3, beforeReentry, { timeout: 10_000 });
     expect((await tracedInputs(page)).some((entry) => entry.event.kind === "pointer" && entry.event.buttons === 1)).toBe(false);
     expect(await page.evaluate(() => window.__session!.engine.runnerControlPointerPreemption(0, 0))).toBeNull();

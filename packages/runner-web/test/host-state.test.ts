@@ -1,7 +1,7 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
 import { applyUiEffect, assetKey, createAssetIndex, createEmptyBoard, createEmptyMainFile, createEngine, createGameState, hydrateBoard, initCameraForBoard, PACKAGE_ROOT, rasterizePresentation, snapshotGameSave, writeBoard, writeMainFile, type GameState, type InputRecord, type NormalizedHostFeatures } from "@tk-reawakened/core";
-import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostStateObserver, type PendingInput } from "../src/host-state.ts";
+import { createObservedHostGeometry, createSafeAreaProbe, measureHostDisplay, observeHostState, readHostFeatures, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, waitForHostDisplay, type HostStateObserver, type PendingInput } from "../src/host-state.ts";
 import { pointerEventToLogical } from "../src/pointer.ts";
 
 const viewSize = { width: 640, height: 480 };
@@ -456,5 +456,46 @@ test("live host capabilities are reconciled after save restore as logged feature
   equal(reconcileObservedHostFeaturesAfterAdvance(restored, observer, pending), true);
   equal(pending.filter(({ event }) => event.kind === "host.features").length, 2, "do not duplicate an already queued current host record");
   equal(reconcileObservedHostFeaturesAfterAdvance(current, observer, []), false, "equal live and engine features require no record");
+});
+
+test("waitForHostDisplay resolves without Promise.withResolvers (#1656)", async () => {
+  const originalWithResolvers = (Promise as unknown as { withResolvers?: unknown }).withResolvers;
+  try {
+    delete (Promise as unknown as { withResolvers?: unknown }).withResolvers;
+    let resizeCallback: ResizeObserverCallback | null = null;
+    class MockResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+    }
+    const windowTarget = new EventTarget();
+    const restore = installGlobals({
+      window: windowTarget,
+      ResizeObserver: MockResizeObserver,
+    });
+    try {
+      let width = 0;
+      let height = 0;
+      const host = {
+        canvas: { style: { width: "", height: "" }, getBoundingClientRect: () => ({ left: 0, top: 0, width, height }) } as unknown as HTMLCanvasElement,
+        viewport: { getBoundingClientRect: () => ({ left: 0, top: 0, width, height }) } as unknown as HTMLElement,
+      };
+      const pending = waitForHostDisplay(host, { width: 640, height: 480 }, { top: 0, right: 0, bottom: 0, left: 0 });
+      width = 800;
+      height = 600;
+      resizeCallback!([], {} as unknown as ResizeObserver);
+      const geometry = await pending;
+      equal(geometry.content.width, 800);
+      equal(geometry.content.height, 600);
+    } finally {
+      restore();
+    }
+  } finally {
+    if (originalWithResolvers !== undefined) {
+      (Promise as unknown as { withResolvers?: unknown }).withResolvers = originalWithResolvers;
+    }
+  }
 });
 
