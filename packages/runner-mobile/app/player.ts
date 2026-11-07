@@ -210,6 +210,9 @@ function run(
   let startPlayer = session.playerPosition();
   let moved = false;
   let saveBlobPresent = false;
+  let saveWritten = false;
+  let lastSaveTick = -1;
+  let saveWriting = false;
 
   const gameId = session.gameId;
   const savePath = "slot-1.json";
@@ -332,8 +335,22 @@ function run(
       const board = session.boardKey();
       if (!moved && startPlayer !== null && player !== null && (player.x !== startPlayer.x || player.y !== startPlayer.y)) moved = true;
       if (startPlayer === null) startPlayer = player;
-      const written = await host.writeBlob("saves", gameId, savePath, saveBytes());
-      if (disposed || !isCurrent()) return;
+      let written = saveWritten;
+      if (!saveWritten) {
+        written = await host.writeBlob("saves", gameId, savePath, saveBytes());
+        if (disposed || !isCurrent()) return;
+        saveWritten = written;
+        lastSaveTick = session.tick();
+      } else if (!saveWriting && session.tick() - lastSaveTick >= 60) {
+        saveWriting = true;
+        lastSaveTick = session.tick();
+        void host.writeBlob("saves", gameId, savePath, saveBytes()).then((result) => {
+          saveWriting = false;
+          if (result) saveWritten = true;
+        }).catch(() => {
+          saveWriting = false;
+        });
+      }
       const saveLabel = `${saveBlobPresent ? "host blob present; " : ""}${written ? "written" : "write failed"}`;
       setReport({
         tick: session.tick(),
