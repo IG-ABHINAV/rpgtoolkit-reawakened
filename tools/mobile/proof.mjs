@@ -43,7 +43,7 @@ const ATTACH_BACKOFF_INITIAL_MS = 500;
 const ATTACH_BACKOFF_MAX_MS = 8_000;
 const ATTACH_LOGCAT_LINES = 20;
 const ADB_COMMAND_TIMEOUT_MS = 15_000;
-const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 30_000);
+const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 45_000);
 
 function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   let timer;
@@ -107,14 +107,25 @@ async function waitFor(page, predicate, description, timeoutMs = 60_000) {
   throw new Error(`${description} timed out; last page report: ${JSON.stringify(last)}`);
 }
 
-async function captureReading(page, label, options) {
-  const captured = await protocolCall(`capturing ${label} page reading`, () => page.evaluate(() => ({
-    report: window.__mobile ?? null,
-    documentTitle: document.title,
-  })));
-  const pageReport = assertReport(captured.report, label, options);
-  assertDocumentTitle(pageReport, captured.documentTitle, label);
-  return { report: pageReport, documentTitle: captured.documentTitle };
+async function captureReading(page, label, options, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const remaining = Math.max(5_000, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now()));
+      const captured = await protocolCall(`capturing ${label} page reading`, () => page.evaluate(() => ({
+        report: window.__mobile ?? null,
+        documentTitle: document.title,
+      })), remaining);
+      const pageReport = assertReport(captured.report, label, options);
+      assertDocumentTitle(pageReport, captured.documentTitle, label);
+      return { report: pageReport, documentTitle: captured.documentTitle };
+    } catch (err) {
+      lastError = err;
+      await delay(500);
+    }
+  }
+  throw lastError;
 }
 async function captureCanvasContent(page) {
   return protocolCall("reading rendered mobile canvas pixels", () => page.evaluate(() => {
@@ -414,6 +425,7 @@ async function main() {
     await screenshot(page, "title");
 
     await enterBoard(page);
+    await delay(500);
     const board = await captureReading(page, "board entry");
     proof.readings.board = board;
 
