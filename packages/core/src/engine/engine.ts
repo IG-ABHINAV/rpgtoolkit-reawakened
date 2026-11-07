@@ -789,6 +789,10 @@ export function createEngine(init: EngineInit): Engine {
   let endedProgramThisTick = false;
   /** When true, `engine.drawList` presents surface 0 (the committed final program screen) instead of re-rasterising the board; cleared when a free-roam frame is actually committed. */
   let holdProgramFrame = false;
+  /** True when a tick has advanced the presented scene since surface 0 was last rasterised (ADR 0018 T13). */
+  let presentedFrameDirty = false;
+  /** Whether a live blocking thread was present at the end of the previous threads phase. */
+  let blockingWasAlive = false;
   /** Transient flag set while committing the final program screen before hiding the message window (ADR 0018 R5, #1186). */
   let committingFinalProgramScreen = false;
   /** Animation ID watermark when the currently running outermost program started; used to filter thread animations started earlier (#1183). */
@@ -1486,6 +1490,8 @@ export function createEngine(init: EngineInit): Engine {
       frameFailure = null;
       endedProgramThisTick = false;
       holdProgramFrame = false;
+      presentedFrameDirty = false;
+      blockingWasAlive = blockingAlive();
       refreshFrame(true);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       pendingTileBitmapAnimations.clear();
@@ -1855,7 +1861,10 @@ export function createEngine(init: EngineInit): Engine {
     };
     // An image that names no canvas lands on the script-screen layer, exactly like the drawing commands
     // (docs/spec/engine/runners.md#surface-read-and-state-hash); destination 0 is the derived presented frame.
-    if (destination === (0 as SurfaceId)) destination = ensureScriptScreen(state.surfaces);
+    if (destination === (0 as SurfaceId)) {
+      if (presentedFrameDirty && !Object.hasOwn(state.surfaces.entries, String(SCRIPT_SCREEN))) refreshFrame(false);
+      destination = ensureScriptScreen(state.surfaces);
+    }
     if (!blitTexture(state.surfaces, texture, destination, x, y, width, height, keyColour, alpha, additive)) {
       imageDiagnostic(args[0], `${effect.name}: destination surface is not live`);
       return;
@@ -2320,6 +2329,8 @@ export function createEngine(init: EngineInit): Engine {
     frameFailure = null;
     endedProgramThisTick = false;
     holdProgramFrame = false;
+    presentedFrameDirty = false;
+    blockingWasAlive = false;
     programActiveOverlay = null;
     programOverlayPixels = null;
     programOverlayRev = 0;
@@ -2381,6 +2392,7 @@ export function createEngine(init: EngineInit): Engine {
 
   /** Start of an outermost program: reset the UI for a program start, and reset the script screen to transparent black (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle). */
   function beginOutermostProgram(): void {
+    if (presentedFrameDirty) refreshFrame(false);
     resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
     resetScriptScreen(state.surfaces);
     outermostProgramStartAnimationId = (state.fx as Partial<FxSection>)?.nextAnimationId ?? 1;
@@ -4136,6 +4148,9 @@ export function createEngine(init: EngineInit): Engine {
         pruneClaimed(state.input, state.engine.claims ?? []);
         return;
       case "threads": {
+        if (presentedFrameDirty && blockingAlive() && !blockingWasAlive) {
+          refreshFrame(false);
+        }
         const liveBlockingBefore = new Set(
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
@@ -4156,6 +4171,7 @@ export function createEngine(init: EngineInit): Engine {
             onBlockingThreadFinished(thread);
           }
         }
+        blockingWasAlive = blockingAlive();
         expireProgramTileEdits(state);
         return;
       }
@@ -4552,6 +4568,7 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
   function refreshFrame(report: boolean): void {
+    presentedFrameDirty = false;
     const list = currentDrawList(0);
     primeMarginAssets(list);
     // The rasteriser reads the list's size and commands, never its tick, so a static scene is rebuilt once, not every
@@ -4571,6 +4588,18 @@ export function createEngine(init: EngineInit): Engine {
     if (report && frameFailure !== null) reportRenderFailure(frameFailure.message);
     replaceSurface(state.surfaces, 0 as SurfaceId, rendered.width, rendered.height, rendered.rgba);
     frameHash = nextHash;
+  }
+
+  /** Mark the presented frame (surface 0) dirty at the end of a tick unless an outermost program ended this tick,
+   * in which case its final committed screen must survive until the next free-roam draw. Also does nothing when
+   * there is no board and no live blocking program (fixes #1171's boot interval). Clears `holdProgramFrame` when
+   * a tick advances without ending a program, deferring CPU rasterisation until an outermost program starts, a
+   * script reads surface 0, or `advance()` finishes (ADR 0018 T13). */
+  function markPresentedFrameDirty(): void {
+    if (endedProgramThisTick) return;
+    if (!blockingAlive() && state.world.board === null) return;
+    holdProgramFrame = false;
+    presentedFrameDirty = true;
   }
 
   /** Refresh the presented frame (surface 0) unless an outermost program ended this tick, in which case its
@@ -4601,6 +4630,10 @@ export function createEngine(init: EngineInit): Engine {
     return { thread: thread.id, frame: Math.max(0, thread.frames.length - 1), line: location.line };
   }
   function beginOpenTick(): void {
+    if (presentedFrameDirty && blockingAlive() && !blockingWasAlive) {
+      refreshFrame(false);
+    }
+    blockingWasAlive = blockingAlive();
     const readyThreads = state.vm.threads
       .filter((thread) => thread.status === "ready" && startupThreadEligible(thread))
       .sort((left, right) => left.id - right.id)
@@ -4696,7 +4729,7 @@ export function createEngine(init: EngineInit): Engine {
         ticksRun += 1;
         resume = "continue";
         drive();
-        refreshPresentedFrame();
+        markPresentedFrameDirty();
       }
       syncEngineState();
       settlePostQuitWriteFailures();

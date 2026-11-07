@@ -206,3 +206,75 @@ test("copyPresentedFrameToScriptScreen seeds SCRIPT_SCREEN from surface 0 over o
   // ensureScriptScreen returns existing SCRIPT_SCREEN:
   equal(ensureScriptScreen(surfaces), SCRIPT_SCREEN);
 });
+
+test("multi-tick advance avoids redundant per-tick surface 0 rasterisation and base64 writes (ADR 0018 T13, #1668)", () => {
+  const empty = createEmptyBoard();
+  const boardResult = writeBoard({
+    ...empty,
+    sizeX: 4,
+    sizeY: 4,
+    properties: { ...empty.properties, backgroundColour: { r: 40, g: 50, b: 60 } },
+  });
+  if (!boardResult.ok) throw new Error(boardResult.error.message);
+
+  const files = new Map<AssetKey, Uint8Array>([
+    [assetKey("boards/start.brd"), new Uint8Array(boardResult.value)],
+  ]);
+
+  const engine = createEngine({
+    seed: 1,
+    assetIndex: createAssetIndex(["Boards/start.brd"]),
+    assetRoot: PACKAGE_ROOT,
+    initialBoard: "start.brd",
+    width: 64,
+    height: 64,
+    maxTicks: 200,
+    include: { shading: true, images: true, sprites: true },
+    phaseRegistrations: [
+      {
+        phase: "animation",
+        run(state) {
+          // Mutate board background colour each tick so the draw list hash changes on every tick of a batch:
+          if (state.world.board !== null && state.world.board !== undefined) {
+            state.world = {
+              ...state.world,
+              board: {
+                ...state.world.board,
+                background: { r: (state.time.tick + 1) % 250, g: 50, b: 60 },
+              },
+            };
+          }
+        },
+      },
+    ],
+  });
+
+  // Load the board:
+  const first = engine.advance(1, []);
+  const replies: InputRecord[] = first.requests
+    .filter((req): req is Extract<typeof req, { kind: "asset" }> => req.kind === "asset")
+    .map((req) => ({ tick: first.tickAfter, event: { kind: "asset", reqId: req.reqId, bytes: files.get(req.key) ?? null } }));
+  engine.advance(1, replies);
+
+  const findRev = (): number => {
+    for (let rev = 511; rev >= 0; rev -= 1) {
+      if (engine.surfacePixels(0 as SurfaceId, rev) !== null) return rev;
+    }
+    return -1;
+  };
+
+  const revBefore = findRev();
+  ok(revBefore >= 1, "initial board frame committed to surface 0");
+
+  // Run 50 ticks in a single batch where the camera moves every tick:
+  const batch = engine.advance(50, []);
+  equal(batch.ticksRun, 50);
+
+  const revAfter = findRev();
+  equal(
+    revAfter,
+    revBefore + 1,
+    "surface 0 is rasterised and written once at the end of a 50-tick batch, not 50 times",
+  );
+});
+
