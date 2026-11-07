@@ -243,15 +243,15 @@ function launchAndConnect(stage, serial, serverOptions, timeoutMs = ATTACH_TIMEO
   });
 }
 
-async function enterBoard(page) {
-  await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the title sequence");
+async function enterBoard(page, timeoutMs = 90_000) {
+  await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the title sequence", timeoutMs);
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const value = await report(page).catch(() => null);
     if (value?.board !== null && value?.board !== undefined) break;
     await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"), 10_000).catch(() => {});
     await delay(500);
   }
-  return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board");
+  return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board", timeoutMs);
 }
 
 async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
@@ -399,6 +399,17 @@ async function main() {
   try {
     adb("shell", "settings", "put", "global", "cached_apps_freezer", "disabled");
     adb("shell", "device_config", "put", "activity_manager_native_boot", "use_freezer", "false");
+    adb("shell", "svc", "power", "stayon", "true");
+    adb("shell", "wm", "dismiss-keyguard");
+    for (const pkg of [
+      "com.google.android.googlequicksearchbox",
+      "com.google.android.apps.photos",
+      "com.google.android.apps.messaging",
+      "com.google.android.settings.intelligence",
+    ]) {
+      try { runAdb("shell", "pm", "disable-user", "--user", "0", pkg); } catch {}
+      try { runAdb("shell", "am", "force-stop", pkg); } catch {}
+    }
   } catch {}
   const initial = await launchAndConnect("initial launch", serial, serverOptions);
   let device = initial.device;
