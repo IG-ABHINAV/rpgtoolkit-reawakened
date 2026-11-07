@@ -635,8 +635,8 @@ jobs:
           path: artifacts/mobile-proof/
           if-no-files-found: error
   gate:
-    # Android proof remains visible but is temporarily non-blocking; restore it when #1621 is fixed.
-    needs: [changes, checks, unit, golden, golden-bun, browser, desktop, script-dogfood]
+    # Gate checks all required jobs, including the Android 16 mobile emulator proof (#1621).
+    needs: [changes, checks, unit, golden, golden-bun, browser, desktop, script-dogfood, mobile]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
