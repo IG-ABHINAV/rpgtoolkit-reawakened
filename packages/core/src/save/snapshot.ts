@@ -49,7 +49,7 @@
  */
 
 import { canon, reviveNonFinite, tagNonFinite } from "../canon/index.ts";
-import { cellIdOfRef, cellNumber, eachRootValue, isRecord } from "../script/cells.ts";
+import { cellIdOfRef, cellNumber, eachRootValue, isRecord, migratePackageInlineLambdaDefs } from "../script/cells.ts";
 import { parseObjectRef } from "../script/objects.ts";
 import {
   RESTORE_CALLABLE_MALFORMED,
@@ -1470,6 +1470,7 @@ export function restoreGameState(
   migrateWorld(record, schema as Record<string, unknown>);
 
   migrateVm(record, schema as Record<string, unknown>);
+  migratePackageInlineLambdaDefs(record.vm, record.events);
   migrateSprites(record, schema as Record<string, unknown>);
   migrateInput(record, schema as Record<string, unknown>);
   rebuildKeyboardActionClaimIndex(record.input as GameState["input"]);

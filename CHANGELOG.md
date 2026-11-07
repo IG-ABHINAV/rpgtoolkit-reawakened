@@ -1,8 +1,8 @@
 # Changelog
 
 ## Unreleased
-- The playable demo now includes the stock menu and battle packages, and web, desktop and mobile players load their bundled package providers before game startup. Inline startup functions from different packages no longer collide (#1672, #1673).
-  The Epic 8 acceptance state hashes were re-recorded for the new identities; its draw hashes and events are unchanged. Older saved package closures still need the compatibility work tracked in #1676.
+- The playable demo now includes the stock menu and battle packages, and web, desktop and mobile players load their bundled package providers before game startup. Inline startup functions from different packages no longer collide, and pre-existing saves with `<inline>#lambda_N` package startup closures migrate to owner-qualified identities on restore (#1672, #1673, #1676).
+  The Epic 8 acceptance state hashes were re-recorded for the new identities; its draw hashes and events are unchanged.
 - Android proof device selection now connects Playwright to the same configured TCP ADB server as `adb`, including on reconnect; unsupported socket types fail explicitly (#1658).
 - Android CI explicitly experiments with the emulator's `swiftshader_indirect` graphics mode; the screenshot deadline is unchanged (#1621).
 - Android proof attachment retries now have direct regression coverage for transient recovery, deadline exhaustion and terminal uncancelled operations (#1059).

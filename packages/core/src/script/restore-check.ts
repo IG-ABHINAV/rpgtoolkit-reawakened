@@ -16,9 +16,9 @@
 
 import type { CallableValue } from "../ports/value.ts";
 import type { ProgramCache } from "./cache.ts";
-import { eachRootValue, isCallableRecord } from "./cells.ts";
+import { eachRootValue, isCallableRecord, migratePackageInlineLambdaDefs, recordOwner } from "./cells.ts";
 import { RESTORE_CALLABLE_CAPTURES, RESTORE_CALLABLE_RECEIVER, RESTORE_CALLABLE_UNKNOWN_DEF, ScriptError } from "./errors.ts";
-import { isLayerDef } from "./layers.ts";
+import { isLayerDef, type PluginLayers } from "./layers.ts";
 import { parseHostMethodDef } from "./host.ts";
 import { programKey, restartProgramRef, type Program, type ProgramLoader, type ProgramRef } from "./program.ts";
 import type { CommandLookup } from "./registry.ts";
@@ -31,6 +31,8 @@ import type { HostObjectType } from "./host.ts";
 export type RestoreCheckServices = {
   readonly programs: ProgramCache;
   readonly commands: CommandLookup;
+  readonly layers?: PluginLayers;
+  readonly packageStartupRefs?: ReadonlyMap<string, ProgramRef>;
   readonly hostTypes?: ReadonlyMap<string, HostObjectType>;
   readonly menuProviders?: ReadonlyMap<string, unknown>;
   readonly menuProviderIdentityExists?: (id: string) => boolean;
@@ -105,6 +107,7 @@ export function compileRestoredPrograms(
  * The listeners of the `events` section, when given, are callables like any other (EMIT-15).
  */
 export function verifyRestoredHandles(vm: VmState, services: RestoreCheckServices, events?: EventsSection): void {
+  migratePackageInlineLambdaDefs(vm, events);
   const callables: Array<{ readonly path: string; readonly value: CallableValue }> = [];
   const collect = (path: string, value: unknown): void => {
     if (isCallableRecord(value)) callables.push({ path, value });
@@ -173,6 +176,21 @@ export function verifyRestoredHandles(vm: VmState, services: RestoreCheckService
         RESTORE_CALLABLE_RECEIVER,
         `the snapshot's ${path}.receiver names no live object handle`,
       );
+    }
+  }
+  for (const { value } of callables) {
+    if (
+      typeof value.owner === "string" &&
+      value.owner !== "" &&
+      value.def.startsWith(`<package:${value.owner}>#`) &&
+      !Object.hasOwn(vm.defOwners ?? {}, value.def)
+    ) {
+      const exportedRef =
+        services.layers?.exports.find((entry) => entry.sealed && entry.name === value.owner)?.ref ??
+        services.packageStartupRefs?.get(value.owner);
+      if (exportedRef !== undefined && exportedRef.kind === "inline") {
+        recordOwner(vm, value.def, exportedRef);
+      }
     }
   }
   const owners = vm.defOwners ?? {};
