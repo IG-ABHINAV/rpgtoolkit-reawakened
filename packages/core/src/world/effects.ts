@@ -133,7 +133,11 @@ export function applyWorldEffect(state: GameState, effect: EffectRecord): void {
     const location = tileIndex(board, x, y, layer);
     if (location !== null) next = replaceLayerTile(board, location.index, location.layerIndex, tile(stringArg(effect, tileArg)), effect.name === "put" ? "program" : "board", effect.name === "put" ? effect.thread : undefined);
   } else if (effect.name === "setambientlevel") {
-    next = { ...board, ambient: { r: numberArg(effect, 0), g: numberArg(effect, 1), b: numberArg(effect, 2) } };
+    const { activeAmbient: _active, ...rest } = board;
+    next = { ...rest, ambient: { r: numberArg(effect, 0), g: numberArg(effect, 1), b: numberArg(effect, 2) } };
+  } else if (effect.name === "forceredraw") {
+    const { activeAmbient: _active, ...rest } = board;
+    next = rest;
   } else if (effect.name === "boardsetvector") {
     next = setVector(board, effect);
   } else if (effect.name === "boardsetvectorpoint") {

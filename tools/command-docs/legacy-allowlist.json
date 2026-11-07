@@ -64,7 +64,6 @@
     "core/__file_open_asset",
     "core/__file_open_write",
     "core/__file_save_done",
-    "catalogue/forceredraw",
     "catalogue/putplayer",
     "catalogue/eraseplayer",
     "catalogue/callplayerswap",
