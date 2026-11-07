@@ -65,7 +65,16 @@ without replacing the current game. The current implementation replaces live
 state, rebuilds package layers, hydrates saved actors and verifies VM handles
 before continuing the saved thread set.
 
-**Start-program Load exception (OWNER, 2026-11-02; [#1177](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177)).** The target follows 3.1: the loaded board is drawn into the program surface, replacing its drawing; the player is placed as for `send`, disarming programs under the player; the message window's flag and text remain unchanged; board music starts; the loaded board's enter program runs nested without a new copy; then the calling start program continues over the board. This overrides continuing only the saved thread set for that caller, but is not yet implemented. An [issue comment](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177#issuecomment-6579294362) attributes redraw-before-placement to an owner ruling; its underlying direct owner wording has not been independently located. The owner-relayed engineer account in this PR's request instead places the player before redraw. Preserve both accounts and obtain clarification before implementing their relative order; do not treat the issue comment as a verified verbatim owner quote. Saved blocking programs and threads, VM, tick and UI state also remain open. Evidence for nested entry and continuation is source-read, not run-confirmed; first-board skipping was labelled certain.
+**Start-program Load exception (OWNER, 2026-11-02; [#1177](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177)).** The target follows 3.1:
+1. The game state is restored from the saved game.
+2. The player is placed as for `send`, disarming programs under the player at the arrival position.
+3. The message window's flag and text remain unchanged.
+4. Board music starts.
+5. The loaded board is drawn into the program surface via `boardRedraw()`, replacing what the program drew while leaving the message window intact.
+6. The calling thread receives success (`1`) from `Load()`. If the loaded board names an enter program (`enterPrg`), its call frame is pushed onto the calling thread to execute nested (without taking a new surface starting copy).
+7. Upon completion of the nested enter program (or immediately if none), the calling start program continues over the loaded board.
+8. When the start program ends, the main file's first board (`initBoard`) is skipped and the engine transitions to free roam on the loaded board.
+If `Load()` fails (missing or corrupted file), the calling program receives failure (`0`) and continues with the live state unchanged.
 
 **In-flight requests.** A game save is serialized only once every other host
 request it would capture has been answered: outstanding asset requests, deferred

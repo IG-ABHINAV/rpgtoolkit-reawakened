@@ -317,11 +317,15 @@ function collisionLoser(section: SpritesSection, actor: SpriteActor, blocker: Sp
   if (actorTicks !== blockerTicks) return actorTicks < blockerTicks ? blocker : actor;
   return drawId(section, actor) > drawId(section, blocker) ? actor : blocker;
 }
-function resolveCollision(section: SpritesSection, actor: SpriteActor, blocker: SpriteActor, tick: number, gameSpeed: number, sink?: (event: MovementEvent) => void): void {
+function resolveCollision(section: SpritesSection, actor: SpriteActor, blocker: SpriteActor, active: SpriteActiveMove, tick: number, gameSpeed: number, sink?: (event: MovementEvent) => void): void {
   const loser = collisionLoser(section, actor, blocker, gameSpeed);
   const winner = loser.id === actor.id ? blocker : actor;
+  // docs/spec/engine/movement-and-collision.md#reawakened-solid-step-stop: choose priority before ending the step.
+  const stopped = finishActor(actor, active, true, ticksPerAdvance(actor.speed, gameSpeed), tick, sink);
+  replaceActor(section, stopped);
   if (loser.state === "frozen") return;
-  replaceActor(section, { ...loser, state: "frozen", frozenUntil: tick + FREEZE_TICKS, movement: { ...cloneMovement(loser.movement), active: loser.movement.active, waitTicks: 0 } });
+  const frozen = loser.id === actor.id ? stopped : loser;
+  replaceActor(section, { ...frozen, state: "frozen", frozenUntil: tick + FREEZE_TICKS, movement: { ...cloneMovement(frozen.movement), active: null, waitTicks: 0 } });
   event(tick, "sprite-collision", { actor: actor.id, winner: winner.id, loser: loser.id, blocker: blocker.id }, sink);
 }
 function applyPosition(actor: SpriteActor, x: number, y: number, facing: Facing | null, board: WorldBoard, tick: number, sink?: (event: MovementEvent) => void): SpriteActor {
@@ -482,7 +486,7 @@ function advanceActor(section: SpritesSection, actor: SpriteActor, board: WorldB
       event(tick, "path-stopped", { actor: actor.id, blocker: blocker.id }, sink);
       return;
     }
-    resolveCollision(section, actor, blocker, tick, gameSpeed, sink);
+    resolveCollision(section, actor, blocker, active, tick, gameSpeed, sink);
     return;
   }
   let moved = applyPosition(actor, next.x, next.y, direction, board, tick, sink);
@@ -546,7 +550,12 @@ export function runMovementPhase(section: SpritesSection, board: WorldBoard | nu
   const gameSpeed = options.gameSpeed ?? 0;
   const actors = allActors(section).sort((left, right) => drawId(section, left) - drawId(section, right));
   for (const original of actors) {
-    const actor = allActors(section).find((value) => value.id === original.id);
+    let actor = allActors(section).find((value) => value.id === original.id);
+    // Prior coordinates belong to one tick, including ticks that only wait, stay frozen or decrement cadence.
+    if (actor !== undefined && actor.prev !== null && (actor.prev.x !== actor.x || actor.prev.y !== actor.y)) {
+      actor = { ...actor, prev: { x: actor.x, y: actor.y } };
+      replaceActor(section, actor);
+    }
     if (actor !== undefined) advanceActor(section, actor, board, tick, gameSpeed, pixelMovement, options.freezePointer === true, sink);
   }
   return events;
