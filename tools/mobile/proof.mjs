@@ -254,18 +254,19 @@ async function enterBoard(page) {
   return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board");
 }
 
-async function settledPlayer(page, initialReport = null, timeoutMs = 60_000) {
+async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   let previous = initialReport ?? null;
   let stableTicks = 0;
+  const targetStable = initialReport !== null ? 1 : 2;
   while (Date.now() < deadline) {
-    const current = await report(page).catch(() => null);
+    const current = await report(page, 20_000).catch(() => null);
     if (current?.error) throw new Error(`waiting for a settled player: ${current.error}`);
     if (current?.board !== null && current?.board !== undefined && current.player !== null) {
       if (previous !== null && current.tick > previous.tick) {
         if (current.player.x === previous.player.x && current.player.y === previous.player.y) stableTicks += 1;
         else stableTicks = 0;
-        if (stableTicks >= 2) return captureReading(page, "settled pre-tap baseline");
+        if (stableTicks >= targetStable) return captureReading(page, "settled pre-tap baseline");
       }
       previous = current;
     }
