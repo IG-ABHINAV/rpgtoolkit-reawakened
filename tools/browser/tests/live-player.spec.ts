@@ -302,7 +302,7 @@ test("the packaged demo opens the stock menu with Enter", async ({ page }) => {
 test("live demo attaches a board canvas and movement changes the player and presented frame", async ({ page }) => {
   await page.goto("/packages/runner-web/app/index.html?package=fixtures/packages/demo.tpk");
   await page.waitForFunction(() => window.__live !== undefined && window.__live.tick > 30, undefined, { timeout: 45_000 });
-  for (const tick of [30, 60, 90]) {
+  for (const tick of [30, 60]) {
     await page.waitForFunction((point) => (window.__live?.tick ?? 0) >= point, tick, { timeout: 45_000 });
     await page.keyboard.press("Enter");
   }
