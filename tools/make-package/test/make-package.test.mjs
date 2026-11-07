@@ -7,8 +7,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { createEmptyMainFile, deriveGameId, derivePackageIdentity, loadPackage, writeMainFile } from "@tk-reawakened/core";
-import { checkDescriptor, makePackage, packageManifest, readFolder, writePackage } from "../run.mjs";
+import { BinaryReader, createEmptyMainFile, deriveGameId, derivePackageIdentity, loadPackage, readMainFile, writeMainFile } from "@tk-reawakened/core";
+import { checkDescriptor, makePackage, packageManifest, readFolder, synthesisedMain, writePackage } from "../run.mjs";
 
 /** A minimal, valid game tree: one main file, one bitmap, one board folder (an entry that must be counted, not served). */
 function gameTree() {
@@ -21,6 +21,15 @@ function gameTree() {
   writeFileSync(join(root, "Bitmap", "tile.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   return root;
 }
+
+test("a synthesized playable main names the standard stock packages", () => {
+  const plan = JSON.stringify({ games: [{ name: "demo", main: { synthesised: { startupPrg: "start.prg", initBoard: "start.brd", initChar: "hero.tem" } } }] });
+  const generated = synthesisedMain(plan, "demo");
+  const parsed = readMainFile(new BinaryReader(generated.bytes, generated.path));
+  ok(parsed.ok);
+  deepEqual(parsed.value.packagePlugins, ["stock_battle", "stock_menu"]);
+  equal(parsed.value.startupPrg, "start.prg");
+});
 
 test("a written package reloads to identical bytes and a manifest with exactly schema, main and index", () => {
   const made = makePackage(gameTree(), { title: "Tree", version: "1.2.3" });

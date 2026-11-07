@@ -12,7 +12,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 // `docs` and `packages/core/test/fixtures` carry the examples and authored oracles the golden scenes replay; nothing
 // else outside these roots is reachable.
-const ROOTS = ["apps", "docs", "fixtures", "golden", "media", "tools", "packages/core/test/fixtures", "packages/runner-mobile/app", "packages/runner-web/app"];
+const ROOTS = ["apps", "docs", "fixtures", "golden", "media", "stock", "tools", "packages/core/test/fixtures", "packages/runner-mobile/app", "packages/runner-web/app"];
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",

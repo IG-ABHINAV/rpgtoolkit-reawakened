@@ -76,7 +76,7 @@ const manifest = {
 const { writeFileSync } = await import("node:fs");
 writeFileSync(join(desktop, "dist", "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 const { readdirSync } = await import("node:fs");
-const folders = ["media/fonts", "media/cursors", "media/soundfonts"];
+const folders = ["media/fonts", "media/cursors", "media/soundfonts", "stock/stock_menu", "stock/stock_battle", "stock/stock_rpg"];
 const bundled = folders.flatMap((folder) =>
   readdirSync(join(root, folder), { withFileTypes: true })
     .filter((entry) => entry.isFile())
