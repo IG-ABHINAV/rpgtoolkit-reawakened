@@ -45,7 +45,7 @@ import type { StartupPorts } from "../ports/startup.ts";
 import type { AssetKey, SurfaceId } from "../ports/keys.ts";
 import type { BlobKey } from "../ports/requests.ts";
 import { createGameState, type GameState, type SectionKey } from "../save/state.ts";
-import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { resetUiForProgramStart, type UiMessageWindow } from "../save/sections/ui.ts";
 import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 import { applyMenuStateEffect, createMenuOwnerPorts } from "../menu/index.ts";
 import { createShopSessionRuntime } from "./shop-session.ts";
@@ -119,7 +119,7 @@ import {
   type ScriptServices,
   createVmState,
 } from "../script/index.ts";
-import { hasLiveBlockingThread, type ObjectRecord, type Thread, type VmState } from "../script/state.ts";
+import { hasLiveBlockingThread, type Frame, type ObjectRecord, type Thread, type VmState } from "../script/state.ts";
 import { findObject, readMember } from "../script/objects.ts";
 import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.ts";
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
@@ -1316,7 +1316,12 @@ export function createEngine(init: EngineInit): Engine {
     candidate.ui.nextModalId = nextId;
   }
 
-  function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
+  function applyLoadedGame(
+    candidate: GameState,
+    projection: AudioSaveProjection,
+    callingThread?: Thread,
+    savedMessage?: UiMessageWindow,
+  ): void {
     const modalIdFloor = state.ui.nextModalId;
     const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
@@ -1348,6 +1353,43 @@ export function createEngine(init: EngineInit): Engine {
 
       rebaseModalTimeline(candidate, modalIdFloor);
       Object.assign(state, candidate);
+
+      if (callingThread !== undefined) {
+        if (previous.engine.boot !== undefined) {
+          state.engine.boot = { ...previous.engine.boot, ...candidate.engine?.boot, stage: "running" };
+        }
+        delete state.engine.transition;
+        delete state.engine.pendingEnterThread;
+
+        if (savedMessage !== undefined) {
+          state.ui.message = { ...savedMessage };
+        }
+
+        const player = state.sprites.players.find((candidateActor) => candidateActor.id === state.sprites.selectedPlayer) ?? state.sprites.players[0];
+        if (player !== undefined) {
+          const placement: PlainData[] = [player.x, player.y, player.layer, "pixel"];
+          bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
+        }
+        if (state.world.board !== null && state.world.board !== undefined) {
+          postBoardMusic(state.world.board);
+        }
+
+        const restoredThreads = [...candidate.vm.threads];
+        let nextId = Math.max(callingThread.id, ...restoredThreads.map((t) => t.id), 0) + 1;
+        for (const t of restoredThreads) {
+          if (t.id === callingThread.id) {
+            t.id = nextId++;
+          }
+        }
+        const callerFrame = callingThread.frames[callingThread.frames.length - 1];
+        if (callerFrame !== undefined) {
+          callerFrame.operands.push({ value: 1, ref: null });
+        }
+        callingThread.wait = null;
+        callingThread.status = "ready";
+        state.vm.threads = [callingThread, ...restoredThreads];
+      }
+
       const actionRegistry = createInputSection();
       for (const action of startupActions) registerGameAction(actionRegistry, action);
       for (const action of externallyRegisteredActions) registerGameAction(actionRegistry, action);
@@ -1372,6 +1414,7 @@ export function createEngine(init: EngineInit): Engine {
           pushing: state.world.movement.pushing ?? movementFallback.pushing,
         },
       };
+
       // A save may carry a bare section; the restored continuation must still render, so the engine completes
       // the surface section it owns, exactly as it does at creation (never inventing game data).
       if (Object.keys(state.surfaces).length === 0) state.surfaces = createSurfacesSection(init.width, init.height);
@@ -1387,6 +1430,54 @@ export function createEngine(init: EngineInit): Engine {
       compileRestoredPrograms(state.vm, restoredServices);
       verifyRestoredHandles(state.vm, restoredServices, state.events);
       services = restoredServices;
+
+      const enterPrgAlreadyRunning =
+        candidate.battle !== null ||
+        candidate.vm.threads.some(
+          (t) =>
+            t.status !== "finished" &&
+            t.frames.some(
+              (f) =>
+                (f.program.kind === "file" && f.program.path === state.world.board?.enterPrg) ||
+                (f.program.kind === "inline" && f.program.text === state.world.board?.enterPrg),
+            ),
+        );
+
+      if (
+        callingThread !== undefined &&
+        loader !== null &&
+        !enterPrgAlreadyRunning &&
+        state.world.board?.enterPrg !== undefined &&
+        state.world.board.enterPrg !== ""
+      ) {
+        try {
+          const enterRef = fileProgramRef(loader, state.world.board.enterPrg, state.vm.redirects);
+          services.programs.get(enterRef);
+          const callerPair = { source: callingThread.source, target: callingThread.target };
+          const rootFrame: Frame = {
+            program: enterRef,
+            ip: 0,
+            locals: {},
+            operands: [],
+            errorHandler: null,
+            autoLocal: false,
+            programRoot: { restore: callerPair },
+          };
+          callingThread.frames.push(rootFrame);
+        } catch (error) {
+          if (error instanceof ScriptError) {
+            diagnostics.push({
+              code: error.code,
+              file: error.pos?.file ?? state.world.board.enterPrg,
+              line: error.pos?.line ?? 0,
+              message: error.message,
+            });
+          } else {
+            throw error;
+          }
+        }
+      }
+
       startupServicesReady = true;
       audio.load(projection);
       clearPathfindingCache();
@@ -2001,7 +2092,16 @@ export function createEngine(init: EngineInit): Engine {
       try {
         const restored = restoreGameSave(utf8Decode(event.bytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
         diagnostics.push(...restored.diagnostics);
-        applyLoadedGame(restored.state, restored.audio);
+        const callingThread = state.vm.threads.find(
+          (t) => t.status === "waiting" && (t.wait?.kind === "request" || t.wait?.kind === "blob") && t.wait.reqId === entry.vmReqId,
+        );
+        const isStartupProgram =
+          (state.engine.boot?.stage === "startup" || state.world.board === null) &&
+          callingThread?.kind === "blocking" &&
+          restored.state.battle === null;
+        const threadToContinue = isStartupProgram ? callingThread : undefined;
+        const savedMessage = isStartupProgram && state.ui.message ? { ...state.ui.message } : undefined;
+        applyLoadedGame(restored.state, restored.audio, threadToContinue, savedMessage);
         discardRecoveryCandidates();
         pending.clear();
         pendingBlobs.clear();
