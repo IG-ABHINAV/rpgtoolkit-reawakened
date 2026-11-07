@@ -295,7 +295,17 @@ async function canvasTap(page, baseline) {
     protocolCall,
   });
 
-  await dispatchCanvasTap(page, target, { protocolCall });
+  await dispatchCanvasTap(page, target, {
+    timeoutMs: 60_000,
+    initialSliceMs: 15_000,
+    maxSliceMs: 30_000,
+    sliceFactor: 1.5,
+    initialBackoffMs: 1_000,
+    maxBackoffMs: 4_000,
+    delay,
+    now: Date.now,
+    protocolCall,
+  });
 
   const pointerEvents = await waitForPointerEvents(page, {
     target,

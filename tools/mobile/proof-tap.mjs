@@ -78,18 +78,49 @@ export async function prepareTapTarget(page, {
 }
 
 export async function dispatchCanvasTap(page, target, {
+  timeoutMs = 60_000,
+  initialSliceMs = 15_000,
+  maxSliceMs = 30_000,
+  sliceFactor = 1.5,
+  holdDelayMs = 100,
+  initialBackoffMs = 1_000,
+  maxBackoffMs = 4_000,
+  backoffFactor = 1.5,
+  delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  now = Date.now,
   protocolCall = async (_desc, op, _timeout) => op(),
 } = {}) {
-  const cdp = await protocolCall("opening touch input session", () => page.context().newCDPSession(page));
-  try {
-    const point = { x: target.cssViewport.x, y: target.cssViewport.y, radiusX: 1, radiusY: 1, force: 1, id: 0 };
-    await protocolCall("dispatching Android touch start", () =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] }));
-    await protocolCall("dispatching Android touch end", () =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }));
-  } finally {
-    await protocolCall("closing Android touch input session", () => cdp.detach()).catch(() => {});
+  const deadline = now() + timeoutMs;
+  let lastError;
+  let sliceMs = initialSliceMs;
+  let backoffMs = initialBackoffMs;
+  while (now() < deadline) {
+    const remaining = deadline - now();
+    const sliceTimeout = Math.max(2_000, Math.min(sliceMs, remaining));
+    let cdp;
+    try {
+      cdp = await protocolCall("opening touch input session", () => page.context().newCDPSession(page), sliceTimeout);
+      const point = { x: target.cssViewport.x, y: target.cssViewport.y, radiusX: 1, radiusY: 1, force: 1, id: 0 };
+      await protocolCall("dispatching Android touch start", () =>
+        cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] }), sliceTimeout);
+      if (holdDelayMs > 0) await delay(holdDelayMs);
+      await protocolCall("dispatching Android touch end", () =>
+        cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }), sliceTimeout);
+      return;
+    } catch (err) {
+      lastError = err;
+      sliceMs = Math.min(sliceMs * sliceFactor, maxSliceMs);
+      const pause = Math.min(backoffMs, Math.max(0, deadline - now()));
+      if (pause > 0) await delay(pause);
+      backoffMs = Math.min(backoffMs * backoffFactor, maxBackoffMs);
+    } finally {
+      if (cdp !== undefined) {
+        await protocolCall("closing Android touch input session", () => cdp.detach(), 5_000).catch(() => {});
+      }
+    }
   }
+  const detail = lastError instanceof Error ? lastError.message : String(lastError ?? "timeout");
+  throw new Error(`dispatching Android touch events timed out after ${timeoutMs}ms; last error: ${detail}`, { cause: lastError });
 }
 
 export function assertPointerEvents(pointerEvents, target) {

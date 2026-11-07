@@ -102,7 +102,7 @@ test("dispatchCanvasTap sends touch events and detaches CDP session", async () =
     }),
   };
 
-  await dispatchCanvasTap(mockPage, mockTarget);
+  await dispatchCanvasTap(mockPage, mockTarget, { holdDelayMs: 0 });
   equal(detached, true);
   equal(sent.length, 2);
   equal(sent[0].method, "Input.dispatchTouchEvent");
@@ -114,8 +114,43 @@ test("dispatchCanvasTap sends touch events and detaches CDP session", async () =
   deepEqual(sent[1].params.touchPoints, []);
 });
 
-test("dispatchCanvasTap detaches CDP session even if touch dispatch fails", async () => {
-  let detached = false;
+test("dispatchCanvasTap retries when transient CDP error occurs and succeeds", async () => {
+  let attempts = 0;
+  let detachCount = 0;
+  const mockPage = {
+    context: () => ({
+      newCDPSession: async () => ({
+        send: async () => {
+          attempts += 1;
+          if (attempts === 1) throw new Error("renderer timed out");
+        },
+        detach: async () => {
+          detachCount += 1;
+        },
+      }),
+    }),
+  };
+
+  let simulatedTime = 0;
+  const now = () => simulatedTime;
+  const delay = async (ms) => {
+    simulatedTime += ms;
+  };
+
+  await dispatchCanvasTap(mockPage, mockTarget, {
+    timeoutMs: 10_000,
+    initialBackoffMs: 200,
+    holdDelayMs: 0,
+    delay,
+    now,
+  });
+
+  equal(attempts, 3); // attempt 1 failed at start, attempt 2 succeeded for start and end
+  equal(detachCount, 2); // detached on failure and detached on success
+});
+
+test("dispatchCanvasTap detaches CDP session even if touch dispatch fails and exhausts deadline", async () => {
+  let detachCount = 0;
   const mockPage = {
     context: () => ({
       newCDPSession: async () => ({
@@ -123,17 +158,29 @@ test("dispatchCanvasTap detaches CDP session even if touch dispatch fails", asyn
           throw new Error("CDP error");
         },
         detach: async () => {
-          detached = true;
+          detachCount += 1;
         },
       }),
     }),
   };
 
+  let simulatedTime = 0;
+  const now = () => simulatedTime;
+  const delay = async (ms) => {
+    simulatedTime += ms;
+  };
+
   await rejects(
-    async () => dispatchCanvasTap(mockPage, mockTarget),
-    /CDP error/
+    async () => dispatchCanvasTap(mockPage, mockTarget, {
+      timeoutMs: 1_000,
+      initialBackoffMs: 200,
+      holdDelayMs: 0,
+      delay,
+      now,
+    }),
+    /dispatching Android touch events timed out after 1000ms; last error: CDP error/
   );
-  equal(detached, true);
+  ok(detachCount >= 2);
 });
 
 test("assertPointerEvents validates correct pointerdown and pointerup events", () => {
