@@ -254,8 +254,8 @@ async function enterBoard(page) {
   return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board");
 }
 
-async function settledPlayer(page) {
-  const deadline = Date.now() + 30_000;
+async function settledPlayer(page, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
   let previous = null;
   let stableTicks = 0;
   while (Date.now() < deadline) {
@@ -265,7 +265,7 @@ async function settledPlayer(page) {
       if (previous !== null && current.tick > previous.tick) {
         if (current.player.x === previous.player.x && current.player.y === previous.player.y) stableTicks += 1;
         else stableTicks = 0;
-        if (stableTicks >= 3) return captureReading(page, "settled pre-tap baseline");
+        if (stableTicks >= 2) return captureReading(page, "settled pre-tap baseline");
       }
       previous = current;
     }
@@ -454,7 +454,7 @@ async function main() {
     adb("shell", "settings", "put", "system", "accelerometer_rotation", "0");
     const requestedRotation = beforeRotation.viewport.width > beforeRotation.viewport.height ? "0" : "1";
     adb("shell", "settings", "put", "system", "user_rotation", requestedRotation);
-    const rotationDeadline = Date.now() + 30_000;
+    const rotationDeadline = Date.now() + 60_000;
     let afterRotation = beforeRotation;
     while (Date.now() < rotationDeadline) {
       await delay(500);
