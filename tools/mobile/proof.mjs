@@ -43,7 +43,7 @@ const ATTACH_BACKOFF_INITIAL_MS = 500;
 const ATTACH_BACKOFF_MAX_MS = 8_000;
 const ATTACH_LOGCAT_LINES = 20;
 const ADB_COMMAND_TIMEOUT_MS = 15_000;
-const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 45_000);
+const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 20_000);
 
 function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   let timer;
@@ -254,9 +254,9 @@ async function enterBoard(page) {
   return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board");
 }
 
-async function settledPlayer(page, timeoutMs = 60_000) {
+async function settledPlayer(page, initialReport = null, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
-  let previous = null;
+  let previous = initialReport ?? null;
   let stableTicks = 0;
   while (Date.now() < deadline) {
     const current = await report(page).catch(() => null);
@@ -429,7 +429,7 @@ async function main() {
     const board = await captureReading(page, "board entry");
     proof.readings.board = board;
 
-    const tapBaseline = await settledPlayer(page);
+    const tapBaseline = await settledPlayer(page, board.report);
     const tapped = await canvasTap(page, tapBaseline);
     const playerBefore = tapBaseline.report.player;
     const playerAfter = tapped.reading.report.player;
