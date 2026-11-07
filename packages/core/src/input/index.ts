@@ -9,6 +9,7 @@ export {
   claimInputBefore,
   registeredActionNames,
   rebuildKeyboardActionClaimIndex,
+  rebuildKeyboardKeyClaimIndex,
   registerGameAction,
   recomputeInputActions,
   takeInputActions,
