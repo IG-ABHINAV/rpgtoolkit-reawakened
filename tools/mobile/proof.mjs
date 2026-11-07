@@ -387,6 +387,10 @@ async function main() {
     const cleared = adb("shell", "pm", "clear", appId);
     if (cleared !== "Success") throw new Error(`could not clear Android app data for a fresh CI proof: ${cleared}`);
   }
+  try {
+    adb("shell", "settings", "put", "global", "cached_apps_freezer", "disabled");
+    adb("shell", "device_config", "put", "activity_manager_native_boot", "use_freezer", "false");
+  } catch {}
   const initial = await launchAndConnect("initial launch", serial, serverOptions);
   let device = initial.device;
   let page = initial.page;
