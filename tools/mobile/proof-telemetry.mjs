@@ -1,14 +1,32 @@
 // Stage-level diagnostics for mobile WebView screenshot capture (#1621).
-// Isolates font readiness and CDP layout metrics before calling page.screenshot()
-// so stalling stages are distinguished in failure artifacts.
+// Isolates utility context script initialization, font readiness and CDP layout
+// metrics before calling page.screenshot() so stalling stages are distinguished
+// in failure artifacts and the isolated automation context is warmed up.
 
-export async function probeScreenshotStages(page, name, timeoutMs = 2_000) {
+export async function probeScreenshotStages(page, name, timeoutMs = 10_000) {
   const probe = {
     name,
     timestamp: Date.now(),
   };
 
-  // 1. Font status probe
+  // 1. Utility context warmup probe (evaluates Playwright isolated world scripts)
+  if (typeof page.locator === "function") {
+    const utilityStart = Date.now();
+    try {
+      let timer;
+      await Promise.race([
+        page.locator("#screen").count(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`utility context timed out after ${timeoutMs}ms`)), timeoutMs);
+        }),
+      ]).finally(() => clearTimeout(timer));
+      probe.utilityContext = { durationMs: Date.now() - utilityStart, ready: true };
+    } catch (err) {
+      probe.utilityContext = { durationMs: Date.now() - utilityStart, error: err.message };
+    }
+  }
+
+  // 2. Font status probe
   const fontStatusStart = Date.now();
   try {
     let timer;
