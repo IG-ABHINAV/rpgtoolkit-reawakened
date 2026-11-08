@@ -1,0 +1,111 @@
+# tickets.toml — the planned entries of this epic, in build order. tickets.py reads it.
+
+[[entry]]
+id = 1
+tracker_id = "#1800"
+type = "story"
+title = "The native data contracts have approved rulings for versioning, identity and plugin-data separation"
+description = "Writes the owner's 2026-11-08 rulings into one ADR and one normative spec page, so every later story builds from them."
+verify = "Jensen approves the ADR and spec page, and the docs and link checks pass."
+covers = ["E1", "E2", "E3", "E4", "E5"]
+after = []
+hitl = true
+risk = "medium"
+refine = true
+
+[[entry]]
+id = 2
+tracker_id = "#1803"
+type = "story"
+title = "A checker reports stamp, ID and link errors in a folder of native documents"
+description = "Adds the checker that reads a folder of native documents and reports the six error classes ruled in 27.1, and never repairs anything."
+verify = "Authored fixture folders, one per error class plus a clean one, produce exactly the ruled messages; the clean folder reports none."
+covers = ["E3"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+tracker_id = "#1804"
+type = "story"
+title = "The animation clip contract is specified at pre-release with a schema"
+description = "Specifies the native animation clip: ordered frames, timing, colour key and optional frame sound, with no fixed slot count, and accounts for every legacy `.anm` field."
+verify = "Jensen approves the spec page and schema, and every legacy field has a row that says mapped or dropped, with the reason."
+covers = ["E4"]
+after = [1]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 4
+tracker_id = "#1805"
+type = "story"
+title = "A native animation clip document reads, writes and imports from a legacy clip"
+description = "Reads and writes a native clip in YAML without disturbing comments or unrelated lines, and imports legacy `.anm` files into it, keeping the 1:1 output as the test oracle."
+verify = "Across the corpus's decoded `.anm` files, import then read gives the same ordered frames and delays as the legacy decoder; a one-property edit changes one line and keeps every comment; a document with a missing stamp is refused."
+covers = ["E2", "E4"]
+after = [2, 3]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+tracker_id = "#1806"
+type = "story"
+title = "Renaming or moving a document keeps every reference and sidecar link valid"
+description = "Adds the rename tool: it rewrites every reference to a document and both ends of each sidecar link in one step, or changes nothing."
+verify = "On a fixture project with references and a sidecar link, a rename leaves the checker clean; a rename that cannot complete leaves every file unchanged."
+covers = ["E5"]
+after = [2, 4]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 6
+tracker_id = "#1807"
+type = "story"
+title = "The editor opens a native clip and saves a one-property change as a one-line diff"
+description = "Opens a native clip in the editor and saves an edit through the in-place YAML edit path, so comments and unrelated lines are untouched."
+verify = "Edit one property of the fixture clip in the editor and save: the diff is one line and every comment is kept."
+covers = ["E2", "E4"]
+after = [4]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 7
+tracker_id = "#1808"
+type = "story"
+title = "The actor-family contracts are specified at pre-release"
+description = "Specifies the contracts for actors, items and enemies, composed from parts rather than inherited, how an item grants a skill, and where plugin data attaches, separating world presence from inventory meaning and keeping skills distinct."
+verify = "Jensen approves the spec pages, and every field in the research's actor catalogue has a row that says where it lands or why it is dropped."
+covers = ["E6"]
+after = [1, 4]
+hitl = true
+risk = "high"
+notes = ["Jensen, 2026-11-08: \"I'm all for composition where we can.\""]
+
+[[entry]]
+id = 8
+tracker_id = "#1809"
+type = "story"
+title = "The scene contract separates a board's placements from its definition"
+description = "Specifies the scene contract so placements reference an actor without duplicating it, the existing separate battle scene stays, and no universal all-purpose container appears."
+verify = "Jensen approves the spec page, and every legacy board field has a row that says where it lands or why it is dropped."
+covers = ["E6"]
+after = [7]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 9
+tracker_id = "#1810"
+type = "story"
+title = "Refactor sweep"
+description = "Cleans up what the epic's plans and review findings deferred; its scope is set when it starts."
+verify = "Every deferred finding it takes is closed or recorded as a new story, and the full suite passes."
+covers = []
+after = [2, 3, 4, 5, 6, 7, 8]
+hitl = false
+risk = "low"
