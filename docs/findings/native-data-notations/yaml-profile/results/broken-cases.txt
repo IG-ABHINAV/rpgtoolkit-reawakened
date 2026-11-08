@@ -1,0 +1,37 @@
+### broken/actors/15-plugin-value-out-of-range.yaml
+broken/actors/15-plugin-value-out-of-range.yaml:7:16  error [schema] plugin "com.example.weather"/intensity must be <= 1
+### broken/actors/16-plugin-schema-version-mismatch.yaml
+broken/actors/16-plugin-schema-version-mismatch.yaml:6:14  error [schema] plugin "com.example.weather"/version must be equal to constant
+### broken/scenes/01-dedented-line-with-colon.yaml
+broken/scenes/01-dedented-line-with-colon.yaml:11:14  error [schema] /placements/0 must NOT have additional properties ("// note")
+### broken/scenes/02-dedented-line-no-colon.yaml
+broken/scenes/02-dedented-line-no-colon.yaml:11:5  error [profile] Implicit keys need to be on a single line
+broken/scenes/02-dedented-line-no-colon.yaml:11:5  error [profile] Implicit map keys need to be followed by map values
+### broken/scenes/03-folded-instead-of-literal.yaml
+broken/scenes/03-folded-instead-of-literal.yaml:9:15  error [profile] script uses a folded block (>-): newlines would become spaces; use |-
+### broken/scenes/04-tab-indent.yaml
+broken/scenes/04-tab-indent.yaml:11:1  error [profile] Block scalar lines must not be less indented than their first line
+broken/scenes/04-tab-indent.yaml:11:2  error [profile] Implicit map keys need to be followed by map values
+### broken/scenes/05-header-drops-minus.yaml
+broken/scenes/05-header-drops-minus.yaml:9:15  warn  [profile] script block header is "|"; use |- so the script gains no trailing newline
+### broken/scenes/06-anchor-and-alias.yaml
+broken/scenes/06-anchor-and-alias.yaml:9:21  error [profile] anchor &code is not in the profile
+broken/scenes/06-anchor-and-alias.yaml:11:15  error [profile] alias *code is not in the profile
+### broken/scenes/07-explicit-tag.yaml
+broken/scenes/07-explicit-tag.yaml:9:21  error [profile] explicit tag tag:yaml.org,2002:str is not in the profile
+### broken/scenes/08-duplicate-key.yaml
+broken/scenes/08-duplicate-key.yaml:10:7  error [profile] Map keys must be unique
+### broken/scenes/09-missing-program.yaml
+broken/scenes/09-missing-program.yaml:9:16  error [reference] program "scripts/nope.prg" does not exist
+### broken/scenes/10-both-inline-and-program.yaml
+broken/scenes/10-both-inline-and-program.yaml:9:7  error [schema] /placements/0/whilePresent must NOT have more than 1 properties
+### broken/scenes/11-unknown-actor.yaml
+broken/scenes/11-unknown-actor.yaml:6:12  error [reference] placement "g1" refers to unknown actor "gatekeepr"
+### broken/scenes/12-duplicate-placement-id.yaml
+broken/scenes/12-duplicate-placement-id.yaml:8:9  error [reference] duplicate placement id "g1"
+### broken/scenes/13-unquoted-yes.yaml
+broken/scenes/13-unquoted-yes.yaml:5:9  warn  [profile] unquoted "yes" is a string here but a boolean to YAML 1.1 readers; quote it
+### broken/scenes/14-position-not-integer.yaml
+broken/scenes/14-position-not-integer.yaml:7:14  error [schema] /placements/0/at/1 must be integer
+### broken/tiles/17-tile-slot-is-text.yaml
+broken/tiles/17-tile-slot-is-text.yaml:7:13  error [schema] /layers/0/rows/0/1 must be integer,null

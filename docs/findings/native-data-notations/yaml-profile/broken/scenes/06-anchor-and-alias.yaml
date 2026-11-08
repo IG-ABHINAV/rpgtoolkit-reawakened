@@ -1,0 +1,11 @@
+kind: scene
+id: 06-anchor-and-alias
+size: { width: 8, height: 4 }
+placements:
+  - id: g1
+    actor: gatekeeper
+    at: [64, 96, 1]
+    whilePresent:
+      inline: &code "mwin(1);"
+    onActivate:
+      inline: *code

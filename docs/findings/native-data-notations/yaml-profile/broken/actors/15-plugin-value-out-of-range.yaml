@@ -1,0 +1,7 @@
+kind: actor
+id: other
+name: Other
+extensions:
+  com.example.weather:
+    version: 1
+    intensity: 3

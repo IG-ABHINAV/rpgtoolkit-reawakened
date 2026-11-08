@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../actor.schema.json
+# Core owns kind/id/name/presence. Plugins own their own namespaced block under `extensions`.
+kind: actor
+id: gatekeeper
+name: Gatekeeper
+presence:
+  clips: {walk: {south: gatekeeper/walk-south}}
+extensions:
+  com.example.weather: # schema installed: validated
+    version: 1
+    intensity: 0.25
+  org.example.unknown: # no schema installed: preserved, reported as unvalidated
+    anything: [1, null, 3]

@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../../tiles.schema.json
+kind: tile-layers
+scene: courtyard
+size: {width: 8, height: 4}
+layers:
+  - layer: 1
+    rows: # one row per line; null means "no tile in this slot", not "inherit"
+      - [1, 1, 1, 1, 1, 1, 1, 1]
+      - [1, 2, 2, null, null, 2, 2, 1]
+      - [1, 2, 3, 3, 3, 3, 2, 1]
+      - [1, 1, 1, 1, 1, 1, 1, 1]

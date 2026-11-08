@@ -1,0 +1,7 @@
+kind: scene
+id: 14-position-not-integer
+size: { width: 8, height: 4 }
+placements:
+  - id: g1
+    actor: gatekeeper
+    at: [64, "96", 1]

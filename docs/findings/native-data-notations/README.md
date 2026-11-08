@@ -357,6 +357,7 @@ been done.
   live only in the YAML, so edits must go through a comment-preserving YAML editing
   path, not JSON back to YAML. No YAML value profile (no tags, anchors or dates;
   YAML 1.2 core types; unique keys) has been approved.
+- **A concrete profile, checker and walkthrough now exist:** [YAML authored, JSON derived](yaml-profile/README.md). Under it, the silent dedent failure is caught by a strict schema with a line and column (in the checker; not tested in an editor).
 - **Hjson is the alternative.** It has native null and forgiving script strings, but its
   library exposes no error locations, rewrites layout on edit, and has not had a release
   since November 2020.

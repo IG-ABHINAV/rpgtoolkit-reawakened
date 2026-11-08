@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../scene.schema.json
+kind: scene
+id: courtyard
+size: {width: 8, height: 4}
+placements:
+  - id: gatekeeper-1
+    actor: gatekeeper
+    at: [64, 96, 1]
+    # Inline RPGCode: a literal block. Keep the |- header; indent the code 2 deeper than `inline`.
+    whilePresent:
+      inline: |-
+        mwin("Halt! Who goes there?");
+        // note: the gate is closed
+        if (getVar("gateOpen") = 1) then { send("hall", 32, 96, 1); }
+  - id: gatekeeper-2
+    actor: gatekeeper
+    at: [128, 96, 1]
+    onActivate:
+      program: scripts/relief.prg # external program reference
