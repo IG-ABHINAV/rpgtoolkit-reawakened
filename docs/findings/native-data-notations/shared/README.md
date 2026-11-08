@@ -83,7 +83,7 @@ XML vocabularies, which is itself a finding about XML as an authoring surface.
   ranges from 405 bytes (JSON) to 11,048 bytes (TOML), because TOML keeps the whole
   layer on one line.
 
-### Merges: 90 runs, five scenarios, nine notations, both adapter sets
+### Merges: 90 runs, five scenarios, ten notation variants
 
 | Scenario | Clean | Conflicts | Correct | False-clean accepted |
 |---|---:|---:|---:|---:|

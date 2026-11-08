@@ -1,35 +1,64 @@
 ---
 ticket: 1
-status: in-progress
+status: in-review
 risk: low
 ---
 
 # Native-data notation investigation execution
 
-## Authorization and boundaries
+## Outcome
 
-Jensen approved execution on 2026-11-08 and clarified that Astra and Opus each investigate the whole question independently. Different agents independently review their recorded reports afterward. The seven acceptance criteria in the [ticket](spike-native-data-notation-investigation.md#acceptance-criteria) remain the completion contract. No native notation or production schema is selected by this research. Owner acceptance is required before issue #1778 closes.
+Both independent investigations are complete, independently reviewed, corrected and
+integrated. Research is published for owner review in PR #1799; issue #1778 stays open
+for Jensen's acceptance.
 
-## Pinned inputs and ownership
+- Integrated report: `docs/findings/native-data-notations/README.md`
+- Astra's preserved first pass: `docs/findings/native-data-notations/astra/`
+- Opus's preserved first pass: `docs/findings/native-data-notations/opus/`
+- Shared-model comparison: `docs/findings/native-data-notations/shared/`
+- Review record: `docs/findings/native-data-notations/reviews.md`
 
-- Source revision: `20e0209d`, including merged research #1771 / PR #1776 and planning PR #1779.
-- Common cohort: demo, ChimeranEmpire, Caoquest and CrystalImmortality. Inspect all four; show substantive projections for at least three including demo. Verify each consumed source against the shared inventory hashes.
-- Astra: `openai-codex/gpt-6-astra`, branch `research/1778-astra-notations`, owns `docs/findings/native-data-notations/astra/` and `tools/research/native-data-notations/astra/`.
-- Opus: `anthropic/claude-opus-5-5`, branch `research/1778-opus-notations`, owns the corresponding `opus/` directories.
-- Integration: `research/1778-notation-synthesis`, owns the joint comparison, ticket metadata, independent-review records and publication.
-- Investigators cannot read one another's reports during independent research. Preserve first-pass report provenance before corrections or shared-model comparison.
+**No format decision is made.** YAML remains the owner's hypothesis, not a result.
 
-## Execution sequence
+## What was executed
 
-1. Pin cohort identities and provenance; build public decoder entry points in isolated worktrees.
-2. Both authors independently perform all candidate tracks and required editing, validation, merge, provenance and host experiments. Record actual results, failed experiments and evidence-backed unavailable tooling; do not simulate outputs.
-3. Preserve the independent findings. Different reviewers each inspect both reports independently, without sharing reviewer conclusions first. Verify measurement methods, corpus mappings, semantic merge assertions, authoring costs, parser/library versus notation distinctions, licences and unsupported claims.
-4. Run a shared-model comparison after the independent proposals exist. Reconcile factual errors, retain substantive disagreements and disclose any model-dependent results.
-5. Exercise the published commands, validate links and evidence, run consolidated repository checks, and publish a research PR linked to #1778 and the previous findings.
-6. Preserve each worktree's work in a pushed named branch before safe cleanup. Leave issue #1778 open for Jensen's acceptance.
+1. Pinned inputs: baseline `20e0209d`; demo, ChimeranEmpire, Caoquest and
+   CrystalImmortality; each consumed byte verified against the shared inventory.
+2. Two independent investigations, neither investigator reading the other's output.
+   Astra: 1,692 payload hashes, 95 source files to 135 documents, ten notations,
+   120-case merge matrix, Edge browser probes. Opus: four games to 1,177 documents,
+   14 notation variants, 603 merges, Chrome parity.
+3. Four independent reviewers, none an author, reviewing both reports without seeing
+   each other's findings: adversarial, edge-case, verification-gap, editorial.
+4. Nineteen defects filed (#1780–#1798) with reproducers, fixed by the owning
+   investigator, affected experiments re-run.
+5. Shared-model comparison: one agreed construction through both adapter sets —
+   90 stock `git merge-file` runs, a printer-layout probe, round trips, and
+   size/edit measurements on identical data.
 
 ## Verification ledger
 
-Core decoder prerequisites built successfully in all three isolated worktrees using the installed TypeScript compiler. This is setup evidence, not evidence that any notation experiment passed. The environment provides Node 26.13.0 rather than the repository's pinned Node 24.21.0; reports must identify the actual exercised runtime.
+- `pnpm provenance`: 0 violations across 1,059 files.
+- `pnpm lint`: core dependency allowlist OK; ESLint clean, including an explicit run
+  over the new research tooling.
+- `pnpm licence`: PASSED, 0 violations; no workspace dependency changed.
+- `pnpm fixtures:check`: 0 tracked files under `fixtures/`.
+- Every new `.mjs` passes `node --check`; the shared harness was re-run to produce the
+  committed results.
+- Exercised runtime: Node v26.13.0 (repository pin 24.21.0), git 2.55.0, macOS 27.2,
+  Apple M1 Pro, Chrome for Testing 150. No supported-runtime claim is made.
 
-Every candidate needs an explicit disposition. Every experiment needs a runnable result, a demonstrated limitation or an evidenced unavailable prerequisite. A format need not pass every experiment to be fairly evaluated. A clean Git merge is not evidence of correctness until decoded values, identities, references and order are checked. Agent authoring rehearsals are not human usability testing.
+## Boundaries held
+
+No legacy engine source was read (G7). No game, installer or RPGCode was executed.
+Crystal's nested ZIP was extracted to scratch only. All notation libraries were
+installed into isolated scratch directories, so no workspace manifest or lockfile
+changed and G6 review is unaffected. No game payloads, media or complete recovered
+programs were committed.
+
+## What remains open
+
+Owner acceptance; the layout-contract, finalist, multi-format, identity, tile-grouping
+and schema-layering decisions; and human usability evidence. Both text-editor
+walkthroughs are ready for Jensen to try, and that result cannot be produced by an
+agent.

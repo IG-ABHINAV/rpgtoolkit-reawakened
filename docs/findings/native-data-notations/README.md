@@ -132,7 +132,7 @@ a decision a project must make and enforce, in any notation.
 ### 3. Nothing in the syntax prevents conflicts or duplicate identities
 
 Ninety stock `git merge-file` runs on the shared construction — five scenarios
-across nine shared notations and both adapter sets:
+across ten notation variants (eight shared, two more from Opus's set):
 
 | Scenario | Clean merges | Conflicts | Semantically correct | False-clean accepted |
 |---|---:|---:|---:|---:|
