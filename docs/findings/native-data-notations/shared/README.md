@@ -79,9 +79,9 @@ XML vocabularies, which is itself a finding about XML as an authoring surface.
   two lines of whitespace.
 - A one-property edit changes two lines (one deletion, one addition) in every pair —
   including every adapter's preserve path.
-- A one-tile-cell edit also changes two lines everywhere, but the patch around it
-  ranges from 405 bytes (JSON) to 11,048 bytes (TOML), because TOML keeps the whole
-  layer on one line.
+- A one-tile-cell edit also changes two lines everywhere, but the patch body ranges
+  from 48 bytes (JSON, one value per line) to 10,706 bytes (TOML, whole layer on one
+  line) — about 220×.
 
 ### Merges: 90 runs, five scenarios, ten notation variants
 

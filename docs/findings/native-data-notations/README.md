@@ -113,8 +113,8 @@ The XML row is not comparable between the two because they chose different XML
 vocabularies; it is shown to be honest about that, not to score them.
 
 A single tile-cell edit in a 5,184-cell layer changes exactly two lines in every
-notation, but the surrounding patch differs by 27× — 405 bytes of patch for JSON
-against 11,048 bytes for TOML, because TOML keeps the whole layer on one line.
+notation, but the patch body differs by about 220× — 48 bytes for JSON against
+10,706 for TOML, because TOML keeps the whole layer on one line.
 
 ### 2. The printer, not the notation, decides whether neighbouring edits merge
 

@@ -141,11 +141,15 @@ function diffStats(dir, before, after) {
   const numstat = git(['--no-pager', 'diff', '--no-index', '--numstat', '--', a, b]);
   const patch = git(['--no-pager', 'diff', '--no-index', '--unified=3', '--', a, b]);
   const [added, removed] = (numstat.stdout.trim().split('\n').pop() ?? '0\t0\t').split('\t');
+  // Count the patch body only. The headers carry the absolute scratch paths, so
+  // including them would make the measurement depend on where the run happened
+  // and the committed results would not reproduce.
+  const body = patch.stdout.split('\n').filter((line) => /^[@+\-]/.test(line) && !line.startsWith('--- ') && !line.startsWith('+++ '));
   return {
     addedLines: Number(added) || 0,
     removedLines: Number(removed) || 0,
     changedLines: (Number(added) || 0) + (Number(removed) || 0),
-    diffBytes: Buffer.byteLength(patch.stdout),
+    diffBytes: Buffer.byteLength(`${body.join('\n')}\n`),
     identical: patch.stdout.length === 0,
   };
 }
