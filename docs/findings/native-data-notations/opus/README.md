@@ -258,9 +258,9 @@ Local artifacts for inspection:
 
 ## Files (tracked, all new)
 
-- `docs/findings/native-data-notations/opus/`: this report, `candidates.md`, `mapping.md`, `walkthrough.md`, `examples/` (authored), `results/`.
+- `docs/findings/native-data-notations/opus/`: this report, `CORRECTIONS.md`, `candidates.md`, `mapping.md`, `walkthrough.md`, `examples/` (authored), `results/`.
 - `tools/research/native-data-notations/opus/`:
-  - Scripts: `decode-cohort.mjs`, `project.mjs`, `notations.mjs`, `check.mjs`, `roundtrip-corpus.mjs`, `experiments.mjs`, `walkthrough.mjs`, `make-examples.mjs`, `browser-probe.mjs`.
+  - Scripts: `decode-cohort.mjs`, `project.mjs`, `notations.mjs`, `check.mjs`, `roundtrip-corpus.mjs`, `experiments.mjs`, `walkthrough.mjs`, `make-examples.mjs`, `browser-probe.mjs`, `cdp-browser-run.mjs`, `correction-checks.mjs`, `reproduce.sh`.
   - `schemas/`, `fixtures/authored-mini.json`.
   - `programmable/{cue,nickel,pkl,dhall,hocon}/` plus `run.mjs`.
   - `ron-bridge/` (Rust source only).

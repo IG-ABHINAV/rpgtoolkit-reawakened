@@ -19,7 +19,8 @@ setup() {
       @decimalturn/toml-patch@3.3.2 toml-eslint-parser@1.0.3 json5@2.2.3 hjson@3.2.2 \
       jsonc-parser@3.3.1 edn-data@1.2.2 fast-xml-parser@5.12.0 @xmldom/xmldom@0.9.12 \
       ajv@8.20.0 ajv-formats@3.0.1 xmllint-wasm@5.3.0 sdlang@0.2.2 rusty-object-notation@1.0.2 \
-      @o3co/ts.hocon@1.14.3 @pushcorn/hocon-parser@1.3.1 @hyperjump/json-schema@1.18.0 esbuild@0.25.12 )
+      @o3co/ts.hocon@1.14.3 @pushcorn/hocon-parser@1.3.1 @hyperjump/json-schema@1.18.0 esbuild@0.25.12 \
+      puppeteer-core@25.16.0 )
   # CLI tools (SHA-256 recorded in candidates.md / README).
   ( cd "$E/dl" \
     && curl -sSLO https://github.com/cue-lang/cue/releases/download/v0.17.1/cue_v0.17.1_darwin_arm64.tar.gz \
@@ -78,10 +79,10 @@ browser() {
     const {runProbe} = await import('$B/probe-node.mjs');
     const input = JSON.parse(readFileSync('$B/input.json', 'utf8'));
     writeFileSync('$B/node-result.json', JSON.stringify({ node: process.version, result: await runProbe(input), negativeControlAcceptEverythingSchema: (await runProbe({ ...input, schema: true })).ajv2020 }, null, 1));"
-  # Browser execution (tested route): cdp-browser-run.mjs serves $B, launches
-  # headless $CHROME with a DevTools port, waits for window.__result over CDP,
-  # and writes browser-result.json and parity.json. Node built-ins only.
-  node $T/cdp-browser-run.mjs "$B" "$CHROME"
+  # Browser execution (tested route): cdp-browser-run.mjs serves $B, drives
+  # headless $CHROME over CDP with puppeteer-core (scratch install), waits for
+  # window.__result and writes browser-result.json and parity.json.
+  node $T/cdp-browser-run.mjs "$B" "$CHROME" "$E"
   # Unsupported (not part of the tested route): `chrome --headless=new
   # --dump-dom` hung for 180 s on Chrome 150 in this run; do not rely on it.
 }

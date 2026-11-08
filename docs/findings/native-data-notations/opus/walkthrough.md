@@ -39,6 +39,8 @@ Please note, per notation: where you hesitated, which punctuation you had to get
 | Broken actor reference found | `scene.yaml:194:12` | `scene.json:260:7` | file only | file only | `scene.toml:244:1` | `scene.kdl:165:19` | file only | file only | line |
 | Rename clip project-wide (`renameReference`) | format-preserving, 0 broken after | format-preserving | re-emit (no editor lib) | format-preserving | format-preserving | format-preserving | re-emit | re-emit | format-preserving |
 | Rename scene `out` → `harbour`: inline `send("out.brd", …)` | **2 script-literal warnings**; code not rewritten | same | same | same | same | same | same | same | same |
+| Rename scene `out` → `harbour` (corrected, #1787): folder move | `scene` and sibling `tiles` moved to `scenes/harbour/`, 0 errors after | same | same | same | same | same | same | same | same |
+| Rename clip onto existing `start-defend` (corrected, #1788) | **refused before any write**; files unchanged | same | same | same | same | same | same | same | same |
 
 Excerpts (real demo data, short):
 
