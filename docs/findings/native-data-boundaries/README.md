@@ -69,9 +69,11 @@ These generated ledgers contain metadata, not game images, audio, pixel buffers 
 
 ### Reproduce
 
-Use the repository's pinned Node and installed core dependencies, Python 3, and `bsdtar` (for legacy ZIP name-separator disagreement recovery). Run from this repository root. Set `ARCHIVE`, `GAMES`, and `FIXTURES` to your local recovered archive, Ludotheque games directory, and fetched legacy fixtures directory:
+Use the repository's pinned Node and pnpm, Python 3, and `bsdtar` (for legacy ZIP name-separator disagreement recovery). Install and build the workspace before running the census: the Node host imports the public `@tk-reawakened/core` package entry point. Run from this repository root. Set `ARCHIVE`, `GAMES`, and `FIXTURES` to your local recovered archive, Ludotheque games directory, and fetched legacy fixtures directory:
 
 ```sh
+pnpm install --frozen-lockfile
+pnpm build
 python3 tools/research/native-data-census.py \
   --games "$GAMES" --fixtures "$FIXTURES" \
   --downloads "$ARCHIVE/wayback/mysticsoftware.net/games" \
@@ -85,7 +87,7 @@ python3 tools/research/native-data-census.py \
   --output /tmp/native-data-census
 ```
 
-The Python host inventories bytes and archive members; the Node host calls the existing core source decoders and aggregates fields/references. It does not use generated `dist` output. The source decoder baseline for these results is **`3958832e`**. The captured smoke used **Node v26.13.0**, not the repository-pinned Node 24.21.0; it is research-run evidence, not a supported-runtime or full-suite claim. The local package-manager setup was unavailable, so this isolated worktree reused the already-installed core dependency directory without changing it.
+The Python host inventories bytes and archive members; the Node host calls the existing decoders through the built core package and aggregates fields/references. Rebuild after changing core source so generated `dist` output is current. The source decoder baseline for these results is **`3958832e`**. The original captured smoke used direct source imports and **Node v26.13.0**, not the repository-pinned Node 24.21.0; it is research-run evidence, not a supported-runtime or full-suite claim. The original local package-manager setup was unavailable, so that isolated worktree reused the already-installed core dependency directory without changing it. The package-boundary correction and its verification are recorded in [coverage](coverage.md#verification).
 
 Only the chosen output directory and temporary spool files are written. No installer, game or RPGCode is executed. Archives are not extracted to the filesystem. The full `census.json` is a convenience view generated locally; the committed ledgers avoid duplicating it. Secondary archive probing and the source-example checks are recorded in [coverage](coverage.md#verification), not silently implied by the census totals.
 

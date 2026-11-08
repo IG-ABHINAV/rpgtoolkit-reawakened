@@ -3,7 +3,7 @@
 // importer, runtime reachability analysis, or approved native format.
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
-import { CORE_DECODERS } from '../../packages/core/src/formats/registry/core-decoders.ts';
+import { CORE_DECODERS } from '@tk-reawakened/core';
 
 const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
 const extensions = new Map(Object.entries(CORE_DECODERS).flatMap(([id, d]) => d.extensions.map(e => [e, id])));

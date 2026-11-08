@@ -109,6 +109,8 @@ Independent review found one omitted stored relationship: `.gam` editor-language
 
 The source baseline is `3958832e`; the exercised Node was v26.13.0. The pinned supported Node is 24.21.0. Local package-manager bootstrap and the main checkout's generated dump command were unavailable; the isolated research used source imports plus already-installed core dependencies. The local tooling issue is [#1770](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1770). Do not present this investigation as a full build, CI/golden pass, renderer validation or proof that any proposed native format can round-trip these games.
 
+CI subsequently caught the research host's private cross-package source import ([#1777](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1777)). It now imports `CORE_DECODERS` through the existing public `@tk-reawakened/core` entry point, with no lint exemption. After an isolated `tsc -b packages/core` build, the repository lint command's `check-core-deps` and full `eslint .` both passed. A complete corpus run through that built package produced all five primary output files byte-identically to the committed evidence. This follow-up still used Node v26.13.0 and existing installed dependencies; it does not claim the pinned-runtime or full CI gates passed.
+
 ## Key source files
 
 - [Summary and input package hashes](data/summary.json), [asset/diagnostic ledger](data/assets.jsonl), [fields](data/fields.jsonl), [relationships](data/relationships.jsonl), [script screens](data/scripts.jsonl), [secondary archive probes](data/archive-probes.json).
