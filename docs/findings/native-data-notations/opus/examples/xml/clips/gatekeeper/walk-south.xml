@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">clip</string>
+  <string key="id">gatekeeper/walk-south</string>
+  <array key="size"><number>32</number><number>64</number></array>
+  <number key="secondsPerFrame">0.15</number>
+  <array key="frames">
+    <map>
+      <string key="id">step-left</string>
+      <map key="tile">
+        <string key="tileset">people</string>
+        <number key="tile">12</number>
+      </map>
+      <array key="transparent"><number>255</number><number>0</number><number>255</number></array>
+    </map>
+    <map>
+      <string key="id">stand</string>
+      <map key="tile">
+        <string key="tileset">people</string>
+        <number key="tile">13</number>
+      </map>
+      <array key="transparent"><number>255</number><number>0</number><number>255</number></array>
+    </map>
+    <map>
+      <string key="id">step-right</string>
+      <map key="tile">
+        <string key="tileset">people</string>
+        <number key="tile">14</number>
+      </map>
+      <array key="transparent"><number>255</number><number>0</number><number>255</number></array>
+      <string key="sound">media/audio/step.wav</string>
+    </map>
+  </array>
+</map>

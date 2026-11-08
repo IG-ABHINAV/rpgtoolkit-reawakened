@@ -1,0 +1,11 @@
+kind: scene
+id: 04-tab-indent
+size: { width: 8, height: 4 }
+placements:
+  - id: g1
+    actor: gatekeeper
+    at: [64, 96, 1]
+    whilePresent:
+      inline: |-
+        mwin("one");
+	mwin("two");

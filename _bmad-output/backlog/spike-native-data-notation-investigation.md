@@ -6,7 +6,7 @@ parent: none
 covers: []
 after: []
 tracker_id: "#1778"
-refined: false
+refined: true
 hitl: true
 risk: low
 ---
@@ -17,7 +17,7 @@ risk: low
 
 Compare data notations using representative game data from research #1771 / PR #1776. Produce reproducible evidence and a recommendation for human review, not a production format implementation. Jensen and subsequent native-format/editor planning need the findings; no existing implementation ticket is newly blocked by this task.
 
-Assign Astra and Opus as two independent investigators. Each must inspect the recovered data and produce hands-on game-data reorganizations and notation experiments, not merely review the other's answer. Use the same pinned input games and experiment questions, but preserve independent proposed logical constructions and conclusions before cross-review. An integration owner compares both reports, reconciles factual errors, and retains genuine disagreements for Jensen. Jensen accepts or rejects recommendations at the end; research can proceed without interim format decisions.
+Assign Astra and Opus as two independent investigators. Each must inspect the recovered data and produce hands-on game-data reorganizations and notation experiments, not merely review the other's answer. Use the same pinned input games and experiment questions, but preserve independent proposed logical constructions and conclusions before review. Different agents independently review the completed investigations; Astra and Opus do not review each other. An integration owner compares both reports, reconciles factual errors, and retains genuine disagreements for Jensen. Jensen accepts or rejects recommendations at the end; research can proceed without interim format decisions.
 
 ## Direction from the owner
 
@@ -66,7 +66,7 @@ Keep the same semantics across candidates. Where a notation cannot express a val
 - Change the same property incompatibly; verify the disagreement is surfaced, or document any silent overwrite. A conflict-free but incorrect merge is a failure.
 - Insert, remove and reorder placements and clip frames; preserve identities and meaningful order. Include adjacent edits, edit-versus-delete and simultaneous additions.
 - Edit one tile row/chunk without reformatting the entire scene. State layer dimensions and measure file/diff sizes and operation time on a disclosed machine/runtime.
-- Edit embedded RPGCode, including quotes, backslashes, multiline content and delimiter-like text; extract to an external file and compare decoded source bytes and explicit binding semantics. This is not proof of VM/save-continuation equivalence.
+- Edit embedded RPGCode, including quotes, backslashes, multiline content and delimiter-like text; extract to an external file and compare source content after explicitly declared newline normalization, plus explicit binding semantics. Jensen permits converting legacy line endings to normalized line endings: CRLF-to-LF alone is not corruption or a notation failure. Retain original source hashes for provenance and distinguish intentional normalization from other content changes. Normalized-text equality is not proof of VM/save-continuation equivalence.
 - Rename a referenced asset using a common reference-edit operation; verify all known references and useful unresolved-reference diagnostics. Do not credit generic schema validators with project-wide resolution.
 - Load/save without a plugin or its schema; preserve its content and distinguish unavailable validation from malformed data. Exercise schema version mismatch without silently discarding fields.
 - Demonstrate namespaced plugin-schema validation and useful source locations for errors. Verify schema dialect support rather than relying on a 'JSON Schema supported' label.
@@ -112,8 +112,9 @@ Research only. Experimental local game-data projections are in scope; production
 ## Notes
 
 - Decision: 2026-11-08 — Jensen requested this investigation and a task for AI agents after agreeing to the comparison approach. No implementation or format decision is authorized.
+- Decision: 2026-11-08 — Jensen approved execution against the recovered games. Astra and Opus investigate the full question independently. Different agents independently review the recorded reports afterward. Git-friendly edits and merges come first, optional human editing second, and ecosystem parsing/serialization third.
 - Risk: low — experiments do not alter shipped behavior; misinterpretation is controlled by retained evidence and owner acceptance.
 - Open question: final physical document grouping, notation, schema language/dialect and version/migration conventions remain findings to discuss, not prerequisites silently chosen for production.
 - Open question: supporting several input syntaxes may be useful but is not required. Compare the cost against one predictable authoring format.
 - Dependency: PR #1776 supplies the baseline evidence. It may be consumed at its pinned revision without waiting for merge. Confirm current source/data availability before experiments and record missing inputs rather than substituting mock corpus results.
-- Handoff: one integration owner pins the shared input games and experiment questions. Astra and Opus own separate worktrees/output areas and independently investigate the same problem; do not divide the formats so neither sees the complete tradeoffs. They cross-review after recording independent results. The owner integrates the comparison and runs consolidated repository checks after edits. This task creates no workers or implementation automatically.
+- Handoff: one integration owner pins the shared input games and experiment questions. Astra and Opus own separate worktrees/output areas and independently investigate the same problem; do not divide the formats so neither sees the complete tradeoffs. Different agents independently review both recorded reports afterward. The owner integrates the comparison and runs consolidated repository checks after edits. Jensen authorized launching both investigators and clarified the separate-reviewer requirement on 2026-11-08.

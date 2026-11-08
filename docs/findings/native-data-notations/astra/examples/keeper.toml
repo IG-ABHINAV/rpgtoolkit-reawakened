@@ -1,0 +1,132 @@
+# creator note
+evidence = "Authored illustration, not a recovered game or adopted native schema"
+actorCatalogue = [ "actor:keeper" ]
+
+[actor]
+id = "actor:keeper"
+kind = "actor"
+name = "Keeper"
+presentation = "presentation:keeper"
+
+[actor.movement]
+speedSeconds = 0.15
+
+[actor.skillPerformances."skill:light"]
+clip = "clip:gesture"
+
+[actor.extensions."@example/patrol"]
+schemaVersion = 1
+radius = 6
+notes = "Actor-owned plugin data; core owns placement coordinates"
+
+[actor.extensions."@missing/story"]
+schemaVersion = 7
+untouched = [ "future", { __tkr_null = true }, { flag = true } ]
+
+[scene]
+id = "scene:plaza"
+width = 4
+height = 3
+layers = 1
+tileLut = [ "", "stone.tst1" ]
+
+[[scene.placements]]
+id = "placement:east"
+actor = "actor:keeper"
+x = 96
+y = 32
+
+[[scene.placements]]
+id = "placement:west"
+actor = "actor:keeper"
+x = 32
+y = 32
+
+[[scene.placements]]
+id = "placement:gate"
+actor = "actor:keeper"
+x = 64
+y = 64
+
+[[scene.geometry]]
+id = "region:gate"
+closed = true
+points = [ [ 0, 0 ], [ 32, 0 ], [ 32, 32 ], [ 0, 32 ] ]
+
+[[scene.tileRows]]
+id = "layer:1/row:0"
+cells = [ 1, 1, 1, 1 ]
+
+[[scene.tileRows]]
+id = "layer:1/row:1"
+cells = [ 1, 0, 0, 1 ]
+
+[[scene.tileRows]]
+id = "layer:1/row:2"
+cells = [ 1, 1, 1, 1 ]
+
+[[scene.triggers]]
+id = "trigger:welcome"
+
+[scene.triggers.binding]
+mode = "inline"
+bindingId = "hook:welcome"
+context = "placement-interaction"
+source = "mwin(\"Welcome, traveller\");\n// path: C:\\games\\demo; café\n"
+
+[scene.triggers.binding.program]
+__tkr_null = true
+
+[[scene.triggers]]
+id = "trigger:leave"
+
+[scene.triggers.binding]
+mode = "file"
+bindingId = "hook:leave"
+context = "placement-interaction"
+program = "program:leave.prg"
+
+[scene.triggers.binding.source]
+__tkr_null = true
+
+[presentation]
+id = "presentation:keeper"
+idle = "clip:gesture"
+pixelPayload = "Graphics/keeper.png"
+
+[clip]
+id = "clip:gesture"
+delaySeconds = 0.15
+
+[[clip.frames]]
+id = "frame:a"
+graphic = "keeper.tst1"
+
+[clip.frames.sound]
+__tkr_null = true
+
+[[clip.frames]]
+id = "frame:b"
+graphic = "keeper.tst2"
+
+[clip.frames.sound]
+__tkr_null = true
+
+[[clip.frames]]
+id = "frame:c"
+graphic = "keeper.tst3"
+sound = "wave.wav"
+
+[item]
+id = "inventory:lantern"
+kind = "inventory"
+name = "Lantern"
+
+[[item.grants]]
+skill = "skill:light"
+while = "equipped"
+
+[skill]
+id = "skill:light"
+name = "Light"
+cost = 3

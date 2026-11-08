@@ -1,0 +1,10 @@
+kind: scene
+id: 12-duplicate-placement-id
+size: { width: 8, height: 4 }
+placements:
+  - id: g1
+    actor: gatekeeper
+    at: [1, 1, 1]
+  - id: g1
+    actor: gatekeeper
+    at: [2, 2, 1]

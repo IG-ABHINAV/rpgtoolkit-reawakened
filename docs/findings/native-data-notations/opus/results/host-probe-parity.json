@@ -1,0 +1,78 @@
+{
+ "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+ "node": "see node-result.json",
+ "comparison": {
+  "yaml": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "kdl-jik": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "toml": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "json5": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "hjson": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "jsonc": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "edn-data": {
+   "nodeOk": false,
+   "browserOk": false,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": [
+    "rejectsMalformed"
+   ]
+  },
+  "xmldom": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "ajv2020": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  },
+  "ts-hocon": {
+   "nodeOk": true,
+   "browserOk": true,
+   "sameChecks": true,
+   "sameHash": true,
+   "failed": []
+  }
+ }
+}

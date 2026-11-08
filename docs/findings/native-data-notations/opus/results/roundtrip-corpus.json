@@ -1,0 +1,652 @@
+{
+ "node": "v26.13.0",
+ "platform": "darwin-arm64",
+ "games": {
+  "Caoquest": {
+   "documents": 82,
+   "perCodec": {
+    "yaml": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 475819,
+     "lines": 14647,
+     "maxLineLength": 208,
+     "stringifyMs": 94,
+     "parseMs": 361
+    },
+    "json": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1526803,
+     "lines": 115738,
+     "maxLineLength": 45,
+     "stringifyMs": 2,
+     "parseMs": 2
+    },
+    "json-layout": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 568789,
+     "lines": 20142,
+     "maxLineLength": 209,
+     "stringifyMs": 8,
+     "parseMs": 2
+    },
+    "json5": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1521354,
+     "lines": 115738,
+     "maxLineLength": 44,
+     "stringifyMs": 10,
+     "parseMs": 90
+    },
+    "json5-layout": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 556438,
+     "lines": 20142,
+     "maxLineLength": 209,
+     "stringifyMs": 7,
+     "parseMs": 45
+    },
+    "hjson": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 879041,
+     "lines": 57180,
+     "maxLineLength": 99,
+     "stringifyMs": 15,
+     "parseMs": 18
+    },
+    "toml": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 449892,
+     "lines": 7528,
+     "maxLineLength": 9296,
+     "stringifyMs": 247,
+     "parseMs": 12
+    },
+    "toml-rows": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 462611,
+     "lines": 14223,
+     "maxLineLength": 8552,
+     "stringifyMs": 236,
+     "parseMs": 8
+    },
+    "kdl": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 401736,
+     "lines": 13354,
+     "maxLineLength": 238,
+     "stringifyMs": 20,
+     "parseMs": 43
+    },
+    "edn": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 457509,
+     "lines": 20142,
+     "maxLineLength": 159,
+     "stringifyMs": 5,
+     "parseMs": 23
+    },
+    "edn-oneline": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 314291,
+     "lines": 164,
+     "maxLineLength": 50484,
+     "stringifyMs": 4,
+     "parseMs": 12
+    },
+    "ron": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1535917,
+     "lines": 115738,
+     "maxLineLength": 46,
+     "stringifyMs": 207,
+     "parseMs": 225
+    },
+    "ron-compact": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 477280,
+     "lines": 10623,
+     "maxLineLength": 9200,
+     "stringifyMs": 203,
+     "parseMs": 225
+    },
+    "xml": {
+     "documents": 82,
+     "ok": 82,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 2149009,
+     "lines": 20224,
+     "maxLineLength": 973,
+     "stringifyMs": 10,
+     "parseMs": 268
+    }
+   }
+  },
+  "ChimeranEmpire": {
+   "documents": 361,
+   "perCodec": {
+    "yaml": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1679193,
+     "lines": 65594,
+     "maxLineLength": 396,
+     "stringifyMs": 266,
+     "parseMs": 1033
+    },
+    "json": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 4859913,
+     "lines": 365439,
+     "maxLineLength": 81,
+     "stringifyMs": 7,
+     "parseMs": 8
+    },
+    "json-layout": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 2107497,
+     "lines": 91196,
+     "maxLineLength": 401,
+     "stringifyMs": 24,
+     "parseMs": 7
+    },
+    "json5": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 4825714,
+     "lines": 365439,
+     "maxLineLength": 79,
+     "stringifyMs": 36,
+     "parseMs": 272
+    },
+    "json5-layout": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 2047659,
+     "lines": 91196,
+     "maxLineLength": 399,
+     "stringifyMs": 23,
+     "parseMs": 158
+    },
+    "hjson": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 2511436,
+     "lines": 147389,
+     "maxLineLength": 99,
+     "stringifyMs": 45,
+     "parseMs": 55
+    },
+    "toml": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1617622,
+     "lines": 40553,
+     "maxLineLength": 5354,
+     "stringifyMs": 673,
+     "parseMs": 34
+    },
+    "toml-rows": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1666003,
+     "lines": 66581,
+     "maxLineLength": 5354,
+     "stringifyMs": 671,
+     "parseMs": 31
+    },
+    "kdl": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1490446,
+     "lines": 57821,
+     "maxLineLength": 396,
+     "stringifyMs": 50,
+     "parseMs": 110
+    },
+    "edn": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1745652,
+     "lines": 91196,
+     "maxLineLength": 271,
+     "stringifyMs": 16,
+     "parseMs": 74
+    },
+    "edn-oneline": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1120410,
+     "lines": 722,
+     "maxLineLength": 14350,
+     "stringifyMs": 12,
+     "parseMs": 42
+    },
+    "ron": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 4891832,
+     "lines": 365439,
+     "maxLineLength": 81,
+     "stringifyMs": 791,
+     "parseMs": 858
+    },
+    "ron-compact": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 1714702,
+     "lines": 50870,
+     "maxLineLength": 4211,
+     "stringifyMs": 793,
+     "parseMs": 858
+    },
+    "xml": {
+     "documents": 361,
+     "ok": 361,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 6933903,
+     "lines": 91557,
+     "maxLineLength": 682,
+     "stringifyMs": 32,
+     "parseMs": 683
+    }
+   }
+  },
+  "CrystalImmortality": {
+   "documents": 708,
+   "perCodec": {
+    "yaml": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 4716344,
+     "lines": 182947,
+     "maxLineLength": 396,
+     "stringifyMs": 710,
+     "parseMs": 2775
+    },
+    "json": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 13510632,
+     "lines": 1004552,
+     "maxLineLength": 121,
+     "stringifyMs": 19,
+     "parseMs": 22
+    },
+    "json-layout": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 6062846,
+     "lines": 266062,
+     "maxLineLength": 401,
+     "stringifyMs": 57,
+     "parseMs": 19
+    },
+    "json5": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 13381852,
+     "lines": 1004552,
+     "maxLineLength": 120,
+     "stringifyMs": 81,
+     "parseMs": 738
+    },
+    "json5-layout": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 5864510,
+     "lines": 266062,
+     "maxLineLength": 399,
+     "stringifyMs": 55,
+     "parseMs": 432
+    },
+    "hjson": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 6162175,
+     "lines": 301537,
+     "maxLineLength": 117,
+     "stringifyMs": 103,
+     "parseMs": 132
+    },
+    "toml": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 4525174,
+     "lines": 145368,
+     "maxLineLength": 26500,
+     "stringifyMs": 1864,
+     "parseMs": 91
+    },
+    "toml-rows": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 4644530,
+     "lines": 209566,
+     "maxLineLength": 26500,
+     "stringifyMs": 1931,
+     "parseMs": 84
+    },
+    "kdl": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 4140941,
+     "lines": 151242,
+     "maxLineLength": 396,
+     "stringifyMs": 130,
+     "parseMs": 298
+    },
+    "edn": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 5046235,
+     "lines": 266062,
+     "maxLineLength": 271,
+     "stringifyMs": 43,
+     "parseMs": 207
+    },
+    "edn-oneline": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 3246959,
+     "lines": 1416,
+     "maxLineLength": 60842,
+     "stringifyMs": 30,
+     "parseMs": 121
+    },
+    "ron": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 13622468,
+     "lines": 1004552,
+     "maxLineLength": 122,
+     "stringifyMs": 1573,
+     "parseMs": 1764
+    },
+    "ron-compact": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 5015660,
+     "lines": 162926,
+     "maxLineLength": 9918,
+     "stringifyMs": 1574,
+     "parseMs": 1745
+    },
+    "xml": {
+     "documents": 708,
+     "ok": 708,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 19443872,
+     "lines": 266770,
+     "maxLineLength": 1020,
+     "stringifyMs": 90,
+     "parseMs": 2001
+    }
+   }
+  },
+  "demo": {
+   "documents": 26,
+   "perCodec": {
+    "yaml": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 21167,
+     "lines": 1099,
+     "maxLineLength": 88,
+     "stringifyMs": 3,
+     "parseMs": 10
+    },
+    "json": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 47083,
+     "lines": 3426,
+     "maxLineLength": 80,
+     "stringifyMs": 0,
+     "parseMs": 0
+    },
+    "json-layout": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 29727,
+     "lines": 1622,
+     "maxLineLength": 89,
+     "stringifyMs": 0,
+     "parseMs": 0
+    },
+    "json5": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 45912,
+     "lines": 3426,
+     "maxLineLength": 75,
+     "stringifyMs": 1,
+     "parseMs": 3
+    },
+    "json5-layout": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 28296,
+     "lines": 1622,
+     "maxLineLength": 89,
+     "stringifyMs": 1,
+     "parseMs": 2
+    },
+    "hjson": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 23906,
+     "lines": 1169,
+     "maxLineLength": 96,
+     "stringifyMs": 2,
+     "parseMs": 2
+    },
+    "toml": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 20854,
+     "lines": 919,
+     "maxLineLength": 1089,
+     "stringifyMs": 11,
+     "parseMs": 1
+    },
+    "toml-rows": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 21241,
+     "lines": 1130,
+     "maxLineLength": 743,
+     "stringifyMs": 7,
+     "parseMs": 1
+    },
+    "kdl": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 19813,
+     "lines": 875,
+     "maxLineLength": 247,
+     "stringifyMs": 1,
+     "parseMs": 2
+    },
+    "edn": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 25821,
+     "lines": 1622,
+     "maxLineLength": 78,
+     "stringifyMs": 0,
+     "parseMs": 2
+    },
+    "edn-oneline": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 16703,
+     "lines": 52,
+     "maxLineLength": 2887,
+     "stringifyMs": 0,
+     "parseMs": 1
+    },
+    "ron": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 47714,
+     "lines": 3426,
+     "maxLineLength": 81,
+     "stringifyMs": 57,
+     "parseMs": 58
+    },
+    "ron-compact": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 26098,
+     "lines": 1246,
+     "maxLineLength": 1063,
+     "stringifyMs": 58,
+     "parseMs": 59
+    },
+    "xml": {
+     "documents": 26,
+     "ok": 26,
+     "mismatches": [],
+     "failures": [],
+     "bytes": 74049,
+     "lines": 1648,
+     "maxLineLength": 403,
+     "stringifyMs": 1,
+     "parseMs": 7
+    }
+   }
+  }
+ },
+ "valueCensus": {
+  "strings": 51168,
+  "nonAscii": 70,
+  "multiline": 0,
+  "quotes": 3,
+  "backslashes": 0,
+  "numbersNonInteger": 49,
+  "nulls": 9277,
+  "maxDepth": 7
+ }
+}

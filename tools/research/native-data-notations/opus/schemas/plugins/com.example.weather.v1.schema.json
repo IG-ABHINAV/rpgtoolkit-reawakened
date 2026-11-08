@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tk-reawakened.invalid/research/1778/opus/plugins/com.example.weather/1",
+  "title": "AUTHORED research fixture: an imaginary weather plugin's per-scene data (schema version 1)",
+  "type": "object",
+  "required": [
+    "version",
+    "precipitation"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "precipitation": {
+      "enum": [
+        "none",
+        "rain",
+        "snow"
+      ]
+    },
+    "intensity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "windFrom": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "integer"
+        }
+      ],
+      "items": false,
+      "minItems": 2
+    },
+    "onStorm": {
+      "$ref": "#/$defs/script"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "script": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "inline"
+          ],
+          "properties": {
+            "inline": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "program"
+          ],
+          "properties": {
+            "program": {
+              "type": "string",
+              "pattern": "^scripts/"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

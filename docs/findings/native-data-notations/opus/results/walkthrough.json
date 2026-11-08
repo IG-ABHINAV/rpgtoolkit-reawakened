@@ -1,0 +1,761 @@
+{
+ "note": "Agent-performed rehearsal with scripted plain-text edits; not observed human usability.",
+ "perNotation": {
+  "yaml": {
+   "codec": "yaml",
+   "ext": "yaml",
+   "locateActor": {
+    "placementLine": "actor: oldman",
+    "sourceLine": 183,
+    "definitionFile": "actors/oldman.yaml",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "size",
+     "tiles",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -11,3 +11,3 @@ presence:\n   timing:\n-    secondsPerFrame: 0.3\n+    secondsPerFrame: 0.25\n     idleAfterSeconds: 3\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -187,3 +187,5 @@ placements:\n     whilePresent:\n-      inline: itemPath(\"source\", tkMV_WAYPOINT_LINK,  \"wp_oldman\", 0);\n+      inline: |-\n+        itemPath(\"source\", tkMV_WAYPOINT_LINK,  \"wp_oldman\", 0);\n+        mwin(\"Lovely weather.\");\n     activation:\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -192,2 +192,7 @@ placements:\n       onKey: false\n+  - id: oldman-2\n+    actor: oldman\n+    at: [300, 200, 1]\n+    onActivate:\n+      program: scripts/oldman.prg\n compat:\n",
+    "linesTouched": 5,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.yaml:194:12 actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.yaml (format-preserving, 1 ref)",
+     "clips/oldman/oldman-s.yaml (format-preserving, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -6,3 +6,3 @@ presence:\n     walk:\n-      south: oldman/oldman-s\n+      south: oldman/walk-south\n       north: oldman/oldman-n\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.yaml",
+     "scenes/out/tiles.yaml"
+    ],
+    "moved": [
+     "scenes/out/scene.yaml -> scenes/harbour/scene.yaml",
+     "scenes/out/tiles.yaml -> scenes/harbour/tiles.yaml"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.yaml:80 inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.yaml:177 inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.yaml); nothing was written",
+    "unchanged": true
+   }
+  },
+  "json-layout": {
+   "codec": "json-layout",
+   "ext": "json",
+   "locateActor": {
+    "placementLine": "\"actor\": \"oldman\",",
+    "sourceLine": 246,
+    "definitionFile": "actors/oldman.json",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "size",
+     "tiles",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -14,3 +14,3 @@\n     \"timing\": {\n-      \"secondsPerFrame\": 0.3,\n+      \"secondsPerFrame\": 0.25,\n       \"idleAfterSeconds\": 3\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -251,3 +251,3 @@\n       \"whilePresent\": {\n-        \"inline\": \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\"\n+        \"inline\": \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\\nmwin(\\\"Lovely weather.\\\");\"\n       },\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -256,2 +256,10 @@\n       }\n+    },\n+    {\n+      \"id\": \"oldman-2\",\n+      \"actor\": \"oldman\",\n+      \"at\": [300, 200, 1],\n+      \"onActivate\": {\n+        \"program\": \"scripts/oldman.prg\"\n+      }\n     }\n",
+    "linesTouched": 8,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.json:260:7 actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.json (format-preserving, 1 ref)",
+     "clips/oldman/oldman-s.json (format-preserving, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -7,3 +7,3 @@\n       \"walk\": {\n-        \"south\": \"oldman/oldman-s\",\n+        \"south\": \"oldman/walk-south\",\n         \"north\": \"oldman/oldman-n\",\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.json",
+     "scenes/out/tiles.json"
+    ],
+    "moved": [
+     "scenes/out/scene.json -> scenes/harbour/scene.json",
+     "scenes/out/tiles.json -> scenes/harbour/tiles.json"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.json:105 inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.json:235 inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.json); nothing was written",
+    "unchanged": true
+   }
+  },
+  "json5-layout": {
+   "codec": "json5-layout",
+   "ext": "json5",
+   "locateActor": {
+    "placementLine": "id: \"oldman-1\",",
+    "sourceLine": null,
+    "definitionFile": "actors/oldman.json5",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "size",
+     "tiles",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -14,3 +14,3 @@\n     timing: {\n-      secondsPerFrame: 0.3,\n+      secondsPerFrame: 0.25,\n       idleAfterSeconds: 3,\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -251,3 +251,3 @@\n       whilePresent: {\n-        inline: \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\",\n+        inline: \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\\nmwin(\\\"Lovely weather.\\\");\",\n       },\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -257,2 +257,10 @@\n     },\n+    {\n+      id: \"oldman-2\",\n+      actor: \"oldman\",\n+      at: [300, 200, 1],\n+      onActivate: {\n+        program: \"scripts/oldman.prg\",\n+      },\n+    },\n   ],\n",
+    "linesTouched": 8,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.json5:?:? actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.json5 (re-emit, 1 ref)",
+     "clips/oldman/oldman-s.json5 (re-emit, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -7,3 +7,3 @@\n       walk: {\n-        south: \"oldman/oldman-s\",\n+        south: \"oldman/walk-south\",\n         north: \"oldman/oldman-n\",\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.json5",
+     "scenes/out/tiles.json5"
+    ],
+    "moved": [
+     "scenes/out/scene.json5 -> scenes/harbour/scene.json5",
+     "scenes/out/tiles.json5 -> scenes/harbour/tiles.json5"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.json5:? inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.json5:? inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.json5); nothing was written",
+    "unchanged": true
+   }
+  },
+  "hjson": {
+   "codec": "hjson",
+   "ext": "hjson",
+   "locateActor": {
+    "placementLine": "id: oldman-1",
+    "sourceLine": null,
+    "definitionFile": "actors/oldman.hjson",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "size",
+     "tiles",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -13,3 +13,3 @@\n     }\n-    timing: {secondsPerFrame: 0.3, idleAfterSeconds: 3}\n+    timing: {secondsPerFrame: 0.25, idleAfterSeconds: 3}\n     collision: [\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -237,3 +237,3 @@\n       onActivate: {program: \"scripts/oldman.prg\"}\n-      whilePresent: {inline: \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\"}\n+      whilePresent: {inline: \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\\nmwin(\\\"Lovely weather.\\\");\"}\n       activation: {onKey: false}\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -246,2 +246,8 @@\n     }\n+    {\n+      id: oldman-2\n+      actor: oldman\n+      at: [300, 200, 1]\n+      onActivate: {program: \"scripts/oldman.prg\"}\n+    }\n   ]\n",
+    "linesTouched": 6,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.hjson:?:? actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.hjson (format-preserving, 1 ref)",
+     "clips/oldman/oldman-s.hjson (format-preserving, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -7,3 +7,3 @@\n       walk: {\n-        south: oldman/oldman-s\n+        south: oldman/walk-south\n         north: oldman/oldman-n\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.hjson",
+     "scenes/out/tiles.hjson"
+    ],
+    "moved": [
+     "scenes/out/scene.hjson -> scenes/harbour/scene.hjson",
+     "scenes/out/tiles.hjson -> scenes/harbour/tiles.hjson"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.hjson:? inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.hjson:? inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.hjson); nothing was written",
+    "unchanged": true
+   }
+  },
+  "toml-rows": {
+   "codec": "toml-rows",
+   "ext": "toml",
+   "locateActor": {
+    "placementLine": "actor = \"oldman\"",
+    "sourceLine": 236,
+    "definitionFile": "actors/oldman.toml",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "tiles",
+     "start",
+     "size",
+     "background",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -6,3 +6,3 @@ name = \"oldman\"\n clips = { walk = { south = \"oldman/oldman-s\", north = \"oldman/oldman-n\", east = \"oldman/oldman-e\", west = \"oldman/oldman-w\" } }\n-timing = { secondsPerFrame = 0.3, idleAfterSeconds = 3 }\n+timing = { secondsPerFrame = 0.25, idleAfterSeconds = 3 }\n collision = [\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -238,3 +238,3 @@ at = [ 214, 300, 1 ]\n onActivate = { program = \"scripts/oldman.prg\" }\n-whilePresent = { inline = \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\" }\n+whilePresent = { inline = \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\\nmwin(\\\"Lovely weather.\\\");\" }\n activation = { onKey = false }\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -241,2 +241,8 @@ activation = { onKey = false }\n \n+[[placements]]\n+id = \"oldman-2\"\n+actor = \"oldman\"\n+at = [ 300, 200, 1 ]\n+onActivate = { program = \"scripts/oldman.prg\" }\n+\n [compat]\n",
+    "linesTouched": 6,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.toml:244:1 actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.toml (format-preserving, 1 ref)",
+     "clips/oldman/oldman-s.toml (format-preserving, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -5,3 +5,3 @@ name = \"oldman\"\n [presence]\n-clips = { walk = { south = \"oldman/oldman-s\", north = \"oldman/oldman-n\", east = \"oldman/oldman-e\", west = \"oldman/oldman-w\" } }\n+clips = { walk = { south = \"oldman/walk-south\", north = \"oldman/oldman-n\", east = \"oldman/oldman-e\", west = \"oldman/oldman-w\" } }\n timing = { secondsPerFrame = 0.25, idleAfterSeconds = 3 }\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.toml",
+     "scenes/out/tiles.toml"
+    ],
+    "moved": [
+     "scenes/out/scene.toml -> scenes/harbour/scene.toml",
+     "scenes/out/tiles.toml -> scenes/harbour/tiles.toml"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.toml:101 inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.toml:231 inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.toml); nothing was written",
+    "unchanged": true
+   }
+  },
+  "kdl": {
+   "codec": "kdl",
+   "ext": "kdl",
+   "locateActor": {
+    "placementLine": "- id=oldman-1 actor=oldman {",
+    "sourceLine": 159,
+    "definitionFile": "actors/oldman.kdl",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "tiles",
+     "size",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -5,3 +5,3 @@\n     }\n-    timing secondsPerFrame=0.3 idleAfterSeconds=3\n+    timing secondsPerFrame=0.25 idleAfterSeconds=3\n     collision {\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -161,3 +161,3 @@\n       onActivate program=\"scripts/oldman.prg\"\n-      whilePresent inline=\"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\"\n+      whilePresent inline=\"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\\nmwin(\\\"Lovely weather.\\\");\"\n       activation onKey=#false\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -164,2 +164,6 @@\n     }\n+    - id=oldman-2 actor=oldman {\n+      at 300 200 1\n+      onActivate program=\"scripts/oldman.prg\"\n+    }\n   }\n",
+    "linesTouched": 4,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.kdl:165:19 actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.kdl (format-preserving, 1 ref)",
+     "clips/oldman/oldman-s.kdl (format-preserving, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -3,3 +3,3 @@\n     clips {\n-      walk south=\"oldman/oldman-s\" north=\"oldman/oldman-n\" east=\"oldman/oldman-e\" west=\"oldman/oldman-w\"\n+      walk south=\"oldman/walk-south\" north=\"oldman/oldman-n\" east=\"oldman/oldman-e\" west=\"oldman/oldman-w\"\n     }\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.kdl",
+     "scenes/out/tiles.kdl"
+    ],
+    "moved": [
+     "scenes/out/scene.kdl -> scenes/harbour/scene.kdl",
+     "scenes/out/tiles.kdl -> scenes/harbour/tiles.kdl"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.kdl:66 inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.kdl:154 inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.kdl); nothing was written",
+    "unchanged": true
+   }
+  },
+  "edn": {
+   "codec": "edn",
+   "ext": "edn",
+   "locateActor": {
+    "placementLine": ":id \"oldman-1\"",
+    "sourceLine": null,
+    "definitionFile": "actors/oldman.edn",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "size",
+     "tiles",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -14,3 +14,3 @@\n     :timing {\n-      :secondsPerFrame 0.3\n+      :secondsPerFrame 0.25\n       :idleAfterSeconds 3\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -251,3 +251,3 @@\n       :whilePresent {\n-        :inline \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\"\n+        :inline \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\\nmwin(\\\"Lovely weather.\\\");\"\n       }\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -257,2 +257,10 @@\n     }\n+    {\n+      :id \"oldman-2\"\n+      :actor \"oldman\"\n+      :at [300 200 1]\n+      :onActivate {\n+        :program \"scripts/oldman.prg\"\n+      }\n+    }\n   ]\n",
+    "linesTouched": 8,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.edn:?:? actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.edn (re-emit, 1 ref)",
+     "clips/oldman/oldman-s.edn (re-emit, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -7,3 +7,3 @@\n       :walk {\n-        :south \"oldman/oldman-s\"\n+        :south \"oldman/walk-south\"\n         :north \"oldman/oldman-n\"\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.edn",
+     "scenes/out/tiles.edn"
+    ],
+    "moved": [
+     "scenes/out/scene.edn -> scenes/harbour/scene.edn",
+     "scenes/out/tiles.edn -> scenes/harbour/tiles.edn"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.edn:? inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.edn:? inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.edn); nothing was written",
+    "unchanged": true
+   }
+  },
+  "ron": {
+   "codec": "ron",
+   "ext": "ron",
+   "locateActor": {
+    "placementLine": "\"id\": \"oldman-1\",",
+    "sourceLine": null,
+    "definitionFile": "actors/oldman.ron",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "size",
+     "tiles",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -14,3 +14,3 @@\n     \"timing\": {\n-      \"secondsPerFrame\": 0.3,\n+      \"secondsPerFrame\": 0.25,\n       \"idleAfterSeconds\": 3,\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -479,3 +479,3 @@\n       \"whilePresent\": {\n-        \"inline\": \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\",\n+        \"inline\": \"itemPath(\\\"source\\\", tkMV_WAYPOINT_LINK,  \\\"wp_oldman\\\", 0);\\nmwin(\\\"Lovely weather.\\\");\",\n       },\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -485,2 +485,14 @@\n     },\n+    {\n+      \"id\": \"oldman-2\",\n+      \"actor\": \"oldman\",\n+      \"at\": [\n+        300,\n+        200,\n+        1,\n+      ],\n+      \"onActivate\": {\n+        \"program\": \"scripts/oldman.prg\",\n+      },\n+    },\n   ],\n",
+    "linesTouched": 12,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.ron:?:? actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.ron (re-emit, 1 ref)",
+     "clips/oldman/oldman-s.ron (re-emit, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -7,3 +7,3 @@\n       \"walk\": {\n-        \"south\": \"oldman/oldman-s\",\n+        \"south\": \"oldman/walk-south\",\n         \"north\": \"oldman/oldman-n\",\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.ron",
+     "scenes/out/tiles.ron"
+    ],
+    "moved": [
+     "scenes/out/scene.ron -> scenes/harbour/scene.ron",
+     "scenes/out/tiles.ron -> scenes/harbour/tiles.ron"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.ron:? inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.ron:? inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.ron); nothing was written",
+    "unchanged": true
+   }
+  },
+  "xml": {
+   "codec": "xml",
+   "ext": "xml",
+   "locateActor": {
+    "placementLine": "<string key=\"actor\">oldman</string>",
+    "sourceLine": 247,
+    "definitionFile": "actors/oldman.xml",
+    "exists": true
+   },
+   "ownership": {
+    "coreTopLevel": [
+     "kind",
+     "id",
+     "size",
+     "tiles",
+     "background",
+     "start",
+     "battles",
+     "regions",
+     "triggers",
+     "placements"
+    ],
+    "compat": [
+     "tk3"
+    ],
+    "pluginNamespaces": [
+     "com.example.weather",
+     "org.example.lanterns"
+    ],
+    "checker": [
+     "unvalidated-no-schema: org.example.lanterns"
+    ]
+   },
+   "changeProperty": {
+    "diff": "@@ -15,3 +15,3 @@\n     <map key=\"timing\">\n-      <number key=\"secondsPerFrame\">0.3</number>\n+      <number key=\"secondsPerFrame\">0.25</number>\n       <number key=\"idleAfterSeconds\">3</number>\n",
+    "parsedValue": 0.25,
+    "errorsAfter": 0
+   },
+   "editInlineScript": {
+    "diff": "@@ -252,3 +252,4 @@\n       <map key=\"whilePresent\">\n-        <string key=\"inline\">itemPath(\"source\", tkMV_WAYPOINT_LINK,  \"wp_oldman\", 0);</string>\n+        <string key=\"inline\">itemPath(\"source\", tkMV_WAYPOINT_LINK,  \"wp_oldman\", 0);\n+mwin(\"Lovely weather.\");</string>\n       </map>\n",
+    "exact": true
+   },
+   "addPlacement": {
+    "typedHunk": "@@ -259,2 +259,10 @@ mwin(\"Lovely weather.\");</string>\n     </map>\n+    <map>\n+      <string key=\"id\">oldman-2</string>\n+      <string key=\"actor\">oldman</string>\n+      <array key=\"at\"><number>300</number><number>200</number><number>1</number></array>\n+      <map key=\"onActivate\">\n+        <string key=\"program\">scripts/oldman.prg</string>\n+      </map>\n+    </map>\n   </array>\n",
+    "linesTouched": 8,
+    "applied": true,
+    "placementsAfter": [
+     "oldman-1",
+     "oldman-2"
+    ],
+    "errorsAfter": 2
+   },
+   "brokenReference": [
+    "scenes/start/scene.xml:262:7 actor 'oldmn' not found (/placements/1/actor)"
+   ],
+   "renameClip": {
+    "filesChanged": [
+     "actors/oldman.xml (format-preserving, 1 ref)",
+     "clips/oldman/oldman-s.xml (format-preserving, 0 ref)"
+    ],
+    "brokenAfter": 0,
+    "actorDiff": "@@ -8,3 +8,3 @@\n       <map key=\"walk\">\n-        <string key=\"south\">oldman/oldman-s</string>\n+        <string key=\"south\">oldman/walk-south</string>\n         <string key=\"north\">oldman/oldman-n</string>\n"
+   },
+   "renameScene": {
+    "filesChanged": [
+     "scenes/out/scene.xml",
+     "scenes/out/tiles.xml"
+    ],
+    "moved": [
+     "scenes/out/scene.xml -> scenes/harbour/scene.xml",
+     "scenes/out/tiles.xml -> scenes/harbour/tiles.xml"
+    ],
+    "errorsAfter": [],
+    "scriptLiteralWarnings": [
+     "scenes/harbour/scene.xml:106 inline RPGCode names legacy file \"start.brd\"; not resolved or rewritten by data tools",
+     "scenes/start/scene.xml:236 inline RPGCode names legacy file \"out.brd\"; not resolved or rewritten by data tools"
+    ]
+   },
+   "renameOntoExisting": {
+    "refused": true,
+    "message": "rename refused: destination already exists (clips/start/start-defend.xml); nothing was written",
+    "unchanged": true
+   }
+  }
+ }
+}

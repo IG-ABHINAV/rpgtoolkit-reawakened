@@ -1,0 +1,2762 @@
+{
+ "generated": "deterministic construction; see tools/research/native-data-notations/shared/construction.mjs",
+ "node": "v26.13.0",
+ "platform": "darwin-arm64",
+ "construction": {
+  "tileWidth": 48,
+  "tileHeight": 36,
+  "tileLayers": 3,
+  "tileCells": 5184,
+  "inlineCodeLines": 6,
+  "documents": [
+   "actors/gatekeeper",
+   "scenes/courtyard/scene",
+   "scenes/courtyard/tiles",
+   "items/ember-staff",
+   "skills/spark",
+   "clips/gatekeeper/walk-south",
+   "clips/mira/cast-spark"
+  ],
+  "documentCount": 7
+ },
+ "authors": {
+  "astra": {
+   "notations": {
+    "JSON": {
+     "label": "astra/JSON",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 75727,
+     "lines": 5810,
+     "maxLineLength": 391,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 0,
+     "decodeMs": 0,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  \"kind\": \"scene\",\n  \"id\": \"courtyard\",\n  \"size\": {\n    \"width\": 48,\n    \"height\": 36,\n    \"layers\": 3\n  },\n  \"tiles\": \"tiles\",\n  \"background\": {\n    \"colour\": [\n      0,\n      0,\n      0\n    ],\n    \"music\": \"media/audio/courtyard.ogg\"\n  },\n  \"start\": [\n    96,\n    96,\n    1\n  ],\n  \"regions\": [\n    {\n      \"id\": \"north-wall\",\n      \"kind\": \"solid\",\n      \"layer\": 1,\n      \"closed\": true,\n      \"points\": [\n        [\n          0,\n          0\n        ],\n        [\n          192,\n          0\n        ],\n        [\n          192,\n          32\n        ],\n        [\n          0,\n          32\n        ]\n      ]\n    },\n    {\n      \"id\": \"patrol\",\n      \"kind\": \"waypoint\",\n      \"layer\": 1,\n      \"closed\": false,\n      \"points\": [\n        [\n          48,\n          64\n        ],\n        [\n          144,\n          64\n        ],\n        [\n          144,\n          112\n        ]\n      ]\n    }\n  ],\n  \"triggers\": [\n    {\n      \"id\": \"to-hall\",\n      \"layer\": 1,\n      \"area\": [\n        [\n          160,\n          96\n        ],\n        [\n          192,\n          96\n        ],\n        [\n          192,\n          128\n        ],\n        [\n          160,\n          128\n        ]\n      ],\n      \"run\": {\n       "
+     }
+    },
+    "YAML": {
+     "label": "astra/YAML",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 66267,
+     "lines": 5446,
+     "maxLineLength": 88,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 11,
+     "decodeMs": 39,
+     "samples": {
+      "scenes/courtyard/scene": "kind: scene\nid: courtyard\nsize:\n  width: 48\n  height: 36\n  layers: 3\ntiles: tiles\nbackground:\n  colour:\n    - 0\n    - 0\n    - 0\n  music: media/audio/courtyard.ogg\nstart:\n  - 96\n  - 96\n  - 1\nregions:\n  - id: north-wall\n    kind: solid\n    layer: 1\n    closed: true\n    points:\n      - - 0\n        - 0\n      - - 192\n        - 0\n      - - 192\n        - 32\n      - - 0\n        - 32\n  - id: patrol\n    kind: waypoint\n    layer: 1\n    closed: false\n    points:\n      - - 48\n        - 64\n      - - 144\n        - 64\n      - - 144\n        - 112\ntriggers:\n  - id: to-hall\n    layer: 1\n    area:\n      - - 160\n        - 96\n      - - 192\n        - 96\n      - - 192\n        - 128\n      - - 160\n        - 128\n    run:\n      inline: send(\"hall\", 32, 96, 1);\n    activation:\n      onKey: false\nplacements:\n  - id: gatekeeper-1\n    actor: gatekeeper\n    at:\n      - 64\n      - 96\n      - 1\n    whilePresent:\n      inline: |-\n        \"Halt! Who goes there?\" asked the gatekeeper.\n        mwin(\"Halt! Who goes there?\");\n        itemPath(\"source\", tkMV_WAYPOINT_LINK, \"patrol\", 0);\n        // backslash \\ and a quoted \"word\" and a delimiter-like \"\"\"triple\"\"\" plus |pipe|\n        // single 'quotes', a tab\there, and C:\\Ga"
+     }
+    },
+    "KDL": {
+     "label": "astra/KDL",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 16030,
+     "lines": 408,
+     "maxLineLength": 388,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 4,
+     "decodeMs": 9,
+     "samples": {
+      "scenes/courtyard/scene": "- {\n  kind scene\n  id courtyard\n  size {\n    width 48\n    height 36\n    layers 3\n  }\n  tiles tiles\n  background {\n    colour 0 0 0\n    music \"media/audio/courtyard.ogg\"\n  }\n  start 96 96 1\n  regions {\n    - {\n      id north-wall\n      kind solid\n      layer 1\n      closed #true\n      points {\n        - 0 0\n        - 192 0\n        - 192 32\n        - 0 32\n      }\n    }\n    - {\n      id patrol\n      kind waypoint\n      layer 1\n      closed #false\n      points {\n        - 48 64\n        - 144 64\n        - 144 112\n      }\n    }\n  }\n  triggers {\n    - {\n      id to-hall\n      layer 1\n      area {\n        - 160 96\n        - 192 96\n        - 192 128\n        - 160 128\n      }\n      run {\n        inline \"send(\\\"hall\\\", 32, 96, 1);\"\n      }\n      activation {\n        onKey #false\n      }\n    }\n  }\n  placements {\n    - {\n      id gatekeeper-1\n      actor gatekeeper\n      at 64 96 1\n      whilePresent {\n        inline \"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV_WAYPOINT_LINK, \\\"patrol\\\", 0);\\n// backslash \\\\ and a quoted \\\"word\\\" and a delimiter-like \\\"\\\"\\\"triple\\\"\\\"\\\" plus |pipe|\\n// single 'quotes', a tab\\there, and C:\\\\Games\\\\P"
+     }
+    },
+    "TOML": {
+     "label": "astra/TOML",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 19852,
+     "lines": 234,
+     "maxLineLength": 5337,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 2,
+     "decodeMs": 2,
+     "samples": {
+      "scenes/courtyard/scene": "kind = \"scene\"\nid = \"courtyard\"\ntiles = \"tiles\"\nstart = [ 96, 96, 1 ]\n\n[size]\nwidth = 48\nheight = 36\nlayers = 3\n\n[background]\ncolour = [ 0, 0, 0 ]\nmusic = \"media/audio/courtyard.ogg\"\n\n[[regions]]\nid = \"north-wall\"\nkind = \"solid\"\nlayer = 1\nclosed = true\npoints = [ [ 0, 0 ], [ 192, 0 ], [ 192, 32 ], [ 0, 32 ] ]\n\n[[regions]]\nid = \"patrol\"\nkind = \"waypoint\"\nlayer = 1\nclosed = false\npoints = [ [ 48, 64 ], [ 144, 64 ], [ 144, 112 ] ]\n\n[[triggers]]\nid = \"to-hall\"\nlayer = 1\narea = [ [ 160, 96 ], [ 192, 96 ], [ 192, 128 ], [ 160, 128 ] ]\n\n[triggers.run]\ninline = \"send(\\\"hall\\\", 32, 96, 1);\"\n\n[triggers.activation]\nonKey = false\n\n[[placements]]\nid = \"gatekeeper-1\"\nactor = \"gatekeeper\"\nat = [ 64, 96, 1 ]\n\n[placements.whilePresent]\ninline = \"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV_WAYPOINT_LINK, \\\"patrol\\\", 0);\\n// backslash \\\\ and a quoted \\\"word\\\" and a delimiter-like \\\"\\\"\\\"triple\\\"\\\"\\\" plus |pipe|\\n// single 'quotes', a tab\\there, and C:\\\\Games\\\\Project\\\\Prg\\\\relief.prg\\nif (getVar(\\\"gateOpen\\\") = 1) then { send(\\\"hall\\\", 32, 96, 1); }\"\n\n[[placements]]\nid = \"gatekeeper-2\"\nactor = \"gatekeeper\"\nat = [ 128, 96, 1 ]\n\n[placement"
+     }
+    },
+    "JSON5": {
+     "label": "astra/JSON5",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 75585,
+     "lines": 5810,
+     "maxLineLength": 372,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 2,
+     "decodeMs": 10,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  kind: 'scene',\n  id: 'courtyard',\n  size: {\n    width: 48,\n    height: 36,\n    layers: 3,\n  },\n  tiles: 'tiles',\n  background: {\n    colour: [\n      0,\n      0,\n      0,\n    ],\n    music: 'media/audio/courtyard.ogg',\n  },\n  start: [\n    96,\n    96,\n    1,\n  ],\n  regions: [\n    {\n      id: 'north-wall',\n      kind: 'solid',\n      layer: 1,\n      closed: true,\n      points: [\n        [\n          0,\n          0,\n        ],\n        [\n          192,\n          0,\n        ],\n        [\n          192,\n          32,\n        ],\n        [\n          0,\n          32,\n        ],\n      ],\n    },\n    {\n      id: 'patrol',\n      kind: 'waypoint',\n      layer: 1,\n      closed: false,\n      points: [\n        [\n          48,\n          64,\n        ],\n        [\n          144,\n          64,\n        ],\n        [\n          144,\n          112,\n        ],\n      ],\n    },\n  ],\n  triggers: [\n    {\n      id: 'to-hall',\n      layer: 1,\n      area: [\n        [\n          160,\n          96,\n        ],\n        [\n          192,\n          96,\n        ],\n        [\n          192,\n          128,\n        ],\n        [\n          160,\n          128,\n        ],\n      ],\n      run: {\n        inline: 'send(\"hall\", 32, 96, 1)"
+     }
+    },
+    "Hjson": {
+     "label": "astra/Hjson",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 70139,
+     "lines": 5872,
+     "maxLineLength": 389,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 3,
+     "decodeMs": 2,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  kind: scene\n  id: courtyard\n  size:\n  {\n    width: 48\n    height: 36\n    layers: 3\n  }\n  tiles: tiles\n  background:\n  {\n    colour:\n    [\n      0\n      0\n      0\n    ]\n    music: media/audio/courtyard.ogg\n  }\n  start:\n  [\n    96\n    96\n    1\n  ]\n  regions:\n  [\n    {\n      id: north-wall\n      kind: solid\n      layer: 1\n      closed: true\n      points:\n      [\n        [\n          0\n          0\n        ]\n        [\n          192\n          0\n        ]\n        [\n          192\n          32\n        ]\n        [\n          0\n          32\n        ]\n      ]\n    }\n    {\n      id: patrol\n      kind: waypoint\n      layer: 1\n      closed: false\n      points:\n      [\n        [\n          48\n          64\n        ]\n        [\n          144\n          64\n        ]\n        [\n          144\n          112\n        ]\n      ]\n    }\n  ]\n  triggers:\n  [\n    {\n      id: to-hall\n      layer: 1\n      area:\n      [\n        [\n          160\n          96\n        ]\n        [\n          192\n          96\n        ]\n        [\n          192\n          128\n        ]\n        [\n          160\n          128\n        ]\n      ]\n      run:\n      {\n        inline: send(\"hall\", 32, 96, 1);\n      }\n      activation:\n      {\n        onK"
+     }
+    },
+    "EDN": {
+     "label": "astra/EDN",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 16439,
+     "lines": 416,
+     "maxLineLength": 390,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 1,
+     "decodeMs": 4,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  \"kind\" \"scene\"\n  \"id\" \"courtyard\"\n  \"size\" {\n    \"width\" 48\n    \"height\" 36\n    \"layers\" 3\n  }\n  \"tiles\" \"tiles\"\n  \"background\" {\n    \"colour\" [0 0 0]\n    \"music\" \"media/audio/courtyard.ogg\"\n  }\n  \"start\" [96 96 1]\n  \"regions\" [\n    {\n      \"id\" \"north-wall\"\n      \"kind\" \"solid\"\n      \"layer\" 1\n      \"closed\" true\n      \"points\" [\n        [0 0]\n        [192 0]\n        [192 32]\n        [0 32]\n      ]\n    }\n    {\n      \"id\" \"patrol\"\n      \"kind\" \"waypoint\"\n      \"layer\" 1\n      \"closed\" false\n      \"points\" [\n        [48 64]\n        [144 64]\n        [144 112]\n      ]\n    }\n  ]\n  \"triggers\" [\n    {\n      \"id\" \"to-hall\"\n      \"layer\" 1\n      \"area\" [\n        [160 96]\n        [192 96]\n        [192 128]\n        [160 128]\n      ]\n      \"run\" {\n        \"inline\" \"send(\\\"hall\\\", 32, 96, 1);\"\n      }\n      \"activation\" {\n        \"onKey\" false\n      }\n    }\n  ]\n  \"placements\" [\n    {\n      \"id\" \"gatekeeper-1\"\n      \"actor\" \"gatekeeper\"\n      \"at\" [64 96 1]\n      \"whilePresent\" {\n        \"inline\" \"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV_WAYPOINT_LINK, \\\"patrol\\\", 0);\\n// backslash \\\\ and a quoted \\\"word\\\" and a delimiter-l"
+     }
+    },
+    "XML": {
+     "label": "astra/XML",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 234923,
+     "lines": 5815,
+     "maxLineLength": 91,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 12,
+     "decodeMs": 36,
+     "samples": {
+      "scenes/courtyard/scene": "<v key=\"\" type=\"object\">\n  <v key=\"kind\" type=\"string\">scene</v>\n  <v key=\"id\" type=\"string\">courtyard</v>\n  <v key=\"size\" type=\"object\">\n    <v key=\"width\" type=\"number\">48</v>\n    <v key=\"height\" type=\"number\">36</v>\n    <v key=\"layers\" type=\"number\">3</v>\n  </v>\n  <v key=\"tiles\" type=\"string\">tiles</v>\n  <v key=\"background\" type=\"object\">\n    <v key=\"colour\" type=\"array\">\n      <v key=\"0\" type=\"number\">0</v>\n      <v key=\"1\" type=\"number\">0</v>\n      <v key=\"2\" type=\"number\">0</v>\n    </v>\n    <v key=\"music\" type=\"string\">media/audio/courtyard.ogg</v>\n  </v>\n  <v key=\"start\" type=\"array\">\n    <v key=\"0\" type=\"number\">96</v>\n    <v key=\"1\" type=\"number\">96</v>\n    <v key=\"2\" type=\"number\">1</v>\n  </v>\n  <v key=\"regions\" type=\"array\">\n    <v key=\"0\" type=\"object\">\n      <v key=\"id\" type=\"string\">north-wall</v>\n      <v key=\"kind\" type=\"string\">solid</v>\n      <v key=\"layer\" type=\"number\">1</v>\n      <v key=\"closed\" type=\"boolean\">true</v>\n      <v key=\"points\" type=\"array\">\n        <v key=\"0\" type=\"array\">\n          <v key=\"0\" type=\"number\">0</v>\n          <v key=\"1\" type=\"number\">0</v>\n        </v>\n        <v key=\"1\" type=\"array\">\n          <v key=\"0\" type=\"number\">192</v>\n      "
+     }
+    }
+   }
+  },
+  "opus": {
+   "notations": {
+    "JSON": {
+     "label": "opus/json",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 75727,
+     "lines": 5810,
+     "maxLineLength": 391,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 0,
+     "decodeMs": 0,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  \"kind\": \"scene\",\n  \"id\": \"courtyard\",\n  \"size\": {\n    \"width\": 48,\n    \"height\": 36,\n    \"layers\": 3\n  },\n  \"tiles\": \"tiles\",\n  \"background\": {\n    \"colour\": [\n      0,\n      0,\n      0\n    ],\n    \"music\": \"media/audio/courtyard.ogg\"\n  },\n  \"start\": [\n    96,\n    96,\n    1\n  ],\n  \"regions\": [\n    {\n      \"id\": \"north-wall\",\n      \"kind\": \"solid\",\n      \"layer\": 1,\n      \"closed\": true,\n      \"points\": [\n        [\n          0,\n          0\n        ],\n        [\n          192,\n          0\n        ],\n        [\n          192,\n          32\n        ],\n        [\n          0,\n          32\n        ]\n      ]\n    },\n    {\n      \"id\": \"patrol\",\n      \"kind\": \"waypoint\",\n      \"layer\": 1,\n      \"closed\": false,\n      \"points\": [\n        [\n          48,\n          64\n        ],\n        [\n          144,\n          64\n        ],\n        [\n          144,\n          112\n        ]\n      ]\n    }\n  ],\n  \"triggers\": [\n    {\n      \"id\": \"to-hall\",\n      \"layer\": 1,\n      \"area\": [\n        [\n          160,\n          96\n        ],\n        [\n          192,\n          96\n        ],\n        [\n          192,\n          128\n        ],\n        [\n          160,\n          128\n        ]\n      ],\n      \"run\": {\n       "
+     }
+    },
+    "JSON (layout)": {
+     "label": "opus/json-layout",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 21981,
+     "lines": 416,
+     "maxLineLength": 391,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 1,
+     "decodeMs": 0,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  \"kind\": \"scene\",\n  \"id\": \"courtyard\",\n  \"size\": {\n    \"width\": 48,\n    \"height\": 36,\n    \"layers\": 3\n  },\n  \"tiles\": \"tiles\",\n  \"background\": {\n    \"colour\": [0, 0, 0],\n    \"music\": \"media/audio/courtyard.ogg\"\n  },\n  \"start\": [96, 96, 1],\n  \"regions\": [\n    {\n      \"id\": \"north-wall\",\n      \"kind\": \"solid\",\n      \"layer\": 1,\n      \"closed\": true,\n      \"points\": [\n        [0, 0],\n        [192, 0],\n        [192, 32],\n        [0, 32]\n      ]\n    },\n    {\n      \"id\": \"patrol\",\n      \"kind\": \"waypoint\",\n      \"layer\": 1,\n      \"closed\": false,\n      \"points\": [\n        [48, 64],\n        [144, 64],\n        [144, 112]\n      ]\n    }\n  ],\n  \"triggers\": [\n    {\n      \"id\": \"to-hall\",\n      \"layer\": 1,\n      \"area\": [\n        [160, 96],\n        [192, 96],\n        [192, 128],\n        [160, 128]\n      ],\n      \"run\": {\n        \"inline\": \"send(\\\"hall\\\", 32, 96, 1);\"\n      },\n      \"activation\": {\n        \"onKey\": false\n      }\n    }\n  ],\n  \"placements\": [\n    {\n      \"id\": \"gatekeeper-1\",\n      \"actor\": \"gatekeeper\",\n      \"at\": [64, 96, 1],\n      \"whilePresent\": {\n        \"inline\": \"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV"
+     }
+    },
+    "YAML": {
+     "label": "opus/yaml",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 20249,
+     "lines": 318,
+     "maxLineLength": 152,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 10,
+     "decodeMs": 30,
+     "samples": {
+      "scenes/courtyard/scene": "kind: scene\nid: courtyard\nsize:\n  width: 48\n  height: 36\n  layers: 3\ntiles: tiles\nbackground:\n  colour: [0, 0, 0]\n  music: media/audio/courtyard.ogg\nstart: [96, 96, 1]\nregions:\n  - id: north-wall\n    kind: solid\n    layer: 1\n    closed: true\n    points:\n      - [0, 0]\n      - [192, 0]\n      - [192, 32]\n      - [0, 32]\n  - id: patrol\n    kind: waypoint\n    layer: 1\n    closed: false\n    points:\n      - [48, 64]\n      - [144, 64]\n      - [144, 112]\ntriggers:\n  - id: to-hall\n    layer: 1\n    area:\n      - [160, 96]\n      - [192, 96]\n      - [192, 128]\n      - [160, 128]\n    run:\n      inline: send(\"hall\", 32, 96, 1);\n    activation:\n      onKey: false\nplacements:\n  - id: gatekeeper-1\n    actor: gatekeeper\n    at: [64, 96, 1]\n    whilePresent:\n      inline: |-\n        \"Halt! Who goes there?\" asked the gatekeeper.\n        mwin(\"Halt! Who goes there?\");\n        itemPath(\"source\", tkMV_WAYPOINT_LINK, \"patrol\", 0);\n        // backslash \\ and a quoted \"word\" and a delimiter-like \"\"\"triple\"\"\" plus |pipe|\n        // single 'quotes', a tab\there, and C:\\Games\\Project\\Prg\\relief.prg\n        if (getVar(\"gateOpen\") = 1) then { send(\"hall\", 32, 96, 1); }\n  - id: gatekeeper-2\n    actor: gatekeeper\n "
+     }
+    },
+    "KDL": {
+     "label": "opus/kdl",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 15185,
+     "lines": 273,
+     "maxLineLength": 399,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 4,
+     "decodeMs": 6,
+     "samples": {
+      "scenes/courtyard/scene": "- kind=scene id=courtyard tiles=tiles {\n  size width=48 height=36 layers=3\n  background music=\"media/audio/courtyard.ogg\" {\n    colour 0 0 0\n  }\n  start 96 96 1\n  regions {\n    - id=north-wall kind=solid layer=1 closed=#true {\n      points {\n        - 0 0\n        - 192 0\n        - 192 32\n        - 0 32\n      }\n    }\n    - id=patrol kind=waypoint layer=1 closed=#false {\n      points {\n        - 48 64\n        - 144 64\n        - 144 112\n      }\n    }\n  }\n  triggers {\n    - id=to-hall layer=1 {\n      area {\n        - 160 96\n        - 192 96\n        - 192 128\n        - 160 128\n      }\n      run inline=\"send(\\\"hall\\\", 32, 96, 1);\"\n      activation onKey=#false\n    }\n  }\n  placements {\n    - id=gatekeeper-1 actor=gatekeeper {\n      at 64 96 1\n      whilePresent inline=\"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV_WAYPOINT_LINK, \\\"patrol\\\", 0);\\n// backslash \\\\ and a quoted \\\"word\\\" and a delimiter-like \\\"\\\"\\\"triple\\\"\\\"\\\" plus |pipe|\\n// single 'quotes', a tab\\there, and C:\\\\Games\\\\Project\\\\Prg\\\\relief.prg\\nif (getVar(\\\"gateOpen\\\") = 1) then { send(\\\"hall\\\", 32, 96, 1); }\"\n    }\n    - id=gatekeeper-2 actor=gatekeeper {\n      a"
+     }
+    },
+    "TOML": {
+     "label": "opus/toml",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 19783,
+     "lines": 185,
+     "maxLineLength": 5337,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 26,
+     "decodeMs": 3,
+     "samples": {
+      "scenes/courtyard/scene": "kind = \"scene\"\nid = \"courtyard\"\ntiles = \"tiles\"\nstart = [ 96, 96, 1 ]\n\n[size]\nwidth = 48\nheight = 36\nlayers = 3\n\n[background]\ncolour = [ 0, 0, 0 ]\nmusic = \"media/audio/courtyard.ogg\"\n\n[[regions]]\nid = \"north-wall\"\nkind = \"solid\"\nlayer = 1\nclosed = true\npoints = [ [ 0, 0 ], [ 192, 0 ], [ 192, 32 ], [ 0, 32 ] ]\n\n[[regions]]\nid = \"patrol\"\nkind = \"waypoint\"\nlayer = 1\nclosed = false\npoints = [ [ 48, 64 ], [ 144, 64 ], [ 144, 112 ] ]\n\n[[triggers]]\nid = \"to-hall\"\nlayer = 1\narea = [ [ 160, 96 ], [ 192, 96 ], [ 192, 128 ], [ 160, 128 ] ]\nrun = { inline = \"send(\\\"hall\\\", 32, 96, 1);\" }\nactivation = { onKey = false }\n\n[[placements]]\nid = \"gatekeeper-1\"\nactor = \"gatekeeper\"\nat = [ 64, 96, 1 ]\nwhilePresent = { inline = \"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV_WAYPOINT_LINK, \\\"patrol\\\", 0);\\n// backslash \\\\ and a quoted \\\"word\\\" and a delimiter-like \\\"\\\"\\\"triple\\\"\\\"\\\" plus |pipe|\\n// single 'quotes', a tab\\there, and C:\\\\Games\\\\Project\\\\Prg\\\\relief.prg\\nif (getVar(\\\"gateOpen\\\") = 1) then { send(\\\"hall\\\", 32, 96, 1); }\" }\n\n[[placements]]\nid = \"gatekeeper-2\"\nactor = \"gatekeeper\"\nat = [ 128, 96, 1 ]\nonActivate = { program = \"scrip"
+     }
+    },
+    "TOML (rows)": {
+     "label": "opus/toml-rows",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 20045,
+     "lines": 320,
+     "maxLineLength": 401,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 16,
+     "decodeMs": 1,
+     "samples": {
+      "scenes/courtyard/scene": "kind = \"scene\"\nid = \"courtyard\"\ntiles = \"tiles\"\nstart = [ 96, 96, 1 ]\n\n[size]\nwidth = 48\nheight = 36\nlayers = 3\n\n[background]\ncolour = [ 0, 0, 0 ]\nmusic = \"media/audio/courtyard.ogg\"\n\n[[regions]]\nid = \"north-wall\"\nkind = \"solid\"\nlayer = 1\nclosed = true\npoints = [\n  [ 0, 0 ],\n  [ 192, 0 ],\n  [ 192, 32 ],\n  [ 0, 32 ],\n]\n\n[[regions]]\nid = \"patrol\"\nkind = \"waypoint\"\nlayer = 1\nclosed = false\npoints = [\n  [ 48, 64 ],\n  [ 144, 64 ],\n  [ 144, 112 ],\n]\n\n[[triggers]]\nid = \"to-hall\"\nlayer = 1\narea = [\n  [ 160, 96 ],\n  [ 192, 96 ],\n  [ 192, 128 ],\n  [ 160, 128 ],\n]\nrun = { inline = \"send(\\\"hall\\\", 32, 96, 1);\" }\nactivation = { onKey = false }\n\n[[placements]]\nid = \"gatekeeper-1\"\nactor = \"gatekeeper\"\nat = [ 64, 96, 1 ]\nwhilePresent = { inline = \"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV_WAYPOINT_LINK, \\\"patrol\\\", 0);\\n// backslash \\\\ and a quoted \\\"word\\\" and a delimiter-like \\\"\\\"\\\"triple\\\"\\\"\\\" plus |pipe|\\n// single 'quotes', a tab\\there, and C:\\\\Games\\\\Project\\\\Prg\\\\relief.prg\\nif (getVar(\\\"gateOpen\\\") = 1) then { send(\\\"hall\\\", 32, 96, 1); }\" }\n\n[[placements]]\nid = \"gatekeeper-2\"\nactor = \"gatekeeper\"\nat = [ 128, 96, 1 ]\nonActi"
+     }
+    },
+    "JSON5": {
+     "label": "opus/json5",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 75585,
+     "lines": 5810,
+     "maxLineLength": 372,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 1,
+     "decodeMs": 9,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  kind: 'scene',\n  id: 'courtyard',\n  size: {\n    width: 48,\n    height: 36,\n    layers: 3,\n  },\n  tiles: 'tiles',\n  background: {\n    colour: [\n      0,\n      0,\n      0,\n    ],\n    music: 'media/audio/courtyard.ogg',\n  },\n  start: [\n    96,\n    96,\n    1,\n  ],\n  regions: [\n    {\n      id: 'north-wall',\n      kind: 'solid',\n      layer: 1,\n      closed: true,\n      points: [\n        [\n          0,\n          0,\n        ],\n        [\n          192,\n          0,\n        ],\n        [\n          192,\n          32,\n        ],\n        [\n          0,\n          32,\n        ],\n      ],\n    },\n    {\n      id: 'patrol',\n      kind: 'waypoint',\n      layer: 1,\n      closed: false,\n      points: [\n        [\n          48,\n          64,\n        ],\n        [\n          144,\n          64,\n        ],\n        [\n          144,\n          112,\n        ],\n      ],\n    },\n  ],\n  triggers: [\n    {\n      id: 'to-hall',\n      layer: 1,\n      area: [\n        [\n          160,\n          96,\n        ],\n        [\n          192,\n          96,\n        ],\n        [\n          192,\n          128,\n        ],\n        [\n          160,\n          128,\n        ],\n      ],\n      run: {\n        inline: 'send(\"hall\", 32, 96, 1)"
+     }
+    },
+    "Hjson": {
+     "label": "opus/hjson",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 68692,
+     "lines": 5632,
+     "maxLineLength": 90,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 3,
+     "decodeMs": 2,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  kind: scene\n  id: courtyard\n  size: {width: 48, height: 36, layers: 3}\n  tiles: tiles\n  background: {\n    colour: [0, 0, 0]\n    music: media/audio/courtyard.ogg\n  }\n  start: [96, 96, 1]\n  regions: [\n    {\n      id: north-wall\n      kind: solid\n      layer: 1\n      closed: true\n      points: [\n        [0, 0]\n        [192, 0]\n        [192, 32]\n        [0, 32]\n      ]\n    }\n    {\n      id: patrol\n      kind: waypoint\n      layer: 1\n      closed: false\n      points: [\n        [48, 64]\n        [144, 64]\n        [144, 112]\n      ]\n    }\n  ]\n  triggers: [\n    {\n      id: to-hall\n      layer: 1\n      area: [\n        [160, 96]\n        [192, 96]\n        [192, 128]\n        [160, 128]\n      ]\n      run: {inline: \"send(\\\"hall\\\", 32, 96, 1);\"}\n      activation: {onKey: false}\n    }\n  ]\n  placements: [\n    {\n      id: gatekeeper-1\n      actor: gatekeeper\n      at: [64, 96, 1]\n      whilePresent: {\n        inline:\n          '''\n          \"Halt! Who goes there?\" asked the gatekeeper.\n          mwin(\"Halt! Who goes there?\");\n          itemPath(\"source\", tkMV_WAYPOINT_LINK, \"patrol\", 0);\n          // backslash \\ and a quoted \"word\" and a delimiter-like \"\"\"triple\"\"\" plus |pipe|\n          // single"
+     }
+    },
+    "EDN": {
+     "label": "opus/edn",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 16271,
+     "lines": 416,
+     "maxLineLength": 389,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 1,
+     "decodeMs": 3,
+     "samples": {
+      "scenes/courtyard/scene": "{\n  :kind \"scene\"\n  :id \"courtyard\"\n  :size {\n    :width 48\n    :height 36\n    :layers 3\n  }\n  :tiles \"tiles\"\n  :background {\n    :colour [0 0 0]\n    :music \"media/audio/courtyard.ogg\"\n  }\n  :start [96 96 1]\n  :regions [\n    {\n      :id \"north-wall\"\n      :kind \"solid\"\n      :layer 1\n      :closed true\n      :points [\n        [0 0]\n        [192 0]\n        [192 32]\n        [0 32]\n      ]\n    }\n    {\n      :id \"patrol\"\n      :kind \"waypoint\"\n      :layer 1\n      :closed false\n      :points [\n        [48 64]\n        [144 64]\n        [144 112]\n      ]\n    }\n  ]\n  :triggers [\n    {\n      :id \"to-hall\"\n      :layer 1\n      :area [\n        [160 96]\n        [192 96]\n        [192 128]\n        [160 128]\n      ]\n      :run {\n        :inline \"send(\\\"hall\\\", 32, 96, 1);\"\n      }\n      :activation {\n        :onKey false\n      }\n    }\n  ]\n  :placements [\n    {\n      :id \"gatekeeper-1\"\n      :actor \"gatekeeper\"\n      :at [64 96 1]\n      :whilePresent {\n        :inline \"\\\"Halt! Who goes there?\\\" asked the gatekeeper.\\nmwin(\\\"Halt! Who goes there?\\\");\\nitemPath(\\\"source\\\", tkMV_WAYPOINT_LINK, \\\"patrol\\\", 0);\\n// backslash \\\\ and a quoted \\\"word\\\" and a delimiter-like \\\"\\\"\\\"triple\\\"\\\"\\\" plus |pipe|\\n"
+     }
+    },
+    "XML": {
+     "label": "opus/xml",
+     "documents": 7,
+     "roundtripped": 7,
+     "bytes": 106310,
+     "lines": 428,
+     "maxLineLength": 887,
+     "failures": [],
+     "mismatches": [],
+     "encodeMs": 1,
+     "decodeMs": 23,
+     "samples": {
+      "scenes/courtyard/scene": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<map xmlns=\"http://www.w3.org/2005/xpath-functions\">\n  <string key=\"kind\">scene</string>\n  <string key=\"id\">courtyard</string>\n  <map key=\"size\">\n    <number key=\"width\">48</number>\n    <number key=\"height\">36</number>\n    <number key=\"layers\">3</number>\n  </map>\n  <string key=\"tiles\">tiles</string>\n  <map key=\"background\">\n    <array key=\"colour\"><number>0</number><number>0</number><number>0</number></array>\n    <string key=\"music\">media/audio/courtyard.ogg</string>\n  </map>\n  <array key=\"start\"><number>96</number><number>96</number><number>1</number></array>\n  <array key=\"regions\">\n    <map>\n      <string key=\"id\">north-wall</string>\n      <string key=\"kind\">solid</string>\n      <number key=\"layer\">1</number>\n      <boolean key=\"closed\">true</boolean>\n      <array key=\"points\">\n        <array><number>0</number><number>0</number></array>\n        <array><number>192</number><number>0</number></array>\n        <array><number>192</number><number>32</number></array>\n        <array><number>0</number><number>32</number></array>\n      </array>\n    </map>\n    <map>\n      <string key=\"id\">patrol</string>\n      <string key=\"kind\">waypoint</string>\n      "
+     }
+    }
+   }
+  }
+ },
+ "shared": {
+  "sizes": [
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "sceneBytes": 2412,
+    "sceneLines": 145,
+    "tilesBytes": 70211,
+    "tilesLines": 5450,
+    "tilesMaxLineLength": 29
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "sceneBytes": 2412,
+    "sceneLines": 145,
+    "tilesBytes": 70211,
+    "tilesLines": 5450,
+    "tilesMaxLineLength": 29
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "sceneBytes": 1946,
+    "sceneLines": 92,
+    "tilesBytes": 17291,
+    "tilesLines": 158,
+    "tilesMaxLineLength": 153
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "sceneBytes": 1657,
+    "sceneLines": 95,
+    "tilesBytes": 62585,
+    "tilesLines": 5212,
+    "tilesMaxLineLength": 23
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "sceneBytes": 1476,
+    "sceneLines": 69,
+    "tilesBytes": 16901,
+    "tilesLines": 136,
+    "tilesMaxLineLength": 152
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "sceneBytes": 1705,
+    "sceneLines": 91,
+    "tilesBytes": 12003,
+    "tilesLines": 157,
+    "tilesMaxLineLength": 105
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "sceneBytes": 1466,
+    "sceneLines": 54,
+    "tilesBytes": 11852,
+    "tilesLines": 132,
+    "tilesMaxLineLength": 105
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "sceneBytes": 1473,
+    "sceneLines": 68,
+    "tilesBytes": 16401,
+    "tilesLines": 41,
+    "tilesMaxLineLength": 5337
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "sceneBytes": 1448,
+    "sceneLines": 56,
+    "tilesBytes": 16401,
+    "tilesLines": 41,
+    "tilesMaxLineLength": 5337
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "sceneBytes": 1473,
+    "sceneLines": 70,
+    "tilesBytes": 16620,
+    "tilesLines": 152,
+    "tilesMaxLineLength": 149
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "sceneBytes": 2330,
+    "sceneLines": 145,
+    "tilesBytes": 70279,
+    "tilesLines": 5450,
+    "tilesMaxLineLength": 28
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "sceneBytes": 2330,
+    "sceneLines": 145,
+    "tilesBytes": 70279,
+    "tilesLines": 5450,
+    "tilesMaxLineLength": 28
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "sceneBytes": 2293,
+    "sceneLines": 165,
+    "tilesBytes": 64959,
+    "tilesLines": 5456,
+    "tilesMaxLineLength": 25
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "sceneBytes": 1723,
+    "sceneLines": 84,
+    "tilesBytes": 64849,
+    "tilesLines": 5432,
+    "tilesMaxLineLength": 43
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "sceneBytes": 1827,
+    "sceneLines": 92,
+    "tilesBytes": 12060,
+    "tilesLines": 158,
+    "tilesMaxLineLength": 105
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "sceneBytes": 1777,
+    "sceneLines": 92,
+    "tilesBytes": 12033,
+    "tilesLines": 158,
+    "tilesMaxLineLength": 105
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "sceneBytes": 4991,
+    "sceneLines": 150,
+    "tilesBytes": 223161,
+    "tilesLines": 5450,
+    "tilesMaxLineLength": 51
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "sceneBytes": 3604,
+    "sceneLines": 98,
+    "tilesBytes": 97195,
+    "tilesLines": 159,
+    "tilesMaxLineLength": 887
+   }
+  ],
+  "noop": [
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "bytesEqual": false,
+    "diff": {
+     "addedLines": 1,
+     "removedLines": 1,
+     "changedLines": 2,
+     "diffBytes": 26,
+     "identical": false
+    }
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "bytesEqual": true,
+    "diff": {
+     "addedLines": 0,
+     "removedLines": 0,
+     "changedLines": 0,
+     "diffBytes": 1,
+     "identical": true
+    }
+   }
+  ],
+  "propertyEdit": [
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 123,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 123,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "mode": "preserve",
+    "note": "adapter edit path (JSON.stringify(v, null, 2) (built-in))",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 123,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "mode": "preserve",
+    "note": "adapter edit path (project-owned layout printer (scalar arrays inline))",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "mode": "preserve",
+    "note": "adapter edit path",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "mode": "preserve",
+    "note": "adapter edit path (library (yaml Document, flow style for scalar arrays))",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 115,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "mode": "preserve",
+    "note": "adapter edit path",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 115,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 133,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "mode": "preserve",
+    "note": "adapter edit path (library JiK stringify (indentation 2))",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 133,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 124,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 218,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "mode": "preserve",
+    "note": "adapter edit path (library toml-patch stringify (multilineArray=false); null mapped to { \"$null\" = true })",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 218,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 218,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "mode": "preserve",
+    "note": "adapter edit path (toml-patch stringify + project-owned reflow of arrays-of-arrays one row per line)",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 218,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 121,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 115,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "mode": "preserve",
+    "note": "adapter edit path",
+    "addedLines": 2,
+    "removedLines": 2,
+    "changedLines": 4,
+    "diffBytes": 141,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 141,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "mode": "preserve",
+    "note": "adapter edit path (library Hjson.stringify (condense 80, braces same line))",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 141,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 119,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 117,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 233,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "mode": "reemit",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 228,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "mode": "preserve",
+    "note": "adapter edit path (project-owned writer of the W3C fn:json-to-xml vocabulary)",
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 228,
+    "identical": false,
+    "semanticallyCorrect": true
+   }
+  ],
+  "tileEdit": [
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 48,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 48,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 328,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 54,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 334,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 232,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 232,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 10706,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 10706,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 329,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 48,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 48,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 46,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 46,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 232,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 232,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 106,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "tileCells": 5184,
+    "addedLines": 1,
+    "removedLines": 1,
+    "changedLines": 2,
+    "diffBytes": 1796,
+    "identical": false,
+    "semanticallyCorrect": true
+   }
+  ],
+  "insertPlacement": [
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "addedLines": 12,
+    "removedLines": 0,
+    "changedLines": 12,
+    "diffBytes": 215,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "addedLines": 12,
+    "removedLines": 0,
+    "changedLines": 12,
+    "diffBytes": 215,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "addedLines": 8,
+    "removedLines": 0,
+    "changedLines": 8,
+    "diffBytes": 177,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "addedLines": 8,
+    "removedLines": 0,
+    "changedLines": 8,
+    "diffBytes": 159,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "addedLines": 5,
+    "removedLines": 0,
+    "changedLines": 5,
+    "diffBytes": 136,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "addedLines": 8,
+    "removedLines": 0,
+    "changedLines": 8,
+    "diffBytes": 153,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "addedLines": 4,
+    "removedLines": 0,
+    "changedLines": 4,
+    "diffBytes": 119,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "addedLines": 8,
+    "removedLines": 0,
+    "changedLines": 8,
+    "diffBytes": 175,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "addedLines": 6,
+    "removedLines": 0,
+    "changedLines": 6,
+    "diffBytes": 169,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "addedLines": 6,
+    "removedLines": 0,
+    "changedLines": 6,
+    "diffBytes": 169,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "addedLines": 12,
+    "removedLines": 0,
+    "changedLines": 12,
+    "diffBytes": 208,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "addedLines": 12,
+    "removedLines": 0,
+    "changedLines": 12,
+    "diffBytes": 208,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "addedLines": 14,
+    "removedLines": 0,
+    "changedLines": 14,
+    "diffBytes": 209,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "addedLines": 6,
+    "removedLines": 0,
+    "changedLines": 6,
+    "diffBytes": 141,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "addedLines": 8,
+    "removedLines": 0,
+    "changedLines": 8,
+    "diffBytes": 165,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "addedLines": 8,
+    "removedLines": 0,
+    "changedLines": 8,
+    "diffBytes": 160,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "addedLines": 12,
+    "removedLines": 0,
+    "changedLines": 12,
+    "diffBytes": 494,
+    "identical": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "addedLines": 8,
+    "removedLines": 0,
+    "changedLines": 8,
+    "diffBytes": 370,
+    "identical": false,
+    "semanticallyCorrect": true
+   }
+  ],
+  "merges": [
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "case": "independent-raw-edits",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "case": "same-value-conflict",
+    "exit": 1,
+    "textualConflict": true,
+    "silentlyLostEdit": false
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "case": "adjacent-placements",
+    "exit": 0,
+    "textualConflict": false,
+    "falseClean": false,
+    "semanticallyCorrect": true
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "case": "same-id-additions",
+    "exit": 0,
+    "textualConflict": false,
+    "duplicateIdentityVisibleInText": true,
+    "duplicateIdentityVisibleToSemantics": true
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "case": "adjacent-tile-cells",
+    "exit": 1,
+    "textualConflict": true,
+    "falseClean": false,
+    "semanticallyCorrect": false
+   }
+  ],
+  "scriptRoundTrip": [
+   {
+    "notation": "JSON",
+    "author": "astra",
+    "label": "astra/JSON",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "JSON",
+    "author": "opus",
+    "label": "opus/json",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "JSON (layout)",
+    "author": "opus",
+    "label": "opus/json-layout",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "YAML",
+    "author": "astra",
+    "label": "astra/YAML",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "YAML",
+    "author": "opus",
+    "label": "opus/yaml",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "KDL",
+    "author": "astra",
+    "label": "astra/KDL",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "KDL",
+    "author": "opus",
+    "label": "opus/kdl",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "TOML",
+    "author": "astra",
+    "label": "astra/TOML",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "TOML",
+    "author": "opus",
+    "label": "opus/toml",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "TOML (rows)",
+    "author": "opus",
+    "label": "opus/toml-rows",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "JSON5",
+    "author": "astra",
+    "label": "astra/JSON5",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "JSON5",
+    "author": "opus",
+    "label": "opus/json5",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "Hjson",
+    "author": "astra",
+    "label": "astra/Hjson",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "Hjson",
+    "author": "opus",
+    "label": "opus/hjson",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "EDN",
+    "author": "astra",
+    "label": "astra/EDN",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "EDN",
+    "author": "opus",
+    "label": "opus/edn",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "XML",
+    "author": "astra",
+    "label": "astra/XML",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   },
+   {
+    "notation": "XML",
+    "author": "opus",
+    "label": "opus/xml",
+    "decoded": true,
+    "contentEqualAfterNewlineNormalisation": true,
+    "bytesUnchanged": true,
+    "sha256": "fd11233d5d30448c141c408141a16ff45253cd0cfb3e2e9c470d14362be0bbab"
+   }
+  ],
+  "layoutProbe": [
+   {
+    "layout": "row-per-line",
+    "tilesBytes": 16559,
+    "tilesLines": 72,
+    "roundtrips": true,
+    "editCorrect": true,
+    "oneCellEdit": {
+     "addedLines": 1,
+     "removedLines": 1,
+     "changedLines": 2,
+     "diffBytes": 324,
+     "identical": false
+    },
+    "sameRowMergeConflicted": true,
+    "sameRowMergeSemanticallyCorrect": false
+   },
+   {
+    "layout": "cell-per-line",
+    "tilesBytes": 30671,
+    "tilesLines": 1836,
+    "roundtrips": true,
+    "editCorrect": true,
+    "oneCellEdit": {
+     "addedLines": 1,
+     "removedLines": 1,
+     "changedLines": 2,
+     "diffBytes": 44,
+     "identical": false
+    },
+    "sameRowMergeConflicted": false,
+    "sameRowMergeSemanticallyCorrect": true
+   }
+  ]
+ },
+ "loadErrors": {},
+ "crossModel": [
+  {
+   "notation": "JSON",
+   "astra": {
+    "label": "astra/JSON",
+    "bytes": 75727,
+    "lines": 5810,
+    "maxLineLength": 391,
+    "roundtripped": 7,
+    "sceneBytes": 2412,
+    "tilesBytes": 70211
+   },
+   "opus": {
+    "label": "opus/json",
+    "bytes": 75727,
+    "lines": 5810,
+    "maxLineLength": 391,
+    "roundtripped": 7,
+    "sceneBytes": 2412,
+    "tilesBytes": 70211
+   },
+   "sameValueBothRoundtrip": true
+  },
+  {
+   "notation": "YAML",
+   "astra": {
+    "label": "astra/YAML",
+    "bytes": 66267,
+    "lines": 5446,
+    "maxLineLength": 88,
+    "roundtripped": 7,
+    "sceneBytes": 1657,
+    "tilesBytes": 62585
+   },
+   "opus": {
+    "label": "opus/yaml",
+    "bytes": 20249,
+    "lines": 318,
+    "maxLineLength": 152,
+    "roundtripped": 7,
+    "sceneBytes": 1476,
+    "tilesBytes": 16901
+   },
+   "sameValueBothRoundtrip": true
+  },
+  {
+   "notation": "KDL",
+   "astra": {
+    "label": "astra/KDL",
+    "bytes": 16030,
+    "lines": 408,
+    "maxLineLength": 388,
+    "roundtripped": 7,
+    "sceneBytes": 1705,
+    "tilesBytes": 12003
+   },
+   "opus": {
+    "label": "opus/kdl",
+    "bytes": 15185,
+    "lines": 273,
+    "maxLineLength": 399,
+    "roundtripped": 7,
+    "sceneBytes": 1466,
+    "tilesBytes": 11852
+   },
+   "sameValueBothRoundtrip": true
+  },
+  {
+   "notation": "TOML",
+   "astra": {
+    "label": "astra/TOML",
+    "bytes": 19852,
+    "lines": 234,
+    "maxLineLength": 5337,
+    "roundtripped": 7,
+    "sceneBytes": 1473,
+    "tilesBytes": 16401
+   },
+   "opus": {
+    "label": "opus/toml",
+    "bytes": 19783,
+    "lines": 185,
+    "maxLineLength": 5337,
+    "roundtripped": 7,
+    "sceneBytes": 1448,
+    "tilesBytes": 16401
+   },
+   "sameValueBothRoundtrip": true
+  },
+  {
+   "notation": "JSON5",
+   "astra": {
+    "label": "astra/JSON5",
+    "bytes": 75585,
+    "lines": 5810,
+    "maxLineLength": 372,
+    "roundtripped": 7,
+    "sceneBytes": 2330,
+    "tilesBytes": 70279
+   },
+   "opus": {
+    "label": "opus/json5",
+    "bytes": 75585,
+    "lines": 5810,
+    "maxLineLength": 372,
+    "roundtripped": 7,
+    "sceneBytes": 2330,
+    "tilesBytes": 70279
+   },
+   "sameValueBothRoundtrip": true
+  },
+  {
+   "notation": "Hjson",
+   "astra": {
+    "label": "astra/Hjson",
+    "bytes": 70139,
+    "lines": 5872,
+    "maxLineLength": 389,
+    "roundtripped": 7,
+    "sceneBytes": 2293,
+    "tilesBytes": 64959
+   },
+   "opus": {
+    "label": "opus/hjson",
+    "bytes": 68692,
+    "lines": 5632,
+    "maxLineLength": 90,
+    "roundtripped": 7,
+    "sceneBytes": 1723,
+    "tilesBytes": 64849
+   },
+   "sameValueBothRoundtrip": true
+  },
+  {
+   "notation": "EDN",
+   "astra": {
+    "label": "astra/EDN",
+    "bytes": 16439,
+    "lines": 416,
+    "maxLineLength": 390,
+    "roundtripped": 7,
+    "sceneBytes": 1827,
+    "tilesBytes": 12060
+   },
+   "opus": {
+    "label": "opus/edn",
+    "bytes": 16271,
+    "lines": 416,
+    "maxLineLength": 389,
+    "roundtripped": 7,
+    "sceneBytes": 1777,
+    "tilesBytes": 12033
+   },
+   "sameValueBothRoundtrip": true
+  },
+  {
+   "notation": "XML",
+   "astra": {
+    "label": "astra/XML",
+    "bytes": 234923,
+    "lines": 5815,
+    "maxLineLength": 91,
+    "roundtripped": 7,
+    "sceneBytes": 4991,
+    "tilesBytes": 223161
+   },
+   "opus": {
+    "label": "opus/xml",
+    "bytes": 106310,
+    "lines": 428,
+    "maxLineLength": 887,
+    "roundtripped": 7,
+    "sceneBytes": 3604,
+    "tilesBytes": 97195
+   },
+   "sameValueBothRoundtrip": true
+  }
+ ]
+}

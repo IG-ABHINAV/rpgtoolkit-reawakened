@@ -1,0 +1,7 @@
+kind: tile-layers
+scene: courtyard
+size: { width: 3, height: 1 }
+layers:
+  - layer: 1
+    rows:
+      - [1, none, 3]

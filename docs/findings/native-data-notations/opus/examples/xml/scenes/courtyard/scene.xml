@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">scene</string>
+  <string key="id">courtyard</string>
+  <map key="size">
+    <number key="width">6</number>
+    <number key="height">4</number>
+    <number key="layers">1</number>
+  </map>
+  <string key="tiles">tiles</string>
+  <map key="background">
+    <array key="colour"><number>0</number><number>0</number><number>0</number></array>
+    <string key="music">media/audio/courtyard.ogg</string>
+  </map>
+  <array key="start"><number>96</number><number>96</number><number>1</number></array>
+  <map key="battles">
+    <boolean key="allowed">false</boolean>
+  </map>
+  <array key="regions">
+    <map>
+      <string key="id">north-wall</string>
+      <string key="kind">solid</string>
+      <number key="layer">1</number>
+      <boolean key="closed">true</boolean>
+      <array key="points">
+        <array><number>0</number><number>0</number></array>
+        <array><number>192</number><number>0</number></array>
+        <array><number>192</number><number>32</number></array>
+        <array><number>0</number><number>32</number></array>
+      </array>
+    </map>
+    <map>
+      <string key="id">patrol</string>
+      <string key="kind">waypoint</string>
+      <number key="layer">1</number>
+      <boolean key="closed">false</boolean>
+      <array key="points">
+        <array><number>48</number><number>64</number></array>
+        <array><number>144</number><number>64</number></array>
+        <array><number>144</number><number>112</number></array>
+      </array>
+    </map>
+  </array>
+  <array key="triggers">
+    <map>
+      <string key="id">to-hall</string>
+      <number key="layer">1</number>
+      <array key="area">
+        <array><number>160</number><number>96</number></array>
+        <array><number>192</number><number>96</number></array>
+        <array><number>192</number><number>128</number></array>
+        <array><number>160</number><number>128</number></array>
+      </array>
+      <map key="run">
+        <string key="inline">send("hall", 32, 96, 1);</string>
+      </map>
+      <map key="activation">
+        <boolean key="onKey">false</boolean>
+      </map>
+    </map>
+  </array>
+  <array key="placements">
+    <map>
+      <string key="id">gatekeeper-1</string>
+      <string key="actor">gatekeeper</string>
+      <array key="at"><number>64</number><number>96</number><number>1</number></array>
+      <map key="whilePresent">
+        <string key="inline">itemPath("source", tkMV_WAYPOINT_LINK, "patrol", 0);
+mwin("Halt! Who goes there?");</string>
+      </map>
+    </map>
+    <map>
+      <string key="id">gatekeeper-2</string>
+      <string key="actor">gatekeeper</string>
+      <array key="at"><number>128</number><number>96</number><number>1</number></array>
+      <map key="onActivate">
+        <string key="program">scripts/gatekeeper-relief.prg</string>
+      </map>
+    </map>
+  </array>
+  <map key="extensions">
+    <map key="com.example.weather">
+      <number key="version">1</number>
+      <string key="precipitation">rain</string>
+      <number key="intensity">0.25</number>
+      <array key="windFrom"><number>-1</number><number>0</number></array>
+    </map>
+  </map>
+</map>

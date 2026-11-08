@@ -1,0 +1,2 @@
+docs/findings/native-data-notations/yaml-profile/project/actors/gatekeeper.yaml:13:5  info  [schema] plugin "org.example.unknown": no schema installed; content preserved, not validated, not executable
+3 file(s): 0 error(s), 0 warning(s), 1 note(s)

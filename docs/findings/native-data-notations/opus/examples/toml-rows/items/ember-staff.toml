@@ -1,0 +1,16 @@
+kind = "item"
+id = "ember-staff"
+name = "Ember Staff"
+description = "Warm to the touch. Teaches Spark while held ready."
+
+[value]
+buy = 400
+sell = 200
+
+[equip]
+slots = [ "right-hand" ]
+bonus = { hp = 0, dp = 0, fp = 6, smp = 4 }
+
+[[grants]]
+skill = "spark"
+while = "equipped"

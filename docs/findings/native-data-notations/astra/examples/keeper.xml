@@ -1,0 +1,187 @@
+<!-- creator note -->
+<v key="" type="object">
+  <v key="evidence" type="string">Authored illustration, not a recovered game or adopted native schema</v>
+  <v key="actor" type="object">
+    <v key="id" type="string">actor:keeper</v>
+    <v key="kind" type="string">actor</v>
+    <v key="name" type="string">Keeper</v>
+    <v key="presentation" type="string">presentation:keeper</v>
+    <v key="movement" type="object">
+      <v key="speedSeconds" type="number">0.15</v>
+    </v>
+    <v key="skillPerformances" type="object">
+      <v key="skill:light" type="object">
+        <v key="clip" type="string">clip:gesture</v>
+      </v>
+    </v>
+    <v key="extensions" type="object">
+      <v key="@example/patrol" type="object">
+        <v key="schemaVersion" type="number">1</v>
+        <v key="radius" type="number">6</v>
+        <v key="notes" type="string">Actor-owned plugin data; core owns placement coordinates</v>
+      </v>
+      <v key="@missing/story" type="object">
+        <v key="schemaVersion" type="number">7</v>
+        <v key="untouched" type="array">
+          <v key="0" type="string">future</v>
+          <v key="1" type="null"></v>
+          <v key="2" type="object">
+            <v key="flag" type="boolean">true</v>
+          </v>
+        </v>
+      </v>
+    </v>
+  </v>
+  <v key="scene" type="object">
+    <v key="id" type="string">scene:plaza</v>
+    <v key="width" type="number">4</v>
+    <v key="height" type="number">3</v>
+    <v key="layers" type="number">1</v>
+    <v key="placements" type="array">
+      <v key="0" type="object">
+        <v key="id" type="string">placement:east</v>
+        <v key="actor" type="string">actor:keeper</v>
+        <v key="x" type="number">96</v>
+        <v key="y" type="number">32</v>
+      </v>
+      <v key="1" type="object">
+        <v key="id" type="string">placement:west</v>
+        <v key="actor" type="string">actor:keeper</v>
+        <v key="x" type="number">32</v>
+        <v key="y" type="number">32</v>
+      </v>
+      <v key="2" type="object">
+        <v key="id" type="string">placement:gate</v>
+        <v key="actor" type="string">actor:keeper</v>
+        <v key="x" type="number">64</v>
+        <v key="y" type="number">64</v>
+      </v>
+    </v>
+    <v key="geometry" type="array">
+      <v key="0" type="object">
+        <v key="id" type="string">region:gate</v>
+        <v key="closed" type="boolean">true</v>
+        <v key="points" type="array">
+          <v key="0" type="array">
+            <v key="0" type="number">0</v>
+            <v key="1" type="number">0</v>
+          </v>
+          <v key="1" type="array">
+            <v key="0" type="number">32</v>
+            <v key="1" type="number">0</v>
+          </v>
+          <v key="2" type="array">
+            <v key="0" type="number">32</v>
+            <v key="1" type="number">32</v>
+          </v>
+          <v key="3" type="array">
+            <v key="0" type="number">0</v>
+            <v key="1" type="number">32</v>
+          </v>
+        </v>
+      </v>
+    </v>
+    <v key="tileLut" type="array">
+      <v key="0" type="string"></v>
+      <v key="1" type="string">stone.tst1</v>
+    </v>
+    <v key="tileRows" type="array">
+      <v key="0" type="object">
+        <v key="id" type="string">layer:1/row:0</v>
+        <v key="cells" type="array">
+          <v key="0" type="number">1</v>
+          <v key="1" type="number">1</v>
+          <v key="2" type="number">1</v>
+          <v key="3" type="number">1</v>
+        </v>
+      </v>
+      <v key="1" type="object">
+        <v key="id" type="string">layer:1/row:1</v>
+        <v key="cells" type="array">
+          <v key="0" type="number">1</v>
+          <v key="1" type="number">0</v>
+          <v key="2" type="number">0</v>
+          <v key="3" type="number">1</v>
+        </v>
+      </v>
+      <v key="2" type="object">
+        <v key="id" type="string">layer:1/row:2</v>
+        <v key="cells" type="array">
+          <v key="0" type="number">1</v>
+          <v key="1" type="number">1</v>
+          <v key="2" type="number">1</v>
+          <v key="3" type="number">1</v>
+        </v>
+      </v>
+    </v>
+    <v key="triggers" type="array">
+      <v key="0" type="object">
+        <v key="id" type="string">trigger:welcome</v>
+        <v key="binding" type="object">
+          <v key="mode" type="string">inline</v>
+          <v key="bindingId" type="string">hook:welcome</v>
+          <v key="context" type="string">placement-interaction</v>
+          <v key="program" type="null"></v>
+          <v key="source" type="string">mwin("Welcome, traveller");
+// path: C:\games\demo; café
+</v>
+        </v>
+      </v>
+      <v key="1" type="object">
+        <v key="id" type="string">trigger:leave</v>
+        <v key="binding" type="object">
+          <v key="mode" type="string">file</v>
+          <v key="bindingId" type="string">hook:leave</v>
+          <v key="context" type="string">placement-interaction</v>
+          <v key="program" type="string">program:leave.prg</v>
+          <v key="source" type="null"></v>
+        </v>
+      </v>
+    </v>
+  </v>
+  <v key="presentation" type="object">
+    <v key="id" type="string">presentation:keeper</v>
+    <v key="idle" type="string">clip:gesture</v>
+    <v key="pixelPayload" type="string">Graphics/keeper.png</v>
+  </v>
+  <v key="clip" type="object">
+    <v key="id" type="string">clip:gesture</v>
+    <v key="delaySeconds" type="number">0.15</v>
+    <v key="frames" type="array">
+      <v key="0" type="object">
+        <v key="id" type="string">frame:a</v>
+        <v key="graphic" type="string">keeper.tst1</v>
+        <v key="sound" type="null"></v>
+      </v>
+      <v key="1" type="object">
+        <v key="id" type="string">frame:b</v>
+        <v key="graphic" type="string">keeper.tst2</v>
+        <v key="sound" type="null"></v>
+      </v>
+      <v key="2" type="object">
+        <v key="id" type="string">frame:c</v>
+        <v key="graphic" type="string">keeper.tst3</v>
+        <v key="sound" type="string">wave.wav</v>
+      </v>
+    </v>
+  </v>
+  <v key="item" type="object">
+    <v key="id" type="string">inventory:lantern</v>
+    <v key="kind" type="string">inventory</v>
+    <v key="name" type="string">Lantern</v>
+    <v key="grants" type="array">
+      <v key="0" type="object">
+        <v key="skill" type="string">skill:light</v>
+        <v key="while" type="string">equipped</v>
+      </v>
+    </v>
+  </v>
+  <v key="skill" type="object">
+    <v key="id" type="string">skill:light</v>
+    <v key="name" type="string">Light</v>
+    <v key="cost" type="number">3</v>
+  </v>
+  <v key="actorCatalogue" type="array">
+    <v key="0" type="string">actor:keeper</v>
+  </v>
+</v>

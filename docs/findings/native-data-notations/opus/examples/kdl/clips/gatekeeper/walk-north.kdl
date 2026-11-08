@@ -1,0 +1,8 @@
+- kind=clip id="gatekeeper/walk-north" secondsPerFrame=0.15 {
+  size 32 64
+  frames {
+    - id=stand {
+      tile tileset=people tile=20
+    }
+  }
+}

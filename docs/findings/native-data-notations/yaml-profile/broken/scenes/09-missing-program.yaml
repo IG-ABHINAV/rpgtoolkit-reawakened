@@ -1,0 +1,9 @@
+kind: scene
+id: 09-missing-program
+size: { width: 8, height: 4 }
+placements:
+  - id: g1
+    actor: gatekeeper
+    at: [64, 96, 1]
+    whilePresent:
+      program: scripts/nope.prg

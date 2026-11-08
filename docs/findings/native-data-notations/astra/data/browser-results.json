@@ -1,0 +1,174 @@
+{
+  "bundle": {
+    "YAML": {
+      "rawBytes": 103914,
+      "gzipBytes": 32125
+    },
+    "KDL": {
+      "rawBytes": 36362,
+      "gzipBytes": 10631
+    },
+    "TOML": {
+      "rawBytes": 16864,
+      "gzipBytes": 6624
+    },
+    "JSON5": {
+      "rawBytes": 32424,
+      "gzipBytes": 9951
+    },
+    "Hjson": {
+      "rawBytes": 18404,
+      "gzipBytes": 7599
+    },
+    "EDN": {
+      "rawBytes": 8945,
+      "gzipBytes": 2707
+    },
+    "XML": {
+      "rawBytes": 78828,
+      "gzipBytes": 25146
+    },
+    "SDLang": {
+      "rawBytes": 29210,
+      "gzipBytes": 6900
+    },
+    "Ajv2020": {
+      "rawBytes": 134717,
+      "gzipBytes": 40639
+    }
+  },
+  "browser": "157.0.4341.42",
+  "probes": {
+    "JSON": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 4.9000000059604645
+    },
+    "YAML": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 94.40000000596046
+    },
+    "KDL": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 24.400000005960464
+    },
+    "TOML": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 9.899999991059303
+    },
+    "JSON5": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 27.400000005960464
+    },
+    "Hjson": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 13.099999994039536
+    },
+    "EDN": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 18.200000002980232
+    },
+    "XML": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 93.29999999701977
+    },
+    "SDLang": {
+      "roundtrip": true,
+      "noOpSemantic": true,
+      "edited": true,
+      "valid": true,
+      "invalidRejected": true,
+      "elapsedMs": 41.6000000089407
+    }
+  },
+  "postReview": {
+    "JSON": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    },
+    "YAML": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    },
+    "KDL": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    },
+    "TOML": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    },
+    "JSON5": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    },
+    "Hjson": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    },
+    "EDN": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    },
+    "XML": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true,
+      "attributeReferencesMatchDOM": true,
+      "controlEncodingRejected": true,
+      "booleanTypoRejected": true
+    },
+    "SDLang": {
+      "duplicatePlacementsRejected": true,
+      "duplicateFramesRejected": true,
+      "stalePerformanceRejected": true,
+      "fullDocumentCorruptionRejected": true
+    }
+  }
+}

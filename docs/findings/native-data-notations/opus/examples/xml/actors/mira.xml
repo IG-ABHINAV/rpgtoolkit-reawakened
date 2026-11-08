@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">actor</string>
+  <string key="id">mira</string>
+  <string key="name">Mira</string>
+  <map key="presence">
+    <map key="clips">
+      <map key="walk">
+        <string key="south">mira/walk-south</string>
+      </map>
+    </map>
+  </map>
+  <map key="character">
+    <map key="initialStats">
+      <number key="hp">120</number>
+      <number key="maxHp">120</number>
+      <number key="dp">8</number>
+      <number key="fp">30</number>
+      <number key="smp">25</number>
+      <number key="maxSmp">25</number>
+      <number key="level">1</number>
+      <number key="experience">0</number>
+    </map>
+    <map key="skills">
+      <string key="menuLabel">Arts</string>
+      <boolean key="enabled">true</boolean>
+      <array key="learnable">
+        <map>
+          <string key="skill">spark</string>
+          <number key="slot">1</number>
+          <map key="requires">
+            <number key="level">2</number>
+          </map>
+          <map key="perform">
+            <string key="clip">mira/cast-spark</string>
+            <string key="stance">special</string>
+          </map>
+        </map>
+      </array>
+    </map>
+  </map>
+</map>

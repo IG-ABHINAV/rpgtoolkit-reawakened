@@ -1,0 +1,33 @@
+{
+  :kind "clip"
+  :id "gatekeeper/walk-south"
+  :size [32 64]
+  :secondsPerFrame 0.15
+  :frames [
+    {
+      :id "step-left"
+      :tile {
+        :tileset "people"
+        :tile 12
+      }
+      :transparent [255 0 255]
+    }
+    {
+      :id "stand"
+      :tile {
+        :tileset "people"
+        :tile 13
+      }
+      :transparent [255 0 255]
+    }
+    {
+      :id "step-right"
+      :tile {
+        :tileset "people"
+        :tile 14
+      }
+      :transparent [255 0 255]
+      :sound "media/audio/step.wav"
+    }
+  ]
+}
