@@ -335,6 +335,29 @@ State these as limits, not caveats:
    the investigations; what keeps them stable across importer runs is a design
    question for the format, not something this research settles.
 
+## Owner direction so far (2026-11-08)
+
+Recorded from the owner's remarks during review. **This is a lean, not a decision**;
+no notation, schema or format is approved, and the hands-on walkthrough has not yet
+been done.
+
+- **Leaning YAML.** The owner uses YAML at work and for Home Assistant, has seen it win
+  out repeatedly where people hand-author content, and reports that VS Code and other
+  editors support it fully, including schema validation and help finding indentation
+  errors. This is the owner's experience, not an agent measurement and not a
+  controlled usability result.
+- **Nullable values are wanted in positional arrays** (for example legacy tile slots).
+  That removes TOML, which has no null: the only workaround found was a per-slot marker
+  object, or a sentinel value the owner would rather avoid.
+- **Hjson is the alternative.** It has native null and forgiving script strings, but its
+  library exposes no error locations, rewrites layout on edit, and has not had a release
+  since November 2020.
+- **Script handling under YAML.** The hazards found (a dedented line containing `: `
+  silently ending the script; `|` or `>` replacing `|-`) are indentation mistakes that
+  editors can surface. Normalising scripts to `|-` and having the editor write scripts
+  are mitigations to adopt. A strict schema rejecting stray keys under `run`, and the
+  editor behaviour the owner describes, were **not** exercised by this research.
+
 ## Decisions this research hands back to Jensen
 
 1. **Layout contract.** Accept that a project-owned canonical writer with an explicit
