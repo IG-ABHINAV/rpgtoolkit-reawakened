@@ -15,6 +15,8 @@ This is a paper proposal, not an accepted architecture, implementation audit, us
 
 The target is a desktop-sized, multi-panel authoring experience shared across the Electron desktop host accepted by ADR 0013, the intended browser host and a VS Code extension. Monaco and Dock Spawn remain candidates for this proposal, not newly selected decisions. G2 requires shared `editor-ui` to access host capabilities through platform services, not host imports. The visual reference is [DESIGN.md](DESIGN.md); spacing, panel treatment and keyboard focus refer respectively to `{spacing.unit}`, `{components.panel}` and `{components.focusRing}`. The two spines take precedence over conceptual [wireframes](wireframes.html) if they conflict. All behavior below is proposed, including labels and panel arrangements.
 
+**Owner follow-up:** [Connected authoring and small RPGCode tests](connected-authoring-and-tests.md) extends this spine with accepted direction for a shared context-sensitive tileset browser and repeatable unit/component/integration/gameplay testing. It governs those additions over the earlier schematic wireframes; exact API, fixture representation and interaction details remain proposals. The [planning handoff](editor-epic-handoff.md) records the current CodeMirror baseline; considering Monaco is not approval to replace it.
+
 ## Information Architecture
 
 | Destination / entry | Main work and return |

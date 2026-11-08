@@ -13,6 +13,8 @@ updated: 2026-11-08
 3. Read [DESIGN.md](DESIGN.md) for the shared visual/layout grammar. Neutral wireframe styling is not approved branding.
 4. Use [scenario coverage](flow-coverage.md) to trace every SC-01–SC-54 scenario to an entry, concrete outcome and F-01–F-13 flow.
 5. Read [architecture.md](architecture.md) for host responsibilities, document/undo/save lifecycle, schema-driven settings, provider limits and prototype evidence to collect.
+6. Read the [owner-approved connected-authoring and testing direction](connected-authoring-and-tests.md): shared tileset-browser actions, contextual runs, RPGCode unit/integration tests, and tiny component fixtures with player action lists.
+7. Use the [current editor-epic handoff](editor-epic-handoff.md) to begin foundation inception. It distinguishes existing scope from new planning work and flags the existing CodeMirror decision before considering Monaco.
 
 ## Core proposal
 
