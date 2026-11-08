@@ -26,7 +26,8 @@ Other report corrections:
 - **Merge counts (F2):** 603 real merges. Of the textually clean ones, 260 are semantically correct and 53 are semantically wrong (duplicate IDs), and the checker rejects all 53. No wrong clean merge was accepted by the checker. Totals are in [merge-matrix.md](results/merge-matrix.md), which now has a legend.
 - **Broken-reference counts** after the #1786 reference coverage: Crystal 2,075, Chimeran 37, Caoquest 15, demo 0 ([mapping.md](mapping.md)).
 - **Reproduction:** [`reproduce.sh`](../../../../tools/research/native-data-notations/opus/reproduce.sh) lists every command, download URL, pin and esbuild shim alias, with no ellipses.
-  - Ran end to end from the script: `pipeline`, `browser` (both bundles, the Node run, and the CDP-driven Chrome run) and `checks`.
+  - **The script has not been run end to end.** An attempt was stopped during the merge step, before its `browser` and `checks` steps ran.
+  - Each command it wraps was run directly instead: the full pipeline, [`correction-checks.mjs`](../../../../tools/research/native-data-notations/opus/correction-checks.mjs) (17 of 17), and the Chrome 150 parity run through the puppeteer-core runner.
   - The `setup` step was **not** run from a clean install; it reproduces commands I ran individually in the first pass.
   - The plain-CLI Chrome `--dump-dom` method hung and is excluded from the tested route.
   - A hand-written CDP client (WebSocket, then pipe) got no answer from `Page.navigate` in this environment, so the runner uses puppeteer-core. The likely cause, not re-tested: without `--use-mock-keychain`, Chrome blocks on the macOS login-Keychain prompt, and puppeteer passes that flag by default.
