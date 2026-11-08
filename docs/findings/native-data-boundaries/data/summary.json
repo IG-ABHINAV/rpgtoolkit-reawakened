@@ -1,0 +1,3335 @@
+{
+  "schema": 1,
+  "method": "read-only static metadata census; not gameplay or a migration",
+  "deduplication": "same collection + ASCII-folded path from first type folder + SHA-256; origins retained; different bytes retained",
+  "limits": {
+    "maxMemberBytes": 134217728,
+    "maxArchiveBytes": 1073741824,
+    "maxDepth": 8
+  },
+  "collections": [
+    {
+      "game": "AICSMIS",
+      "source": "ludotheque",
+      "root": "ludotheque/AICSMIS"
+    },
+    {
+      "game": "AMUAftermath",
+      "source": "ludotheque",
+      "root": "ludotheque/AMUAftermath"
+    },
+    {
+      "game": "AxeOfYulon",
+      "source": "ludotheque",
+      "root": "ludotheque/AxeOfYulon"
+    },
+    {
+      "game": "Blitz",
+      "source": "ludotheque",
+      "root": "ludotheque/Blitz"
+    },
+    {
+      "game": "BusDriver",
+      "source": "ludotheque",
+      "root": "ludotheque/BusDriver"
+    },
+    {
+      "game": "Caoquest",
+      "source": "ludotheque",
+      "root": "ludotheque/Caoquest"
+    },
+    {
+      "game": "ChickitHunt",
+      "source": "ludotheque",
+      "root": "ludotheque/ChickitHunt"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "source": "ludotheque",
+      "root": "ludotheque/ChimeranEmpire"
+    },
+    {
+      "game": "CoderChallenge",
+      "source": "ludotheque",
+      "root": "ludotheque/CoderChallenge"
+    },
+    {
+      "game": "CrystalImmortality",
+      "source": "ludotheque",
+      "root": "ludotheque/CrystalImmortality"
+    },
+    {
+      "game": "DangerDingo",
+      "source": "ludotheque",
+      "root": "ludotheque/DangerDingo"
+    },
+    {
+      "game": "DarkAge",
+      "source": "ludotheque",
+      "root": "ludotheque/DarkAge"
+    },
+    {
+      "game": "DarkAge2Demo",
+      "source": "ludotheque",
+      "root": "ludotheque/DarkAge2Demo"
+    },
+    {
+      "game": "DarkAgeEX",
+      "source": "ludotheque",
+      "root": "ludotheque/DarkAgeEX"
+    },
+    {
+      "game": "EternalBlade",
+      "source": "ludotheque",
+      "root": "ludotheque/EternalBlade"
+    },
+    {
+      "game": "FinalDestiny",
+      "source": "ludotheque",
+      "root": "ludotheque/FinalDestiny"
+    },
+    {
+      "game": "Firesword13",
+      "source": "ludotheque",
+      "root": "ludotheque/Firesword13"
+    },
+    {
+      "game": "FourthDimension",
+      "source": "ludotheque",
+      "root": "ludotheque/FourthDimension"
+    },
+    {
+      "game": "GrandDragonElite",
+      "source": "ludotheque",
+      "root": "ludotheque/GrandDragonElite"
+    },
+    {
+      "game": "Gw",
+      "source": "ludotheque",
+      "root": "ludotheque/Gw"
+    },
+    {
+      "game": "ImperialNexus",
+      "source": "ludotheque",
+      "root": "ludotheque/ImperialNexus"
+    },
+    {
+      "game": "JoD",
+      "source": "ludotheque",
+      "root": "ludotheque/JoD"
+    },
+    {
+      "game": "JoD3",
+      "source": "ludotheque",
+      "root": "ludotheque/JoD3"
+    },
+    {
+      "game": "JurassicQuest",
+      "source": "ludotheque",
+      "root": "ludotheque/JurassicQuest"
+    },
+    {
+      "game": "LegendMagic",
+      "source": "ludotheque",
+      "root": "ludotheque/LegendMagic"
+    },
+    {
+      "game": "LegendStorm",
+      "source": "ludotheque",
+      "root": "ludotheque/LegendStorm"
+    },
+    {
+      "game": "LittleMan",
+      "source": "ludotheque",
+      "root": "ludotheque/LittleMan"
+    },
+    {
+      "game": "LoZMasterOfTime",
+      "source": "ludotheque",
+      "root": "ludotheque/LoZMasterOfTime"
+    },
+    {
+      "game": "MysticalQuest",
+      "source": "ludotheque",
+      "root": "ludotheque/MysticalQuest"
+    },
+    {
+      "game": "OutlandPolice",
+      "source": "ludotheque",
+      "root": "ludotheque/OutlandPolice"
+    },
+    {
+      "game": "RecursiveRampage",
+      "source": "ludotheque",
+      "root": "ludotheque/RecursiveRampage"
+    },
+    {
+      "game": "RunesOfManchia",
+      "source": "ludotheque",
+      "root": "ludotheque/RunesOfManchia"
+    },
+    {
+      "game": "School2Demo",
+      "source": "ludotheque",
+      "root": "ludotheque/School2Demo"
+    },
+    {
+      "game": "TalismansOfTheNine",
+      "source": "ludotheque",
+      "root": "ludotheque/TalismansOfTheNine"
+    },
+    {
+      "game": "Traidon",
+      "source": "ludotheque",
+      "root": "ludotheque/Traidon"
+    },
+    {
+      "game": "Volcano1",
+      "source": "ludotheque",
+      "root": "ludotheque/Volcano1"
+    },
+    {
+      "game": "Worm",
+      "source": "ludotheque",
+      "root": "ludotheque/Worm"
+    },
+    {
+      "game": "Basic",
+      "source": "fixtures",
+      "root": "fixtures/Basic"
+    },
+    {
+      "game": "BusDriver",
+      "source": "fixtures",
+      "root": "fixtures/BusDriver"
+    },
+    {
+      "game": "Caoquest",
+      "source": "fixtures",
+      "root": "fixtures/Caoquest"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "source": "fixtures",
+      "root": "fixtures/ChimeranEmpire"
+    },
+    {
+      "game": "FinalDestiny",
+      "source": "fixtures",
+      "root": "fixtures/FinalDestiny"
+    },
+    {
+      "game": "LittleMan",
+      "source": "fixtures",
+      "root": "fixtures/LittleMan"
+    },
+    {
+      "game": "School2Demo",
+      "source": "fixtures",
+      "root": "fixtures/School2Demo"
+    },
+    {
+      "game": "demo",
+      "source": "fixtures",
+      "root": "fixtures/demo"
+    },
+    {
+      "game": "AMUAftermath",
+      "source": "downloads-1",
+      "root": "downloads-1/AMU_Aftermath.exe"
+    },
+    {
+      "game": "ChickitHunt",
+      "source": "downloads-1",
+      "root": "downloads-1/Chickit%20Hunt.zip"
+    },
+    {
+      "game": "DarkAge",
+      "source": "downloads-1",
+      "root": "downloads-1/DarkAge.exe"
+    },
+    {
+      "game": "DarkAge2Demo",
+      "source": "downloads-1",
+      "root": "downloads-1/DarkAge2_DemoB.exe"
+    },
+    {
+      "game": "DarkAgeEX",
+      "source": "downloads-1",
+      "root": "downloads-1/DarkAgeEX_MIDI.exe"
+    },
+    {
+      "game": "Archive-Fantasyes",
+      "source": "downloads-1",
+      "root": "downloads-1/Fantasyes.tpk"
+    },
+    {
+      "game": "Firesword13",
+      "source": "downloads-1",
+      "root": "downloads-1/Firesword13.exe"
+    },
+    {
+      "game": "GrandDragonElite",
+      "source": "downloads-1",
+      "root": "downloads-1/GrandDragonElite.exe"
+    },
+    {
+      "game": "JoD3",
+      "source": "downloads-1",
+      "root": "downloads-1/JoD3.zip"
+    },
+    {
+      "game": "LegendMagic",
+      "source": "downloads-1",
+      "root": "downloads-1/Legend%20of%20Magic.exe"
+    },
+    {
+      "game": "LegendStorm",
+      "source": "downloads-1",
+      "root": "downloads-1/LegendofStorm.exe"
+    },
+    {
+      "game": "LoZMasterOfTime",
+      "source": "downloads-1",
+      "root": "downloads-1/LoZ-MoT.exe"
+    },
+    {
+      "game": "Archive-LunarQuestP1",
+      "source": "downloads-1",
+      "root": "downloads-1/LunarQuestP1.zip"
+    },
+    {
+      "game": "Archive-MissionImprobable",
+      "source": "downloads-1",
+      "root": "downloads-1/MissionImprobable.zip"
+    },
+    {
+      "game": "Archive-MysteriousBattles",
+      "source": "downloads-1",
+      "root": "downloads-1/MysteriousBattles.zip"
+    },
+    {
+      "game": "Archive-Nes3_0",
+      "source": "downloads-1",
+      "root": "downloads-1/Nes3_0.zip"
+    },
+    {
+      "game": "Archive-Omega",
+      "source": "downloads-1",
+      "root": "downloads-1/Omega.zip"
+    },
+    {
+      "game": "RunesOfManchia",
+      "source": "downloads-1",
+      "root": "downloads-1/Runes%20Of%20Manchia.exe"
+    },
+    {
+      "game": "Archive-SilverSky_Demo1",
+      "source": "downloads-1",
+      "root": "downloads-1/SilverSky_Demo1.ZIP"
+    },
+    {
+      "game": "TalismansOfTheNine",
+      "source": "downloads-1",
+      "root": "downloads-1/Talismans_of_the_Nine.exe"
+    },
+    {
+      "game": "Traidon",
+      "source": "downloads-1",
+      "root": "downloads-1/Traidon.exe"
+    },
+    {
+      "game": "Archive-WarriorLegends",
+      "source": "downloads-1",
+      "root": "downloads-1/WarriorLegends.ZIP"
+    },
+    {
+      "game": "AxeOfYulon",
+      "source": "downloads-1",
+      "root": "downloads-1/axeofyulon.exe"
+    },
+    {
+      "game": "CrystalImmortality",
+      "source": "downloads-1",
+      "root": "downloads-1/crystal_of_immortality.zip"
+    },
+    {
+      "game": "DangerDingo",
+      "source": "downloads-1",
+      "root": "downloads-1/dangerthedingo.zip"
+    },
+    {
+      "game": "Archive-devilsnight",
+      "source": "downloads-1",
+      "root": "downloads-1/devilsnight.tpk"
+    },
+    {
+      "game": "EternalBlade",
+      "source": "downloads-1",
+      "root": "downloads-1/eternalblade.zip"
+    },
+    {
+      "game": "FourthDimension",
+      "source": "downloads-1",
+      "root": "downloads-1/fourth.exe"
+    },
+    {
+      "game": "ImperialNexus",
+      "source": "downloads-1",
+      "root": "downloads-1/imperialnexus.zip"
+    },
+    {
+      "game": "JoD",
+      "source": "downloads-1",
+      "root": "downloads-1/jod.zip"
+    },
+    {
+      "game": "JurassicQuest",
+      "source": "downloads-1",
+      "root": "downloads-1/jurrasicquest.zip"
+    },
+    {
+      "game": "Archive-just_another_day",
+      "source": "downloads-1",
+      "root": "downloads-1/just_another_day.zip"
+    },
+    {
+      "game": "Archive-legacy_of_hell_ninja",
+      "source": "downloads-1",
+      "root": "downloads-1/legacy_of_hell_ninja.zip"
+    },
+    {
+      "game": "Archive-legend",
+      "source": "downloads-1",
+      "root": "downloads-1/legend.zip"
+    },
+    {
+      "game": "Archive-legendofatalna2",
+      "source": "downloads-1",
+      "root": "downloads-1/legendofatalna2.zip"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "source": "downloads-1",
+      "root": "downloads-1/legendofosiris1.1.zip"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "source": "downloads-1",
+      "root": "downloads-1/lunardragon.zip"
+    },
+    {
+      "game": "Archive-marovia",
+      "source": "downloads-1",
+      "root": "downloads-1/marovia.zip"
+    },
+    {
+      "game": "Archive-minicars",
+      "source": "downloads-1",
+      "root": "downloads-1/minicars.zip"
+    },
+    {
+      "game": "MysticalQuest",
+      "source": "downloads-1",
+      "root": "downloads-1/mysticalquest.zip"
+    },
+    {
+      "game": "Archive-oasis",
+      "source": "downloads-1",
+      "root": "downloads-1/oasis.zip"
+    },
+    {
+      "game": "Archive-phenomenaldemo2",
+      "source": "downloads-1",
+      "root": "downloads-1/phenomenaldemo2.zip"
+    },
+    {
+      "game": "Archive-pl2demo",
+      "source": "downloads-1",
+      "root": "downloads-1/pl2demo.zip"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "source": "downloads-1",
+      "root": "downloads-1/toughdragon_vs_md.zip"
+    },
+    {
+      "game": "Volcano1",
+      "source": "downloads-1",
+      "root": "downloads-1/volc1.exe"
+    },
+    {
+      "game": "LittleMan",
+      "source": "extra",
+      "root": "extra/LittleMan/LittleMan.zip"
+    },
+    {
+      "game": "BusDriver",
+      "source": "extra",
+      "root": "extra/BusDriver/busd.zip"
+    },
+    {
+      "game": "FinalDestiny",
+      "source": "extra",
+      "root": "extra/FinalDestiny/Final_Destiny.zip"
+    },
+    {
+      "game": "Caoquest",
+      "source": "extra",
+      "root": "extra/Caoquest/caoquest.zip"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "source": "extra",
+      "root": "extra/ChimeranEmpire/chimeran_empire.zip"
+    },
+    {
+      "game": "School2Demo",
+      "source": "extra",
+      "root": "extra/School2Demo/School2Demo.zip"
+    },
+    {
+      "game": "GrandDragonElite",
+      "source": "extra",
+      "root": "extra/GrandDragonElite/GrandDragonElite.exe"
+    }
+  ],
+  "containers": [
+    {
+      "game": "AICSMIS",
+      "origin": "ludotheque/AICSMIS/OriginalPackage/AICSMIS.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 468389,
+      "sha256": "34e9ad4c779517fd64cd5391aa3ca40847b83d095e5a86b7fb13d52be35c1313"
+    },
+    {
+      "game": "AMUAftermath",
+      "origin": "ludotheque/AMUAftermath/OriginalPackage/AMU_Aftermath.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2182122,
+      "sha256": "7a2fd44a697ea326fbd3f41fab12dbae59b9faf753fafd4297e4b0192956e5c3"
+    },
+    {
+      "game": "AxeOfYulon",
+      "origin": "ludotheque/AxeOfYulon/OriginalPackage/axeofyulon.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3730575,
+      "sha256": "8e8ddecf71def2c7b101bd6eaee4802dec02390eccfb64583d884339aca4ad25"
+    },
+    {
+      "game": "Blitz",
+      "origin": "ludotheque/Blitz/OriginalPackage/blitz_noBGM.exe",
+      "status": "zip-read",
+      "members": 60,
+      "sha256": "ab2d45ca34764570ae3c8d60b83b0181171a40feb5fd73dcdfd1643958a71e43"
+    },
+    {
+      "game": "Caoquest",
+      "origin": "ludotheque/Caoquest/BRDDRAW.EXE",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Caoquest",
+      "origin": "ludotheque/Caoquest/Trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "50af100f43096ee11cce95670ae25e3b10fb2b4c31274557e29f2c5006d95638"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!zip.zip",
+      "status": "zip-read",
+      "members": 749,
+      "sha256": "dd0bbbf1a9cf7ddab5265c20b57059b3f4002b18e4526ea551a3fc574940b501"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2150400,
+      "sha256": "7dadd43aa96459b12541d15920352a8b0f7c440cd3eec3e9f176a6b8bd504bbd"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/zip.zip",
+      "status": "zip-read",
+      "members": 749,
+      "sha256": "dd0bbbf1a9cf7ddab5265c20b57059b3f4002b18e4526ea551a3fc574940b501"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "ludotheque/ChickitHunt/zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2150400,
+      "sha256": "7dadd43aa96459b12541d15920352a8b0f7c440cd3eec3e9f176a6b8bd504bbd"
+    },
+    {
+      "game": "CoderChallenge",
+      "origin": "ludotheque/CoderChallenge/Asimircanteencatastrophe.zip",
+      "status": "zip-read",
+      "members": 35,
+      "sha256": "16f4bd18f880a156aac3572d89285a4b3922a623e12cee1686d7f2fa63981247"
+    },
+    {
+      "game": "CoderChallenge",
+      "origin": "ludotheque/CoderChallenge/KSNilocLunchroomTroubleUnregistered.zip",
+      "status": "zip-read",
+      "members": 34,
+      "sha256": "b05f37aab1ddc6e6ebc7b344310a4836dca6428fd662b63f1357bfb393d66928"
+    },
+    {
+      "game": "CoderChallenge",
+      "origin": "ludotheque/CoderChallenge/OriginalPackage/contest2.zip",
+      "status": "zip-read",
+      "members": 3,
+      "sha256": "28a078ad3534d5fd8f1a11d2dffd3b6780a7762fa1ccb1570ca32df11e2ed7dd"
+    },
+    {
+      "game": "CoderChallenge",
+      "origin": "ludotheque/CoderChallenge/OriginalPackage/contest2.zip!Asimircanteencatastrophe.zip",
+      "status": "zip-read",
+      "members": 35,
+      "sha256": "16f4bd18f880a156aac3572d89285a4b3922a623e12cee1686d7f2fa63981247"
+    },
+    {
+      "game": "CoderChallenge",
+      "origin": "ludotheque/CoderChallenge/OriginalPackage/contest2.zip!KSNilocLunchroomTroubleUnregistered.zip",
+      "status": "zip-read",
+      "members": 34,
+      "sha256": "b05f37aab1ddc6e6ebc7b344310a4836dca6428fd662b63f1357bfb393d66928"
+    },
+    {
+      "game": "CoderChallenge",
+      "origin": "ludotheque/CoderChallenge/OriginalPackage/contest2.zip!WilliamByWilliam.zip",
+      "status": "zip-read",
+      "members": 30,
+      "sha256": "f4a59984bcd956bbc97a6df81814fb06f56cbe6b73ef5c17a9535ecb231fef1c"
+    },
+    {
+      "game": "CoderChallenge",
+      "origin": "ludotheque/CoderChallenge/WilliamByWilliam.zip",
+      "status": "zip-read",
+      "members": 30,
+      "sha256": "f4a59984bcd956bbc97a6df81814fb06f56cbe6b73ef5c17a9535ecb231fef1c"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "0c61a810b58201ec6e3ce81d3a8b9077ae372790704f15885c50fc3b32238a9e"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip",
+      "status": "zip-read",
+      "members": 1559,
+      "sha256": "794886f6bb0fd5e6dbd124fff7453042539b14e7ab14dbbaf82a4c36359a08f3"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/zip.zip",
+      "status": "zip-read",
+      "members": 1559,
+      "sha256": "794886f6bb0fd5e6dbd124fff7453042539b14e7ab14dbbaf82a4c36359a08f3"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "ludotheque/CrystalImmortality/zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/OriginalPackage/dangerthedingo.zip",
+      "status": "zip-read",
+      "members": 11,
+      "sha256": "69474decb9a73a2e92e086c9045e44c431e5696409a5e9badc2fb18382a79aa7"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/OriginalPackage/dangerthedingo.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/OriginalPackage/dangerthedingo.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/OriginalPackage/dangerthedingo.zip!zip.zip",
+      "status": "zip-read",
+      "members": 228,
+      "sha256": "f396a402f7d667184d1b147498efd693d946e4afecd3b3c50e25e642d344f593"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/OriginalPackage/dangerthedingo.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "24d5e3cf10eb83a93e930cd56403ccfbd2a589e52734f6ae41385eefece61d1f"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/zip.zip",
+      "status": "zip-read",
+      "members": 228,
+      "sha256": "f396a402f7d667184d1b147498efd693d946e4afecd3b3c50e25e642d344f593"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "ludotheque/DangerDingo/zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "24d5e3cf10eb83a93e930cd56403ccfbd2a589e52734f6ae41385eefece61d1f"
+    },
+    {
+      "game": "DarkAge",
+      "origin": "ludotheque/DarkAge/OriginalPackage/DarkAge.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 6701916,
+      "sha256": "acf97f070d1125105c044314f212dc5f6ed1d27c9acf52d484a3fbdf40b56993"
+    },
+    {
+      "game": "DarkAge2Demo",
+      "origin": "ludotheque/DarkAge2Demo/OriginalPackage/DarkAge2_DemoB.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 13887299,
+      "sha256": "f020076f6386689b5060030192416ba2f0ea0eb54fa5ef814488bb3d741700d3"
+    },
+    {
+      "game": "DarkAgeEX",
+      "origin": "ludotheque/DarkAgeEX/OriginalPackage/DarkAgeEX_MIDI.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 11269702,
+      "sha256": "5119ce1367d19bac929a3fbd7c137352f2b9c2589c6e5ca411fa61de4889c05d"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "a8948ef65ee3b6106d666be18eb86f6009afb9caa2a74b94a05a3761a9e9ad7d"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip!zip.zip",
+      "status": "zip-read",
+      "members": 282,
+      "sha256": "3558b6dfd398aaad23a4bd9b93975e8b17f4c20fc6a1aa562ddbb4c92238c760"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip!zip.zip!Game\\eternalblade\\Prg\\KeyMenu.zip",
+      "status": "zip-read",
+      "members": 2,
+      "sha256": "0ed40f4982139b33d9a75ffb33e889da87c2bd1f691cd64e20b3263dfe861bce"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "6c0a5e9f91cbcfea3341a2fa21cb9e29f3d0c7be91ca85f59b00c9664e86bc6d"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/zip.zip",
+      "status": "zip-read",
+      "members": 282,
+      "sha256": "3558b6dfd398aaad23a4bd9b93975e8b17f4c20fc6a1aa562ddbb4c92238c760"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/zip.zip!Game\\eternalblade\\Prg\\KeyMenu.zip",
+      "status": "zip-read",
+      "members": 2,
+      "sha256": "0ed40f4982139b33d9a75ffb33e889da87c2bd1f691cd64e20b3263dfe861bce"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "ludotheque/EternalBlade/zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "6c0a5e9f91cbcfea3341a2fa21cb9e29f3d0c7be91ca85f59b00c9664e86bc6d"
+    },
+    {
+      "game": "Firesword13",
+      "origin": "ludotheque/Firesword13/OriginalPackage/Firesword13.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3778871,
+      "sha256": "a55fe20e2e1952be9c7b5f8274705251e9dce64e8fbcec098ef2fdea0d5d8a65"
+    },
+    {
+      "game": "FourthDimension",
+      "origin": "ludotheque/FourthDimension/OriginalPackage/fourth.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 22491456,
+      "sha256": "da3c811d6a5523310417190500619298a9b5a3c0d781cc689e33e70ecaf09214"
+    },
+    {
+      "game": "GrandDragonElite",
+      "origin": "ludotheque/GrandDragonElite/OriginalPackage/GrandDragonElite.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 4367690,
+      "sha256": "e4dc4d79fceca445aa2899cf70f66266086a0c022e808eb566164badff705730"
+    },
+    {
+      "game": "Gw",
+      "origin": "ludotheque/Gw/GW/GW.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 86016,
+      "sha256": "d34b98905a951f4a5b9b697b65ff4bdcfc561b73a21b1d6521d6f0b3374e36a1"
+    },
+    {
+      "game": "Gw",
+      "origin": "ludotheque/Gw/OriginalPackage/Gw.zip",
+      "status": "zip-read",
+      "members": 3,
+      "sha256": "f40083c65b575a8d42eb32da0783eed9cace776a0d291876287c272a3a87b6dc"
+    },
+    {
+      "game": "Gw",
+      "origin": "ludotheque/Gw/OriginalPackage/Gw.zip!GW/GW.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 86016,
+      "sha256": "d34b98905a951f4a5b9b697b65ff4bdcfc561b73a21b1d6521d6f0b3374e36a1"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/OriginalPackage/imperialnexus.zip",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "3dad12f07f592956ef35a76449500a0d294a80d5119270bd02c3a8648036fbc9"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/OriginalPackage/imperialnexus.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 26624,
+      "sha256": "df5e072ce1e22a97e0b5dbb80dbdffcfcf70d87a8f4ca174cc0d206edcf914fd"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/OriginalPackage/imperialnexus.zip!zip.exe",
+      "status": "zip-read",
+      "members": 657,
+      "sha256": "a15ad199fe598e7d2ff0b6e618bfe87f890e6f2330760b17953fdfb6b66675d4"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/OriginalPackage/imperialnexus.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/OriginalPackage/imperialnexus.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1081344,
+      "sha256": "3c6eae45e0e02c45063001d39649744d19618828714339a678dc7d7f57da816b"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 26624,
+      "sha256": "df5e072ce1e22a97e0b5dbb80dbdffcfcf70d87a8f4ca174cc0d206edcf914fd"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/zip.exe",
+      "status": "zip-read",
+      "members": 657,
+      "sha256": "a15ad199fe598e7d2ff0b6e618bfe87f890e6f2330760b17953fdfb6b66675d4"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "ludotheque/ImperialNexus/zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1081344,
+      "sha256": "3c6eae45e0e02c45063001d39649744d19618828714339a678dc7d7f57da816b"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/OriginalPackage/jod.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "e225537b883de8350ae05403525006f8c828c5ce574695ffc8d033077f9cca6d"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/OriginalPackage/jod.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/OriginalPackage/jod.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/OriginalPackage/jod.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/OriginalPackage/jod.zip!zip.zip",
+      "status": "zip-read",
+      "members": 139,
+      "sha256": "b3b6404efb16598102f09556620b78982177a572a82bbafe854d4fe744fef361"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/OriginalPackage/jod.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "298211fb5ff1c7f39671029a34cd8a1d5ba10c62651a4bd0c4cb1f21706603f1"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/zip.zip",
+      "status": "zip-read",
+      "members": 139,
+      "sha256": "b3b6404efb16598102f09556620b78982177a572a82bbafe854d4fe744fef361"
+    },
+    {
+      "game": "JoD",
+      "origin": "ludotheque/JoD/zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "298211fb5ff1c7f39671029a34cd8a1d5ba10c62651a4bd0c4cb1f21706603f1"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip",
+      "status": "zip-read",
+      "members": 10,
+      "sha256": "aca0e9fe39fe7d45acbeb1e04ca156b757668f5736536f4a41dd32b0f043a98c"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 19968,
+      "sha256": "b1b352b3a4db5c85f0c09b3f2eca9876956e766c9a7494219d2c59c9b478e62d"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 17408,
+      "sha256": "4698c52fa4f138f8d00b7fa851ba3de045bedb68411d19c2f3424b149a139346"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!zip.zip",
+      "status": "zip-read",
+      "members": 221,
+      "sha256": "ef5b0a5aac1fc44648889366705221c9b75da90948251063830edb8bf22bb0c5"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!zip.zip!Main\\JoD.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1835552,
+      "sha256": "af8868d54724bfd0d8ed8d4404171c2def51134bd17aa3ea42527d0bf2ca0cde"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!zip.zip!trans3.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 508928,
+      "sha256": "b246ed95a04cd551376b060c99a90778134b1dc3845418acfe983250ea1af26d"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 19968,
+      "sha256": "b1b352b3a4db5c85f0c09b3f2eca9876956e766c9a7494219d2c59c9b478e62d"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 17408,
+      "sha256": "4698c52fa4f138f8d00b7fa851ba3de045bedb68411d19c2f3424b149a139346"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/zip.zip",
+      "status": "zip-read",
+      "members": 221,
+      "sha256": "ef5b0a5aac1fc44648889366705221c9b75da90948251063830edb8bf22bb0c5"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/zip.zip!Main\\JoD.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1835552,
+      "sha256": "af8868d54724bfd0d8ed8d4404171c2def51134bd17aa3ea42527d0bf2ca0cde"
+    },
+    {
+      "game": "JoD3",
+      "origin": "ludotheque/JoD3/zip.zip!trans3.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 508928,
+      "sha256": "b246ed95a04cd551376b060c99a90778134b1dc3845418acfe983250ea1af26d"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/OriginalPackage/jurrasicquest.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "22b41e0f9c82ec9cf09aad53d074b11891625baa552e37c8f10eb2c151a79c49"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/OriginalPackage/jurrasicquest.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/OriginalPackage/jurrasicquest.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/OriginalPackage/jurrasicquest.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/OriginalPackage/jurrasicquest.zip!zip.zip",
+      "status": "zip-read",
+      "members": 120,
+      "sha256": "b99420e5dba3bec24ff351d0b80ab58feb8ffd59f92cc538a2d0a185cc87d758"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/OriginalPackage/jurrasicquest.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/zip.zip",
+      "status": "zip-read",
+      "members": 120,
+      "sha256": "b99420e5dba3bec24ff351d0b80ab58feb8ffd59f92cc538a2d0a185cc87d758"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "ludotheque/JurassicQuest/zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141"
+    },
+    {
+      "game": "LegendMagic",
+      "origin": "ludotheque/LegendMagic/OriginalPackage/Legend%20of%20Magic.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1935605,
+      "sha256": "f60645dbc6f6077ef6f123c9f348c9c57f45c11a1fe60a8064f1a34310f7d22d"
+    },
+    {
+      "game": "LegendStorm",
+      "origin": "ludotheque/LegendStorm/OriginalPackage/LegendofStorm.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 4611491,
+      "sha256": "824e856b746ca25c09b1bf433d7bb067aebdce0451cd6c22006cf39e9783f25e"
+    },
+    {
+      "game": "LoZMasterOfTime",
+      "origin": "ludotheque/LoZMasterOfTime/OriginalPackage/LoZ-MoT.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2461802,
+      "sha256": "9389946510038576aaa92fc99c82f7a72b77631f1ed5ddad74491be9dac00703"
+    },
+    {
+      "game": "MysticalQuest",
+      "origin": "ludotheque/MysticalQuest/OriginalPackage/mysticalquest.zip",
+      "status": "zip-read",
+      "members": 481,
+      "sha256": "4f22a9b4eac92f082ef17eef50661cb6bc6e42e0cf58391bdc9095bc4eacc70a"
+    },
+    {
+      "game": "MysticalQuest",
+      "origin": "ludotheque/MysticalQuest/OriginalPackage/mysticalquest.zip!mysticalDemo2/Mystical Quest Demo 2/MysticalQuest.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2011136,
+      "sha256": "f35cf4589419f35a69a5d8371c61180f770c9656bc016772435bc4f379987f6b"
+    },
+    {
+      "game": "MysticalQuest",
+      "origin": "ludotheque/MysticalQuest/mysticalDemo2/Mystical Quest Demo 2/MysticalQuest.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2011136,
+      "sha256": "f35cf4589419f35a69a5d8371c61180f770c9656bc016772435bc4f379987f6b"
+    },
+    {
+      "game": "OutlandPolice",
+      "origin": "ludotheque/OutlandPolice/OriginalPackage/OutlandPolice_src.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "a1ae4856297078d56056927f42d1a99c9d248365f82a18a034cbad8b3dffd6d6"
+    },
+    {
+      "game": "RecursiveRampage",
+      "origin": "ludotheque/RecursiveRampage/OriginalPackage/recursiverampage.zip",
+      "status": "zip-read",
+      "members": 3,
+      "sha256": "0c5a8000f50a903d6d6b601bcb5b67090d7f9cc0cd1f5d5c776d0e1fa6c0c9ce"
+    },
+    {
+      "game": "RunesOfManchia",
+      "origin": "ludotheque/RunesOfManchia/OriginalPackage/Runes%20Of%20Manchia.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2293098,
+      "sha256": "8a0a6dca460e1266e99e2f840a8d423e90622514950502ba94e53f3045426063"
+    },
+    {
+      "game": "TalismansOfTheNine",
+      "origin": "ludotheque/TalismansOfTheNine/OriginalPackage/Talismans_of_the_Nine.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3378182,
+      "sha256": "e9c2e5013c2e2c6134f490a304780ddbcbbd2c81f651000739567960251fbb2c"
+    },
+    {
+      "game": "Traidon",
+      "origin": "ludotheque/Traidon/OriginalPackage/Traidon.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3452649,
+      "sha256": "ddef5ddd6a84c69f6835c18829b1ea76e1852c4019602c32b1b20414c52d6817"
+    },
+    {
+      "game": "Volcano1",
+      "origin": "ludotheque/Volcano1/OriginalPackage/volc1.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3051261,
+      "sha256": "894faef7c7d1374f3cc1b859e9665168cfc79cd4bf5a985415e9f474db5ca12a"
+    },
+    {
+      "game": "Worm",
+      "origin": "ludotheque/Worm/BGI/BGIOBJ.EXE",
+      "status": "not-readable-as-zip",
+      "bytes": 11400,
+      "sha256": "7b5adb4af3ae82ed5b073dca0ce5bb363f148027744fe8ffadb8e1d08fffc146"
+    },
+    {
+      "game": "Worm",
+      "origin": "ludotheque/Worm/BGI/TABLE.EXE",
+      "status": "not-readable-as-zip",
+      "bytes": 31900,
+      "sha256": "a11d43d961ae7b34aebcec646aab1de7e098ff2ff8a9cd4777c6d4bcad7e0354"
+    },
+    {
+      "game": "Worm",
+      "origin": "ludotheque/Worm/OriginalPackage/worm.zip",
+      "status": "zip-read",
+      "members": 23,
+      "sha256": "eef3eb328a2e8b0bbfb53c732e4ecf9df4d7689e15e9071810e43c50dafcaad7"
+    },
+    {
+      "game": "Worm",
+      "origin": "ludotheque/Worm/OriginalPackage/worm.zip!BGI/BGIOBJ.EXE",
+      "status": "not-readable-as-zip",
+      "bytes": 11400,
+      "sha256": "7b5adb4af3ae82ed5b073dca0ce5bb363f148027744fe8ffadb8e1d08fffc146"
+    },
+    {
+      "game": "Worm",
+      "origin": "ludotheque/Worm/OriginalPackage/worm.zip!BGI/TABLE.EXE",
+      "status": "not-readable-as-zip",
+      "bytes": 31900,
+      "sha256": "a11d43d961ae7b34aebcec646aab1de7e098ff2ff8a9cd4777c6d4bcad7e0354"
+    },
+    {
+      "game": "Worm",
+      "origin": "ludotheque/Worm/OriginalPackage/worm.zip!Worm.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 57187,
+      "sha256": "e56e837672e7233f1dc539fc2554c99228740d087ac365504571bff81b773807"
+    },
+    {
+      "game": "Worm",
+      "origin": "ludotheque/Worm/Worm.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 57187,
+      "sha256": "e56e837672e7233f1dc539fc2554c99228740d087ac365504571bff81b773807"
+    },
+    {
+      "game": "Caoquest",
+      "origin": "fixtures/Caoquest/BRDDRAW.EXE",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Caoquest",
+      "origin": "fixtures/Caoquest/Trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141"
+    },
+    {
+      "game": "AMUAftermath",
+      "origin": "downloads-1/AMU_Aftermath.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2182122,
+      "sha256": "7a2fd44a697ea326fbd3f41fab12dbae59b9faf753fafd4297e4b0192956e5c3"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "downloads-1/Chickit%20Hunt.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "50af100f43096ee11cce95670ae25e3b10fb2b4c31274557e29f2c5006d95638"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "downloads-1/Chickit%20Hunt.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "downloads-1/Chickit%20Hunt.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "downloads-1/Chickit%20Hunt.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "downloads-1/Chickit%20Hunt.zip!zip.zip",
+      "status": "zip-read",
+      "members": 749,
+      "sha256": "dd0bbbf1a9cf7ddab5265c20b57059b3f4002b18e4526ea551a3fc574940b501"
+    },
+    {
+      "game": "ChickitHunt",
+      "origin": "downloads-1/Chickit%20Hunt.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2150400,
+      "sha256": "7dadd43aa96459b12541d15920352a8b0f7c440cd3eec3e9f176a6b8bd504bbd"
+    },
+    {
+      "game": "DarkAge",
+      "origin": "downloads-1/DarkAge.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 6701916,
+      "sha256": "acf97f070d1125105c044314f212dc5f6ed1d27c9acf52d484a3fbdf40b56993"
+    },
+    {
+      "game": "DarkAge2Demo",
+      "origin": "downloads-1/DarkAge2_DemoB.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 13887299,
+      "sha256": "f020076f6386689b5060030192416ba2f0ea0eb54fa5ef814488bb3d741700d3"
+    },
+    {
+      "game": "DarkAgeEX",
+      "origin": "downloads-1/DarkAgeEX_MIDI.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 11269702,
+      "sha256": "5119ce1367d19bac929a3fbd7c137352f2b9c2589c6e5ca411fa61de4889c05d"
+    },
+    {
+      "game": "Archive-Fantasyes",
+      "origin": "downloads-1/Fantasyes.tpk",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "95d1cec84d4c7d66daa2d9fc5adb51352d72328d6567c6691702414471306baf"
+    },
+    {
+      "game": "Archive-Fantasyes",
+      "origin": "downloads-1/Fantasyes.tpk!Final Fantasy.tpk",
+      "status": "zip-read",
+      "members": 233,
+      "sha256": "3c862041e8694970075d116ba6cb344ad22c7ad5f9f19655500f0c9334bb8de6"
+    },
+    {
+      "game": "Firesword13",
+      "origin": "downloads-1/Firesword13.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3778871,
+      "sha256": "a55fe20e2e1952be9c7b5f8274705251e9dce64e8fbcec098ef2fdea0d5d8a65"
+    },
+    {
+      "game": "GrandDragonElite",
+      "origin": "downloads-1/GrandDragonElite.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 4367690,
+      "sha256": "e4dc4d79fceca445aa2899cf70f66266086a0c022e808eb566164badff705730"
+    },
+    {
+      "game": "JoD3",
+      "origin": "downloads-1/JoD3.zip",
+      "status": "zip-read",
+      "members": 10,
+      "sha256": "aca0e9fe39fe7d45acbeb1e04ca156b757668f5736536f4a41dd32b0f043a98c"
+    },
+    {
+      "game": "JoD3",
+      "origin": "downloads-1/JoD3.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 19968,
+      "sha256": "b1b352b3a4db5c85f0c09b3f2eca9876956e766c9a7494219d2c59c9b478e62d"
+    },
+    {
+      "game": "JoD3",
+      "origin": "downloads-1/JoD3.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 17408,
+      "sha256": "4698c52fa4f138f8d00b7fa851ba3de045bedb68411d19c2f3424b149a139346"
+    },
+    {
+      "game": "JoD3",
+      "origin": "downloads-1/JoD3.zip!zip.zip",
+      "status": "zip-read",
+      "members": 221,
+      "sha256": "ef5b0a5aac1fc44648889366705221c9b75da90948251063830edb8bf22bb0c5"
+    },
+    {
+      "game": "JoD3",
+      "origin": "downloads-1/JoD3.zip!zip.zip!Main\\JoD.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1835552,
+      "sha256": "af8868d54724bfd0d8ed8d4404171c2def51134bd17aa3ea42527d0bf2ca0cde"
+    },
+    {
+      "game": "JoD3",
+      "origin": "downloads-1/JoD3.zip!zip.zip!trans3.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 508928,
+      "sha256": "b246ed95a04cd551376b060c99a90778134b1dc3845418acfe983250ea1af26d"
+    },
+    {
+      "game": "LegendMagic",
+      "origin": "downloads-1/Legend%20of%20Magic.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1935605,
+      "sha256": "f60645dbc6f6077ef6f123c9f348c9c57f45c11a1fe60a8064f1a34310f7d22d"
+    },
+    {
+      "game": "LegendStorm",
+      "origin": "downloads-1/LegendofStorm.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 4611491,
+      "sha256": "824e856b746ca25c09b1bf433d7bb067aebdce0451cd6c22006cf39e9783f25e"
+    },
+    {
+      "game": "LoZMasterOfTime",
+      "origin": "downloads-1/LoZ-MoT.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2461802,
+      "sha256": "9389946510038576aaa92fc99c82f7a72b77631f1ed5ddad74491be9dac00703"
+    },
+    {
+      "game": "Archive-LunarQuestP1",
+      "origin": "downloads-1/LunarQuestP1.zip",
+      "status": "zip-read",
+      "members": 17,
+      "sha256": "fa81140b1a825634ddfb7cc32f5f26d2fd02bd79fc1be5a495fdb4b55454ca33"
+    },
+    {
+      "game": "Archive-LunarQuestP1",
+      "origin": "downloads-1/LunarQuestP1.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 35840,
+      "sha256": "92af381476bd8cc34aee810750d3052972686aaa4563e83166577c9751616622"
+    },
+    {
+      "game": "Archive-LunarQuestP1",
+      "origin": "downloads-1/LunarQuestP1.zip!zip.exe",
+      "status": "zip-read",
+      "members": 901,
+      "sha256": "2ebe27a332aac2f67d6f47e500871c29a5da807da5c49c30a55a1da97d05e5bd"
+    },
+    {
+      "game": "Archive-LunarQuestP1",
+      "origin": "downloads-1/LunarQuestP1.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Archive-LunarQuestP1",
+      "origin": "downloads-1/LunarQuestP1.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1392128,
+      "sha256": "8c373a8004f424b4e277e8316d0394625f82f362820f015eac9f1bc021e460bb"
+    },
+    {
+      "game": "Archive-MissionImprobable",
+      "origin": "downloads-1/MissionImprobable.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "bbb55561e8c340b425b5a68213229dca7daa4002565fa1350a6a241ae839c7ef"
+    },
+    {
+      "game": "Archive-MissionImprobable",
+      "origin": "downloads-1/MissionImprobable.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-MissionImprobable",
+      "origin": "downloads-1/MissionImprobable.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "Archive-MissionImprobable",
+      "origin": "downloads-1/MissionImprobable.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "Archive-MissionImprobable",
+      "origin": "downloads-1/MissionImprobable.zip!zip.zip",
+      "status": "zip-read",
+      "members": 226,
+      "sha256": "7a4ef9e485f2bfc0b96c791cb2107d9bba7a4ce1b5723929bf672f417b0c2931"
+    },
+    {
+      "game": "Archive-MissionImprobable",
+      "origin": "downloads-1/MissionImprobable.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141"
+    },
+    {
+      "game": "Archive-MysteriousBattles",
+      "origin": "downloads-1/MysteriousBattles.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "044c4d52a0f7acc5f4466898d9272d4e2cd2c96692f85d29cc92d9dc8874d8b7"
+    },
+    {
+      "game": "Archive-MysteriousBattles",
+      "origin": "downloads-1/MysteriousBattles.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-MysteriousBattles",
+      "origin": "downloads-1/MysteriousBattles.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "Archive-MysteriousBattles",
+      "origin": "downloads-1/MysteriousBattles.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "Archive-MysteriousBattles",
+      "origin": "downloads-1/MysteriousBattles.zip!zip.zip",
+      "status": "zip-read",
+      "members": 146,
+      "sha256": "e08899ff39b1605cd8577dc7cf21729ee7f08e3d33aab089a08514d707cfd04e"
+    },
+    {
+      "game": "Archive-MysteriousBattles",
+      "origin": "downloads-1/MysteriousBattles.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2150400,
+      "sha256": "c1cfb809236ac163f730bf0bd3731992bf9637b0fcbeac0fa9c0728d24b2f273"
+    },
+    {
+      "game": "Archive-Nes3_0",
+      "origin": "downloads-1/Nes3_0.zip",
+      "status": "not-readable-as-zip",
+      "bytes": 1469248,
+      "sha256": "4bd9089bc65ac85d467614d633471acf8d47d782a0cd8ed07d8ab9f3d0a57c25"
+    },
+    {
+      "game": "Archive-Omega",
+      "origin": "downloads-1/Omega.zip",
+      "status": "zip-read",
+      "members": 17,
+      "sha256": "e69a88f13fe3595613a773f4bc4abffe954aae82165150e5c3a0c21c370717b2"
+    },
+    {
+      "game": "Archive-Omega",
+      "origin": "downloads-1/Omega.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36352,
+      "sha256": "d167ef87a573e7752629b66a0f60cb6c74bb2e0d657706aa24fe54da61acc9ba"
+    },
+    {
+      "game": "Archive-Omega",
+      "origin": "downloads-1/Omega.zip!zip.exe",
+      "status": "zip-read",
+      "members": 175,
+      "sha256": "be2618b9a5747a766723ba87789336a0f100edfa189212a16b43671b79042db8"
+    },
+    {
+      "game": "Archive-Omega",
+      "origin": "downloads-1/Omega.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Archive-Omega",
+      "origin": "downloads-1/Omega.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1297920,
+      "sha256": "6896c9add5a486ef6d751839f58442bd82d71ffd0e9e2b3a7d0a6b5bce1a175d"
+    },
+    {
+      "game": "RunesOfManchia",
+      "origin": "downloads-1/Runes%20Of%20Manchia.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2293098,
+      "sha256": "8a0a6dca460e1266e99e2f840a8d423e90622514950502ba94e53f3045426063"
+    },
+    {
+      "game": "Archive-SilverSky_Demo1",
+      "origin": "downloads-1/SilverSky_Demo1.ZIP",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "24a618f904e68eb610374c056798c5a1d217c79d84697964e61b5353c94371a8"
+    },
+    {
+      "game": "Archive-SilverSky_Demo1",
+      "origin": "downloads-1/SilverSky_Demo1.ZIP!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-SilverSky_Demo1",
+      "origin": "downloads-1/SilverSky_Demo1.ZIP!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "a580bbaeadea0ef542ecf803c1ceb16837e88490a29fefb702c619be0b23b8c0"
+    },
+    {
+      "game": "Archive-SilverSky_Demo1",
+      "origin": "downloads-1/SilverSky_Demo1.ZIP!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "28a5cba6480d2a271d07ecd9a3672507db8a6dc93ee9ea8c9e009b386844f736"
+    },
+    {
+      "game": "Archive-SilverSky_Demo1",
+      "origin": "downloads-1/SilverSky_Demo1.ZIP!zip.zip",
+      "status": "zip-read",
+      "members": 410,
+      "sha256": "03b980e159aa4c9e4e3e0f6906ada78571cd41c43e85dad48257d8f4548b891a"
+    },
+    {
+      "game": "Archive-SilverSky_Demo1",
+      "origin": "downloads-1/SilverSky_Demo1.ZIP!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2244608,
+      "sha256": "a4ee7cca617d2ed35fae280e873abd07b710be4fb8c576cdd9f4d9b378b572a7"
+    },
+    {
+      "game": "TalismansOfTheNine",
+      "origin": "downloads-1/Talismans_of_the_Nine.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3378182,
+      "sha256": "e9c2e5013c2e2c6134f490a304780ddbcbbd2c81f651000739567960251fbb2c"
+    },
+    {
+      "game": "Traidon",
+      "origin": "downloads-1/Traidon.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3452649,
+      "sha256": "ddef5ddd6a84c69f6835c18829b1ea76e1852c4019602c32b1b20414c52d6817"
+    },
+    {
+      "game": "Archive-WarriorLegends",
+      "origin": "downloads-1/WarriorLegends.ZIP",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "8ff5b50979f6c9c854e442d282b53ef2cbbd6c5e1890ebf6183b708b3f4cde50"
+    },
+    {
+      "game": "Archive-WarriorLegends",
+      "origin": "downloads-1/WarriorLegends.ZIP!Warrior Legends.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 9207310,
+      "sha256": "deeadde77cf03e618fa496c6ec712d870ae87ec90360e88f1db1e9dc41b9e91e"
+    },
+    {
+      "game": "AxeOfYulon",
+      "origin": "downloads-1/axeofyulon.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3730575,
+      "sha256": "8e8ddecf71def2c7b101bd6eaee4802dec02390eccfb64583d884339aca4ad25"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "downloads-1/crystal_of_immortality.zip",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "0c61a810b58201ec6e3ce81d3a8b9077ae372790704f15885c50fc3b32238a9e"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "downloads-1/crystal_of_immortality.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "downloads-1/crystal_of_immortality.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "downloads-1/crystal_of_immortality.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "downloads-1/crystal_of_immortality.zip!zip.zip",
+      "status": "zip-read",
+      "members": 1559,
+      "sha256": "794886f6bb0fd5e6dbd124fff7453042539b14e7ab14dbbaf82a4c36359a08f3"
+    },
+    {
+      "game": "CrystalImmortality",
+      "origin": "downloads-1/crystal_of_immortality.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "downloads-1/dangerthedingo.zip",
+      "status": "zip-read",
+      "members": 11,
+      "sha256": "69474decb9a73a2e92e086c9045e44c431e5696409a5e9badc2fb18382a79aa7"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "downloads-1/dangerthedingo.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "downloads-1/dangerthedingo.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "downloads-1/dangerthedingo.zip!zip.zip",
+      "status": "zip-read",
+      "members": 228,
+      "sha256": "f396a402f7d667184d1b147498efd693d946e4afecd3b3c50e25e642d344f593"
+    },
+    {
+      "game": "DangerDingo",
+      "origin": "downloads-1/dangerthedingo.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "24d5e3cf10eb83a93e930cd56403ccfbd2a589e52734f6ae41385eefece61d1f"
+    },
+    {
+      "game": "Archive-devilsnight",
+      "origin": "downloads-1/devilsnight.tpk",
+      "status": "zip-read",
+      "members": 176,
+      "sha256": "892f552c8e32b12ae89a487eecc2eb19b988b637c358600ef72a9075900295bd"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "downloads-1/eternalblade.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "a8948ef65ee3b6106d666be18eb86f6009afb9caa2a74b94a05a3761a9e9ad7d"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "downloads-1/eternalblade.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "downloads-1/eternalblade.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "downloads-1/eternalblade.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "downloads-1/eternalblade.zip!zip.zip",
+      "status": "zip-read",
+      "members": 282,
+      "sha256": "3558b6dfd398aaad23a4bd9b93975e8b17f4c20fc6a1aa562ddbb4c92238c760"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "downloads-1/eternalblade.zip!zip.zip!Game\\eternalblade\\Prg\\KeyMenu.zip",
+      "status": "zip-read",
+      "members": 2,
+      "sha256": "0ed40f4982139b33d9a75ffb33e889da87c2bd1f691cd64e20b3263dfe861bce"
+    },
+    {
+      "game": "EternalBlade",
+      "origin": "downloads-1/eternalblade.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "6c0a5e9f91cbcfea3341a2fa21cb9e29f3d0c7be91ca85f59b00c9664e86bc6d"
+    },
+    {
+      "game": "FourthDimension",
+      "origin": "downloads-1/fourth.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 22491456,
+      "sha256": "da3c811d6a5523310417190500619298a9b5a3c0d781cc689e33e70ecaf09214"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "downloads-1/imperialnexus.zip",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "3dad12f07f592956ef35a76449500a0d294a80d5119270bd02c3a8648036fbc9"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "downloads-1/imperialnexus.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 26624,
+      "sha256": "df5e072ce1e22a97e0b5dbb80dbdffcfcf70d87a8f4ca174cc0d206edcf914fd"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "downloads-1/imperialnexus.zip!zip.exe",
+      "status": "zip-read",
+      "members": 657,
+      "sha256": "a15ad199fe598e7d2ff0b6e618bfe87f890e6f2330760b17953fdfb6b66675d4"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "downloads-1/imperialnexus.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "ImperialNexus",
+      "origin": "downloads-1/imperialnexus.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1081344,
+      "sha256": "3c6eae45e0e02c45063001d39649744d19618828714339a678dc7d7f57da816b"
+    },
+    {
+      "game": "JoD",
+      "origin": "downloads-1/jod.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "e225537b883de8350ae05403525006f8c828c5ce574695ffc8d033077f9cca6d"
+    },
+    {
+      "game": "JoD",
+      "origin": "downloads-1/jod.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "JoD",
+      "origin": "downloads-1/jod.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "JoD",
+      "origin": "downloads-1/jod.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "JoD",
+      "origin": "downloads-1/jod.zip!zip.zip",
+      "status": "zip-read",
+      "members": 139,
+      "sha256": "b3b6404efb16598102f09556620b78982177a572a82bbafe854d4fe744fef361"
+    },
+    {
+      "game": "JoD",
+      "origin": "downloads-1/jod.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "298211fb5ff1c7f39671029a34cd8a1d5ba10c62651a4bd0c4cb1f21706603f1"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "downloads-1/jurrasicquest.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "22b41e0f9c82ec9cf09aad53d074b11891625baa552e37c8f10eb2c151a79c49"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "downloads-1/jurrasicquest.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "downloads-1/jurrasicquest.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "downloads-1/jurrasicquest.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "downloads-1/jurrasicquest.zip!zip.zip",
+      "status": "zip-read",
+      "members": 120,
+      "sha256": "b99420e5dba3bec24ff351d0b80ab58feb8ffd59f92cc538a2d0a185cc87d758"
+    },
+    {
+      "game": "JurassicQuest",
+      "origin": "downloads-1/jurrasicquest.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141"
+    },
+    {
+      "game": "Archive-just_another_day",
+      "origin": "downloads-1/just_another_day.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "a5f15fd8f7b109957e959c62cd1e0d64f7ed7bd2a6ebb55352546d29721e9ce0"
+    },
+    {
+      "game": "Archive-just_another_day",
+      "origin": "downloads-1/just_another_day.zip!J.A.D..exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1534695,
+      "sha256": "0f8fab6e8df03a0ba74a8df53c8e834462db60b1de107d0b8afa40c4e4d19f31"
+    },
+    {
+      "game": "Archive-legacy_of_hell_ninja",
+      "origin": "downloads-1/legacy_of_hell_ninja.zip",
+      "status": "zip-read",
+      "members": 7,
+      "sha256": "8e7c55feef51baa739cf9b613c6d51d1faf0ac2abb15825c6af744792b586b46"
+    },
+    {
+      "game": "Archive-legacy_of_hell_ninja",
+      "origin": "downloads-1/legacy_of_hell_ninja.zip!zip.zip",
+      "status": "zip-read",
+      "members": 156,
+      "sha256": "6acc8a13a2805cc1c4ef963dc4d0fee136a6a0ade8bd893f07caaa5275deb94d"
+    },
+    {
+      "game": "Archive-legacy_of_hell_ninja",
+      "origin": "downloads-1/legacy_of_hell_ninja.zip!zip.zip!Main\\100Guns.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "a814a5bc65d29810dce36e11fc3e4c18062957a4e7f7a52b80819ca548f39869"
+    },
+    {
+      "game": "Archive-legacy_of_hell_ninja",
+      "origin": "downloads-1/legacy_of_hell_ninja.zip!zip.zip!Main\\wilson.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "71b1c64b1452b63014aa98fba7fc32fe1c8fa9f1478755af5f34ec95b713c3c6"
+    },
+    {
+      "game": "Archive-legend",
+      "origin": "downloads-1/legend.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "1f0d25622dbe0bb024bf30b1c42aa0e3024ee8b81b90cb49af45cceb592a28c2"
+    },
+    {
+      "game": "Archive-legend",
+      "origin": "downloads-1/legend.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-legend",
+      "origin": "downloads-1/legend.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "Archive-legend",
+      "origin": "downloads-1/legend.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "Archive-legend",
+      "origin": "downloads-1/legend.zip!zip.zip",
+      "status": "zip-read",
+      "members": 1858,
+      "sha256": "9e317809c05d30533fa1662af23d18cf9dbe79924873f5c29e1f79f615a14891"
+    },
+    {
+      "game": "Archive-legend",
+      "origin": "downloads-1/legend.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2007040,
+      "sha256": "b75cb8b647c2ac46a6bef1eb19e12353b74f1dfe2d8d1034f5322d9caca49db8"
+    },
+    {
+      "game": "Archive-legendofatalna2",
+      "origin": "downloads-1/legendofatalna2.zip",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "40e2d32995c8aee81cc409847c65347f1e7e0e759c47bc6d16720b9fc99c586a"
+    },
+    {
+      "game": "Archive-legendofatalna2",
+      "origin": "downloads-1/legendofatalna2.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 27136,
+      "sha256": "93012a42082473956155cb3f712da7e1966b9f7e2ca6e1911639a49f7458e4fc"
+    },
+    {
+      "game": "Archive-legendofatalna2",
+      "origin": "downloads-1/legendofatalna2.zip!zip.exe",
+      "status": "zip-read",
+      "members": 2350,
+      "sha256": "80647f495f3a2aeb57ec01557f92e291c4c1f89da557c2061330d988c56ca6b2"
+    },
+    {
+      "game": "Archive-legendofatalna2",
+      "origin": "downloads-1/legendofatalna2.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Archive-legendofatalna2",
+      "origin": "downloads-1/legendofatalna2.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1123328,
+      "sha256": "75b075ebb2250b7224fe98fe615c40f958cc91ab787f27de1e3d851c4aae47be"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "b3b85791aef38a721aae3b13932ed1d148f2550a8f9967f849c383fa85fd0524"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip!zip.zip",
+      "status": "zip-read",
+      "members": 601,
+      "sha256": "766d9e35bb38227e601fcc30018967c07431a01ad79fcb8d49c66d7f29d5e056"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip!zip.zip!Main\\trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip!zip.zip!Plugin\\Plugin Installer.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 53248,
+      "sha256": "c92fa5e277a9536d5f94e7ad3f9ad578441bcb156be8b9353b88b4b451899f28"
+    },
+    {
+      "game": "Archive-legendofosiris1.1",
+      "origin": "downloads-1/legendofosiris1.1.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "origin": "downloads-1/lunardragon.zip",
+      "status": "zip-read",
+      "members": 11,
+      "sha256": "cd977dbc7f0f4ca45881b9924836c87d706b961ae9b965059a89551cb2e7e258"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "origin": "downloads-1/lunardragon.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "origin": "downloads-1/lunardragon.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 40960,
+      "sha256": "3e2a98d3b9cf33d88e362b2a9aa33b62abb63cf834e9a6fa755d428f87bb05ba"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "origin": "downloads-1/lunardragon.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "origin": "downloads-1/lunardragon.zip!zip.exe",
+      "status": "zip-read",
+      "members": 347,
+      "sha256": "2233460a37d32e799d9fbc1acce8bd0fe7465c3301ecf6779a81e62bdbcfa50f"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "origin": "downloads-1/lunardragon.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Archive-lunardragon",
+      "origin": "downloads-1/lunardragon.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1433600,
+      "sha256": "a5fb4aca34d2e5206debce28656cd9ee6110b82c4d8bf107415293b80612cc37"
+    },
+    {
+      "game": "Archive-marovia",
+      "origin": "downloads-1/marovia.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "78c914fd6a4eaa254ff7ab6eb1623ac80b874473f6be418fde4cd3edb8e7218a"
+    },
+    {
+      "game": "Archive-marovia",
+      "origin": "downloads-1/marovia.zip!VBRun60sp5.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1044168,
+      "sha256": "66453c28a3a11f52cefb00178714f710c23a8c611373d39f336c1ae3c8701def"
+    },
+    {
+      "game": "Archive-marovia",
+      "origin": "downloads-1/marovia.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 19968,
+      "sha256": "b1b352b3a4db5c85f0c09b3f2eca9876956e766c9a7494219d2c59c9b478e62d"
+    },
+    {
+      "game": "Archive-marovia",
+      "origin": "downloads-1/marovia.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 17408,
+      "sha256": "4698c52fa4f138f8d00b7fa851ba3de045bedb68411d19c2f3424b149a139346"
+    },
+    {
+      "game": "Archive-marovia",
+      "origin": "downloads-1/marovia.zip!zip.zip",
+      "status": "zip-read",
+      "members": 177,
+      "sha256": "a77f11837c6e75bc32552d6fd9ef0e840e2759cbb9037c1878f54ef2db2caf30"
+    },
+    {
+      "game": "Archive-marovia",
+      "origin": "downloads-1/marovia.zip!zip.zip!trans3.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 479744,
+      "sha256": "eeaa21c65023eadf5baea35bc3e2fe7eeaf18f879ebfd60a99c1882343cbfe41"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "a43b7e64721f11e7d4082c5eb3bcf6fb7f3c0be0707574af1e37410dd01bde8a"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 40960,
+      "sha256": "3e2a98d3b9cf33d88e362b2a9aa33b62abb63cf834e9a6fa755d428f87bb05ba"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe",
+      "status": "zip-read",
+      "members": 49,
+      "sha256": "b7dacd3fc1bb1ca108a2d1fef30d5e2095099a606dc8fe2f57a480659c02143f"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe!Main/ASE.tpk",
+      "status": "not-readable-as-zip",
+      "bytes": 6390672,
+      "sha256": "fc70f27c3318d2e8cabdd4c4791b0d9cbe7c761abd0af3829e8aac153b18936e"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe!Main/AlienSE.tpk",
+      "status": "not-readable-as-zip",
+      "bytes": 6334017,
+      "sha256": "30000fca24e6674ca7f4e174d2b4afe75e98f8a6139a99c93796da46a7429ad5"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe!Main/AlienSE.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "eb2a8c52e3cd99226ed4804ada8c9e5875a10907ba5b12d21d8e117deea52eab"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe!Main/AlienSE.zip!AlienSE.tpk",
+      "status": "not-readable-as-zip",
+      "bytes": 6334017,
+      "sha256": "30000fca24e6674ca7f4e174d2b4afe75e98f8a6139a99c93796da46a7429ad5"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe!Main/demo.tpk",
+      "status": "not-readable-as-zip",
+      "bytes": 3791644,
+      "sha256": "23b50d568286d62225835018a4ad69f582c4c8f44bc7bea756a863c8ead03a9a"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Archive-minicars",
+      "origin": "downloads-1/minicars.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2015232,
+      "sha256": "f1ab54591a51197d305fbfac936c13f935d1eec1028676b5c7c7533b0d3d1f1b"
+    },
+    {
+      "game": "MysticalQuest",
+      "origin": "downloads-1/mysticalquest.zip",
+      "status": "zip-read",
+      "members": 481,
+      "sha256": "4f22a9b4eac92f082ef17eef50661cb6bc6e42e0cf58391bdc9095bc4eacc70a"
+    },
+    {
+      "game": "MysticalQuest",
+      "origin": "downloads-1/mysticalquest.zip!mysticalDemo2/Mystical Quest Demo 2/MysticalQuest.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2011136,
+      "sha256": "f35cf4589419f35a69a5d8371c61180f770c9656bc016772435bc4f379987f6b"
+    },
+    {
+      "game": "Archive-oasis",
+      "origin": "downloads-1/oasis.zip",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "8231c6f3ebab42cd5d6e480483f431e42c1a611c721fbc98a4084466f6ce48d8"
+    },
+    {
+      "game": "Archive-oasis",
+      "origin": "downloads-1/oasis.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 27136,
+      "sha256": "93012a42082473956155cb3f712da7e1966b9f7e2ca6e1911639a49f7458e4fc"
+    },
+    {
+      "game": "Archive-oasis",
+      "origin": "downloads-1/oasis.zip!zip.exe",
+      "status": "zip-read",
+      "members": 569,
+      "sha256": "794fa735c74b3b9f3acc262536e01d90b75b569bdeaa178309143eeff95befb7"
+    },
+    {
+      "game": "Archive-oasis",
+      "origin": "downloads-1/oasis.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Archive-oasis",
+      "origin": "downloads-1/oasis.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1162752,
+      "sha256": "b3d55c71047c1bdabb261006c7b11f938dd67a83f0353dfa70e927e3c37c6689"
+    },
+    {
+      "game": "Archive-phenomenaldemo2",
+      "origin": "downloads-1/phenomenaldemo2.zip",
+      "status": "zip-read",
+      "members": 16,
+      "sha256": "485666d0345b79a9f92a95f4a299bf8c1028eb1af875de301daf50084bd58589"
+    },
+    {
+      "game": "Archive-phenomenaldemo2",
+      "origin": "downloads-1/phenomenaldemo2.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 35840,
+      "sha256": "92af381476bd8cc34aee810750d3052972686aaa4563e83166577c9751616622"
+    },
+    {
+      "game": "Archive-phenomenaldemo2",
+      "origin": "downloads-1/phenomenaldemo2.zip!zip.exe",
+      "status": "zip-read",
+      "members": 279,
+      "sha256": "c44353f350275fea0d4e332e11bf357e3cd506cf5afd4631e10157151ecaee9d"
+    },
+    {
+      "game": "Archive-phenomenaldemo2",
+      "origin": "downloads-1/phenomenaldemo2.zip!zip.exe!brddraw.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Archive-phenomenaldemo2",
+      "origin": "downloads-1/phenomenaldemo2.zip!zip.exe!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1392128,
+      "sha256": "8c373a8004f424b4e277e8316d0394625f82f362820f015eac9f1bc021e460bb"
+    },
+    {
+      "game": "Archive-pl2demo",
+      "origin": "downloads-1/pl2demo.zip",
+      "status": "not-readable-as-zip",
+      "bytes": 2757544,
+      "sha256": "25c73ed1795e08db7e7dc3fcccbea6180c105d28a226054084a7cb96cf45dc47"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "4c2c88ba19af795842fb55d9c6fcdf9ff64728849c188e0e61db6c9f0c73446e"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip",
+      "status": "zip-read",
+      "members": 217,
+      "sha256": "654ae0dd25711c717f17a3fabf483fb877885f7e4332040352b0d02e49052d1e"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Game\\ToughDragonvsMasterDragonandDragonX\\Tiles\\Evil Alience Wrestling.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "bc99ca9a99fb90aef4fcad314460f3c5135210f38d681d4346ea6fe2a2cbed08"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Game\\ToughDragonvsMasterDragonandDragonX\\Tiles\\trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alience Wrestling.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "bc99ca9a99fb90aef4fcad314460f3c5135210f38d681d4346ea6fe2a2cbed08"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "f21a833bdca3589d4c5c0cf641c7e8e9806ef007ebbc17325b831ac78e4564fb"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!zip.zip",
+      "status": "zip-read",
+      "members": 398,
+      "sha256": "2a8a1a87dd7dbedcc1ebffe4ecf7968491aacdb00121f1f8e9bf0f99f7d91389"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!zip.zip!Main\\Evil Alience Wrestling.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "bc99ca9a99fb90aef4fcad314460f3c5135210f38d681d4346ea6fe2a2cbed08"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!zip.zip!Main\\EvilAlienceWrestlingDemo1.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "48c97ec8b93f2711af2cacd93b202df9716dd7bf8c6a58eb37bdfca92f71184c"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!zip.zip!Main\\trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\Evil Alliance Wrestling.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!Main\\EvilAlienceWrestlingDemo1.zip",
+      "status": "zip-read",
+      "members": 1,
+      "sha256": "48c97ec8b93f2711af2cacd93b202df9716dd7bf8c6a58eb37bdfca92f71184c"
+    },
+    {
+      "game": "Archive-toughdragon_vs_md",
+      "origin": "downloads-1/toughdragon_vs_md.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79"
+    },
+    {
+      "game": "Volcano1",
+      "origin": "downloads-1/volc1.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 3051261,
+      "sha256": "894faef7c7d1374f3cc1b859e9665168cfc79cd4bf5a985415e9f474db5ca12a"
+    },
+    {
+      "game": "LittleMan",
+      "origin": "extra/LittleMan/LittleMan.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "0ae92b637fc25d42e3ad0c4c492c298c3fa2eadd30250b0ad9e4558bdc6ca36f"
+    },
+    {
+      "game": "LittleMan",
+      "origin": "extra/LittleMan/LittleMan.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "LittleMan",
+      "origin": "extra/LittleMan/LittleMan.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "07b7959650b9035d3b0bf90b55701c82d899390507fa8a2bd8597656aa628ff9"
+    },
+    {
+      "game": "LittleMan",
+      "origin": "extra/LittleMan/LittleMan.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "ec9ac84f8e822ab015bba9d3ddccc6da5e2023a75f847afdc8b29286ea73685f"
+    },
+    {
+      "game": "LittleMan",
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip",
+      "status": "zip-read",
+      "members": 59,
+      "sha256": "1069c908df7b7da980f5f653c9c5286cbb56dbd3354275f23ffea0d6fe6617a2"
+    },
+    {
+      "game": "LittleMan",
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "152f45311b0879015712551dc4248af6a66025646c3cb96efc5b1b328293769f"
+    },
+    {
+      "game": "BusDriver",
+      "origin": "extra/BusDriver/busd.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "1e4f59b6db48acc9be4f55cb8c9abbb31bcf9e731552e7d2deb7094bacdbf9a4"
+    },
+    {
+      "game": "BusDriver",
+      "origin": "extra/BusDriver/busd.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "07b7959650b9035d3b0bf90b55701c82d899390507fa8a2bd8597656aa628ff9"
+    },
+    {
+      "game": "BusDriver",
+      "origin": "extra/BusDriver/busd.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "ec9ac84f8e822ab015bba9d3ddccc6da5e2023a75f847afdc8b29286ea73685f"
+    },
+    {
+      "game": "BusDriver",
+      "origin": "extra/BusDriver/busd.zip!zip.zip",
+      "status": "zip-read",
+      "members": 42,
+      "sha256": "6973106b9e64eb8492fb2c167adb0052cee7304e24de11f8597eddbdd1704631"
+    },
+    {
+      "game": "BusDriver",
+      "origin": "extra/BusDriver/busd.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "5a2b44bbaff7505586bb12746a4bc81bc510c9f97ac9dbc54893c6559f775e07"
+    },
+    {
+      "game": "FinalDestiny",
+      "origin": "extra/FinalDestiny/Final_Destiny.zip",
+      "status": "zip-read",
+      "members": 13,
+      "sha256": "131e9461c54f8703864bd0d7fb05eadd6c1923c5ce70b464758952dfb45d2912"
+    },
+    {
+      "game": "FinalDestiny",
+      "origin": "extra/FinalDestiny/Final_Destiny.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "FinalDestiny",
+      "origin": "extra/FinalDestiny/Final_Destiny.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1"
+    },
+    {
+      "game": "FinalDestiny",
+      "origin": "extra/FinalDestiny/Final_Destiny.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466"
+    },
+    {
+      "game": "FinalDestiny",
+      "origin": "extra/FinalDestiny/Final_Destiny.zip!zip.zip",
+      "status": "zip-read",
+      "members": 174,
+      "sha256": "56fffb72cf4db7ff2d4fb827a9b03342fe14947e98f04fdb7d6320f45bbbf77a"
+    },
+    {
+      "game": "FinalDestiny",
+      "origin": "extra/FinalDestiny/Final_Destiny.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "6c0a5e9f91cbcfea3341a2fa21cb9e29f3d0c7be91ca85f59b00c9664e86bc6d"
+    },
+    {
+      "game": "Caoquest",
+      "origin": "extra/Caoquest/caoquest.zip",
+      "status": "zip-read",
+      "members": 173,
+      "sha256": "30f2ae1a6875448c24013948256a8962ae2346b1013bf6e403b7efe4e1cfd9b4"
+    },
+    {
+      "game": "Caoquest",
+      "origin": "extra/Caoquest/caoquest.zip!caoquestm/BRDDRAW.EXE",
+      "status": "not-readable-as-zip",
+      "bytes": 98538,
+      "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b"
+    },
+    {
+      "game": "Caoquest",
+      "origin": "extra/Caoquest/caoquest.zip!caoquestm/Trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 753664,
+      "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "origin": "extra/ChimeranEmpire/chimeran_empire.zip",
+      "status": "zip-read",
+      "members": 14,
+      "sha256": "fea5ee14ede577fcf3b201955455c6a411fd85dc923622a77d2eb968c7ed728c"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "origin": "extra/ChimeranEmpire/chimeran_empire.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "origin": "extra/ChimeranEmpire/chimeran_empire.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 69632,
+      "sha256": "cfa86ca1cfb7a092986ed139f430d501174cc3e6a96508d89cca462528f1a37c"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "origin": "extra/ChimeranEmpire/chimeran_empire.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 32768,
+      "sha256": "7d5b3fce56d49c80d32f5bef8c8abe205dc590c7c3d389d3df9d0ada81106f21"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "origin": "extra/ChimeranEmpire/chimeran_empire.zip!zip.zip",
+      "status": "zip-read",
+      "members": 673,
+      "sha256": "56f1d7497497c1c5379551a163371995730716f5be1aa4bf5ac804be5b409b1c"
+    },
+    {
+      "game": "ChimeranEmpire",
+      "origin": "extra/ChimeranEmpire/chimeran_empire.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2248704,
+      "sha256": "a9e824d287d319ef7131405ea88b153cadb2c92293ffb223c0ead5a81833d5f5"
+    },
+    {
+      "game": "School2Demo",
+      "origin": "extra/School2Demo/School2Demo.zip",
+      "status": "zip-read",
+      "members": 12,
+      "sha256": "2a555d8323050801b4b79b882f33ed051d397d0801d3282304c38fda885d2b13"
+    },
+    {
+      "game": "School2Demo",
+      "origin": "extra/School2Demo/School2Demo.zip!VBRun60.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 1067688,
+      "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db"
+    },
+    {
+      "game": "School2Demo",
+      "origin": "extra/School2Demo/School2Demo.zip!phase2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 45056,
+      "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5"
+    },
+    {
+      "game": "School2Demo",
+      "origin": "extra/School2Demo/School2Demo.zip!setup.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 36864,
+      "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19"
+    },
+    {
+      "game": "School2Demo",
+      "origin": "extra/School2Demo/School2Demo.zip!zip.zip",
+      "status": "zip-read",
+      "members": 263,
+      "sha256": "6d4d07d55eb67064501712835088dd0c931d82434baf89f2e05fe8eafebdef37"
+    },
+    {
+      "game": "School2Demo",
+      "origin": "extra/School2Demo/School2Demo.zip!zip.zip!trans2.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 2150400,
+      "sha256": "ba8daf8cb990cef7a4ad8cc3243185c783ebb934b612597b2712864b24f0c205"
+    },
+    {
+      "game": "GrandDragonElite",
+      "origin": "extra/GrandDragonElite/GrandDragonElite.exe",
+      "status": "not-readable-as-zip",
+      "bytes": 4367690,
+      "sha256": "7d143bf4dcd2518698054f3b4779117d2a6733a1a3f0fcb85405b456a8ed97bf"
+    }
+  ],
+  "collectionIssues": [
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/blackpea.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/blackpea.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\blackpea.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/bucket.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/bucket.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\bucket.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/go1.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/go1.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\go1.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/go2.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/go2.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\go2.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/go3.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/go3.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\go3.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/greenpea.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/greenpea.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\greenpea.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/level1.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/level1.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\level1.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/level2.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/level2.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\level2.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/level3.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/level3.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\level3.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manjumpleft.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manjumpleft.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manjumpleft.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manjumpright.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manjumpright.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manjumpright.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manshootdownleft.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manshootdownleft.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manshootdownleft.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manshootdownright.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manshootdownright.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manshootdownright.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manshootupleft.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manshootupleft.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manshootupleft.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manshootupright.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manshootupright.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manshootupright.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manwalkleft1.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manwalkleft1.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manwalkleft1.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manwalkleft2.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manwalkleft2.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manwalkleft2.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manwalkright1.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manwalkright1.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manwalkright1.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/manwalkright2.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/manwalkright2.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\manwalkright2.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/title.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/title.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\title.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/wall.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/wall.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\wall.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/winner1.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/winner1.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\winner1.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/winner2.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/winner2.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\winner2.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Bitmap/winner3.gif",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Bitmap/winner3.gif' and header b'Game\\\\LittleManWithaPeaShooter\\\\Bitmap\\\\winner3.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Media/boing.wav",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Media/boing.wav' and header b'Game\\\\LittleManWithaPeaShooter\\\\Media\\\\boing.wav' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Media/click.wav",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Media/click.wav' and header b'Game\\\\LittleManWithaPeaShooter\\\\Media\\\\click.wav' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Media/newspiff.mid",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Media/newspiff.mid' and header b'Game\\\\LittleManWithaPeaShooter\\\\Media\\\\newspiff.mid' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Media/title.mid",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Media/title.mid' and header b'Game\\\\LittleManWithaPeaShooter\\\\Media\\\\title.mid' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/Game.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/Game.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\Game.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/gameover.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/gameover.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\gameover.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/instructions.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/instructions.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\instructions.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/level1.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/level1.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\level1.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/level2.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/level2.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\level2.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/level3.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/level3.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\level3.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/manmechanics.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/manmechanics.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\manmechanics.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/password.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/password.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\password.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/peamechanics.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/peamechanics.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\peamechanics.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/readme.txt",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/readme.txt' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\readme.txt' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/sys_test.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/sys_test.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\sys_test.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/tutorial.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/tutorial.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\tutorial.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Game/LittleManWithaPeaShooter/Prg/win.prg",
+      "reason": "File name in directory 'Game/LittleManWithaPeaShooter/Prg/win.prg' and header b'Game\\\\LittleManWithaPeaShooter\\\\Prg\\\\win.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Main/LittleManWithaPeaShooter.gam",
+      "reason": "File name in directory 'Main/LittleManWithaPeaShooter.gam' and header b'Main\\\\LittleManWithaPeaShooter.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Resources/0english.lng",
+      "reason": "File name in directory 'Resources/0english.lng' and header b'Resources\\\\0english.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Resources/0englishUK.lng",
+      "reason": "File name in directory 'Resources/0englishUK.lng' and header b'Resources\\\\0englishUK.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Resources/1french.lng",
+      "reason": "File name in directory 'Resources/1french.lng' and header b'Resources\\\\1french.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Resources/2spanish.lng",
+      "reason": "File name in directory 'Resources/2spanish.lng' and header b'Resources\\\\2spanish.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Resources/3german.lng",
+      "reason": "File name in directory 'Resources/3german.lng' and header b'Resources\\\\3german.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Resources/4italian.lng",
+      "reason": "File name in directory 'Resources/4italian.lng' and header b'Resources\\\\4italian.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/LittleMan/LittleMan.zip!zip.zip!Resources/5castellano.lng",
+      "reason": "File name in directory 'Resources/5castellano.lng' and header b'Resources\\\\5castellano.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Game/BusDriver/Bitmap/contest1.gif",
+      "reason": "File name in directory 'Game/BusDriver/Bitmap/contest1.gif' and header b'Game\\\\BusDriver\\\\Bitmap\\\\contest1.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Game/BusDriver/Bitmap/contest2.gif",
+      "reason": "File name in directory 'Game/BusDriver/Bitmap/contest2.gif' and header b'Game\\\\BusDriver\\\\Bitmap\\\\contest2.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Game/BusDriver/Bitmap/contest3.gif",
+      "reason": "File name in directory 'Game/BusDriver/Bitmap/contest3.gif' and header b'Game\\\\BusDriver\\\\Bitmap\\\\contest3.gif' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Game/BusDriver/Media/bill.mid",
+      "reason": "File name in directory 'Game/BusDriver/Media/bill.mid' and header b'Game\\\\BusDriver\\\\Media\\\\bill.mid' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Game/BusDriver/Media/track02.xm",
+      "reason": "File name in directory 'Game/BusDriver/Media/track02.xm' and header b'Game\\\\BusDriver\\\\Media\\\\track02.xm' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Game/BusDriver/Prg/rpgcodecontest.prg",
+      "reason": "File name in directory 'Game/BusDriver/Prg/rpgcodecontest.prg' and header b'Game\\\\BusDriver\\\\Prg\\\\rpgcodecontest.prg' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/Aljo'sEditor.gam",
+      "reason": "File name in directory \"Main/Aljo'sEditor.gam\" and header b\"Main\\\\Aljo'sEditor.gam\" differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/BusDriver.gam",
+      "reason": "File name in directory 'Main/BusDriver.gam' and header b'Main\\\\BusDriver.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/DEMO.GAM",
+      "reason": "File name in directory 'Main/DEMO.GAM' and header b'Main\\\\DEMO.GAM' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/Pong.gam",
+      "reason": "File name in directory 'Main/Pong.gam' and header b'Main\\\\Pong.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/Popcorn.gam",
+      "reason": "File name in directory 'Main/Popcorn.gam' and header b'Main\\\\Popcorn.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/RPGCodeed.gam",
+      "reason": "File name in directory 'Main/RPGCodeed.gam' and header b'Main\\\\RPGCodeed.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/RPGFrogger.gam",
+      "reason": "File name in directory 'Main/RPGFrogger.gam' and header b'Main\\\\RPGFrogger.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/Test.gam",
+      "reason": "File name in directory 'Main/Test.gam' and header b'Main\\\\Test.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/Thequest.gam",
+      "reason": "File name in directory 'Main/Thequest.gam' and header b'Main\\\\Thequest.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/Tkthemovie.gam",
+      "reason": "File name in directory 'Main/Tkthemovie.gam' and header b'Main\\\\Tkthemovie.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Main/monopoly.gam",
+      "reason": "File name in directory 'Main/monopoly.gam' and header b'Main\\\\monopoly.gam' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/GsMisc.dll",
+      "reason": "File name in directory 'Plugin/GsMisc.dll' and header b'Plugin\\\\GsMisc.dll' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/Multiplug readme.txt",
+      "reason": "File name in directory 'Plugin/Multiplug readme.txt' and header b'Plugin\\\\Multiplug readme.txt' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/Readme.txt",
+      "reason": "File name in directory 'Plugin/Readme.txt' and header b'Plugin\\\\Readme.txt' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/TriukensPlugin.dll",
+      "reason": "File name in directory 'Plugin/TriukensPlugin.dll' and header b'Plugin\\\\TriukensPlugin.dll' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/programmers.dll",
+      "reason": "File name in directory 'Plugin/programmers.dll' and header b'Plugin\\\\programmers.dll' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/read-write.dll",
+      "reason": "File name in directory 'Plugin/read-write.dll' and header b'Plugin\\\\read-write.dll' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/tkplug0.dll",
+      "reason": "File name in directory 'Plugin/tkplug0.dll' and header b'Plugin\\\\tkplug0.dll' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/tkplug1.dll",
+      "reason": "File name in directory 'Plugin/tkplug1.dll' and header b'Plugin\\\\tkplug1.dll' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/tkplugin.cpp",
+      "reason": "File name in directory 'Plugin/tkplugin.cpp' and header b'Plugin\\\\tkplugin.cpp' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Plugin/xfmwin.dll",
+      "reason": "File name in directory 'Plugin/xfmwin.dll' and header b'Plugin\\\\xfmwin.dll' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/0english.lng",
+      "reason": "File name in directory 'Resources/0english.lng' and header b'Resources\\\\0english.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/0englishUK.lng",
+      "reason": "File name in directory 'Resources/0englishUK.lng' and header b'Resources\\\\0englishUK.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/1french.lng",
+      "reason": "File name in directory 'Resources/1french.lng' and header b'Resources\\\\1french.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/2spanish.lng",
+      "reason": "File name in directory 'Resources/2spanish.lng' and header b'Resources\\\\2spanish.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/3german.lng",
+      "reason": "File name in directory 'Resources/3german.lng' and header b'Resources\\\\3german.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/4italian.lng",
+      "reason": "File name in directory 'Resources/4italian.lng' and header b'Resources\\\\4italian.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/5castellano.lng",
+      "reason": "File name in directory 'Resources/5castellano.lng' and header b'Resources\\\\5castellano.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    },
+    {
+      "origin": "extra/BusDriver/busd.zip!zip.zip!Resources/redneck.lng",
+      "reason": "File name in directory 'Resources/redneck.lng' and header b'Resources\\\\redneck.lng' differ.",
+      "recoveredWithVerifiedSizeAndCrc": true
+    }
+  ],
+  "summary": {
+    "records": 10924,
+    "statuses": {
+      "decoded": 5379,
+      "source-screened-not-executed": 4294,
+      "zero-byte-placeholder-no-authored-fields": 51,
+      "decode-failed": 1200
+    },
+    "formats": {
+      "gam": 107,
+      "battle-background": 174,
+      "board": 1355,
+      "character": 122,
+      "enemy": 148,
+      "font": 50,
+      "item": 573,
+      "animation": 194,
+      "special-move": 104,
+      "tileset": 715,
+      "single-tile": 1724,
+      "status-effect": 40,
+      "tile-animation": 73
+    },
+    "fieldPaths": 440,
+    "relationshipRows": 59107,
+    "edgeStatuses": {
+      "unique-path-candidate": 52080,
+      "no-path-candidate": 6866,
+      "semantic-handle-not-file": 75,
+      "inline-code-candidate": 3,
+      "ambiguous-path-candidates": 83
+    },
+    "scripts": 4297
+  }
+}
