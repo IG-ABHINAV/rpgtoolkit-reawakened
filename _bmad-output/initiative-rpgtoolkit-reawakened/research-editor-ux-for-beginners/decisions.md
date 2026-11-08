@@ -145,13 +145,13 @@ A paper walkthrough of a first-timer building a village with an inn, a talking p
 
 ## 9. UI implementation starting points — 2026-11-08
 
-**Status: initial workbench candidates and design direction, not a selected workbench composition or implementation claim.** Electron is already the selected desktop shell under [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md); this research does not reopen that decision.
+**Status: design direction, not a selected workbench composition or implementation claim.** Electron is already the selected desktop shell under [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md). [ADR 0021](../../../docs/adr/0021-monaco-code-editor.md) selects Monaco for standalone and browser code editing; its version and integration details remain open.
 
 Jensen: “lets log these as initial places to start to build our UI. Also a settings system that is similar to vscode's might make the editors a little easier to port as well. using vscode's json schema design”
 
 ### Custom workbench candidate
 
-- **Electron** as the already-selected desktop host, with **Monaco Editor** for code and **Dock Spawn** as a candidate docking system. The workbench composition is an option to evaluate against the engagement flows, not a decision to fork Code - OSS/VSCodium or a commitment to Monaco or Dock Spawn.
+- **Electron** is the selected desktop host and **Monaco Editor** is selected for standalone/browser code editing. **Dock Spawn** remains a candidate docking system. The workbench composition remains to be evaluated against the engagement flows; this is not a decision to fork Code - OSS/VSCodium.
 - Keep RPG Maker's approachable game-making experience, VS Code's workspace flexibility, and direct visual editing as the purpose. Choosing components does not settle the user experience.
 - Monaco supplies code editing, not VS Code's whole workbench or extension host. Project navigation, document lifecycle, commands, language tooling integration, and recovery still need deliberate integration.
 - Dock Spawn remains provisional: assess maintenance, licensing and dependencies under G6, keyboard/accessibility support, resizing, layout persistence, and moving editors without losing document, canvas, or selection state.
@@ -159,7 +159,7 @@ Jensen: “lets log these as initial places to start to build our UI. Also a set
 ### Shared editors, different hosts
 
 - Preserve the ability to deliver the same game editors in a standalone application and a VS Code extension. This builds on G2, not an exception to it: shared `editor-ui` reaches host capabilities only through platform services; host packages own adapters and chrome.
-- Share authoring interactions and editing logic rather than requiring identical window layouts. The standalone host may supply docking and Monaco; VS Code may supply native code tabs, contributed navigation views, and custom-editor webviews for visual documents.
+- Share authoring interactions and editing logic rather than requiring identical window layouts. Standalone/browser hosts use Monaco for code; VS Code uses native text editors and may supply contributed navigation views and custom-editor webviews for visual documents.
 - Do not embed the entire standalone workbench inside VS Code or maintain separate implementations of the game editors. Exact view placement and host integration remain design work.
 
 ### Schema-driven settings direction
@@ -170,11 +170,11 @@ Jensen: “lets log these as initial places to start to build our UI. Also a set
 - Keep **editor preferences** separate from **authored game data**. A personal grid-display preference must not silently become a game rule, nor should battle or startup definitions be relocated into machine settings merely to reuse a form.
 - Still open: user/workspace/resource scope, precedence and reset behaviour, storage paths, JSON versus JSONC, validation and migration behaviour, extension-contributed settings, and which metadata can map unchanged between hosts.
 
-### Proof before selection
+### Proof for integration and remaining choices
 
 Use the existing [engagement flows](engagement-user-flows.md) to prototype board/code split editing, a connected effect → move → enemy task, and moving a focused editor into a broader workspace without losing context. Add a settings rehearsal: find a preference, change it through the UI and JSON, see validation, reset it, and verify equivalent effective values in both hosts. These are proposed checks, not completed tests or new scheduled tickets.
 
-References: [G2 host boundary](../../../docs/guardrails.md#g2--hard-package-boundaries), [Monaco](https://github.com/microsoft/monaco-editor), [Dock Spawn](https://github.com/coderespawn/dock-spawn), [VS Code configuration contributions](https://code.visualstudio.com/api/references/contribution-points#contributes.configuration). No runtime implementation audit was performed for this note.
+References: [G2 host boundary](../../../docs/guardrails.md#g2--hard-package-boundaries), [Monaco decision](../../../docs/adr/0021-monaco-code-editor.md), [Monaco](https://github.com/microsoft/monaco-editor), [Dock Spawn](https://github.com/coderespawn/dock-spawn), [VS Code configuration contributions](https://code.visualstudio.com/api/references/contribution-points#contributes.configuration). No runtime implementation audit was performed for this note.
 
 ## Key source files
 

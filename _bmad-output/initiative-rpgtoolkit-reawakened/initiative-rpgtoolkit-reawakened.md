@@ -29,7 +29,7 @@ Legacy authors, modders and players keep their games and tools on browser, deskt
 
 The boundary is capability and ownership: the pure core and engine rules, the runners, the language tooling, and the editor with its hosts. Not the legacy engine or editor source, native plugins, or the spec's other non-goals. Tracer path: one sample board fetched, parsed, drawn into a draw list and replayed to a golden PNG (epics platform-baseline, legacy-formats, board-rendering).
 
-- Touch point: SpessaSynth, FluidR3_GM, CodeMirror 6, Capacitor, VS Code APIs - consumed; owner: epics audio-synth, editor-foundation, web-runner-packaging
+- Touch point: SpessaSynth, FluidR3_GM, Monaco (standalone/browser code editor; [ADR 0021](../../docs/adr/0021-monaco-code-editor.md)), Capacitor, VS Code APIs - consumed; owner: epics audio-synth, editor-foundation, web-runner-packaging
 - Touch point: legacy sample games - fetched at CI time as fixtures, never committed; owner: epic platform-baseline
 - Touch point: the documentation site generator, hosting and domain - none chosen yet (inception proposal D-3, D-4); owner: epic documentation-website
 

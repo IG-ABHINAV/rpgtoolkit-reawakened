@@ -14,7 +14,7 @@ updated: 2026-11-08
 4. Use [scenario coverage](flow-coverage.md) to trace every SC-01–SC-54 scenario to an entry, concrete outcome and F-01–F-13 flow.
 5. Read [architecture.md](architecture.md) for host responsibilities, document/undo/save lifecycle, schema-driven settings, provider limits and prototype evidence to collect.
 6. Read the [owner-approved connected-authoring and testing direction](connected-authoring-and-tests.md): shared tileset-browser actions, contextual runs, RPGCode unit/integration tests, and tiny component fixtures with player action lists.
-7. Use the [current editor-epic handoff](editor-epic-handoff.md) to begin foundation inception. It distinguishes existing scope from new planning work and flags the existing CodeMirror decision before considering Monaco.
+7. Use the [current editor-epic handoff](editor-epic-handoff.md) to begin foundation inception. It distinguishes existing scope from new planning work and records the Monaco decision and remaining integration work.
 
 ## Core proposal
 
@@ -26,7 +26,7 @@ The hardest cases are shared art changes, code/visual ownership, effect-to-encou
 
 ## Architecture correction carried into the research
 
-[ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md) already selects Electron for desktop editor and player applications. Earlier conversational notes described the entire combination as a candidate too broadly. This package corrects that: **Monaco, docking library, workbench composition, settings mappings and layouts remain proposals; Electron's existing decision is not reopened.** Supporting VS Code and browser hosts through shared editor UI remains the architectural direction.
+[ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md) selects Electron for desktop editor and player applications. [ADR 0021](../../../docs/adr/0021-monaco-code-editor.md) selects Monaco for standalone/browser code editing, superseding the earlier CodeMirror stack choice; VS Code retains native text editing. **Dock Spawn remains a candidate, and Monaco's version and integration, workbench composition, settings mappings and layouts remain open.** Supporting VS Code and browser hosts through shared editor UI remains the architectural direction. These choices do not claim implementation delivery.
 
 ## What review should decide
 

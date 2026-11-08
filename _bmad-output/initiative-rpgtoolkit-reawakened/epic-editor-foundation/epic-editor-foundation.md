@@ -29,7 +29,7 @@ Authors can open a legacy project in VS Code or in the browser and edit its sett
 
 `editor-model`, `editor-ui` shell, `host-vscode`, `host-web`, platform-services (incl. `language.connect`), T-01 to T-14 and T-40 to T-41. Not asset editors (epic editor-assets-p0) and not the desktop shell (epic desktop-shell). Every feature lands in `editor-ui` first.
 
-- Touch point: VS Code APIs, CodeMirror 6, File System Access API - consumed; owner: this epic
+- Touch point: VS Code APIs, Monaco (standalone/browser code editor; [ADR 0021](../../../docs/adr/0021-monaco-code-editor.md)), File System Access API - consumed; owner: this epic
 
 ## References
 

@@ -22,7 +22,7 @@ Before adding a Playwright-like action layer, audit the actual current framework
 
 ## Reconciliation required before story approval
 
-1. **Code editor selection:** the current architecture stack and foundation envelope name **CodeMirror 6**. Monaco in the design discussion is a proposed alternative, not an approved replacement. Compare integration/lifecycle/language support and amend the existing decision before implementing a switch.
+1. **Code editor integration:** the earlier architecture stack and foundation envelope named **CodeMirror 6**; that choice is superseded by [ADR 0021](../../../docs/adr/0021-monaco-code-editor.md), which selects Monaco for standalone/browser code editing. VS Code retains native text editing. Decide Monaco's version and integration/lifecycle/language support during inception; the decision does not claim a switch has been implemented.
 2. **Connected experience across priority buckets:** pixel editing is P1, board editing is P0, and visual events are P2. Shared browser/navigation/test seams should not be independently reinvented in each bucket. Keep existing priority labels until an explicit re-scope; use a small cross-editor tracer to prove the seam.
 3. **Settings:** distinguish personal preferences from game documents; settle shared schema metadata, host scopes and reset semantics before generating configuration contributions.
 4. **Tests:** assign ownership for fixture documents, player action helpers and visual test authoring. Existing program test-run is not automatically the proposed component-test authoring feature.
@@ -36,7 +36,7 @@ Before adding a Playwright-like action layer, audit the actual current framework
 
 Plan the shared tileset browser as the next P0/P1 seam: select a brush on a board, open source artwork, preserve selection/scope, then return. Validate its context-menu alternatives before adding a large art-tool inventory. Evaluate the MIT shortlist alongside that planning, not as an unexamined dependency selection.
 
-Deliverables for inception: current implementation inventory; checked prerequisites; a decision delta for CodeMirror/Monaco and settings; explicit test-framework gaps; small stories with observable acceptance criteria; GitHub sub-issues and ticket-store mirrors. Present those for review before coding. This document proposes the sequence but does not invent story IDs, declare prerequisites complete, or mark work started.
+Deliverables for inception: current implementation inventory; checked prerequisites; a Monaco integration plan and settings decision delta; explicit test-framework gaps; small stories with observable acceptance criteria; GitHub sub-issues and ticket-store mirrors. Present those for review before coding. This document proposes the sequence but does not invent story IDs, declare prerequisites complete, or mark work started.
 
 ## Key source files
 
