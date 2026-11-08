@@ -303,10 +303,12 @@ State these as limits, not caveats:
 3. **No supported-runtime claim.** Experiments ran on Node 26.13.0, not the pinned
    24.21.0.
 4. **No VM or save-continuation claim.** Script equality is text equality.
-5. **The URL-bearing references are `[INFERENCE]`-free but the *failures* are
-   real**: 1,978 Crystal tileset references point at tilesets absent from the
-   capture, and `None` sentinels appear as program and board names. Those are
-   corpus facts the model must tolerate, not notation evidence.
+5. **Reference failures in the corpus are real.** With the corrected reference
+   coverage, the projections report 2,075 broken references in Crystal — mostly
+   tileset references to sets absent from the capture — 37 in Chimeran, 15 in
+   Caoquest and none in the demo, including `None` sentinels used as program and
+   board names. The model must tolerate these; they are corpus facts, not notation
+   evidence.
 6. **Order-and-identity stability across re-import is unresolved.** Placement and
    frame identities were authored in the shared construction and synthesised during
    the investigations; what keeps them stable across importer runs is a design
