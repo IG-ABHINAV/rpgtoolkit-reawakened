@@ -132,3 +132,19 @@ A paper walkthrough of a first-timer building a village with an inn, a talking p
 - Corpus census over `rpgtoolkit-archive` (see `evidence/command-census.md`).
 - RPG Maker Database and Character Generator screenshots; a dotted-route screenshot (Jensen, 2026-10-16/17). Images are not stored here.
 - `docs/editor-features.md`, `docs/guardrails.md`, ADR 0004 and 0005, the architecture spine, and the editor epics in this repository (see `reawakened-fit.md`).
+
+## 8. Engagement-area direction — 2026-11-07
+
+- **Accepted direction:** RPG Maker's clarity of purpose, VS Code's workspace flexibility, and Figma-like direct visual editing. A game maker first, with connected specialist tools and discoverable depth. Jensen's confirmation: “Sally. yes you got it.”
+- **Owner-selected navigation flexibility:** game-oriented content and actual files/folders are alternative views of the same project; creators may use either or both. This does not select their panel arrangement or a new identity/storage model.
+- **Owner observation:** reopened 3.1.0 was more capable than remembered, but cumbersome; settings and the project list were hard to discover behind cryptic buttons, and the board was visually busy.
+- **Requested next work:** map all scenarios to engagement areas, compare legacy Toolkit capability with possible future experience, document user flows and a reusable prompt, then end the party.
+- **Delivered research:** [engagement map](engagement-area-map.md), [expanded flows](engagement-user-flows.md), and [continuation prompt](engagement-design-prompt.md). These proposals do not supersede normative specs or establish implementation status.
+- **Still open:** Code - OSS/VSCodium distribution versus a custom shell; focused versus full editors; database/comparison layout; testing surface; document transactions; native-format additions; plugin-editor APIs. No host, architecture, roadmap, or feature priority selected.
+- **Evidence correction:** the additional Status Effect Editor screenshot supplied during this session closes that visual-coverage gap for the visible form only. Save/reopen and runtime semantics remain unverified by the capture.
+
+## Key source files
+
+- [Engagement map and evidence boundaries](engagement-area-map.md)
+- [Original scenario inventory](creator-scenario-inventory.md)
+- [Creator journey discussion](creator-journey-workspace-rehearsal.md)
