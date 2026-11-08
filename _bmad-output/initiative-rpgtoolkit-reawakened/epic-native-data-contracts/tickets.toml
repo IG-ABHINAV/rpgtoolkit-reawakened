@@ -78,13 +78,13 @@ id = 7
 tracker_id = "#1808"
 type = "story"
 title = "The actor-family contracts are specified at pre-release"
-description = "Specifies the contracts for actors, items and enemies, how an item grants a skill, and where plugin data attaches, separating world presence from inventory meaning and keeping skills distinct."
+description = "Specifies the contracts for actors, items and enemies, composed from parts rather than inherited, how an item grants a skill, and where plugin data attaches, separating world presence from inventory meaning and keeping skills distinct."
 verify = "Jensen approves the spec pages, and every field in the research's actor catalogue has a row that says where it lands or why it is dropped."
 covers = ["E6"]
 after = [1, 4]
 hitl = true
 risk = "high"
-unknown = "Inheritance or composition for actors: the research does not decide it, so settle it with Jensen before this starts."
+notes = ["Jensen, 2026-11-08: \"I'm all for composition where we can.\""]
 
 [[entry]]
 id = 8

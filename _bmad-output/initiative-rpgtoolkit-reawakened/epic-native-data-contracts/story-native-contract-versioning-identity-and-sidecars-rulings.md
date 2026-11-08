@@ -25,6 +25,8 @@ Jensen decided these rules in a team session on 2026-11-08, after research #1778
    **Then** the ADR says each logical contract has its own semantic version (MAJOR.MINOR.PATCH)
    **And** it says a contract's 1.0 is a promise honored from the release that publishes it
    **And** it says MINOR adds properties or features compatibly, PATCH fixes bugs or clarifies the contract, and MAJOR breaks the contract between the editor and the engine
+   **And** it says tightening a schema is a MAJOR change only when the looser rule was intended and files in use relied on it; otherwise the tightening is a bug fix (PATCH)
+   **And** it says a change to what a field means is a MAJOR change only when it changes the field's shape; otherwise it is a bug fix (PATCH)
 2. **Pre-release and build forms are exact**
    **Given** the spec page
    **When** a reader checks which version strings are valid
@@ -100,8 +102,7 @@ Jensen decided these rules in a team session on 2026-11-08, after research #1778
 - Decision: IDs are authored and stable, and the path is the ID; lowercased, ASCII-only folding, case-insensitive compare (2026-11-08).
 - Decision: plugin data is kept apart from core data so each versions independently; owner and plugin document link both ways, and a mismatch is an error (2026-11-08).
 - Decision: a validator and a tested rename tool are wanted; the validator comes before the first plugin document exists (2026-11-08).
-- Assumption: tightening a schema so files that used to pass now fail counts as MAJOR, because the editor's output can stop loading. Raised in the session; the owner defined MAJOR only as an editor/engine break.
-- Assumption: a change in what a field means counts as a break even when its shape is unchanged. Same origin as above.
+- Decision: tightening a schema is MAJOR only if the API was intended to be that loose and was actually used that way; otherwise it is a bug fix. Changing what a field means is a break only if it changes the field's shape; otherwise it is a bug fix (2026-11-08).
 - Open question: which provenance fields are standard in `metadata` (source name, source hash, importing tool version) and how free-form `tags` are.
 - Open question: how a plugin document's own path is chosen from its owner's path, so the link is findable from either end.
 - Open question: ID folding for non-ASCII names beyond "compare as written".

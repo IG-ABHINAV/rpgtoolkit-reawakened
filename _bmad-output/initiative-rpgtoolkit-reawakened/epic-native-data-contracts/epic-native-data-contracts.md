@@ -59,10 +59,11 @@ This is the data-contract and document-tooling boundary. It does not include bui
 - Decision: Jensen, 2026-11-08: the first round is not a straight 1:1 translation of every file. The item, NPC and enemy family and the board's placement-versus-definition split are redefined; clips, tile layers, skills and effects are translated with small corrections; the 1:1 importer output is a test oracle only.
 - Decision: Jensen, 2026-11-08: the animation clip is the first contract; a thin slice through one contract comes before designing the others. Editors follow the contracts; the actor and scene editors wait for 27.7 and 27.8.
 - Decision: Jensen, 2026-11-08: the other rulings (versions, stamp, IDs, sidecars, validator, rename tool) are recorded as dated Decision lines in ticket 27.1.
+- Decision: Jensen, 2026-11-08: prefer composition over inheritance for the actor family where we can. 27.7 chooses the parts and where composition cannot express something.
 - Assumption: a contract stays pre-release (`1.0.0-pre.N`) until the owner promotes it at a release. Nothing here publishes a 1.0.
 - Assumption: no new capability id is minted for this epic. Offer `bmad-spec` or an architecture amendment if the owner wants the native format listed as a capability.
 - Open question: which package owns the path, ID and link rules, and which owns the file walk, given G2 (core touches no I/O). 27.2 settles it in its plan.
-- Open question: whether epics 12 to 14 gain a prerequisite on 27.6 once the editor proof exists.
+- Decision: Jensen, 2026-11-08: epics 12 to 14 do not gain a prerequisite on 27.6 for now; revisit when the editor proof exists.
 - Parked: runtime loading, importer output and editor support for the actor-family and scene contracts. They are planned in a re-slice after 27.7 and 27.8 are approved.
 - Waits on epic 2 because: the 1:1 importer oracle reads legacy files through the format registry and readers (27.4).
 - Waits on epic 11 because: 27.6 needs the shared editor documents and platform-services. Early stories are independent.
