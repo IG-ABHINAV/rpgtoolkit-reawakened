@@ -3,6 +3,7 @@
 * **Status:** Accepted
 * **Date:** 2026-10-10
 * **Context documents:** [architecture-options.md](../architecture-options.md), [spec/README.md](../spec/README.md), [editor-features.md](../editor-features.md)
+* **Later editor-component decision:** [ADR 0021](0021-monaco-code-editor.md) supersedes the CodeMirror example below for standalone/browser code editing; VS Code retains its native text editor.
 
 ## Context
 

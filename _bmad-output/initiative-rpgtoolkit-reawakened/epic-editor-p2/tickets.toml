@@ -1,0 +1,168 @@
+[[entry]]
+id = 1
+tracker_id = "#1744"
+type = "story"
+title = "Rule visual source and setup delivery contracts"
+description = "Specifies and obtains owner approval for structured event and screen-layout source authority, skin persistence and preview semantics, visual fixtures against 11.9, and setup delivery without changing the selected hosts."
+verify = "A person approves documented source and layout examples, lossless unsupported-code handling, a named skin document and preview contract, fixture mapping and install safety before their implementation."
+covers = ["CAP-17"]
+after = ["11.1"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 2
+tracker_id = "#1745"
+type = "story"
+title = "Build a runnable visual event tracer"
+description = "Creates one editable structured event with typed parameters and generated RPGCode in the shared document, then validates and runs that saved program using the existing language and run services."
+verify = "In browser and VS Code a creator adds a supported message action, saves the generated program, gets clean diagnostics and observes it run, while unsupported handwritten text stays intact."
+covers = ["CAP-17"]
+after = [1, "11.2", "11.3", "11.7", "11.8"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 3
+tracker_id = "#1746"
+type = "story"
+title = "Complete structured event authoring"
+description = "Adds categorized command templates, typed inputs, insertion, deletion, ordering, conditions, waits and the T-45 screen-layout canvas within the ruled representation, preserving unsupported source."
+verify = "Every supported command category generates runnable RPGCode, canvas placement and numeric keyboard edits survive save and undo with matching generated output, and unsupported handwritten content stays intact."
+covers = ["CAP-17"]
+after = [2, "11.4"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 4
+tracker_id = "#1747"
+type = "story"
+title = "Edit and preview interface skins"
+description = "Implements window and button graphic authoring, preview, undo and save using the specific authored document and preview contract approved in 14.1, preserving existing legacy fields without implying runtime use."
+verify = "Both hosts save and reopen the ruled skin document without data loss and preview its window and button graphics according to the approved contract, while distinguishing preview from actual engine support."
+covers = ["CAP-17"]
+after = [1, "11.3", "11.4"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+tracker_id = "#1748"
+type = "story"
+title = "Audition game audio"
+description = "Provides accessible play, stop and loop audition of supported game audio through existing synth and host audio services, including the project default SoundFont and explicit capability and autoplay failures."
+verify = "MIDI and WAV play and stop in supported hosts with the configured SoundFont, loop is observable, unsupported media is explained, and audition does not alter or save the source asset."
+covers = ["CAP-17"]
+after = ["6.5", "6.15", "9.5", "9.6", "11.1", "11.4", "11.6"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 6
+tracker_id = "#1749"
+type = "story"
+title = "Build and inspect game setup"
+description = "Builds the ruled installable setup from the 12.9 game package with explicit destination, file and dependency review, installer and uninstaller handling and capability-gated host operations."
+verify = "A clean supported recipient installs, runs and uninstalls the packaged game as ruled, cancellation preserves inputs, and unsupported browser installation and signing are explained without fallback."
+covers = ["CAP-17"]
+after = [1, "12.9"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 7
+tracker_id = "#1750"
+type = "story"
+title = "Author visual fixtures and player action lists"
+description = "Authors version-controlled small real-engine fixtures, accessible placements and ordered movement and interaction actions plus observable assertions against the ruled 11.9 test representation."
+verify = "A creator saves and reruns isolated wall and door cases with seeded bounded ticks and located expected/actual diagnostics, and deliberately broken collision or transition makes its own assertion fail."
+covers = ["CAP-17"]
+after = [1, "11.9", "12.1"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 8
+tracker_id = "#1751"
+type = "story"
+title = "Teach a first board in both hosts"
+description = "Adds tip-of-day and an accessible nine-step first-board tutorial with progress state using foundation help entry points, guiding creation, editing, saving and an explicitly scoped run in browser and VS Code without requiring visual programming."
+verify = "A new author follows the nine steps end to end in each host, controls tips and preserves tutorial progress on cancellation, and sees the difference between preview, board test and normal startup."
+covers = ["CAP-17"]
+after = ["11.4", "11.8", "11.10", "11.11", "12.3", "12.10"]
+hitl = true
+risk = "medium"
+
+[[entry]]
+id = 11
+tracker_id = "#1752"
+type = "story"
+title = "Rule media import contracts and tool licensing"
+description = "Closes the pending audio and video import decisions from Epic 6 with owner-approved formats, name preservation, source recovery, decoder and encoder licensing, portable video evidence and host capability policy."
+verify = "Approved docs name the audio and video profiles, existing runtime consumers, exact import and export responsibilities and G6-cleared tools or explicit user-installed tools, with browser and native limitations demonstrated."
+covers = ["CAP-17"]
+after = ["11.1", "6.3", "9.3"]
+hitl = true
+risk = "high"
+unknown = "The import rulings still say pending owner review; encoder licensing and browser execution are not yet selected."
+
+[[entry]]
+id = 12
+tracker_id = "#1753"
+type = "story"
+title = "Convert imported audio without breaking references"
+description = "Implements the approved MP3, Ogg Vorbis, Opus and FLAC import conversion to supported WAV bytes with logical-name preservation, gapless trim, bounded resampling and a provenance report outside game data."
+verify = "Licensed authored samples cover every approved input, decoded PCM and frame counts match independent expectations, existing names resolve through header detection, originals survive failed or cancelled conversion and unsupported hosts report the missing capability."
+covers = ["CAP-17"]
+after = [11, "6.5", "9.5", "11.3"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 13
+tracker_id = "#1754"
+type = "story"
+title = "Convert legacy video to the portable playback profile"
+description = "Implements the approved AVI, MPG and MOV import conversion to the verified portable video profile through host services, preserving logical names and original recovery copies and recording conversion provenance."
+verify = "Authored clips for every approved input convert and play through the actual runner at the original logical paths, failures and cancellation preserve inputs, and unsupported codecs or hosts cannot produce a false-success report."
+covers = ["CAP-17"]
+after = [11, "11.3", "9.3", "9.6"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 14
+tracker_id = "#1755"
+type = "story"
+title = "Connect media conversion to project import and package export"
+description = "Integrates audio/video conversion into project import and 12.9 package export, with staging and recovery; bundles the authored game SoundFont, shares ICOP/ICMT warnings with game settings and excludes the legacy MIDI pack."
+verify = "Play converted audio/video from the emitted package, prove repeat and failed export preserve sources, and verify the authored bank is bundled, unclear ICOP/ICMT warns without blocking and the legacy MIDI pack is never shipped."
+covers = ["CAP-17"]
+after = [12, 13, "11.4", "11.6", "12.9"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 9
+tracker_id = "#1756"
+type = "story"
+title = "Refactor sweep for beginner tools"
+description = "Removes duplication and deferred cleanup identified in the completed P2 story plans and reviews without adding deferred feature scope."
+verify = "The sweep records its reviewed findings, removes applicable dead weight and keeps every existing P2 behavior and host boundary intact."
+covers = ["CAP-17"]
+after = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 10
+tracker_id = "#1757"
+type = "story"
+title = "Verify beginner tools end to end"
+description = "Exercises the integrated visual event, skin, audio audition, media import and package conversion, setup, visual test and tutorial journeys across supported hosts and recipient capabilities."
+verify = "The end-to-end suite demonstrates the epic outcomes with real saved assets and executable programs, negative cases and honest host limitations after the refactor sweep."
+covers = ["CAP-17"]
+after = [9]
+hitl = true
+risk = "high"

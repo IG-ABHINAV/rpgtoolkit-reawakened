@@ -2,7 +2,7 @@
 
 **Status: proposal for discussion and prototyping, not an ADR, specification, implementation audit, or delivery claim.** The goal is one game-making experience with approachable tasks, direct visual editing, and a flexible workspace—not an IDE that creators must configure before making a game. Game and Files are different views of the same project, available separately or together. [Workspace](wireframes.html#workspace), [board](wireframes.html#board), [effects](wireframes.html#effects), and [settings](wireframes.html#settings) illustrate proposed surfaces, not working software.
 
-**Authority matters:** [G2](../../../docs/guardrails.md#g2--hard-package-boundaries) and the existing architecture remain binding. The research's Electron/Monaco/Dock Spawn combination is a *workbench candidate*: [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md) already selects Electron for the desktop editor and player, while Monaco, Dock Spawn, layout, and this integration design remain unselected. This does not reopen the Electron decision or replace the independently supported VS Code extension and web hosts. Existing architecture is cited as a contract, not as evidence that any component has shipped.
+**Authority matters:** [G2](../../../docs/guardrails.md#g2--hard-package-boundaries) and the existing architecture remain binding. [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md) selects Electron for the desktop editor and player, and [ADR 0021](../../../docs/adr/0021-monaco-code-editor.md) selects Monaco for standalone/browser code editing. Dock Spawn, layout, Monaco's version and this integration design remain open. VS Code retains native text editing; the supported extension and web hosts and shared platform-service boundaries remain. These decisions are not evidence that any component has shipped.
 
 ## The proposed shape
 
@@ -33,7 +33,7 @@ G2 requires `editor-ui` to access the host only through platform services, never
 | Concern | Desktop workbench candidate | VS Code extension candidate | Shared or conditional |
 |---|---|---|---|
 | Navigation | Game and Files views, tabs, palette, optional docks in host chrome | Native explorer/contributed Game view and native editor tabs | Both navigate to the same document identities; separate or combined views are presentation, not storage. |
-| Script | Evaluate Monaco for code editing; integrate language services deliberately | Native text editors and language integration | Same language semantics and diagnostics; Monaco alone is not VS Code's workbench, extension host, LSP wiring, or recovery system. Native text/document synchronization needs proof. |
+| Script | Use the selected Monaco editor for code; integrate language services deliberately | Native text editors and language integration | Same language semantics and diagnostics; Monaco alone is not VS Code's workbench, extension host, LSP wiring, or recovery system. Native text/document synchronization needs proof. |
 | Visual work | Shared editor views in desktop panels | Shared visual views in custom-editor webviews; extension host owns models | Same editor features and document operations, not a complete standalone workbench embedded in a webview. Exact webview placement and size are open. |
 | Workspace | Candidate dock manager manages groups, layout and focus | Native VS Code editor groups and contributed views | Save document independently of panel layout. Per-host layout and shortcuts may differ. |
 | Services | Desktop adapters for files, project, dialogs, execution, export, settings and document lifecycle | Extension adapters map those requests to available VS Code APIs | Platform services expose actual availability and errors; neither host silently pretends an unavailable service exists. |
@@ -155,7 +155,7 @@ AD-19 calls for a host-conformance suite: prototype it against both adapters for
 
 ## Decisions still needed and evidence to collect
 
-1. **Workbench components:** Is Monaco appropriate, and does Dock Spawn meet G6, accessibility, lifecycle and maintenance needs? Compare against a simpler alternative with packaged-host evidence. Electron itself is already selected by ADR 0013.
+1. **Workbench integration and docking:** How should the selected Monaco editor be versioned and integrated, and does Dock Spawn meet G6, accessibility, lifecycle and maintenance needs? Evaluate docking alternatives with packaged-host evidence. Electron is already selected by ADR 0013.
 2. **Document identity and references:** How are URIs normalized, save-as/rename handled, unknown/dynamic links indexed, external conflicts reconciled, and multiple open views synchronized? Demonstrate on real supported formats; do not infer a new format or atomic cross-document undo.
 3. **Native text vs visual document ownership:** How do VS Code native text editors and custom editors share authoritative source, commands and undo without dual ownership? Verify the relevant current VS Code APIs with a working split-view prototype.
 4. **Task and view lifetime:** Which origin/selection state survives promotion, nested navigation, hiding, reparenting, restart and missing targets? Observe both hosts and accessible workflows.

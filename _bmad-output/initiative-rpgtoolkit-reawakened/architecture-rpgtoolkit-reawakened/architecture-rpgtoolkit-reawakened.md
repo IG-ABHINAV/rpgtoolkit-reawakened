@@ -463,7 +463,7 @@ graph TD
 | spessasynth_core (`synth`; pinned by pnpm override with `stb-vorbis`) | 4.3.22 |
 | spessasynth_lib (`runner-web` only) | 4.3.14 |
 | Bundled default SoundFont (runner-side, SF2, at most 8 MiB) | the Path B candidate passes the provenance bar or TK-16 ships (entries 6.13 and 6.14); FluidR3_GM is not bundled ([audio-media.md#path-b-bank](../../../docs/spec/engine/audio-media.md#path-b-bank)) |
-| CodeMirror 6 (`@codemirror/state`, `view`, `language`, `commands`) | 6.7.6 / 6.43.14 / 6.13.1 / 6.11.1 |
+| Monaco (standalone/browser code editor; [ADR 0021](../../../docs/adr/0021-monaco-code-editor.md)) | Version to be pinned at integration; VS Code uses its native text editor |
 | VS Code (`engines.vscode` floor; `@types/vscode` pinned to it) | ^1.91.0 |
 | vscode-languageserver / vscode-languageclient | 10.1.2 |
 | @vscode/debugadapter | 1.68.0 |
