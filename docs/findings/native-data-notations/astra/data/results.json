@@ -1,0 +1,3602 @@
+{
+  "model": "openai-codex/gpt-6-astra",
+  "baseline": "20e0209d",
+  "runtime": "v26.13.0",
+  "platform": "darwin/arm64",
+  "git": "git version 2.55.0",
+  "schemaDialect": "JSON Schema draft 2020-12 via Ajv2020; not native syntax schemas",
+  "candidates": {
+    "JSON": {
+      "extension": "json",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 83091,
+          "encodedMs": 0.13941699999999457,
+          "parseMs": 0.1580419999999947,
+          "sha256": "b585f3e46a5d3ba6d6ae64168c18c4877e37ddc7059e8436a321323e8b709845"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 198512,
+          "encodedMs": 0.26975000000000193,
+          "parseMs": 0.38299999999999557,
+          "sha256": "1f347169f9984baacd4024752d196e93c973f96fa7fa90ed06855c01d76e8b90"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 260098,
+          "encodedMs": 0.38162499999999966,
+          "parseMs": 0.6136670000000066,
+          "sha256": "317670d6fcd3ca265937f14b4892b3fc634f589f0414d4364150dc5d853d6cad"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 636955,
+          "encodedMs": 1.3679169999999772,
+          "parseMs": 0.8783750000000055,
+          "sha256": "1e9d693a3c1c1ffb4914cd341377fd368a10ef3a1ee56e0849c621c88b55bc51"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": true,
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 0,
+          "diffBytes": 0,
+          "exit": 0,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 573,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 30,
+          "column": 20
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "SyntaxError: Unterminated string in JSON at position 31137 (line 2204 column 14)"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 571,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 16104,
+          "operationMs": 0.09116599999998698,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 455,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 64053,
+          "operationMs": 0.24083300000000918,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 497,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 50480,
+          "operationMs": 0.183166999999969,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 472,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 339170,
+          "operationMs": 1.0504999999999995,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 511,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 0.1251670000000047,
+        "bytes": 62251
+      }
+    },
+    "YAML": {
+      "extension": "yaml",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 59451,
+          "encodedMs": 14.77899999999994,
+          "parseMs": 33.452499999999986,
+          "sha256": "b7d61e8782b9de06e206fbb63b79f90e837ced1af4a18cbfd5e9c75c6c85ebb2"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 145118,
+          "encodedMs": 14.848792000000003,
+          "parseMs": 46.14175,
+          "sha256": "0d145cf29ff59c5f72f1022760f423fb7f94c1b8cd0e89ded6652696edcb55a9"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 193483,
+          "encodedMs": 15.479708000000073,
+          "parseMs": 60.27987500000006,
+          "sha256": "ff9d9e0278e52af5fbc5cd0a3a919b0e812c96e8a194dbd032d93c0eb0083ce5"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 539177,
+          "encodedMs": 28.465374999999995,
+          "parseMs": 140.87112500000012,
+          "sha256": "e17c73c2759f1f549ab20392caaae4fff57e885c90b2a1d2991af39652f51055"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": true,
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 0,
+          "diffBytes": 0,
+          "exit": 0,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 526,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 25,
+          "column": 15
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "YAMLParseError: Missing closing \"quote at line 1840, column 14:\n\n\"unterminated\n             ^\n"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 524,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 2,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 11041,
+          "operationMs": 6.217290999999932,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 452,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 45626,
+          "operationMs": 23.02749999999969,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 494,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 38109,
+          "operationMs": 18.72891699999991,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 469,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 273046,
+          "operationMs": 131.22529199999963,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 508,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 4.154666000000134,
+        "bytes": 47669
+      }
+    },
+    "KDL": {
+      "extension": "kdl",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 60416,
+          "encodedMs": 4.883000000000266,
+          "parseMs": 9.00845900000013,
+          "sha256": "75d19c2b31666ec8906f89cb487e9d6ab148867d90fb7ec7a4d4be6f6efd4d4f"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 133681,
+          "encodedMs": 5.147958000000017,
+          "parseMs": 9.289083000000119,
+          "sha256": "cbe6f7c99f6ec15c9b68e68ed7362939c17629d1402c1e2c0e6b4ab66760f0f9"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 165123,
+          "encodedMs": 4.748207999999977,
+          "parseMs": 11.1127919999999,
+          "sha256": "9387ddad8519d6360e581aaeb7c6b352c6740f6ac4397837e308ac30f390e207"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 298836,
+          "encodedMs": 8.217165999999906,
+          "parseMs": 23.95475000000033,
+          "sha256": "95dfd6a816e8193af20b5c54add7f30cf2a1557050ce22e27534231367cec2b2"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": true,
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 0,
+          "diffBytes": 0,
+          "exit": 0,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": true,
+        "containsCRLF": true,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 536,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 30,
+          "column": 16
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "InvalidKdlError: Unexpected EOF inside string at 799:14"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 536,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 10357,
+          "operationMs": 1.0079169999999067,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 543,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 42023,
+          "operationMs": 3.4890000000000327,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 586,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 26338,
+          "operationMs": 2.512916000000132,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 557,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 137221,
+          "operationMs": 15.18637499999977,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 845,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 0.9095830000001115,
+        "bytes": 32588
+      }
+    },
+    "TOML": {
+      "extension": "toml",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 46159,
+          "encodedMs": 1.8840420000001359,
+          "parseMs": 3.6881250000001273,
+          "sha256": "1f309a094c75358c28de5d1b8830e7b6cfb363d67fda04f359ace1d06d60606e"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 108989,
+          "encodedMs": 1.1150830000001406,
+          "parseMs": 2.8387500000003456,
+          "sha256": "8527522174fcdbe3818ef519c7a3f09b2efdde3acd228f706af50289bae1450b"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 133675,
+          "encodedMs": 1.5628750000000764,
+          "parseMs": 4.084582999999839,
+          "sha256": "de079b57d6009634074217b49616e492228c2aa01dc76d6f9becca779c3800d7"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 273080,
+          "encodedMs": 2.8340830000001915,
+          "parseMs": 6.090791000000081,
+          "sha256": "d6277e0af368679a83423182c150eb9ca78bba27ead14856b96be6c85d8ddd66"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": false,
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 1,
+          "diffBytes": 592,
+          "exit": 1,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "diff": {
+          "changedLines": 3,
+          "diffBytes": 764,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 39,
+          "column": 11
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "Error: Invalid TOML document: illegal character in key\n\n696:  y = 9\n697:  cells \n            ^\n698:  \"unterminated\n"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 588,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 8419,
+          "operationMs": 0.38141700000005585,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 644,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 37121,
+          "operationMs": 1.2233750000000327,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 683,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 25238,
+          "operationMs": 0.8811249999998836,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 653,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 137825,
+          "operationMs": 4.330082999999831,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 1016,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 0.7664999999997235,
+        "bytes": 30027
+      }
+    },
+    "JSON5": {
+      "extension": "json5",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 79758,
+          "encodedMs": 2.4206250000002,
+          "parseMs": 8.530541999999969,
+          "sha256": "149cb277978ac9972933c7ff143655bc5a3b5f1513e10de1855d49927853a036"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 191534,
+          "encodedMs": 2.293250000000171,
+          "parseMs": 10.848958000000039,
+          "sha256": "1ad0ef3aba0d233939a6f3360b749062d59e7ec9acc5492d3476e13c514ffdb7"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 250996,
+          "encodedMs": 1.8920829999997295,
+          "parseMs": 14.740334000000075,
+          "sha256": "8e203eb4e311c1b2007be496b83bdb6c612344af0184ac2f66208117430a9941"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 624602,
+          "encodedMs": 4.98929199999975,
+          "parseMs": 32.95358299999998,
+          "sha256": "9be1a847b2240912d5bee6d72deb71ac73904e06bd72a34753ce3907bb843b89"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": false,
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 1,
+          "diffBytes": 397,
+          "exit": 1,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "diff": {
+          "changedLines": 3,
+          "diffBytes": 581,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 30,
+          "column": 18
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "SyntaxError: JSON5: invalid end of input at 2178:14"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 559,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 15435,
+          "operationMs": 1.1635839999999007,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 457,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 61428,
+          "operationMs": 4.290000000000873,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 499,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 48855,
+          "operationMs": 3.335291999999754,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 474,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 332921,
+          "operationMs": 20.903333000000202,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 513,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 1.1167500000001382,
+        "bytes": 60431
+      }
+    },
+    "Hjson": {
+      "extension": "hjson",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 77116,
+          "encodedMs": 2.0044580000003407,
+          "parseMs": 2.0145830000001297,
+          "sha256": "82590f438519765f65938bc3ea6d31de9cebffd6103c534d07bed9d6c1d6e92f"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 185552,
+          "encodedMs": 1.8620829999999842,
+          "parseMs": 2.3297080000002097,
+          "sha256": "491f672aaf2736a1b0ae0effe5ed949ca554e98548dd49787fa4292f5d19cbeb"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 242580,
+          "encodedMs": 1.8607499999998254,
+          "parseMs": 2.54162499999984,
+          "sha256": "beb2940f66c64bc4ea5eb17738cfcfa22c4b80757b6167d43baa692337ce0713"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 599636,
+          "encodedMs": 4.972291000000041,
+          "parseMs": 6.428624999999556,
+          "sha256": "b952ddd231eebc558937dee5cb53002b7c8f9703e982927bceb84e91c4e5871f"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": false,
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 10,
+          "diffBytes": 696,
+          "exit": 1,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": true,
+        "diff": {
+          "changedLines": 12,
+          "diffBytes": 918,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 37,
+          "column": 17
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "Error: Bad string at line 2290,14 >>>\"unterminated ..."
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 539,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 14641,
+          "operationMs": 0.33849999999983993,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 443,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 58612,
+          "operationMs": 1.225749999999607,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 485,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 46123,
+          "operationMs": 1.0562920000002123,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 460,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 309046,
+          "operationMs": 6.807917000000089,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 499,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 0.5049580000004426,
+        "bytes": 57872
+      }
+    },
+    "EDN": {
+      "extension": "edn",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 63816,
+          "encodedMs": 1.0331249999999272,
+          "parseMs": 9.246000000000095,
+          "sha256": "3748f214289ce14a898f4c78efdce24fa6c6c9fa5d072e240d4ccdd27ac14860"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 141492,
+          "encodedMs": 0.9076249999998254,
+          "parseMs": 6.4484590000001845,
+          "sha256": "47af3833120f598ddc1281f88b4c7d3df19cc44ee85f4909bb414ecccef697d3"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 175272,
+          "encodedMs": 1.0562500000005457,
+          "parseMs": 7.37920800000029,
+          "sha256": "2b1f488b31376f22f2ad1bd727458a721c015c4a74598b1eb22ac5a60e4d4e82"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 312309,
+          "encodedMs": 2.043874999999389,
+          "parseMs": 12.779292000000169,
+          "sha256": "e09afa4338170332763f48e34da45eb19e51e37af1172f7a4d593464f23dd8e4"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": false,
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 1,
+          "diffBytes": 389,
+          "exit": 1,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "diff": {
+          "changedLines": 3,
+          "diffBytes": 571,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 32,
+          "column": 19
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": true,
+        "accepted": true
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 550,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 11090,
+          "operationMs": 0.6112499999999272,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 561,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 45088,
+          "operationMs": 2.187542000000576,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 604,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 28467,
+          "operationMs": 1.3519999999998618,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 575,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 145362,
+          "operationMs": 7.174833999999464,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 863,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 0.2590840000002572,
+        "bytes": 35006
+      }
+    },
+    "XML": {
+      "extension": "xml",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 171344,
+          "encodedMs": 7.933708999999908,
+          "parseMs": 23.301917000000685,
+          "sha256": "21812002330361de0e735614a878cf63b7ff37b6a3a44caebf26d27c51cd08e9"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 418808,
+          "encodedMs": 12.788042000000132,
+          "parseMs": 37.32987500000036,
+          "sha256": "4074a7f4955d79764282e1a797d414e854073895e10f7a1ff671047a6002deb0"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 565706,
+          "encodedMs": 16.353707999999642,
+          "parseMs": 44.405665999999655,
+          "sha256": "f870be109ef1d709ba23373a417bb0477f72a92bdf582db1ad5e5cd962004041"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 1508651,
+          "encodedMs": 47.75179200000002,
+          "parseMs": 136.21754099999998,
+          "sha256": "66e9412a7f51c34fc3a174c80955a8685eddf83596130c266dff546352dffa07"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": false,
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 1,
+          "diffBytes": 462,
+          "exit": 1,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "diff": {
+          "changedLines": 3,
+          "diffBytes": 776,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 30,
+          "column": 39
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "Error: {\"err\":{\"code\":\"InvalidAttr\",\"msg\":\"Attributes for 'v' have open quote.\",\"line\":1988,\"col\":13}}"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 725,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 3,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 41539,
+          "operationMs": 5.296958999999333,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 665,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 156992,
+          "operationMs": 18.92320800000016,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 707,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 139349,
+          "operationMs": 16.408416999999645,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 682,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 1053093,
+          "operationMs": 127.75891599999977,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 721,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 4.639083000000028,
+        "bytes": 155872
+      }
+    },
+    "SDLang": {
+      "extension": "sdl",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 156781,
+          "encodedMs": 1.4434580000006463,
+          "parseMs": 13.907084000000395,
+          "sha256": "a138fe3bf7bf30f1a48373b75573fc7526edb0c632ecf487baa1fb9712ba7e59"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 382293,
+          "encodedMs": 1.543374999999287,
+          "parseMs": 18.18645800000013,
+          "sha256": "4ba5b2b47daa27c00b2e880bdfc74978e906cdca557c73803b4074be31244659"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 514406,
+          "encodedMs": 2.2914590000000317,
+          "parseMs": 23.10199999999986,
+          "sha256": "f02bfb674a6211ec190c57a208741f74ff629f3cbaca7dc74ccee1a25dd25653"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 1363413,
+          "encodedMs": 8.35058299999946,
+          "parseMs": 69.22199999999975,
+          "sha256": "ee189891aeff9cf3496e9ad390b62d3d16d348cbfa783f1335d9a54b376167ea"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": false,
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 1,
+          "diffBytes": 465,
+          "exit": 1,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "diff": {
+          "changedLines": 3,
+          "diffBytes": 755,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 31,
+          "column": 25
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "Error: Orphaned identifier. Were you trying to make an attribute? Name = unterminated"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 735,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 3,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 37124,
+          "operationMs": 3.2335000000002765,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 667,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 140927,
+          "operationMs": 8.264500000000226,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 709,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 123910,
+          "operationMs": 7.655999999999949,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 684,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 930582,
+          "operationMs": 53.45087500000045,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 723,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 0.7170419999993101,
+        "bytes": 139718
+      }
+    },
+    "RON": {
+      "extension": "ron",
+      "projections": {
+        "demo": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 13,
+          "bytes": 129762,
+          "encodedMs": 3.69341600000007,
+          "parseMs": 4.279583000000457,
+          "sha256": "9b734f54eb2c3c7e02e8867a574670dabb36d6a567866e9781578260932e1f31"
+        },
+        "ChimeranEmpire": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 39,
+          "bytes": 312583,
+          "encodedMs": 4.480500000000575,
+          "parseMs": 6.664582999999766,
+          "sha256": "6f892c1aa628730e59ec433bf3f067554d165b0ef495258b6064869dc5eba9ce"
+        },
+        "Caoquest": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 35,
+          "bytes": 414233,
+          "encodedMs": 5.187749999999141,
+          "parseMs": 7.1614580000004935,
+          "sha256": "2f9536bd05492802c43581b2fd8b7a5eb053ad70be5eb60943b4a1e9f46b77e8"
+        },
+        "CrystalImmortality": {
+          "ok": true,
+          "semanticEqual": true,
+          "splitDocumentsEqual": true,
+          "documents": 48,
+          "bytes": 1036572,
+          "encodedMs": 8.240334000000075,
+          "parseMs": 14.433582999999999,
+          "sha256": "f413db4826f75a83788487943f716989b08b0de9578004df9028c8d68e19bf3d"
+        }
+      },
+      "validation": {
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "noop": {
+        "bytesEqual": false,
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "keyOrderPreserved": true,
+        "diff": {
+          "changedLines": 1,
+          "diffBytes": 399,
+          "exit": 1,
+          "artifact": "noop.diff"
+        }
+      },
+      "crlf": {
+        "ok": true,
+        "bytesEqual": false,
+        "containsCRLF": false,
+        "semanticEqual": true
+      },
+      "propertyEdit": {
+        "semanticEqual": true,
+        "commentPreserved": false,
+        "diff": {
+          "changedLines": 3,
+          "diffBytes": 615,
+          "exit": 1,
+          "artifact": "one-property.diff"
+        }
+      },
+      "invalidSchema": {
+        "schemaValid": false,
+        "coreValid": false,
+        "errors": [
+          {
+            "instancePath": "/scene/width",
+            "schemaPath": "#/properties/scene/properties/width/minimum",
+            "keyword": "minimum",
+            "params": {
+              "comparison": ">=",
+              "limit": 1
+            },
+            "message": "must be >= 1"
+          },
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/radius",
+            "schemaPath": "#/properties/radius/type",
+            "keyword": "type",
+            "params": {
+              "type": "integer"
+            },
+            "message": "must be integer"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ],
+        "markerLocation": {
+          "line": 30,
+          "column": 28
+        },
+        "locationMethod": "unique invalid scalar marker; validator itself reports JSON Pointer, not source location"
+      },
+      "invalidSyntax": {
+        "ok": false,
+        "error": "Error: Error: SpannedError { code: ExpectedComma, span: Span { start: Position { line: 2118, col: 1 }, end: Position { line: 2118, col: 1 } } }\n"
+      },
+      "missingPlugin": {
+        "contentPreserved": true,
+        "status": [
+          {
+            "namespace": "@example/patrol",
+            "status": "preserved-unvalidated; execution not authorized"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "pluginVersionMismatch": {
+        "contentPreserved": true,
+        "errors": [
+          {
+            "namespace": "@example/patrol",
+            "instancePath": "/schemaVersion",
+            "schemaPath": "#/properties/schemaVersion/const",
+            "keyword": "const",
+            "params": {
+              "allowedValue": 1
+            },
+            "message": "must be equal to constant"
+          },
+          {
+            "namespace": "@missing/story",
+            "status": "preserved-unvalidated; execution not authorized"
+          }
+        ]
+      },
+      "script": {
+        "decodedUtf8BytesEqual": true,
+        "sha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+        "bindingIdPreserved": true,
+        "contextPreserved": true,
+        "caveat": "Source bytes after Unicode decoding; not original Windows-1252 bytes or VM continuation equivalence"
+      },
+      "referenceRename": {
+        "rewrittenKnownReferences": 3,
+        "performanceActor": "actor:item/cao2.itm-renamed",
+        "unresolvedAfterRename": [],
+        "brokenReferenceDiagnostics": [
+          {
+            "path": "/scene/placements/0/actor",
+            "placement": "placement-0",
+            "missing": "actor:missing"
+          }
+        ],
+        "stalePerformanceDiagnostics": [
+          {
+            "path": "/designExample/performance/actor",
+            "missing": "actor:item/cao2.itm"
+          }
+        ],
+        "scope": "explicit placement and designExample.performance actor references plus catalogue; no plugin/string/script rewriting or dynamic dependency proof"
+      },
+      "rawTextMerges": {
+        "ok": true,
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "raw-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "raw-same-property.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "leftDiff": {
+          "changedLines": 2,
+          "diffBytes": 593,
+          "exit": 1,
+          "artifact": "raw-property.diff"
+        }
+      },
+      "editorMerges": {
+        "independent": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "editor-independent.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "sameProperty": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "editor-same-property.merged",
+          "semantic": "not decoded because conflict"
+        }
+      },
+      "sequenceMerges": {
+        "adjacent": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "adjacent.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "edit-delete": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "edit-delete.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "simultaneous-add": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "simultaneous-add.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "reorder-edit": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "reorder-edit.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-insert-reorder": {
+          "gitExit": 1,
+          "textualConflict": true,
+          "source": "frame-insert-reorder.merged",
+          "semantic": "not decoded because conflict"
+        },
+        "frame-remove-edit": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "frame-remove-edit.merged",
+          "semantic": "preserved",
+          "identityErrors": []
+        },
+        "same-id-placement-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-placement-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/scene/placements/6/id",
+              "firstPath": "/scene/placements/1/id",
+              "id": "same-added"
+            }
+          ]
+        },
+        "same-id-frame-disjoint": {
+          "gitExit": 0,
+          "textualConflict": false,
+          "source": "same-id-frame-disjoint.merged",
+          "semantic": "FALSE-CLEAN",
+          "identityErrors": [
+            {
+              "keyword": "uniqueIdentity",
+              "instancePath": "/clip/frames/5/id",
+              "firstPath": "/clip/frames/0/id",
+              "id": "same-frame"
+            }
+          ]
+        }
+      },
+      "tiles": {
+        "demo": {
+          "dimensions": [
+            20,
+            11,
+            2
+          ],
+          "bytes": 24725,
+          "operationMs": 5.416124999999738,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 513,
+            "exit": 1,
+            "artifact": "tile-demo.diff"
+          }
+        },
+        "ChimeranEmpire": {
+          "dimensions": [
+            19,
+            11,
+            8
+          ],
+          "bytes": 97020,
+          "operationMs": 7.552332999999635,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 555,
+            "exit": 1,
+            "artifact": "tile-ChimeranEmpire.diff"
+          }
+        },
+        "Caoquest": {
+          "dimensions": [
+            19,
+            14,
+            8
+          ],
+          "bytes": 78479,
+          "operationMs": 6.41070899999977,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 530,
+            "exit": 1,
+            "artifact": "tile-Caoquest.diff"
+          }
+        },
+        "CrystalImmortality": {
+          "dimensions": [
+            50,
+            50,
+            8
+          ],
+          "bytes": 550361,
+          "operationMs": 15.604584000000614,
+          "semanticEqual": true,
+          "diff": {
+            "changedLines": 2,
+            "diffBytes": 569,
+            "exit": 1,
+            "artifact": "tile-CrystalImmortality.diff"
+          }
+        }
+      },
+      "operations": {
+        "ok": true,
+        "encodeMs": 3.3389589999987948,
+        "bytes": 99078
+      }
+    }
+  },
+  "fixtures": {
+    "demo": {
+      "scene": "scene:boards/start.brd",
+      "dimensions": [
+        20,
+        11,
+        2
+      ],
+      "cells": 440,
+      "placements": 1,
+      "actor": "actor:item/oldman.itm",
+      "clip": "clip:misc/start/start_s.anm",
+      "frames": 2,
+      "note": "script edge case, plugins, grants and performance explicitly authored; all main records projected from corpus"
+    },
+    "ChimeranEmpire": {
+      "scene": "scene:boards/museum.brd",
+      "dimensions": [
+        19,
+        11,
+        8
+      ],
+      "cells": 1672,
+      "placements": 3,
+      "actor": "actor:item/man.itm",
+      "clip": "clip:misc/bolt 1.anm",
+      "frames": 5,
+      "note": "script edge case, plugins, grants and performance explicitly authored; all main records projected from corpus"
+    },
+    "Caoquest": {
+      "scene": "scene:boards/house3.brd",
+      "dimensions": [
+        19,
+        14,
+        8
+      ],
+      "cells": 2128,
+      "placements": 6,
+      "actor": "actor:item/cao2.itm",
+      "clip": "clip:misc/combo.anm",
+      "frames": 4,
+      "note": "script edge case, plugins, grants and performance explicitly authored; all main records projected from corpus"
+    },
+    "CrystalImmortality": {
+      "scene": "scene:boards/castle3left.brd",
+      "dimensions": [
+        19,
+        19,
+        8
+      ],
+      "cells": 2888,
+      "placements": 6,
+      "actor": "actor:item/train soldier1.itm",
+      "clip": "clip:misc/bolt1.anm",
+      "frames": 3,
+      "note": "script edge case, plugins, grants and performance explicitly authored; all main records projected from corpus"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  :kind "actor"
+  :id "mira"
+  :name "Mira"
+  :presence {
+    :clips {
+      :walk {
+        :south "mira/walk-south"
+      }
+    }
+  }
+  :character {
+    :initialStats {
+      :hp 120
+      :maxHp 120
+      :dp 8
+      :fp 30
+      :smp 25
+      :maxSmp 25
+      :level 1
+      :experience 0
+    }
+    :skills {
+      :menuLabel "Arts"
+      :enabled true
+      :learnable [
+        {
+          :skill "spark"
+          :slot 1
+          :requires {
+            :level 2
+          }
+          :perform {
+            :clip "mira/cast-spark"
+            :stance "special"
+          }
+        }
+      ]
+    }
+  }
+}

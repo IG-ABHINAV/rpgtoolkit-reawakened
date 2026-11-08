@@ -1,0 +1,33 @@
+{
+  "inputRevision": "20e0209d",
+  "sharedInputSha256": "b3c667e910753d265980cfec7cddb13b6da9092faf8c51a7a579fadc48ef0a42",
+  "inventoryEntries": 2536,
+  "consumedPayloads": 1692,
+  "decodedOrRead": 1689,
+  "programsRead": 878,
+  "selectedSources": 95,
+  "projectedDocuments": 135,
+  "games": {
+    "demo": {
+      "consumed": 31,
+      "decodedOrRead": 31,
+      "programs": 7
+    },
+    "ChimeranEmpire": {
+      "consumed": 498,
+      "decodedOrRead": 495,
+      "programs": 233
+    },
+    "Caoquest": {
+      "consumed": 108,
+      "decodedOrRead": 108,
+      "programs": 46
+    },
+    "CrystalImmortality": {
+      "consumed": 1055,
+      "decodedOrRead": 1055,
+      "programs": 592
+    }
+  },
+  "notes": "Pixels/tileset/font payloads outside these domain probes; no installer, game or RPGCode execution."
+}

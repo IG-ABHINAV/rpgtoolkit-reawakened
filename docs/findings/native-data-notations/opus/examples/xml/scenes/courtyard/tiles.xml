@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">tile-layers</string>
+  <string key="scene">courtyard</string>
+  <map key="size">
+    <number key="width">6</number>
+    <number key="height">4</number>
+  </map>
+  <array key="palette">
+    <map>
+      <number key="index">1</number>
+      <string key="tileset">stone</string>
+      <number key="tile">3</number>
+    </map>
+    <map>
+      <number key="index">2</number>
+      <string key="tileset">stone</string>
+      <number key="tile">7</number>
+    </map>
+    <map>
+      <number key="index">3</number>
+      <string key="animation">fountain</string>
+    </map>
+  </array>
+  <array key="layers">
+    <map>
+      <number key="layer">1</number>
+      <array key="rows">
+        <array><number>2</number><number>2</number><number>2</number><number>2</number><number>2</number><number>2</number></array>
+        <array><number>1</number><number>1</number><number>1</number><number>1</number><number>1</number><number>1</number></array>
+        <array><number>1</number><number>1</number><number>3</number><number>3</number><number>1</number><number>1</number></array>
+        <array><number>1</number><number>1</number><number>1</number><number>1</number><number>1</number><number>1</number></array>
+      </array>
+    </map>
+  </array>
+</map>

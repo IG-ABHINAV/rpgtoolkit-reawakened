@@ -100,6 +100,12 @@ Only the chosen output directory and temporary spool files are written. No insta
 5. Support explicit inline/file script bindings; use repeated code as a feature-discovery tool, not an automatic rewriting rule.
 6. The current decoders do not cover every recovered variant. [#1772](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1772) tracks that gap; do not promise a lossless migration of all games from this research alone.
 
+The notation comparison that follows from these boundaries is in
+[the native-data-notations findings](../native-data-notations/README.md): two
+independent investigations, a shared-model comparison on one agreed construction,
+and four independent reviews. It records evidence and tradeoffs only; no notation
+is adopted there.
+
 ## Key source files
 
 - [Normative format index](../../spec/formats/README.md), [legacy text variants](../../spec/formats/legacy/text-formats.md), [older binary variants](../../spec/formats/legacy/older-binary-versions.md).

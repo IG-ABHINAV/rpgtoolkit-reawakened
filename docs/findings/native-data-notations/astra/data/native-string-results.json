@@ -1,0 +1,62 @@
+{
+  "JSON": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "{\n  \"source\": \"mwin(\\\"Hello\\\");\\n// path C:\\\\games\\\\demo\\n\"\n}"
+  },
+  "YAML": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "source: |\n  mwin(\"Hello\");\n  // path C:\\games\\demo\n"
+  },
+  "KDL": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "- {\n  source #\"\"\"\n    mwin(\"Hello\");\n    // path C:\\games\\demo\n\n    \"\"\"#\n}\n"
+  },
+  "TOML": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "source = '''\nmwin(\"Hello\");\n// path C:\\games\\demo\n'''\n"
+  },
+  "JSON5": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "{ source: \"mwin(\\\"Hello\\\");\\n// path C:\\\\games\\\\demo\\n\" }"
+  },
+  "Hjson": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "{\n source: '''\n  mwin(\"Hello\");\n  // path C:\\games\\demo\n\n  '''\n}\n"
+  },
+  "EDN": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "{\"source\" \"mwin(\\\"Hello\\\");\n// path C:\\\\games\\\\demo\n\"}"
+  },
+  "XML": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "<v type=\"object\"><v key=\"source\" type=\"string\"><![CDATA[mwin(\"Hello\");\n// path C:\\games\\demo\n]]></v></v>"
+  },
+  "SDLang": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "entry \"\" type=\"object\" {\n entry \"source\" `mwin(\"Hello\");\n// path C:\\games\\demo\n` type=\"string\"\n}\n"
+  },
+  "RON": {
+    "sourceEqual": true,
+    "rawTextEditEqual": true,
+    "newlinePreserved": true,
+    "document": "{\"source\": r#\"mwin(\"Hello\");\n// path C:\\games\\demo\n\"#}"
+  }
+}

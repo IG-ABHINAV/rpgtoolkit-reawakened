@@ -1,0 +1,191 @@
+{
+  "stalePerformanceRepro": {
+    "schemaValid": true,
+    "errors": [],
+    "unresolvedReferences": [
+      {
+        "path": "/designExample/performance/actor",
+        "missing": "actor:item/cao2.itm"
+      }
+    ]
+  },
+  "completeRename": {
+    "rewrittenReferences": 3,
+    "designExamplePerformance": "actor:item/cao2.itm-full"
+  },
+  "xmlNulEncode": {
+    "rejected": true,
+    "message": "Error: XML10_FORBIDDEN_CHARACTER U+0000"
+  },
+  "xmlBooleanTypo": {
+    "rejected": true
+  },
+  "duplicateMerges": {
+    "JSON": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "YAML": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "KDL": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "TOML": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "JSON5": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "Hjson": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "EDN": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "XML": {
+      "same-id-placement-disjoint": "textual conflict (no merged document)",
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "SDLang": {
+      "same-id-placement-disjoint": "textual conflict (no merged document)",
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    },
+    "RON": {
+      "same-id-placement-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/1/id",
+          "id": "same-added"
+        }
+      ],
+      "same-id-frame-disjoint": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/5/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "same-frame"
+        }
+      ]
+    }
+  }
+}

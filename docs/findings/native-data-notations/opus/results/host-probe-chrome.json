@@ -1,0 +1,114 @@
+{
+ "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+ "result": {
+  "yaml": {
+   "ok": true,
+   "checks": {
+    "roundTrip": true,
+    "editExpected": true,
+    "rejectsMalformed": true
+   },
+   "failed": [],
+   "hash": "7e586838d198204a",
+   "ms": 39.3
+  },
+  "kdl-jik": {
+   "ok": true,
+   "checks": {
+    "roundTrip": true,
+    "formatIdentity": true,
+    "rejectsMalformed": true
+   },
+   "failed": [],
+   "hash": "890ebc9efefa493d",
+   "ms": 6.9
+  },
+  "toml": {
+   "ok": true,
+   "checks": {
+    "roundTrip": true,
+    "patchExpected": true,
+    "rejectsMalformed": true
+   },
+   "failed": [],
+   "hash": "83f2280da5290a7f",
+   "ms": 34
+  },
+  "json5": {
+   "ok": true,
+   "checks": {
+    "roundTrip": true,
+    "rejectsMalformed": true
+   },
+   "failed": [],
+   "hash": "4477c43df9730f78",
+   "ms": 2.8
+  },
+  "hjson": {
+   "ok": true,
+   "checks": {
+    "roundTrip": true,
+    "rtKeepsComment": true,
+    "rejectsMalformed": true
+   },
+   "failed": [],
+   "hash": "6bb4a89c15ba9518",
+   "ms": 4.4
+  },
+  "jsonc": {
+   "ok": true,
+   "checks": {
+    "editExpected": true,
+    "reportsMalformed": true
+   },
+   "failed": [],
+   "hash": "116e8160ba40a2b5",
+   "ms": 2.4
+  },
+  "edn-data": {
+   "ok": false,
+   "checks": {
+    "roundTrip": true,
+    "rejectsMalformed": false
+   },
+   "failed": [
+    "rejectsMalformed"
+   ],
+   "hash": "698118bf873e49cb",
+   "ms": 1.8
+  },
+  "xmldom": {
+   "ok": true,
+   "checks": {
+    "serializeKeepsComment": true,
+    "validatorAcceptsGood": true,
+    "domRejectsMalformed": true,
+    "validatorRejectsMalformed": true
+   },
+   "failed": [],
+   "hash": "a661825156cff847",
+   "ms": 2.4
+  },
+  "ajv2020": {
+   "ok": true,
+   "checks": {
+    "acceptsValid": true,
+    "rejectsInvalid": true,
+    "errorAtExpectedPath": true
+   },
+   "failed": [],
+   "hash": "3bdea2821bd130b7",
+   "ms": 61.7
+  },
+  "ts-hocon": {
+   "ok": true,
+   "checks": {
+    "substitutionMerge": true,
+    "rejectsMalformed": true
+   },
+   "failed": [],
+   "hash": "742f33d22486b329",
+   "ms": 2
+  }
+ }
+}

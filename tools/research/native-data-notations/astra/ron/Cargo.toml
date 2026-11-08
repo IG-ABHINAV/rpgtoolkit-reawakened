@@ -1,0 +1,12 @@
+[package]
+name = "notation-ron-probe"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ron = "=0.12.3"
+serde_json = { version = "=1.0.149", features = ["preserve_order"] }

@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tk-reawakened.invalid/research/1778/opus/native-model.schema.json",
+  "title": "EXPERIMENTAL #1778 Opus logical document model (research only, not an approved format)",
+  "description": "One schema for every projected document kind; the `kind` field selects the branch. `x-ref` names the document kind a string refers to (project-wide resolution is a separate tool, not JSON Schema). `compat` holds core-owned compatibility data; `extensions` holds namespaced plugin data that core preserves but does not validate.",
+  "type": "object",
+  "required": ["kind"],
+  "properties": { "kind": { "enum": ["project", "actor", "item", "skill", "effect", "clip", "tile-animation", "environment", "scene", "tile-layers"] } },
+  "allOf": [
+    { "if": { "properties": { "kind": { "const": "project" } } }, "then": { "$ref": "#/$defs/project" } },
+    { "if": { "properties": { "kind": { "const": "actor" } } }, "then": { "$ref": "#/$defs/actor" } },
+    { "if": { "properties": { "kind": { "const": "item" } } }, "then": { "$ref": "#/$defs/item" } },
+    { "if": { "properties": { "kind": { "const": "skill" } } }, "then": { "$ref": "#/$defs/skill" } },
+    { "if": { "properties": { "kind": { "const": "effect" } } }, "then": { "$ref": "#/$defs/effect" } },
+    { "if": { "properties": { "kind": { "const": "clip" } } }, "then": { "$ref": "#/$defs/clip" } },
+    { "if": { "properties": { "kind": { "const": "tile-animation" } } }, "then": { "$ref": "#/$defs/tileAnimation" } },
+    { "if": { "properties": { "kind": { "const": "environment" } } }, "then": { "$ref": "#/$defs/environment" } },
+    { "if": { "properties": { "kind": { "const": "scene" } } }, "then": { "$ref": "#/$defs/scene" } },
+    { "if": { "properties": { "kind": { "const": "tile-layers" } } }, "then": { "$ref": "#/$defs/tileLayers" } }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]*$" },
+    "int": { "type": "integer" },
+    "xy": { "type": "array", "prefixItems": [{ "type": "integer" }, { "type": "integer" }], "items": false, "minItems": 2 },
+    "xyl": { "type": "array", "prefixItems": [{ "type": "integer" }, { "type": "integer" }, { "type": "integer", "minimum": 1 }], "items": false, "minItems": 3 },
+    "polygon": { "type": "array", "items": { "$ref": "#/$defs/xy" } },
+    "rgb": { "type": "array", "items": { "type": "integer", "minimum": -255, "maximum": 255 }, "minItems": 3, "maxItems": 3 },
+    "assetPath": { "type": "string", "pattern": "^media/(images|audio)/", "x-ref": "asset" },
+    "script": {
+      "description": "Explicit script binding: inline RPGCode text OR an external program path. Never inferred from file existence.",
+      "oneOf": [
+        { "type": "object", "required": ["inline"], "properties": { "inline": { "type": "string" } }, "additionalProperties": false },
+        { "type": "object", "required": ["program"], "properties": { "program": { "type": "string", "pattern": "^scripts/", "x-ref": "program" } }, "additionalProperties": false },
+        { "type": "object", "required": ["empty"], "properties": { "empty": { "const": true } }, "additionalProperties": false }
+      ]
+    },
+    "tileRef": {
+      "oneOf": [
+        { "type": "object", "required": ["tileset", "tile"], "properties": { "tileset": { "type": "string", "x-ref": "tileset" }, "tile": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+        { "type": "object", "required": ["animation"], "properties": { "animation": { "type": "string", "x-ref": "tile-animation" } }, "additionalProperties": false },
+        { "type": "object", "required": ["single"], "properties": { "single": { "type": "string" } }, "additionalProperties": false },
+        { "type": "object", "required": ["unresolved"], "properties": { "unresolved": { "type": "string" } }, "additionalProperties": false }
+      ]
+    },
+    "condition": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "when": { "type": "object", "required": ["variable", "equals"], "properties": { "variable": { "type": "string" }, "equals": { "type": "string" } }, "additionalProperties": false },
+        "then": { "type": "object", "required": ["variable", "set"], "properties": { "variable": { "type": "string" }, "set": { "type": "string" } }, "additionalProperties": false }
+      }
+    },
+    "compat": { "type": "object", "description": "Core-owned compatibility data (round-trip identity, unprojected legacy values).", "properties": { "tk3": { "type": "object" } }, "additionalProperties": false },
+    "extensions": {
+      "type": "object",
+      "description": "Namespaced plugin data. Core preserves it verbatim; a plugin schema (if installed) validates its own namespace.",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$" },
+      "additionalProperties": { "type": "object", "required": ["version"], "properties": { "version": { "type": "integer", "minimum": 1 } } }
+    },
+    "dirClips": { "type": "object", "propertyNames": { "enum": ["south", "north", "east", "west", "northwest", "northeast", "southwest", "southeast"] }, "additionalProperties": { "type": "string", "x-ref": "clip" } },
+    "customClips": { "type": "array", "items": { "type": "object", "required": ["name", "clip"], "properties": { "name": { "type": "string" }, "clip": { "type": "string", "x-ref": "clip" } }, "additionalProperties": false } },
+    "project": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "title"],
+      "properties": {
+        "kind": true, "title": { "type": "string" },
+        "start": { "type": "object", "additionalProperties": false, "properties": { "scene": { "type": "string", "x-ref": "scene" }, "party": { "type": "array", "items": { "type": "string", "x-ref": "actor" } } } },
+        "hooks": { "type": "object", "additionalProperties": { "$ref": "#/$defs/script" } },
+        "input": { "type": "object", "additionalProperties": false, "properties": { "activationKey": { "type": "integer" }, "menuKey": { "type": "integer" }, "runtimeKey": { "type": "integer" }, "extraKeys": { "type": "array", "items": { "type": "object", "properties": { "key": { "type": "integer" }, "run": { "$ref": "#/$defs/script" } }, "additionalProperties": false } } } },
+        "battles": { "type": "object", "additionalProperties": false, "properties": { "enabled": { "type": "boolean" }, "chancePercent": { "type": "integer" }, "style": { "type": "integer" }, "encounters": { "type": "array", "items": { "type": "object", "required": ["actor"], "properties": { "actor": { "type": "string", "x-ref": "actor" }, "skillLevel": { "type": "integer" } }, "additionalProperties": false } } } },
+        "menuSkin": { "type": "object", "additionalProperties": { "$ref": "#/$defs/assetPath" } },
+        "extensions": true,
+        "compat": { "$ref": "#/$defs/compat" }
+      }
+    },
+    "actor": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id"],
+      "properties": {
+        "kind": true, "id": { "$ref": "#/$defs/id" }, "name": { "type": "string" },
+        "item": { "type": "string", "x-ref": "item", "description": "Inventory definition this world actor represents (pickup). Not duplicated here." },
+        "presence": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "portrait": { "type": "object", "additionalProperties": false, "properties": { "image": { "$ref": "#/$defs/assetPath" }, "tile": { "$ref": "#/$defs/tileRef" } } },
+            "clips": { "type": "object", "additionalProperties": false, "properties": { "walk": { "$ref": "#/$defs/dirClips" }, "idle": { "$ref": "#/$defs/dirClips" }, "stances": { "type": "object", "additionalProperties": { "type": "string", "x-ref": "clip" } }, "custom": { "$ref": "#/$defs/customClips" }, "held": { "type": "string", "x-ref": "clip" }, "rest": { "type": "string", "x-ref": "clip" } } },
+            "timing": { "type": "object", "additionalProperties": false, "properties": { "secondsPerFrame": { "type": "number", "exclusiveMinimum": 0 }, "idleAfterSeconds": { "type": "number", "minimum": 0 } } },
+            "collision": { "$ref": "#/$defs/polygon" }, "activation": { "$ref": "#/$defs/polygon" },
+            "legacyTiles": { "type": "object", "additionalProperties": false, "properties": { "walk": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/tileOrNull" } } }, "custom": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/tileOrNull" } } }, "rest": { "type": "array", "items": { "$ref": "#/$defs/tileOrNull" } }, "battle": { "type": "array", "items": { "$ref": "#/$defs/tileOrNull" } } } },
+            "tileGrid": { "type": "object", "additionalProperties": false, "properties": { "width": { "type": "integer" }, "height": { "type": "integer" }, "tiles": { "type": "array", "items": { "$ref": "#/$defs/tileOrNull" } } } }
+          }
+        },
+        "behaviour": { "type": "object", "additionalProperties": false, "properties": { "onActivate": { "$ref": "#/$defs/script" }, "whilePresent": { "$ref": "#/$defs/script" } } },
+        "character": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "statVariables": { "type": "object", "additionalProperties": { "type": "string" } },
+            "initialStats": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "progression": { "type": "object", "additionalProperties": false, "properties": { "firstLevelExperience": { "type": "integer" }, "experienceIncrease": { "type": "integer" }, "maxLevel": { "type": "integer" }, "mode": { "enum": ["percentage", "fixed"] }, "perLevel": { "type": "object", "additionalProperties": { "type": "integer" } }, "onLevelUp": { "$ref": "#/$defs/script" } } },
+            "skills": {
+              "type": "object", "additionalProperties": false,
+              "properties": {
+                "menuLabel": { "type": "string" }, "enabled": { "type": "boolean" },
+                "learnable": { "type": "array", "items": { "type": "object", "required": ["skill"], "additionalProperties": false, "properties": { "skill": { "type": "string", "x-ref": "skill" }, "slot": { "type": "integer" }, "requires": { "type": "object" }, "perform": { "type": "object", "description": "PROPOSED actor-specific performance binding (not a legacy field).", "additionalProperties": false, "properties": { "clip": { "type": "string", "x-ref": "clip" }, "stance": { "type": "string" } } } } } }
+              }
+            },
+            "equipment": { "type": "object" },
+            "combat": { "type": "object", "additionalProperties": false, "properties": { "stances": { "type": "object", "additionalProperties": { "type": "string", "x-ref": "clip" } }, "sounds": { "type": "array", "items": { "oneOf": [{ "$ref": "#/$defs/assetPath" }, { "type": "null" }] } } } }
+          }
+        },
+        "combatant": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "stats": { "type": "object", "additionalProperties": { "type": "integer" } }, "critical": { "type": "object" },
+            "escape": { "type": "object", "additionalProperties": false, "properties": { "allowed": { "type": "boolean" }, "run": { "$ref": "#/$defs/script" } } },
+            "ai": { "type": "object", "additionalProperties": false, "properties": { "level": { "type": "integer" }, "custom": { "type": "boolean" }, "run": { "$ref": "#/$defs/script" } } },
+            "skills": { "$ref": "#/$defs/skillList" }, "weaknesses": { "$ref": "#/$defs/skillList" }, "strengths": { "$ref": "#/$defs/skillList" },
+            "rewards": { "type": "object" }, "onDefeat": { "$ref": "#/$defs/script" }
+          }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "compat": { "$ref": "#/$defs/compat" }
+      }
+    },
+    "item": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id"],
+      "properties": {
+        "kind": true, "id": { "$ref": "#/$defs/id" }, "name": { "type": "string" }, "description": { "type": "string" },
+        "value": { "type": "object", "additionalProperties": false, "properties": { "buy": { "type": "integer", "minimum": 0 }, "sell": { "type": "integer", "minimum": 0 } } },
+        "keyItem": { "type": "boolean" },
+        "equip": { "type": "object", "additionalProperties": false, "properties": { "slots": { "type": "array", "items": { "enum": ["head", "neck", "left-hand", "right-hand", "body", "legs", "accessory"] } }, "accessory": { "type": "string" }, "bonus": { "type": "object", "additionalProperties": { "type": "integer" } }, "onEquip": { "$ref": "#/$defs/script" }, "onRemove": { "$ref": "#/$defs/script" } } },
+        "restrictedTo": { "type": "array", "items": { "type": "string" } },
+        "menuUse": { "type": "object", "additionalProperties": false, "properties": { "hp": { "type": "integer" }, "smp": { "type": "integer" }, "run": { "$ref": "#/$defs/script" } } },
+        "battleUse": { "type": "object", "additionalProperties": false, "properties": { "hp": { "type": "integer" }, "smp": { "type": "integer" }, "run": { "$ref": "#/$defs/script" }, "clip": { "type": "string", "x-ref": "clip" } } },
+        "grants": { "type": "array", "description": "PROPOSED (owner design example): skills this item provides.", "items": { "type": "object", "required": ["skill", "while"], "additionalProperties": false, "properties": { "skill": { "type": "string", "x-ref": "skill" }, "while": { "enum": ["equipped", "held", "consumed-permanently"] } } } },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "compat": { "$ref": "#/$defs/compat" }
+      }
+    },
+    "skill": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id"],
+      "properties": {
+        "kind": true, "id": { "$ref": "#/$defs/id" }, "name": { "type": "string" }, "description": { "type": "string" },
+        "cost": { "type": "object", "properties": { "smp": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+        "power": { "type": "integer" }, "drainsTargetSmp": { "type": "integer" },
+        "usable": { "type": "object", "properties": { "battle": { "type": "boolean" }, "menu": { "type": "boolean" } }, "additionalProperties": false },
+        "effect": { "type": "string", "x-ref": "effect" }, "run": { "$ref": "#/$defs/script" },
+        "presentation": { "type": "object", "properties": { "clip": { "type": "string", "x-ref": "clip" }, "icon": { "$ref": "#/$defs/assetPath" } }, "additionalProperties": false },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "compat": { "$ref": "#/$defs/compat" }
+      }
+    },
+    "effect": { "type": "object", "required": ["kind", "id"], "properties": { "kind": true, "id": { "$ref": "#/$defs/id" }, "perRound": { "type": "object", "properties": { "run": { "$ref": "#/$defs/script" } } }, "compat": { "$ref": "#/$defs/compat" } } },
+    "tileOrNull": { "oneOf": [{ "$ref": "#/$defs/tileRef" }, { "type": "null" }] },
+    "skillList": { "type": "array", "items": { "type": "string", "x-ref": "skill" } },
+    "clip": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id", "frames"],
+      "properties": {
+        "kind": true, "id": { "$ref": "#/$defs/id" },
+        "size": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
+        "secondsPerFrame": { "type": "number", "minimum": 0 },
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["id"], "additionalProperties": false,
+            "properties": { "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }, "image": { "$ref": "#/$defs/assetPath" }, "tile": { "$ref": "#/$defs/tileRef" }, "transparent": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 }, "minItems": 3, "maxItems": 3 }, "sound": { "$ref": "#/$defs/assetPath" } }
+          }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "compat": { "$ref": "#/$defs/compat" }
+      }
+    },
+    "tileAnimation": { "type": "object", "required": ["kind", "id", "frames"], "properties": { "kind": true, "id": { "$ref": "#/$defs/id" }, "speed": { "type": "integer" }, "frames": { "type": "array", "items": { "oneOf": [{ "$ref": "#/$defs/tileRef" }, { "type": "null" }] } }, "compat": { "$ref": "#/$defs/compat" } }, "additionalProperties": false },
+    "environment": {
+      "type": "object", "required": ["kind", "id"],
+      "properties": {
+        "kind": true, "id": { "$ref": "#/$defs/id" }, "image": { "$ref": "#/$defs/assetPath" }, "music": { "$ref": "#/$defs/assetPath" },
+        "sounds": { "type": "object", "additionalProperties": { "$ref": "#/$defs/assetPath" } },
+        "composition": { "type": "object", "properties": { "palette": { "type": "array", "items": { "allOf": [{ "type": "object", "required": ["index"], "properties": { "index": { "type": "integer", "minimum": 1 } } }, { "$ref": "#/$defs/paletteTile" }] } } } },
+        "compat": { "$ref": "#/$defs/compat" }
+      }
+    },
+    "scene": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id", "size"],
+      "properties": {
+        "kind": true, "id": { "$ref": "#/$defs/id" },
+        "size": { "type": "object", "required": ["width", "height", "layers"], "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 }, "layers": { "type": "integer", "minimum": 1 } }, "additionalProperties": false },
+        "layerTitles": { "type": "array", "items": { "type": "string" } },
+        "tiles": { "type": "string", "description": "Sibling tile-layer document in this scene folder." },
+        "background": { "type": "object", "additionalProperties": false, "properties": { "colour": { "$ref": "#/$defs/rgb" }, "image": { "$ref": "#/$defs/assetPath" }, "imageMode": { "type": "integer" }, "music": { "$ref": "#/$defs/assetPath" } } },
+        "ambient": { "$ref": "#/$defs/rgb" },
+        "start": { "$ref": "#/$defs/xyl" },
+        "battles": { "type": "object", "additionalProperties": false, "properties": { "allowed": { "type": "boolean" }, "environment": { "type": "string", "x-ref": "environment" }, "skillLevel": { "type": "integer" } } },
+        "savingDisabled": { "type": "boolean" },
+        "onEnter": { "$ref": "#/$defs/script" },
+        "links": { "type": "object", "propertyNames": { "enum": ["north", "south", "east", "west"] }, "additionalProperties": { "oneOf": [{ "type": "object", "required": ["scene"], "properties": { "scene": { "type": "string", "x-ref": "scene" } }, "additionalProperties": false }, { "type": "object", "required": ["run"], "properties": { "run": { "$ref": "#/$defs/script" } }, "additionalProperties": false }] } },
+        "regions": { "type": "array", "items": { "type": "object", "required": ["id", "kind", "layer", "points"], "additionalProperties": false, "properties": { "id": { "type": "string" }, "kind": { "enum": ["none", "solid", "under", "one-way", "stairs", "waypoint"] }, "layer": { "type": "integer", "minimum": 1 }, "closed": { "type": "boolean" }, "points": { "$ref": "#/$defs/polygon" }, "targetLayer": { "type": "integer" }, "flags": { "type": "integer" }, "otherAttributes": { "type": "integer" } } } },
+        "triggers": { "type": "array", "items": { "type": "object", "required": ["id", "layer", "area", "run"], "additionalProperties": false, "properties": { "id": { "type": "string" }, "layer": { "type": "integer", "minimum": 1 }, "area": { "$ref": "#/$defs/polygon" }, "open": { "const": true }, "run": { "$ref": "#/$defs/script" }, "graphic": { "$ref": "#/$defs/tileRef" }, "activation": { "type": "object", "additionalProperties": false, "properties": { "onKey": { "type": "boolean" }, "repeatWhileInside": { "type": "boolean" }, "stopsPlayer": { "type": "boolean" }, "repeatDistance": { "type": "integer" } } }, "condition": { "$ref": "#/$defs/condition" } } } },
+        "placements": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["id"], "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }, "emptySlot": { "const": true },
+              "actor": { "type": "string", "x-ref": "actor" }, "at": { "$ref": "#/$defs/xyl" },
+              "onActivate": { "$ref": "#/$defs/script" }, "whilePresent": { "$ref": "#/$defs/script" },
+              "activation": { "type": "object", "additionalProperties": false, "properties": { "onKey": { "type": "boolean" }, "repeat": { "type": "boolean" } } },
+              "condition": { "$ref": "#/$defs/condition" },
+              "loadIf": { "type": "object", "required": ["variable", "equals"], "properties": { "variable": { "type": "string" }, "equals": { "type": "string" } }, "additionalProperties": false },
+              "extensions": { "$ref": "#/$defs/extensions" }
+            },
+            "dependentRequired": { "actor": ["at"] }
+          }
+        },
+        "images": { "type": "array" }, "lights": { "type": "array" },
+        "threads": { "type": "array", "items": { "$ref": "#/$defs/script" } },
+        "constants": { "type": "array", "items": { "type": "string" } },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "compat": { "$ref": "#/$defs/compat" }
+      }
+    },
+    "tileLayers": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "scene", "size", "palette", "layers"],
+      "properties": {
+        "kind": true, "scene": { "type": "string", "x-ref": "scene" },
+        "size": { "type": "object", "required": ["width", "height"], "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 } }, "additionalProperties": false },
+        "palette": { "type": "array", "items": { "allOf": [{ "type": "object", "required": ["index"], "properties": { "index": { "type": "integer", "minimum": 1 } } }, { "$ref": "#/$defs/paletteTile" }] } },
+        "layers": { "type": "array", "items": { "type": "object", "required": ["layer", "rows"], "additionalProperties": false, "properties": { "layer": { "type": "integer", "minimum": 1 }, "title": { "type": "string" }, "rows": { "type": "array", "items": { "type": "array", "items": { "type": "integer", "minimum": 0 } } } } } },
+        "shading": { "type": "array" },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "paletteTile": {
+      "oneOf": [
+        { "type": "object", "required": ["tileset", "tile"], "properties": { "index": true, "tileset": { "type": "string", "x-ref": "tileset" }, "tile": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+        { "type": "object", "required": ["animation"], "properties": { "index": true, "animation": { "type": "string", "x-ref": "tile-animation" } }, "additionalProperties": false },
+        { "type": "object", "required": ["single"], "properties": { "index": true, "single": { "type": "string" } }, "additionalProperties": false },
+        { "type": "object", "required": ["unresolved"], "properties": { "index": true, "unresolved": { "type": "string" } }, "additionalProperties": false }
+      ]
+    }
+  }
+}

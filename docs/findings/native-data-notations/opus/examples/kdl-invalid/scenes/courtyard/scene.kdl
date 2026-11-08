@@ -1,0 +1,52 @@
+- kind=scene id=courtyard tiles=tiles {
+  size width=6 height=4 layers=1
+  background music="media/audio/courtyard.ogg" {
+    colour 0 0 0
+  }
+  start 96 96 1
+  battles allowed=#false
+  regions {
+    - id=north-wall kind=solid layer=1 closed=#true {
+      points {
+        - 0 0
+        - 192 0
+        - 192 32
+        - 0 32
+      }
+    }
+    - id=patrol kind=waypoint layer=1 closed=#false {
+      points {
+        - 48 64
+        - 144 64
+        - 144 112
+      }
+    }
+  }
+  triggers {
+    - id=to-hall layer=1 {
+      area {
+        - 160 96
+        - 192 96
+        - 192 128
+        - 160 128
+      }
+      run inline="send(\"hall\", 32, 96, 1);"
+      activation onKey=#false
+    }
+  }
+  placements {
+    - id=gatekeeper-1 actor=gatekeeper {
+      at 64 96 1
+      whilePresent inline="itemPath(\"source\", tkMV_WAYPOINT_LINK, \"patrol\", 0);\nmwin(\"Halt! Who goes there?\");"
+    }
+    - id=gatekeeper-2 actor=gatekeeper {
+      at 128 96 0
+      onActivate program="scripts/gatekeeper-relief.prg"
+    }
+  }
+  extensions {
+    com.example.weather version=1 precipitation=hail intensity=0.25 {
+      windFrom -1 0
+    }
+  }
+}

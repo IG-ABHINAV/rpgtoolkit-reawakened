@@ -1,0 +1,4 @@
+{"game":"demo","total":2,"bySeverityCode":{"warning:script-literal-reference":2}}
+{"game":"Caoquest","total":15,"bySeverityCode":{"error:broken-reference":15}}
+{"game":"ChimeranEmpire","total":37,"bySeverityCode":{"error:broken-reference":37}}
+{"game":"CrystalImmortality","total":2075,"bySeverityCode":{"error:broken-reference":2075}}

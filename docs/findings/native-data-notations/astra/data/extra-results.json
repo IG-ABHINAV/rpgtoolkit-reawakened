@@ -1,0 +1,1293 @@
+{
+  "scalar": {
+    "JSON": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\": null\n}\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{}\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\": \"café 雨 😀\"\n}\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\": 9007199254740991\n}\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\": 0.15\n}\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\": 1e-7\n}\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "{\n  \"value\": 0\n}\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\": {\n    \"__tkr_null\": true\n  },\n  \"other\": {\n    \"__tkr_escaped_object\": {\n      \"__tkr_null\": true\n    }\n  }\n}\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "YAML": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value: null\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{}\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value: café 雨 😀\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value: 9007199254740991\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value: 0.15\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value: 1e-7\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": true,
+        "text": "value: -0\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value:\n  __tkr_null: true\nother:\n  __tkr_escaped_object:\n    __tkr_null: true\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "KDL": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "- {\n  value #null\n}"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "(object)-"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "- {\n  value \"café 雨 😀\"\n}"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "- {\n  value 9007199254740991\n}"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "- {\n  value 0.15\n}"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "- {\n  value 1e-7\n}"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "- {\n  value 0\n}"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "- {\n  value {\n    __tkr_null #true\n  }\n  other {\n    __tkr_escaped_object {\n      __tkr_null #true\n    }\n  }\n}"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "TOML": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "[value]\n__tkr_null = true\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value = \"café 雨 😀\"\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value = 9007199254740991\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value = 0.15\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "value = 1e-7\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "value = 0\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "[value.__tkr_escaped_object]\n__tkr_null = true\n\n[other.__tkr_escaped_object.__tkr_escaped_object.__tkr_escaped_object]\n__tkr_null = true\n"
+      },
+      "unsafeInteger": {
+        "ok": false,
+        "error": "Error: Invalid TOML document: integer value cannot be represented losslessly\n\n1:  value = 9007199254740993\n            ^\n"
+      }
+    },
+    "JSON5": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: null,\n}\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{}\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: 'café 雨 😀',\n}\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: 9007199254740991,\n}\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: 0.15,\n}\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: 1e-7,\n}\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "{\n  value: 0,\n}\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: {\n    __tkr_null: true,\n  },\n  other: {\n    __tkr_escaped_object: {\n      __tkr_null: true,\n    },\n  },\n}\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "Hjson": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: null\n}\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{}\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: café 雨 😀\n}\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: 9007199254740991\n}\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: 0.15\n}\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value: 1e-7\n}\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "{\n  value: 0\n}\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  value:\n  {\n    __tkr_null: true\n  }\n  other:\n  {\n    __tkr_escaped_object:\n    {\n      __tkr_null: true\n    }\n  }\n}\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "EDN": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\" nil\n}\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n\n}\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\" \"café 雨 😀\"\n}\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\" 9007199254740991\n}\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\" 0.15\n}\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\" 1e-7\n}\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "{\n  \"value\" 0\n}\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n  \"value\" {\n    \"__tkr_null\" true\n  }\n  \"other\" {\n    \"__tkr_escaped_object\" {\n      \"__tkr_null\" true\n    }\n  }\n}\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "XML": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "<v key=\"\" type=\"object\">\n  <v key=\"value\" type=\"null\"></v>\n</v>\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "<v key=\"\" type=\"object\"></v>\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "<v key=\"\" type=\"object\">\n  <v key=\"value\" type=\"string\">café 雨 😀</v>\n</v>\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "<v key=\"\" type=\"object\">\n  <v key=\"value\" type=\"number\">9007199254740991</v>\n</v>\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "<v key=\"\" type=\"object\">\n  <v key=\"value\" type=\"number\">0.15</v>\n</v>\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "<v key=\"\" type=\"object\">\n  <v key=\"value\" type=\"number\">1e-7</v>\n</v>\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "<v key=\"\" type=\"object\">\n  <v key=\"value\" type=\"number\">0</v>\n</v>\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "<v key=\"\" type=\"object\">\n  <v key=\"value\" type=\"object\">\n    <v key=\"__tkr_null\" type=\"boolean\">true</v>\n  </v>\n  <v key=\"other\" type=\"object\">\n    <v key=\"__tkr_escaped_object\" type=\"object\">\n      <v key=\"__tkr_null\" type=\"boolean\">true</v>\n    </v>\n  </v>\n</v>\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "SDLang": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "entry \"\" type=\"object\" {\n  entry \"value\" type=\"null\"\n}\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "entry \"\" type=\"object\" {\n}\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "entry \"\" type=\"object\" {\n  entry \"value\" \"café 雨 😀\" type=\"string\"\n}\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "entry \"\" type=\"object\" {\n  entry \"value\" 9007199254740991 type=\"number\"\n}\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "entry \"\" type=\"object\" {\n  entry \"value\" 0.15d type=\"number\"\n}\n"
+      },
+      "exponent": {
+        "ok": false,
+        "error": "Error: Unexpected character when parsing number/date/time: 'e'"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "entry \"\" type=\"object\" {\n  entry \"value\" 0 type=\"number\"\n}\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "entry \"\" type=\"object\" {\n  entry \"value\" type=\"object\" {\n    entry \"__tkr_null\" true type=\"boolean\"\n  }\n  entry \"other\" type=\"object\" {\n    entry \"__tkr_escaped_object\" type=\"object\" {\n      entry \"__tkr_null\" true type=\"boolean\"\n    }\n  }\n}\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    },
+    "RON": {
+      "null": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n    \"value\": (),\n}\n"
+      },
+      "absent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{}\n"
+      },
+      "unicode": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n    \"value\": \"café 雨 😀\",\n}\n"
+      },
+      "safeInteger": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n    \"value\": 9007199254740991,\n}\n"
+      },
+      "decimal": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n    \"value\": 0.15,\n}\n"
+      },
+      "exponent": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n    \"value\": 1e-7,\n}\n"
+      },
+      "negativeZero": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": false,
+        "text": "{\n    \"value\": 0,\n}\n"
+      },
+      "markerCollision": {
+        "ok": true,
+        "semanticEqual": true,
+        "negativeZeroRetained": null,
+        "text": "{\n    \"value\": {\n        \"__tkr_null\": true,\n    },\n    \"other\": {\n        \"__tkr_escaped_object\": {\n            \"__tkr_null\": true,\n        },\n    },\n}\n"
+      },
+      "unsafeInteger": {
+        "ok": true,
+        "decoded": 9007199254740992,
+        "rejectedBySafeNumberProfile": true
+      }
+    }
+  },
+  "authoring": {
+    "JSON": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/JSON/before.json",
+      "afterFile": "$SCRATCH/extra/JSON/after.json",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/JSON/after.json",
+        "notation": "JSON",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/JSON/broken.json",
+        "notation": "JSON",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "YAML": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/YAML/before.yaml",
+      "afterFile": "$SCRATCH/extra/YAML/after.yaml",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/YAML/after.yaml",
+        "notation": "YAML",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/YAML/broken.yaml",
+        "notation": "YAML",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "KDL": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/KDL/before.kdl",
+      "afterFile": "$SCRATCH/extra/KDL/after.kdl",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/KDL/after.kdl",
+        "notation": "KDL",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/KDL/broken.kdl",
+        "notation": "KDL",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "TOML": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/TOML/before.toml",
+      "afterFile": "$SCRATCH/extra/TOML/after.toml",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/TOML/after.toml",
+        "notation": "TOML",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/TOML/broken.toml",
+        "notation": "TOML",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "JSON5": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/JSON5/before.json5",
+      "afterFile": "$SCRATCH/extra/JSON5/after.json5",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/JSON5/after.json5",
+        "notation": "JSON5",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/JSON5/broken.json5",
+        "notation": "JSON5",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "Hjson": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/Hjson/before.hjson",
+      "afterFile": "$SCRATCH/extra/Hjson/after.hjson",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/Hjson/after.hjson",
+        "notation": "Hjson",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/Hjson/broken.hjson",
+        "notation": "Hjson",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "EDN": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/EDN/before.edn",
+      "afterFile": "$SCRATCH/extra/EDN/after.edn",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/EDN/after.edn",
+        "notation": "EDN",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/EDN/broken.edn",
+        "notation": "EDN",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "XML": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/XML/before.xml",
+      "afterFile": "$SCRATCH/extra/XML/after.xml",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/XML/after.xml",
+        "notation": "XML",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/XML/broken.xml",
+        "notation": "XML",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "SDLang": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/SDLang/before.sdl",
+      "afterFile": "$SCRATCH/extra/SDLang/after.sdl",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/SDLang/after.sdl",
+        "notation": "SDLang",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/SDLang/broken.sdl",
+        "notation": "SDLang",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    },
+    "RON": {
+      "ok": true,
+      "beforeFile": "$SCRATCH/extra/RON/before.ron",
+      "afterFile": "$SCRATCH/extra/RON/after.ron",
+      "actorFound": true,
+      "originalActor": "actor:item/oldman.itm",
+      "addedPlacement": "placement-author-added",
+      "originalInlineSha256": "a6494daa893b6078b75cae3b0fa2a0fcb0fa535386c7debd8e9287cc1972b742",
+      "editedInlineSha256": "1db46926c09d2dc7a484483e25155f50e61d8eca7acc27a800182efaa04b4f03",
+      "extractionBytesEqual": true,
+      "decodedSourceChangedAsIntended": true,
+      "additionsRoundtrip": true,
+      "mode": "raw source text edit; structural before/after prepared with library for a text-only copy-and-edit walkthrough; not human usability testing",
+      "valid": {
+        "file": "$SCRATCH/extra/RON/after.ron",
+        "notation": "RON",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      },
+      "broken": {
+        "file": "$SCRATCH/extra/RON/broken.ron",
+        "notation": "RON",
+        "schemaValid": true,
+        "coreValid": true,
+        "errors": [],
+        "unresolvedReferences": [
+          {
+            "path": "/scene/placements/1/actor",
+            "placement": "placement-author-added",
+            "missing": "actor:missing"
+          }
+        ],
+        "preservedButUnvalidatedPlugins": [
+          "@missing/story"
+        ],
+        "executable": false
+      }
+    }
+  },
+  "noncanonicalNoop": {
+    "YAML": {
+      "ok": true,
+      "bytesEqual": false,
+      "semanticEqual": true,
+      "commentsRetained": true,
+      "crlfRetained": false,
+      "saved": "# creator chose this layout\nactor: { name: 'Keeper', speed: 2.000 } # local note\nextensions: { '@absent/plugin': { future: true } }\n"
+    },
+    "KDL": {
+      "ok": true,
+      "bytesEqual": true,
+      "semanticEqual": true,
+      "commentsRetained": true,
+      "crlfRetained": true,
+      "saved": "// creator chose this layout\r\n- { actor { name \"Keeper\"; speed 2.000; }; extensions { \"@absent/plugin\" future=#true; }; }\r\n"
+    },
+    "Hjson": {
+      "ok": true,
+      "bytesEqual": false,
+      "semanticEqual": true,
+      "commentsRetained": true,
+      "crlfRetained": false,
+      "saved": "# creator chose this layout\n{\n  actor:\n  {\n    name: Keeper\n    speed: 2\n  }\n  extensions:\n  {\n    @absent/plugin:\n    {\n      future: true\n    }\n  }\n}"
+    }
+  },
+  "locations": {
+    "YAML": {
+      "jsonPointer": "/actor/extensions/@example~1patrol/radius",
+      "line": 46,
+      "col": 15
+    },
+    "KDL": {
+      "start": {
+        "line": 75,
+        "column": 16,
+        "offset": 1306
+      },
+      "end": {
+        "line": 75,
+        "column": 30,
+        "offset": 1320
+      }
+    }
+  },
+  "dialect": {
+    "validTuple": true,
+    "invalidTupleRejected": true,
+    "unknownFieldRejected": true,
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "minItems": 2,
+          "items": false
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "lineEndings": {
+    "JSON": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "YAML": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "KDL": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "TOML": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "JSON5": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "Hjson": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "EDN": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "XML": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "SDLang": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "RON": {
+      "ok": true,
+      "declaredPolicy": "CRLF and CR become LF on import and extraction; no VM equivalence claim",
+      "normalizedTextEqual": true,
+      "otherContentEqual": true,
+      "contextPreserved": true,
+      "originalUnicodeSha256": "1b7cbfc596a286d7f17a191d5ab0f85f434ec03112c4739ee7d873e8aaed5f0d",
+      "normalizedUnicodeSha256": "5ddfaa9c6f387a83d9096dad1e65d0c8c7c89c6c875307393623dd83c91cb5a9"
+    },
+    "HjsonDefaultMultiline": {
+      "CRLF": {
+        "ok": true,
+        "originalBytesEqual": false,
+        "normalizedTextEqual": true,
+        "explicitNormalizationRoundtrip": true,
+        "text": "{\n  source:\n    '''\n    mwin(\"Hello\");\n    return;\n\n    '''\n}",
+        "normalizedInputText": "{\n  source:\n    '''\n    mwin(\"Hello\");\n    return;\n\n    '''\n}"
+      },
+      "CR": {
+        "ok": true,
+        "originalBytesEqual": false,
+        "normalizedTextEqual": false,
+        "explicitNormalizationRoundtrip": true,
+        "text": "{\n  source: '''mwin(\"Hello\");return;'''\n}",
+        "normalizedInputText": "{\n  source:\n    '''\n    mwin(\"Hello\");\n    return;\n\n    '''\n}"
+      },
+      "delimiterEdge": {
+        "ok": true,
+        "originalBytesEqual": true,
+        "normalizedTextEqual": true,
+        "explicitNormalizationRoundtrip": true,
+        "text": "{\n  source: \"mwin(\\\"C:\\\\games\\\\demo\\\");\\r\\n// \\\"\\\"\\\" ''' </v> ]]>{{ #null :name\\n mwin(\\\"café 雨\\\");\\n\"\n}",
+        "normalizedInputText": "{\n  source: \"mwin(\\\"C:\\\\games\\\\demo\\\");\\n// \\\"\\\"\\\" ''' </v> ]]>{{ #null :name\\n mwin(\\\"café 雨\\\");\\n\"\n}"
+      }
+    }
+  },
+  "duplicateKeys": {
+    "JSON": {
+      "ok": true,
+      "value": {
+        "x": 2
+      }
+    },
+    "YAML": {
+      "ok": false,
+      "error": "YAMLParseError: Map keys must be unique at line 2, column 1:\n\nx: 1\nx: 2\n^\n"
+    },
+    "KDL": {
+      "ok": false,
+      "error": "InvalidJsonInKdlError: Duplicate key \"x\" in JSON object"
+    },
+    "TOML": {
+      "ok": false,
+      "error": "Error: Invalid TOML document: trying to redefine an already defined table or value\n\n1:  x = 1\n2:  x = 2\n    ^\n"
+    },
+    "JSON5": {
+      "ok": true,
+      "value": {
+        "x": 2
+      }
+    },
+    "Hjson": {
+      "ok": true,
+      "value": {
+        "x": 2
+      }
+    },
+    "EDN": {
+      "ok": true,
+      "value": {
+        "x": 2
+      }
+    },
+    "RON": {
+      "ok": true,
+      "value": {
+        "x": 2
+      }
+    },
+    "XML": {
+      "ok": true,
+      "value": {
+        "x": 2
+      }
+    },
+    "SDLang": {
+      "ok": true,
+      "value": {
+        "x": 2
+      }
+    }
+  },
+  "ednMalformed": {
+    "[1 2": {
+      "ok": true,
+      "value": null
+    },
+    "{\"x\" 1": {
+      "ok": true,
+      "value": null
+    },
+    "\"unterminated": {
+      "ok": true,
+      "value": null
+    },
+    "truncatedFullFixture": {
+      "ok": true,
+      "semanticEqualToComplete": false,
+      "accepted": true,
+      "returnedNull": true,
+      "coreSchemaRejects": true
+    }
+  },
+  "sdlangNative": {
+    "value null\n": {
+      "ok": false,
+      "error": "Error: Unexpected token of type 20"
+    },
+    "value 0.15\n": {
+      "ok": true,
+      "values": [
+        {
+          "type": 1,
+          "value": 0
+        }
+      ]
+    },
+    "value 0.15d\n": {
+      "ok": true,
+      "values": [
+        {
+          "type": 1,
+          "value": 0.15
+        }
+      ]
+    },
+    "value 1e-7d\n": {
+      "ok": false,
+      "error": "Error: Unexpected character when parsing number/date/time: 'e'"
+    },
+    "quotedSerialization": {
+      "ok": false,
+      "error": "Error: Orphaned identifier. Were you trying to make an attribute? Name = hello\");\""
+    }
+  }
+}

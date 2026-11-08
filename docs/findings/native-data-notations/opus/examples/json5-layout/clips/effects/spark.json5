@@ -1,0 +1,13 @@
+{
+  kind: "clip",
+  id: "effects/spark",
+  size: [64, 64],
+  secondsPerFrame: 0.05,
+  frames: [
+    {
+      id: "flash",
+      image: "media/images/spark.png",
+      sound: "media/audio/zap.wav",
+    },
+  ],
+}

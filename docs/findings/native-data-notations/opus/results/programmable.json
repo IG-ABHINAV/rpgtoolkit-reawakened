@@ -1,0 +1,144 @@
+{
+ "node": "v26.13.0",
+ "versions": {
+  "cue": "cue version v0.17.1",
+  "dhall": "1.42.2",
+  "nickel": "nickel-lang-cli nickel 1.18.0 (rev e6515c4)",
+  "pkl": "Pkl 0.33.0 (macOS 26.6.2, native)",
+  "hocon": "com.typesafe:config 1.4.10 (Java 8 via Clojure 1.12.3)"
+ },
+ "languages": {
+  "cue": {
+   "evaluate": {
+    "status": 0,
+    "ms": 15,
+    "semanticEqual": true,
+    "authoredKeyOrderKept": true
+   },
+   "overrideComputed": "placements.3.at.0: conflicting values 400 and 401:\n    ../../../../../../../tkr-1778-opus-experiments/programmable/cue-override.cue:2:29\n    ./castle3left.cue:13:31\n    ./castle3left.cue:15:55\n    ./castle3left.cue:16:2\n    ./castle3left.cue:19:11",
+   "overrideDefault": {
+    "onKey": true
+   },
+   "constraintViolation": "placements.0.at.2: conflicting values 1 and 0:\n    ../../../../../../../tkr-1778-opus-experiments/programmable/cue-bad.cue:2:30\n    ./castle3left.cue:15:55\n    ./castle3left.cue:16:2\n    ./castle3left.cue:19:32\nplacements.0.at.2: invalid value 0 (out of bound >=1):\n    ./soldiers.cue:9:23\n    ../../../../../../../tkr-1778-opus-experiments/programmable/cue-bad.cue:2:30",
+   "vetYamlDataFile": "at.2: invalid value 0 (out of bound >=1):\n    ./soldiers.cue:9:23\n    ../../../../../../../tkr-1778-opus-experiments/programmable/placement.yaml:4:16",
+   "vetTomlDataFile": "at.2: invalid value 0 (out of bound >=1):\n    ./soldiers.cue:9:23\n    ../../../../../../../tkr-1778-opus-experiments/programmable/placement.toml:3:17",
+   "environment": "no environment access during export/vet; only `cue cmd` tool files can read env/files (not exercised)"
+  },
+  "nickel": {
+   "evaluate": {
+    "status": 0,
+    "ms": 24,
+    "semanticEqual": true,
+    "authoredKeyOrderKept": false
+   },
+   "overrideConcrete": "error: non mergeable terms\n   ┌─ /private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable/nickel/castle3left.ncl:12:20\n   │\n12 │   size = { width = 19, height = 19, layers = 8 },\n   │                    ^^ cannot merge this expression\n   │\n   ┌─ /private/tmp/tkr-1778-opus-experiments/programmable/ncl-override.ncl:1:149\n   │\n 1 │ let s = import \"/private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable/nickel/castle3left.ncl\" in s & { size = { width = 20 } }\n   │                                                                                                                              -----------------------^^----\n   │                                                                                                                              │                      │\n   │                                                                                                                              │                      with this expression",
+   "overrideDefault": {
+    "activation": {
+     "onKey": true
+    }
+   },
+   "contractViolation": "error: contract broken by the value of `at`\n       expected an array\n  ┌─ /private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable/nickel/soldiers.ncl:7:10\n  │\n7 │     at | Array Number,\n  │          ------------ expected type\n  │\n  ┌─ /private/tmp/tkr-1778-opus-experiments/programmable/ncl-bad.ncl:1:155\n  │\n1 │ let s = import \"/private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable/nickel/soldiers.ncl\" in [ { id = \"x\", actor = \"a\", at = \"not-a-list\", activation = { onKey = false } } ] | Array s.Placement\n  │                                                                                                                                                           ^^^^^^^^^^^^ applied to this expression\n  │",
+   "query": "\u001b[m•\u001b[m \u001b[1mcontract\u001b[0m: \u001b[3mArray soldiers.Placement\u001b[0m",
+   "environment": "no environment builtin exercised; imports are files",
+   "binaryNote": "nickel 1.18.0 arm64-macos release links /nix/store libiconv; run with DYLD_FALLBACK_LIBRARY_PATH=/usr/lib"
+  },
+  "pkl": {
+   "evaluate": {
+    "status": 0,
+    "ms": 49,
+    "semanticEqual": true,
+    "authoredKeyOrderKept": true
+   },
+   "amendComputedElement": {
+    "status": 0,
+    "size": {
+     "width": 20,
+     "height": 19,
+     "layers": 8
+    },
+    "placement3at": [
+     401,
+     415,
+     1
+    ],
+    "note": "amend silently overrides the generated value (by design)"
+   },
+   "constraintViolation": "–– Pkl Error ––\nType constraint `this[2] >= 1` violated.\nValue: List(208, 319, 0)\n    this[2] >= 1\n    │   │   │\n    │   0   false\n    List(208, 319, 0)\n15 | at: List<Int>(length == 3, this[2] >= 1)\n                                ^^^^^^^^^^^^\nat Soldiers#Placement.at (file:///private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable/pkl/Soldiers.pkl, line 15)\n2 | placements { [0] { at = List(208, 319, 0) } }\n                            ^^^^^^^^^^^^^^^^^\nat pkl-bad#placements[0].at (file:///private/tmp/tkr-1778-opus-experiments/programmable/pkl-bad.pkl, line 2)\n133 | renderer.renderDocument(value)",
+   "environment": {
+    "default": "reads HOME by default",
+    "restricted": "–– Pkl Error ––\nRefusing to read resource `env:HOME` because it does not match any entry in the resource allowlist (`--allowed-resources`).\n1 | x = read(\"env:HOME\")"
+   }
+  },
+  "dhall": {
+   "evaluate": {
+    "status": 0,
+    "ms": 90,
+    "semanticEqual": true,
+    "authoredKeyOrderKept": false
+   },
+   "rightBiasedMerge": {
+    "height": 19,
+    "layers": 8,
+    "width": 20
+   },
+   "recursiveMergeCollision": "\u001b[1;31mError\u001b[0m: Field collision on: size.width\n1│                                                                                                                      s /\\ { size = { width = 20 } }\n/private/tmp/tkr-1778-opus-experiments/programmable/dhall-collide.dhall:1:118",
+   "typeError": "\u001b[1;31mError\u001b[0m: Expression doesn't match annotation\n…\n{ whilePresent : …\n                 { program : - Text\n                             + Natural\n                 }\n, …\n}\n1│                                                                                                                   [ S.default // { id = \"x\", actor = \"a\", at = [ +1 ], whilePresent = Some { program = 3 } } ] : List S.Placement\n/private/tmp/tkr-1778-opus-experiments/programmable/dhall-bad.dhall:1:115",
+   "environment": {
+    "envImport": "\"/Users/jensen\"",
+    "note": "env: and https:// imports are language features; remote imports can be pinned by sha256 and cached"
+   }
+  },
+  "hocon": {
+   "evaluate": {
+    "status": 0,
+    "ms": 739,
+    "semanticEqual": true,
+    "authoredKeyOrderKept": false
+   },
+   "origins": [
+    "ORIGIN placements[3].id => ./castle3left.conf: 13",
+    "ORIGIN placements[3].actor => ./soldiers.conf: 4",
+    "ORIGIN placements[3].at => ./castle3left.conf: 13",
+    "ORIGIN placements[3].whilePresent => ./soldiers.conf: 4",
+    "ORIGIN placements[3].activation => ./soldiers.conf: 2"
+   ],
+   "envSubstitution": "ENV-SUBSTITUTION jensen",
+   "absoluteRootVariedCwd": {
+    "cwds": [
+     "/private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable/hocon",
+     "/private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable",
+     "/private/tmp",
+     "/"
+    ],
+    "allSucceeded": true,
+    "identicalValues": true,
+    "identicalOrigins": true,
+    "placements": 6
+   },
+   "relativeRootFromParentCwd": {
+    "note": "root path given relative to the cwd (programmable/hocon/castle3left.conf from the opus tools dir); this tests root-path resolution, not include resolution",
+    "status": 0
+   },
+   "missingOptionalInclude": "com.typesafe.config.ConfigFactory\n{\n    # /private/tmp/tkr-1778-opus-experiments/programmable/hocon-silent.conf: 2\n    \"a\" : 1\n}",
+   "duplicateKeys": "com.typesafe.config.ConfigRenderOptions\n{\"obj\":{\"a\":1,\"b\":2},\"speed\":0.5}",
+   "tsHocon": {
+    "version": "1.14.3",
+    "exports": [
+     "Config",
+     "ConfigError",
+     "NotResolvedError",
+     "PackageLookupError",
+     "ParseError",
+     "ResolveError",
+     "asArray",
+     "asBoolean",
+     "asNumber",
+     "asObject",
+     "asString",
+     "defaultParseOptions"
+    ],
+    "placementsEqual": true
+   }
+  }
+ }
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "name": "cue_v0.17.1_darwin_arm64.tar.gz",
+    "sha256": "64921403f012a97f89494c03605db2fbf7d9daa77dc2631819ac4406cb2e8074",
+    "url": "https://github.com/cue-lang/cue/releases/download/v0.17.1/cue_v0.17.1_darwin_arm64.tar.gz",
+    "bytes": 9128908
+  },
+  {
+    "name": "dhall-1.42.2-aarch64-darwin.tar.bz2",
+    "sha256": "fe146e5004fda01e06f4a29fa160f1e5518a54b149f4c416bcfb5c280c91190c",
+    "url": "https://github.com/dhall-lang/dhall-haskell/releases/download/1.42.2/dhall-1.42.2-aarch64-darwin.tar.bz2",
+    "bytes": 14593677
+  },
+  {
+    "name": "dhall-json-1.7.12-aarch64-darwin.tar.bz2",
+    "sha256": "761048afa225dc9978b9fb742cc9d4feee104f2656aefe37b6a6f157862b77dd",
+    "url": "https://github.com/dhall-lang/dhall-haskell/releases/download/1.42.2/dhall-json-1.7.12-aarch64-darwin.tar.bz2",
+    "bytes": 41692463
+  },
+  {
+    "name": "nickel-arm64-macos",
+    "sha256": "faf755518f56da62f2e61f27676df0fad8f701cf83a22a17de531290b064f09d",
+    "url": "https://github.com/nickel-lang/nickel/releases/download/1.18.0/nickel-arm64-macos",
+    "bytes": 26541104
+  },
+  {
+    "name": "pkl-macos-aarch64",
+    "sha256": "e39c157df0f00a35d34b46270a768784edcaf509aafbf743849b27b4c83ef83b",
+    "url": "https://github.com/apple/pkl/releases/download/0.33.0/pkl-macos-aarch64",
+    "bytes": 88494016
+  },
+  {
+    "name": "config-1.4.10.jar",
+    "url": "https://repo.maven.apache.org/maven2/com/typesafe/config/1.4.10/config-1.4.10.jar",
+    "sha256": "be03af55c9cba835e8afaf6eb0a39ba71ed3208d54b3919fb0bc95ce0bde0002",
+    "bytes": 301291
+  },
+  {
+    "name": "rustup-init",
+    "url": "https://static.rust-lang.org/rustup/dist/aarch64-apple-darwin/rustup-init",
+    "sha256": "63752a1919a3a4793173ec70f8f212621a7ce38ba6a246095984482f4de20f9f",
+    "bytes": 11408656
+  }
+]

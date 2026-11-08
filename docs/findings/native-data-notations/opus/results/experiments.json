@@ -1,0 +1,5129 @@
+{
+ "meta": {
+  "node": "v26.13.0",
+  "platform": "darwin-arm64",
+  "git": "git version 2.55.0",
+  "patch": "patch 2.0-12u11-Apple",
+  "libraryVersions": {
+   "yaml": "2.9.1",
+   "@bgotink/kdl": "0.4.1",
+   "@decimalturn/toml-patch": "3.3.2",
+   "smol-toml": "1.9.1",
+   "toml-eslint-parser": "1.0.3",
+   "json5": "2.2.3",
+   "hjson": "3.2.2",
+   "jsonc-parser": "3.3.1",
+   "edn-data": "1.2.2",
+   "@xmldom/xmldom": "0.9.12",
+   "fast-xml-parser": "5.12.0",
+   "rusty-object-notation": "1.0.2",
+   "sdlang": "0.2.2",
+   "ajv": "8.20.0"
+  },
+  "proposals": [
+   {
+    "document": "items/crystal-staff",
+    "path": "/grants",
+    "label": "PROPOSED item grants skill (legacy uses onEquip program + variable gate)"
+   },
+   {
+    "document": "actors/icharus",
+    "path": "/character/skills/learnable/2/perform",
+    "label": "PROPOSED actor-specific performance binding"
+   },
+   {
+    "document": "scenes/start/scene",
+    "path": "/extensions",
+    "label": "AUTHORED plugin data: weather has a v1 schema; lanterns has none"
+   }
+  ],
+  "inputs": {
+   "demoScene": "demo/model/scenes/start/scene",
+   "placementsScene": "CrystalImmortality/model/scenes/castle3left/scene",
+   "clip": "CrystalImmortality/model/clips/water1",
+   "tiles": "CrystalImmortality/model/scenes/city1/tiles",
+   "actor": "demo/model/actors/oldman",
+   "item": "ChimeranEmpire/model/items/crystal-staff",
+   "skill": "ChimeranEmpire/model/skills/mage-sword-1",
+   "character": "ChimeranEmpire/model/actors/icharus"
+  }
+ },
+ "validate": {
+  "yaml": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 106,
+    "reportedLine": 106,
+    "message": "Implicit keys need to be on a single line at line 106, column 5:"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": {
+     "line": 184,
+     "col": 10
+    },
+    "locatedLineText": "at: [\"214\", 300, 1]"
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": true,
+    "message": "Map keys must be unique at line 2, column 1:"
+   }
+  },
+  "json": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 261,
+    "reportedLine": 261,
+    "message": "Bad control character in string literal in JSON at position 3538 (line 261 column 22)"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": {
+     "line": 472,
+     "col": 9
+    },
+    "locatedLineText": "\"214\","
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "json-layout": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 143,
+    "reportedLine": 143,
+    "message": "Bad control character in string literal in JSON at position 2432 (line 143 column 20)"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": {
+     "line": 247,
+     "col": 14
+    },
+    "locatedLineText": "\"at\": [\"214\", 300, 1],"
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "json5": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 261,
+    "reportedLine": 262,
+    "message": "JSON5: invalid character '\\n' at 262:0"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": null,
+    "locatedLineText": null
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "json5-layout": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 143,
+    "reportedLine": 144,
+    "message": "JSON5: invalid character '\\n' at 144:0"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": null,
+    "locatedLineText": null
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "hjson": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 134,
+    "reportedLine": null,
+    "message": "Bad string containing newline at line 135,0 >>>      id: region-11"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": null,
+    "locatedLineText": null
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "toml": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 80,
+    "reportedLine": 80,
+    "message": "Invalid TOML document: control characters are not allowed in strings"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": {
+     "line": 147,
+     "col": 8
+    },
+    "locatedLineText": "at = [ \"214\", 300, 1 ]"
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": true,
+    "message": "Invalid TOML document: trying to redefine an already defined table or value"
+   }
+  },
+  "toml-rows": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 125,
+    "reportedLine": 125,
+    "message": "Invalid TOML document: control characters are not allowed in strings"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": {
+     "line": 237,
+     "col": 8
+    },
+    "locatedLineText": "at = [ \"214\", 300, 1 ]"
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": true,
+    "message": "Invalid TOML document: trying to redefine an already defined table or value"
+   }
+  },
+  "kdl": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 90,
+    "reportedLine": 90,
+    "message": "Encountered multiple errors"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": {
+     "line": 160,
+     "col": 10
+    },
+    "locatedLineText": "at \"214\" 300 1"
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "edn": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": false
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": null,
+    "locatedLineText": null
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "edn-oneline": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": false
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": null,
+    "locatedLineText": null
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "ron": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 261,
+    "reportedLine": 269,
+    "message": "Expected comma"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": null,
+    "locatedLineText": null
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "ron-compact": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 87,
+    "reportedLine": 88,
+    "message": "Expected colon"
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": null,
+    "locatedLineText": null
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": false,
+    "result": "{\"id\":\"b\"}"
+   }
+  },
+  "xml": {
+   "documents": {
+    "actor": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "demoScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": [
+      "com.example.weather:validated",
+      "org.example.lanterns:unvalidated-no-schema"
+     ]
+    },
+    "placementsScene": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "clip": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "tiles": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "item": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "skill": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    },
+    "character": {
+     "roundTrip": true,
+     "coreErrors": 0,
+     "extensions": []
+    }
+   },
+   "malformedSyntax": {
+    "rejected": true,
+    "insertedLine": 144,
+    "reportedLine": null,
+    "message": "Opening and ending tag mismatch: \"string\" != \"map\""
+   },
+   "schemaViolation": {
+    "detected": true,
+    "path": "/placements/0/at/0",
+    "message": "must be integer",
+    "location": {
+     "line": 248,
+     "col": 23
+    },
+    "locatedLineText": "<array key=\"at\"><string>214</string><number>300</number><number>1</number></arra"
+   },
+   "typo": {
+    "detected": true,
+    "messages": [
+     "/placements/0 must NOT have additional properties 'actr'",
+     " must match \"then\" schema"
+    ]
+   },
+   "duplicateKey": {
+    "rejected": true,
+    "message": "duplicate key \"id\" at line 1"
+   }
+  }
+ },
+ "noop": {
+  "yaml": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 3,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 3,
+    "crlfLinesKept": 0,
+    "lfOnlyLines": 212,
+    "unknownExtensionKept": true
+   }
+  },
+  "json": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 0,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": true,
+    "crlfKept": true,
+    "commentsKept": 0,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 0,
+    "crlfLinesKept": 519,
+    "lfOnlyLines": 0,
+    "unknownExtensionKept": true
+   }
+  },
+  "json-layout": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 0,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": true,
+    "crlfKept": true,
+    "commentsKept": 0,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 0,
+    "crlfLinesKept": 284,
+    "lfOnlyLines": 0,
+    "unknownExtensionKept": true
+   }
+  },
+  "json5": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "unavailable": "no format-preserving edit API in the exercised library"
+   }
+  },
+  "json5-layout": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "unavailable": "no format-preserving edit API in the exercised library"
+   }
+  },
+  "hjson": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 3,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 3,
+    "crlfLinesKept": 0,
+    "lfOnlyLines": 268,
+    "unknownExtensionKept": true
+   }
+  },
+  "toml": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": true,
+    "crlfKept": true,
+    "commentsKept": 3,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 3,
+    "crlfLinesKept": 160,
+    "lfOnlyLines": 0,
+    "unknownExtensionKept": true
+   }
+  },
+  "toml-rows": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": true,
+    "crlfKept": true,
+    "commentsKept": 3,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 3,
+    "crlfLinesKept": 250,
+    "lfOnlyLines": 0,
+    "unknownExtensionKept": true
+   }
+  },
+  "kdl": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": true,
+    "crlfKept": true,
+    "commentsKept": 3,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 3,
+    "crlfLinesKept": 181,
+    "lfOnlyLines": 0,
+    "unknownExtensionKept": true
+   }
+  },
+  "edn": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "unavailable": "no format-preserving edit API in the exercised library"
+   }
+  },
+  "edn-oneline": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "unavailable": "no format-preserving edit API in the exercised library"
+   }
+  },
+  "ron": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "unavailable": "no format-preserving edit API in the exercised library"
+   }
+  },
+  "ron-compact": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "unavailable": "no format-preserving edit API in the exercised library"
+   }
+  },
+  "xml": {
+   "canonicalIdempotent": true,
+   "commentsAuthored": 3,
+   "authoredParses": true,
+   "authoredSemanticEqual": true,
+   "reemit": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 0,
+    "keyOrderKept": true,
+    "unknownExtensionKept": true
+   },
+   "preserveNoop": {
+    "bytesEqual": false,
+    "crlfKept": false,
+    "commentsKept": 3,
+    "unknownExtensionKept": true
+   },
+   "preserveUnrelatedEdit": {
+    "commentsKept": 3,
+    "crlfLinesKept": 0,
+    "lfOnlyLines": 288,
+    "unknownExtensionKept": true
+   }
+  }
+ },
+ "changeOne": {
+  "yaml": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 401
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 401
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 562
+   }
+  },
+  "json": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 364
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 364
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 364
+   }
+  },
+  "json-layout": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 412
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 412
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 412
+   }
+  },
+  "json5": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 362
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 491
+   }
+  },
+  "json5-layout": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 404
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 533
+   }
+  },
+  "hjson": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 429
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 429
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 555
+   }
+  },
+  "toml": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 434
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 434
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 619
+   }
+  },
+  "toml-rows": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 434
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 434
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 619
+   }
+  },
+  "kdl": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 428
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 428
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 569
+   }
+  },
+  "edn": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 397
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 523
+   }
+  },
+  "edn-oneline": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 5693
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 5760
+   }
+  },
+  "ron": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 364
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 495
+   }
+  },
+  "ron-compact": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 404
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 537
+   }
+  },
+  "xml": {
+   "reemit": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 560
+   },
+   "preserve": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 560
+   },
+   "reemitOnAuthored": {
+    "added": 1,
+    "removed": 3,
+    "diffBytes": 811
+   }
+  }
+ },
+ "merge": {
+  "yaml": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": 2
+    },
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "json": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   }
+  },
+  "json-layout": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": null
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 0,
+     "a": 0,
+     "b": 0,
+     "merged": 0
+    },
+    "raw": "n/a (notation has no comments; raw path identical to reemit)"
+   }
+  },
+  "json5": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "json5-layout": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "hjson": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": 2
+    },
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": 2
+    },
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "toml": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": 2
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "toml-rows": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": 2
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": 2
+    },
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "kdl": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": 2
+    },
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 4,
+     "b": 3,
+     "merged": 4
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "edn": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "edn-oneline": {
+   "independent-far": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "adjacent-elements": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "same-element-other-field": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "reorder-vs-edit": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   }
+  },
+  "ron": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "ron-compact": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "n/a (no format-preserving editor library)",
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  },
+  "xml": {
+   "independent-far": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "adjacent-elements": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-element-other-field": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "same-field-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-field-identical": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "edit-vs-delete": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "both-append": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "insert-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "delete-vs-edit-other": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-vs-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "reorder-incompatible": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "clip-reorder-vs-frame-edit": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "pass-clean-correct"
+   },
+   "clip-insert-same-position": {
+    "reemit": "pass-conflict-order-ambiguous",
+    "preserve": "pass-conflict-order-ambiguous",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "pass-conflict-order-ambiguous"
+   },
+   "clip-delete-adjacent": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 3,
+     "a": 2,
+     "b": 3,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-different-rows": {
+    "reemit": "pass-clean-correct",
+    "preserve": "pass-clean-correct",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": 2
+    },
+    "raw": "pass-clean-correct"
+   },
+   "tiles-same-row-different-cells": {
+    "reemit": "spurious-conflict",
+    "preserve": "spurious-conflict",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "spurious-conflict"
+   },
+   "tiles-same-cell": {
+    "reemit": "pass-conflict-surfaced",
+    "preserve": "pass-conflict-surfaced",
+    "preserveComments": {
+     "base": 2,
+     "a": 2,
+     "b": 2,
+     "merged": null
+    },
+    "raw": "pass-conflict-surfaced"
+   },
+   "same-id-disjoint-placements": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "raw-hunk-did-not-apply"
+   },
+   "same-id-disjoint-frames": {
+    "reemit": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserve": "false-clean-text-duplicate-id-detected-by-checker",
+    "preserveComments": {
+     "base": 3,
+     "a": 3,
+     "b": 3,
+     "merged": 3
+    },
+    "raw": "false-clean-text-duplicate-id-detected-by-checker"
+   }
+  }
+ },
+ "tiles": {
+  "layerDimensions": {
+   "width": 50,
+   "height": 50,
+   "layers": 8,
+   "cells": 20000,
+   "paletteEntries": 357
+  },
+  "yaml": {
+   "bytes": 87725,
+   "lines": 1642,
+   "maxLine": 232,
+   "stringifyMs": 16.6,
+   "parseMs": 68.9,
+   "reemitEditMs": 15.7,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1241
+   },
+   "preserveEditMs": 76.7,
+   "preserveDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1241
+   },
+   "preserveCorrect": true
+  },
+  "json": {
+   "bytes": 308536,
+   "lines": 23221,
+   "maxLine": 31,
+   "stringifyMs": 0.4,
+   "parseMs": 0.4,
+   "reemitEditMs": 0.9,
+   "reemitDiff": {
+    "added": 5,
+    "removed": 5,
+    "diffBytes": 491
+   },
+   "preserveEditMs": 20.6,
+   "preserveDiff": {
+    "added": 5,
+    "removed": 5,
+    "diffBytes": 491
+   },
+   "preserveCorrect": true
+  },
+  "json-layout": {
+   "bytes": 100504,
+   "lines": 2485,
+   "maxLine": 233,
+   "stringifyMs": 1.6,
+   "parseMs": 0.3,
+   "reemitEditMs": 1.8,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1237
+   },
+   "preserveEditMs": 4.9,
+   "preserveDiff": {
+    "added": 52,
+    "removed": 1,
+    "diffBytes": 1799
+   },
+   "preserveCorrect": true
+  },
+  "json5": {
+   "bytes": 306978,
+   "lines": 23221,
+   "maxLine": 29,
+   "stringifyMs": 4.1,
+   "parseMs": 16.3,
+   "reemitEditMs": 3,
+   "reemitDiff": {
+    "added": 5,
+    "removed": 5,
+    "diffBytes": 491
+   }
+  },
+  "json5-layout": {
+   "bytes": 98450,
+   "lines": 2485,
+   "maxLine": 233,
+   "stringifyMs": 1.7,
+   "parseMs": 8,
+   "reemitEditMs": 1.8,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1237
+   }
+  },
+  "hjson": {
+   "bytes": 272926,
+   "lines": 21454,
+   "maxLine": 51,
+   "stringifyMs": 5.5,
+   "parseMs": 6.1,
+   "reemitEditMs": 6.9,
+   "reemitDiff": {
+    "added": 5,
+    "removed": 5,
+    "diffBytes": 477
+   },
+   "preserveEditMs": 12.8,
+   "preserveDiff": {
+    "added": 5,
+    "removed": 5,
+    "diffBytes": 477
+   },
+   "preserveCorrect": true
+  },
+  "toml": {
+   "bytes": 87449,
+   "lines": 1828,
+   "maxLine": 10014,
+   "stringifyMs": 69.3,
+   "parseMs": 1.5,
+   "reemitEditMs": 59.7,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 20354
+   },
+   "preserveEditMs": 285.1,
+   "preserveDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 20354
+   },
+   "preserveCorrect": true
+  },
+  "toml-rows": {
+   "bytes": 88257,
+   "lines": 2236,
+   "maxLine": 2781,
+   "stringifyMs": 70.9,
+   "parseMs": 1.2,
+   "reemitEditMs": 72.5,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1230
+   },
+   "preserveEditMs": 265.7,
+   "preserveDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1230
+   },
+   "preserveCorrect": true
+  },
+  "kdl": {
+   "bytes": 65496,
+   "lines": 995,
+   "maxLine": 183,
+   "stringifyMs": 2.3,
+   "parseMs": 5.7,
+   "reemitEditMs": 2.8,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1035
+   },
+   "preserveEditMs": 6.5,
+   "preserveDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1035
+   },
+   "preserveCorrect": true
+  },
+  "edn": {
+   "bytes": 76651,
+   "lines": 2485,
+   "maxLine": 183,
+   "stringifyMs": 0.9,
+   "parseMs": 2.8,
+   "reemitEditMs": 1.8,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 1037
+   }
+  },
+  "edn-oneline": {
+   "bytes": 60843,
+   "lines": 2,
+   "maxLine": 60842,
+   "stringifyMs": 0.8,
+   "parseMs": 2,
+   "reemitEditMs": 1.1,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 121977
+   }
+  },
+  "ron": {
+   "bytes": 309460,
+   "lines": 23221,
+   "maxLine": 31,
+   "stringifyMs": 4.4,
+   "parseMs": 8.6,
+   "reemitEditMs": 4.7,
+   "reemitDiff": {
+    "added": 5,
+    "removed": 5,
+    "diffBytes": 491
+   }
+  },
+  "ron-compact": {
+   "bytes": 92110,
+   "lines": 1659,
+   "maxLine": 9918,
+   "stringifyMs": 3.8,
+   "parseMs": 8,
+   "reemitEditMs": 4.8,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 20164
+   }
+  },
+  "xml": {
+   "bytes": 436152,
+   "lines": 2486,
+   "maxLine": 997,
+   "stringifyMs": 1.8,
+   "parseMs": 57.2,
+   "reemitEditMs": 3.2,
+   "reemitDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 4293
+   },
+   "preserveEditMs": 64.7,
+   "preserveDiff": {
+    "added": 1,
+    "removed": 1,
+    "diffBytes": 4293
+   },
+   "preserveCorrect": true
+  }
+ },
+ "rpgcode": {
+  "normalisation": "CRLF and lone CR -> LF on import (declared); original sha256 retained for provenance",
+  "cases": {
+   "authoredEdgeLf": {
+    "chars": 248,
+    "originalSha256": "e8584deaf6e285fdcbe7df249a34bded289c0343836e18347cb5eb00dd5274d3",
+    "normalisedSha256": "e8584deaf6e285fdcbe7df249a34bded289c0343836e18347cb5eb00dd5274d3",
+    "crlf": false,
+    "lines": 7
+   },
+   "authoredEdgeCrlf": {
+    "chars": 254,
+    "originalSha256": "e75f0c5ace2d6618aa06f26ce32c2f48e2f6cfecc727dbd2a6d6d57e5f5fb568",
+    "normalisedSha256": "e8584deaf6e285fdcbe7df249a34bded289c0343836e18347cb5eb00dd5274d3",
+    "crlf": true,
+    "lines": 7
+   },
+   "realChimeranCrlf": {
+    "chars": 81,
+    "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+    "normalisedSha256": "e13ab203d67cca42239babd73f60466a7ba6cfe2ebcc4fc2eaff760e01d0c219",
+    "crlf": true,
+    "lines": 5
+   },
+   "realDemoLf": {
+    "chars": 264,
+    "originalSha256": "2fdbd46df7f60850b5fc4bad4442f9ec5d121ba2d79d3729fb760e24b64bae22",
+    "normalisedSha256": "2fdbd46df7f60850b5fc4bad4442f9ec5d121ba2d79d3729fb760e24b64bae22",
+    "crlf": false,
+    "lines": 9
+   },
+   "realDemoInlineHook": {
+    "chars": 56,
+    "originalSha256": "11e911e2ea69f0080fdab8fc608f427aa1387ac9c3ecacd27c3ad183352c15ae",
+    "normalisedSha256": "11e911e2ea69f0080fdab8fc608f427aa1387ac9c3ecacd27c3ad183352c15ae",
+    "crlf": false,
+    "lines": 1
+   }
+  },
+  "perCodec": {
+   "yaml": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 7,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 7,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 4,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 9,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "literal-strip |-": {
+      "source": "x: |-\n  line1 \"q\" \\ back\n  line2\n",
+      "exact": true
+     },
+     "literal-clip | (keeps final newline)": {
+      "source": "x: |\n  line1 \"q\" \\ back\n  line2\n",
+      "exact": false,
+      "got": "\"line1 \\\"q\\\" \\\\ back\\nline2\\n\""
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "json": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "escaped \\n (no multi-line strings)": {
+      "source": "{\"x\": \"line1 \\\"q\\\" \\\\ back\\nline2\"}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "json-layout": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "escaped \\n (no multi-line strings)": {
+      "source": "{\"x\": \"line1 \\\"q\\\" \\\\ back\\nline2\"}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "json5": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "handAuthoredBlocks": {
+     "escaped \\n plus line continuation": {
+      "source": "{x: \"line1 \\\"q\\\" \\\\ back\\n\\\nline2\"}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "json5-layout": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "handAuthoredBlocks": {
+     "escaped \\n plus line continuation": {
+      "source": "{x: \"line1 \\\"q\\\" \\\\ back\\n\\\nline2\"}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "hjson": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 2,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 2,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 9,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": false
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 13,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "multiline '''": {
+      "source": "{\n  x:\n    '''\n    line1 \"q\" \\ back\n    line2\n    '''\n}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "toml": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "multiline-basic \"\"\" (escapes processed)": {
+      "source": "x = \"\"\"\nline1 \"q\" \\\\ back\nline2\"\"\"\n",
+      "exact": true
+     },
+     "multiline-literal '''": {
+      "source": "x = '''\nline1 \"q\" \\ back\nline2'''\n",
+      "exact": true
+     },
+     "multiline-basic with unescaped backslash": {
+      "source": "x = \"\"\"\nline1 \"q\" \\ back\nline2\"\"\"\n",
+      "error": "Invalid TOML document: invalid escape: only line-ending whitespace may be escaped"
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "toml-rows": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "multiline-basic \"\"\" (escapes processed)": {
+      "source": "x = \"\"\"\nline1 \"q\" \\\\ back\nline2\"\"\"\n",
+      "exact": true
+     },
+     "multiline-literal '''": {
+      "source": "x = '''\nline1 \"q\" \\ back\nline2'''\n",
+      "exact": true
+     },
+     "multiline-basic with unescaped backslash": {
+      "source": "x = \"\"\"\nline1 \"q\" \\ back\nline2\"\"\"\n",
+      "error": "Invalid TOML document: invalid escape: only line-ending whitespace may be escaped"
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "kdl": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "raw multiline #\"\"\"...\"\"\"#": {
+      "source": "- x=#\"\"\"\n  line1 \"q\" \\ back\n  line2\n  \"\"\"#\n",
+      "exact": true
+     },
+     "escaped multiline \"\"\" with unescaped backslash": {
+      "source": "- x=\"\"\"\n  line1 \"q\" \\ back\n  line2\n  \"\"\"\n",
+      "exact": false,
+      "got": "\"line1 \\\"q\\\" back\\nline2\""
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "edn": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "handAuthoredBlocks": {
+     "string with literal newline": {
+      "source": "{:x \"line1 \\\"q\\\" \\\\ back\nline2\"}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "edn-oneline": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "handAuthoredBlocks": {
+     "string with literal newline": {
+      "source": "{:x \"line1 \\\"q\\\" \\\\ back\nline2\"}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "ron": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "handAuthoredBlocks": {
+     "raw string r#\"...\"#": {
+      "source": "{\"x\": r#\"line1 \"q\" \\ back\nline2\"#}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "ron-compact": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0
+    },
+    "handAuthoredBlocks": {
+     "raw string r#\"...\"#": {
+      "source": "{\"x\": r#\"line1 \"q\" \\ back\nline2\"#}\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   },
+   "xml": {
+    "authoredEdgeLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 6,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "authoredEdgeCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 6,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realChimeranCrlf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 4,
+     "preserve": "equal-after-declared-normalisation",
+     "unnormalisedCrKeptByteExact": true
+    },
+    "realDemoLf": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 8,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "realDemoInlineHook": {
+     "reemit": "equal-after-declared-normalisation",
+     "addedDocumentLines": 0,
+     "preserve": "equal-after-declared-normalisation"
+    },
+    "handAuthoredBlocks": {
+     "element text": {
+      "source": "<map xmlns=\"http://www.w3.org/2005/xpath-functions\"><string key=\"x\">line1 \"q\" \\ back\nline2</string></map>\n",
+      "exact": true
+     }
+    },
+    "extractToFile": {
+     "fileEqualsNormalisedOriginal": true,
+     "originalSha256": "11ba1c2f2add94cc5788e3b8146b5377a27fc01e2af7f6acd552d16e4458d2ef",
+     "bindingAfter": {
+      "program": "scripts/Add Mage Sword (extracted).prg"
+     },
+     "inlineBackFromFile": true
+    }
+   }
+  }
+ },
+ "plugins": {
+  "perCodec": {
+   "yaml": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": {
+      "line": 201,
+      "col": 20
+     }
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "json": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": {
+      "line": 499,
+      "col": 7
+     }
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "json-layout": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": {
+      "line": 271,
+      "col": 7
+     }
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "json5": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": null
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "json5-layout": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": null
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "hjson": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": null
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "toml": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": {
+      "line": 156,
+      "col": 40
+     }
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "toml-rows": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": {
+      "line": 246,
+      "col": 40
+     }
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "kdl": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": {
+      "line": 170,
+      "col": 35
+     }
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "edn": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": null
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "edn-oneline": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": null
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "ron": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": null
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "ron-compact": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": null
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   },
+   "xml": {
+    "withSchema": [
+     "com.example.weather:validated",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "withoutAnyPluginSchema": [
+     "com.example.weather:unvalidated-no-schema",
+     "org.example.lanterns:unvalidated-no-schema"
+    ],
+    "preservedThroughReemit": true,
+    "preservedThroughUnrelatedPreserveEdit": true,
+    "invalidPluginData": {
+     "status": "invalid",
+     "errors": [
+      "/extensions/com.example.weather/precipitation must be equal to one of the allowed values",
+      "/extensions/com.example.weather must NOT have unevaluated properties"
+     ],
+     "location": {
+      "line": 272,
+      "col": 7
+     }
+    },
+    "versionMismatch": {
+     "status": "unvalidated-version-mismatch",
+     "detail": "data version 2; installed com.example.weather@1",
+     "unknownFieldPreserved": true
+    }
+   }
+  },
+  "dialect": {
+   "expected": {
+    "valid": true,
+    "unevaluatedExtra": false,
+    "badDynamicRefTarget": false,
+    "badPrefixItem": false
+   },
+   "ajvDefaultClass": "rejected: no schema with key or ref \"https://json-schema.org/draft/2020-12/schema\"",
+   "ajv2020": {
+    "valid": false,
+    "unevaluatedExtra": false,
+    "badDynamicRefTarget": false,
+    "badPrefixItem": false
+   },
+   "ajvDefaultClassWithoutDialectUri": {
+    "valid": false,
+    "unevaluatedExtra": true,
+    "badDynamicRefTarget": true,
+    "badPrefixItem": false
+   },
+   "hyperjump": {
+    "valid": true,
+    "unevaluatedExtra": false,
+    "badDynamicRefTarget": false,
+    "badPrefixItem": false
+   },
+   "versions": {
+    "ajv": "8.20.0",
+    "hyperjump": "1.18.0"
+   }
+  }
+ }
+}

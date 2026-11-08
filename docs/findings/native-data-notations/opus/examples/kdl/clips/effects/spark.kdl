@@ -1,0 +1,6 @@
+- kind=clip id="effects/spark" secondsPerFrame=0.05 {
+  size 64 64
+  frames {
+    - id=flash image="media/images/spark.png" sound="media/audio/zap.wav"
+  }
+}

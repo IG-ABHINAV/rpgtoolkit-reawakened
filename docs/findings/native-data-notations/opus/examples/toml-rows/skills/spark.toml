@@ -1,0 +1,15 @@
+kind = "skill"
+id = "spark"
+name = "Spark"
+description = "A small arc of light that stings one foe."
+power = 18
+
+[cost]
+smp = 4
+
+[usable]
+battle = true
+menu = false
+
+[presentation]
+clip = "effects/spark"

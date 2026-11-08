@@ -1,0 +1,8 @@
+{
+  "python": "3.15.2",
+  "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+  "sw_vers": "ProductName:\t\tmacOS\nProductVersion:\t\t27.2\nBuildVersion:\t\t26B123\n",
+  "cpu": "Apple M1 Pro",
+  "node": "v26.13.0",
+  "git": "git version 2.55.0"
+}

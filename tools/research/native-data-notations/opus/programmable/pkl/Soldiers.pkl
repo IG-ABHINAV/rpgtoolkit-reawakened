@@ -1,0 +1,18 @@
+/// #1778 research (Opus), AUTHORED: typed template for drill-soldier placements.
+module Soldiers
+
+class Script {
+  program: String(startsWith("scripts/"))
+}
+
+class Activation {
+  onKey: Boolean = false
+}
+
+class Placement {
+  id: String(matches(Regex("^[a-z0-9][a-z0-9._-]*$")))
+  actor: String
+  at: List<Int>(length == 3, this[2] >= 1)
+  whilePresent: Script?
+  activation: Activation = new Activation {}
+}

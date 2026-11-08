@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tk-reawakened.invalid/research/1778/opus/dialect-probe",
+  "title": "AUTHORED dialect probe: same plugin schema but onStorm uses $dynamicRef to a $dynamicAnchor declared under $defs (JSON Schema 2020-12 \u00a78.2.3.2).",
+  "type": "object",
+  "required": [
+    "version",
+    "precipitation"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "precipitation": {
+      "enum": [
+        "none",
+        "rain",
+        "snow"
+      ]
+    },
+    "intensity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "windFrom": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "integer"
+        }
+      ],
+      "items": false,
+      "minItems": 2
+    },
+    "onStorm": {
+      "$dynamicRef": "#script"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "script": {
+      "$dynamicAnchor": "script",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "inline"
+          ],
+          "properties": {
+            "inline": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "program"
+          ],
+          "properties": {
+            "program": {
+              "type": "string",
+              "pattern": "^scripts/"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
