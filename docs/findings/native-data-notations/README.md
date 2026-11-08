@@ -349,6 +349,14 @@ been done.
 - **Nullable values are wanted in positional arrays** (for example legacy tile slots).
   That removes TOML, which has no null: the only workaround found was a per-slot marker
   object, or a sentinel value the owner would rather avoid.
+- **Working direction (owner, 2026-11-08): start with YAML as the authored/editor view
+  and JSON as the internal form for passing data around.** The research supports
+  the pairing in one respect: schema validation gave identical results whichever
+  notation carried the data. It does not yet show that the YAML file can stay the
+  source of truth through a JSON round trip: comments, block-scalar style and layout
+  live only in the YAML, so edits must go through a comment-preserving YAML editing
+  path, not JSON back to YAML. No YAML value profile (no tags, anchors or dates;
+  YAML 1.2 core types; unique keys) has been approved.
 - **Hjson is the alternative.** It has native null and forgiving script strings, but its
   library exposes no error locations, rewrites layout on edit, and has not had a release
   since November 2020.
