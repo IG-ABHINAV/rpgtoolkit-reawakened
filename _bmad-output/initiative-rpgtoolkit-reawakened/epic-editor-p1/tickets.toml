@@ -1,0 +1,217 @@
+# Epic 13 P1 editor breakdown. Cross-epic dependencies name provider entries.
+
+[[entry]]
+id = 2
+tracker_id = "#1726"
+type = "story"
+title = "Art library reuse evidence decision"
+description = "Compare maintained pixel-editor libraries and a native implementation against all T-36 operations, G6 licensing including transitive dependencies, host embedding, keyboard access, offline operation and AD-19 document integration before any art dependency is installed."
+verify = "A person reviews reproducible candidate, version, license and transitive evidence, working host integration findings, coverage and limitations, and approves either a qualifying choice or the in-house route."
+covers = ["CAP-16"]
+after = ["11.1"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 1
+tracker_id = "#1727"
+type = "story"
+title = "Tile edit tracer and P1 integration seam"
+description = "Open a real tileset through the shared browser, edit one pixel in a shared document, save and reopen it, then paint that tile on a board while establishing the P1 feature registration seam."
+verify = "Both web and VS Code hosts show the saved pixel on the intended board, undo/redo and reopening preserve one document identity, and brush selection alone changes nothing."
+covers = ["CAP-16"]
+after = [2, "2.2", "11.1", "11.2", "11.3", "11.4", "12.1", "12.2"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+tracker_id = "#1728"
+type = "story"
+title = "Complete pixel tile artwork editor"
+description = "Complete the T-36 pixel editor using the entry 2 decision, including all drawing, palette, transformations, image import, layering, shading, effects and append or overwrite save modes."
+verify = "Fixtures exercise every T-36 operation, keyboard/numeric editing, transparent pixels and iso preview, staged cancellation and undo, and each saved tile reopens and renders in the runner."
+covers = ["CAP-16"]
+after = [1, 2]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 4
+tracker_id = "#1729"
+type = "story"
+title = "Tile grabber with reviewed extraction"
+description = "Extract standard, isometric and pixel-doubled legacy 16-pixel tiles from images into a selected tileset with explicit preview and staged confirmation."
+verify = "Selection and whole-image cases check grid-origin movement, half-tile offset, transparency, partial edge padding, skip-blank and skip-partial options, cancel, save, reopen and runner render."
+covers = ["CAP-16"]
+after = [3, "2.3"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+tracker_id = "#1730"
+type = "story"
+title = "Tileset curation and single tile conversion"
+description = "Provide staged two-set curation, single-tile conversion and safe impact disclosure for indexed legacy tile references."
+verify = "Tests cover wildcard GPH import, export, duplicate removal, insert/delete/blank/move/reorder, display width, supported TST and ISO transfer directions, cancel and reopened rendered indices."
+covers = ["CAP-16"]
+after = [4]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 6
+tracker_id = "#1731"
+type = "story"
+title = "Animated tile authoring"
+description = "Create and edit TAN files with ordered tile-reference frames, speed and playback using the shared tileset browser."
+verify = "A sequence including an empty middle frame saves and reopens with its exact frame count and speed, and its board playback advances through the actual runner."
+covers = ["CAP-16"]
+after = [5, "12.2"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 7
+tracker_id = "#1732"
+type = "story"
+title = "Auto tile sample evidence and ordering ruling"
+description = "Acquire rights-cleared community auto-tile sample sets and establish the index-to-neighbour variant order from independently checkable examples under G7."
+verify = "A person reviews sample provenance, permission, indexed imagery, independent expected neighbourhood cases and unresolved ambiguity, approving a complete evidence-backed mapping or leaving implementation blocked."
+covers = ["CAP-16"]
+after = ["12.1"]
+hitl = true
+risk = "high"
+
+[[entry]]
+id = 8
+tracker_id = "#1733"
+type = "story"
+title = "Neighbour aware auto tiling"
+description = "Implement T-25 painting using the approved sample-derived index map and eight-neighbour corner gating, re-evaluating affected neighbours."
+verify = "All mapped neighbourhood variants match independent approved community sample evidence and painting or erasing recomputes adjacent cells across board edges and undo/redo."
+covers = ["CAP-16"]
+after = [1, "12.1", "12.2", 7]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 9
+tracker_id = "#1734"
+type = "story"
+title = "Enemy definition editor"
+description = "Edit enemy stats, standard and custom battle stances, move strengths and weaknesses, AI or program, run and defeat programs, critical chance and rewards using shared sprite and linked-asset services."
+verify = "A representative enemy is edited, navigated from an encounter, saved, reopened and loaded by the real battle provider with unedited fields and residue intact."
+covers = ["CAP-16"]
+after = [1, "2.6", "11.3", "11.4", "11.6", "12.4"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 10
+tracker_id = "#1735"
+type = "story"
+title = "Special move and status effect editors"
+description = "Edit linked SPC and STE definitions including use contexts, signed damage and costs, status duration and changes, programs, animation and descriptions."
+verify = "Each format opens, edits, saves, reopens and loads through the chosen real battle provider with correct inverted usability flags, signed values and preserved untouched fields."
+covers = ["CAP-16"]
+after = [9, "2.7"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 11
+tracker_id = "#1736"
+type = "story"
+title = "Battle background editor"
+description = "Edit battle background image or tile bitmap, music and four separately labelled menu sounds with host-capability-aware preview and linked pickers."
+verify = "A BKG round-trips all six links and loads in a real battle, while preview cancellation and missing or unsupported audio are reported without mutating references."
+covers = ["CAP-16"]
+after = [10]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 12
+tracker_id = "#1737"
+type = "story"
+title = "Board shading and lighting"
+description = "Add shading paint and light node editing, per-node colour, cast layer and explicit light-to-shading conversion on the existing board object model."
+verify = "A board with both light and shade saves, reopens and renders in the runner, and cancellation and supported undo preserve the editable light before an explicit bake."
+covers = ["CAP-16"]
+after = [1, "4.13", "12.1", "12.11"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 13
+tracker_id = "#1738"
+type = "story"
+title = "Expanded board clipboard"
+description = "Add copy, cut, paste and select-all for tile and shade regions and whole vectors, programs, sprites and images to the existing board commands."
+verify = "Every supported selection survives copy and cut/paste with undo/redo and reload, while partial point sets and lights are explicitly rejected without mutation."
+covers = ["CAP-16"]
+after = [12, "12.11"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 14
+tracker_id = "#1739"
+type = "story"
+title = "Clean board image export"
+description = "Export the current view or entire board as PNG, indexed at 256 colours or fewer, through the shared AD-29 compositor without editor overlays as the existing owner-approved image storage policy requires."
+verify = "Compare exported pixels with composition for view and whole-board options, verify indexed PNG at the 256-colour boundary and true-colour output above it, and exercise cancellation and unsupported host operations."
+covers = ["CAP-16"]
+after = [13, "4.14", "4.15", "4.18"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 15
+tracker_id = "#1740"
+type = "story"
+title = "Explicit board coordinate and legacy upgrades"
+description = "Implement confirmed and previewed stacked-to-rotated and tile-to-pixel conversions plus pre-vector board upgrade, moving tiles and every applicable object while retaining originals."
+verify = "Real legacy fixtures verify pixel positions and vectors, converted tile types, programs and shading, untouched script literals, cancel and failure preservation, and upgraded board reopen and runner rendering."
+covers = ["CAP-16"]
+after = [14, "2.8", "2.16"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 16
+tracker_id = "#1741"
+type = "story"
+title = "Reviewed script formatting and migration workflows"
+description = "Expose formatting, canonical case and project-wide pre-3.1 update and cleanup through reviewed per-file editor workflows backed by the existing language-tool providers."
+verify = "Across native VS Code and Monaco hosts, fixtures verify correct provider results, per-file opt-out, original/result diff, unsupported fragments, cancel and behaviour-preserving accepted changes."
+covers = ["CAP-16"]
+after = [1, "11.3", "11.7", "10.5", "10.7"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 18
+tracker_id = "#1742"
+type = "story"
+title = "Refactor sweep"
+description = "Remove duplication and address cleanup findings from the completed P1 entries without adding deferred feature scope."
+verify = "Review maps each change to completed work and focused regression cases exercise affected document, browser, board and asset seams."
+covers = ["CAP-16"]
+after = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 19
+tracker_id = "#1743"
+type = "story"
+title = "Epic 13 end to end acceptance"
+description = "Exercise every P1 tool across its actual editor and runner integration after the sweep, including asset creation, board use, conversions and error recovery."
+verify = "A documented web and VS Code journey round-trips all P1 legacy assets, verifies sample-backed auto-tiling and overlay-free exports, and proves upgrades and failure paths preserve source."
+covers = ["CAP-16"]
+after = [18, "12.1", "12.2"]
+hitl = false
+risk = "high"

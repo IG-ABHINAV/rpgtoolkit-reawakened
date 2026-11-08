@@ -4,7 +4,7 @@ updated: 2026-11-08
 ---
 # Connected editors: design review
 
-**Proposal for owner review, not an implementation plan or accepted architecture.** This package turns the recent engagement research into a cohesive possible editor experience. It includes the small specialist editors, direct code and artwork paths, failure/recovery, and a standalone/VS Code architecture—not just a board-editor makeover.
+**Design proposal with a separate implementation backlog.** This package turns the recent engagement research into a cohesive possible editor experience. It includes the small specialist editors, direct code and artwork paths, failure/recovery, and a standalone/VS Code architecture—not just a board-editor makeover. Proposed layouts are not ratified architecture; the [editor delivery plan](editor-delivery-plan.md) records the subsequent owner-requested story breakdown and remaining decision gates.
 
 ## Start here
 
@@ -14,7 +14,7 @@ updated: 2026-11-08
 4. Use [scenario coverage](flow-coverage.md) to trace every SC-01–SC-54 scenario to an entry, concrete outcome and F-01–F-13 flow.
 5. Read [architecture.md](architecture.md) for host responsibilities, document/undo/save lifecycle, schema-driven settings, provider limits and prototype evidence to collect.
 6. Read the [owner-approved connected-authoring and testing direction](connected-authoring-and-tests.md): shared tileset-browser actions, contextual runs, RPGCode unit/integration tests, and tiny component fixtures with player action lists.
-7. Use the [current editor-epic handoff](editor-epic-handoff.md) to begin foundation inception. It distinguishes existing scope from new planning work and records the Monaco decision and remaining integration work.
+7. Follow the [editor delivery plan](editor-delivery-plan.md) for the five epic breakdowns, first runnable proofs and provider gates. The [earlier editor-epic handoff](editor-epic-handoff.md) is the dated pre-inception reconnaissance, not the current queue.
 
 ## Core proposal
 

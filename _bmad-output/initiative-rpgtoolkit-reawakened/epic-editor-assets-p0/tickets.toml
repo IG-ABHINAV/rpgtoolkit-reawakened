@@ -1,0 +1,168 @@
+# Epic 12 P0 asset editing; external providers are entry-pinned in the initiative.
+[[entry]]
+id = 1
+tracker_id = "#1712"
+type = "story"
+title = "Board edit save and render tracer"
+description = "Open a small authored board, change one tile, save and reopen it through the shared document lifecycle, and present it using the core board compositor in both web and VS Code hosts."
+verify = "A host-conformance proof observes the changed tile after save and reopen in each host and compares its compositor output with the matching engine view."
+covers = ["CAP-15"]
+after = ["11.2", "11.3", "2.5", "4.14"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 2
+tracker_id = "#1713"
+type = "story"
+title = "Shared contextual tileset browser and brush"
+description = "Provide one retained-context browser and targetable brush selection for boards, tile bitmaps and animations with accessible explicit source-edit and brush actions."
+verify = "Switching boards preserves browser selection without painting, targets only the active board, exposes both keyboard and menu actions, and explains unavailable source editing until the P1 provider exists."
+covers = ["CAP-15"]
+after = [1, "11.4"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+tracker_id = "#1714"
+type = "story"
+title = "Board properties links and player start"
+description = "Edit board properties, directional links, threads, battle settings and player start with explicit linked-file navigation and main-file ownership."
+verify = "A board properties edit and startup-marker change save and reopen with unrelated properties intact and linked board or program visits return to their origin."
+covers = ["CAP-15"]
+after = [1, "11.4", "11.6"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+tracker_id = "#1715"
+type = "story"
+title = "Shared sprite graphics stances and bases"
+description = "Build the shared character and item sprite graphics editor for stances, previews, assignment wizard, movement timing and collision and activation bases."
+verify = "A character and an item share the same stance and polygon editing component, save and reopen distinct assets, and expose keyboard and numeric geometry alternatives."
+covers = ["CAP-15"]
+after = ["11.3", "11.4", "2.6", "16.12"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 5
+tracker_id = "#1716"
+type = "story"
+title = "Character stats moves equipment and progression"
+description = "Author character identity, stat bindings, profile, special-move unlocks, equipment and level growth with shared sprite graphics and connected references."
+verify = "A character with nondefault bindings, move rules, equipment and growth saves and reopens without changing unrelated legacy fields or regenerating bindings on rename."
+covers = ["CAP-15"]
+after = [4]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 8
+tracker_id = "#1717"
+type = "story"
+title = "Tile bitmap stamp and per tile shading editor"
+description = "Create and edit sized tile bitmap stamps with tile draw and erase, per-cell RGB shading, grid and preview using the shared browser."
+verify = "A shaded multi-cell bitmap saves and reopens with its dimensions and tile cells intact and can be selected as a whole stamp brush."
+covers = ["CAP-15"]
+after = [2]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 7
+tracker_id = "#1718"
+type = "story"
+title = "Animation frames playback and creation wizard"
+description = "Edit animation frames, per-frame image transparency and sound, delay and size, including image and tile composition wizards using the shared browser."
+verify = "Image and multi-tile wizard results save and reopen with ordered frame-associated sound and transparency while cancellation leaves source and destination unchanged."
+covers = ["CAP-15"]
+after = [2, 8, "11.1"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 9
+tracker_id = "#1719"
+type = "story"
+title = "Package game and install descriptor"
+description = "Provide a host-capability-aware packaging workflow over the existing distribution writer that outputs a playable TPK and sibling install descriptor with explicit preflight and exclusions."
+verify = "A freshly authored saved project produces a valid package and descriptor, rejects unsafe or incomplete inputs, excludes test-only material, and boots the produced archive in the web runner without folder access."
+covers = ["CAP-15"]
+after = ["11.1", "11.3", "11.4", "9.7"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 10
+tracker_id = "#1720"
+type = "story"
+title = "Board canvas navigation layers and tile tools"
+description = "Complete board creation, coordinate-aware canvas navigation, layer visibility and P0 tile drawing, selection, flood, erase, rectangle and dropper with basic undo and redo."
+verify = "Editing representative 2D and both isometric boards exercises snapping, visible layers, brush tools and reversible document edits without treating selection or pan as mutations."
+covers = ["CAP-15"]
+after = [2, "11.5", "4.18"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 11
+tracker_id = "#1721"
+type = "story"
+title = "Board vectors programs sprites and image objects"
+description = "Implement P0 board object modes, geometry tools, overlays and full inspectors for vectors, programs, sprite placements and images with linked definitions and basic undo."
+verify = "A board saves and reloads each object type with its geometry, scope, links and conditions intact, and accessible edits and undo preserve unrelated objects."
+covers = ["CAP-15"]
+after = [10, 3]
+hitl = false
+risk = "high"
+[[entry]]
+id = 6
+tracker_id = "#1722"
+type = "story"
+title = "Item uses equipment pricing and placement links"
+description = "Author item identity, equipment, menu, board and battle uses, prices and eligible characters with shared sprite graphics and explicit definition versus instance scope."
+verify = "An item with distinct equipment and use programs saves and reopens, and visiting it from a board placement retains that placement and its local overrides."
+covers = ["CAP-15"]
+after = [4, 11]
+hitl = false
+risk = "medium"
+
+
+[[entry]]
+id = 12
+tracker_id = "#1723"
+type = "story"
+title = "Connected authoring and test run integration"
+description = "Connect board placements, character and item definitions, artwork, programs and run actions using shared visits and explicit save and revision boundaries."
+verify = "A creator visits and edits a placed item's linked definition and program, returns to the original board selection, saves and runs the chosen board or normal game with the correct revision."
+covers = ["CAP-15"]
+after = [3, 5, 6, 7, 8, 11, "11.8", "11.9"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 13
+tracker_id = "#1724"
+type = "story"
+title = "Refactor sweep"
+description = "Remove duplication and address deferred review cleanup across the completed P0 asset editor stories without adding feature scope."
+verify = "The sweep accounts for prior review findings and preserves the asset editor and host conformance checks."
+covers = ["CAP-15"]
+after = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 14
+tracker_id = "#1725"
+type = "story"
+title = "P0 author to packaged game acceptance"
+description = "Prove the complete P0 creator journey from a new game through all P0 editors to a packaged playable web-runner game in both editor hosts."
+verify = "A fresh authored game created independently in VS Code and PWA survives save and reopen, uses every P0 asset editor, packages successfully and plays the actual output in the web runner."
+covers = ["CAP-15"]
+after = [13, "11.6", "11.7", "11.8", "11.10", "9.16"]
+hitl = false
+risk = "high"

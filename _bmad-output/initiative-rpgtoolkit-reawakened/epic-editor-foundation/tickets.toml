@@ -1,0 +1,160 @@
+# Epic 11 foundation stories; stable IDs, table order is build order.
+# Contracts 11.1 precede implementation; Epic 22 consumes these seams, never the reverse.
+
+[[entry]]
+id = 1
+tracker_id = "#1699"
+type = "story"
+title = "Rule shared authoring and creator test contracts"
+description = "Obtain owner-approved docs-first contracts for document identity, host/native-text ownership, schema/settings scope, dock and extension integration, launch snapshots and creator fixture/action APIs without reopening the Monaco or Electron decisions."
+verify = "A person approves documented lifecycle, validation, accessibility, failure, representation and provider contracts with unresolved capabilities identified and no implementation preceding the rulings."
+covers = ["CAP-15", "CAP-18"]
+after = []
+hitl = true
+risk = "high"
+plan_checkpoint = true
+done_checkpoint = true
+
+[[entry]]
+id = 2
+tracker_id = "#1700"
+type = "story"
+title = "Trace a real game settings document through both hosts"
+description = "Build the shared editor model and UI plus web and VS Code adapters to open, edit, save and reopen a real .gam game setting through platform services."
+verify = "A real authored .gam opens in web and VS Code including vscode.dev, an edited field saves and reopens without loss, and the runner reads the saved file."
+covers = ["CAP-15", "CAP-18", "T-01", "T-06", "T-10"]
+after = [1, "2.9"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 3
+tracker_id = "#1701"
+type = "story"
+title = "Complete document lifecycle and host conformance"
+description = "Implement shared document lifecycle and reusable host conformance for serializable edit IDs, dirty state, save, save as, save all, close, revert, backup and external change."
+verify = "The same conformance suite exercises undo and redo by editId, save timing, conflict and recovery behavior on web and VS Code including hidden views and one model per URI."
+covers = ["CAP-15", "CAP-18", "T-01", "T-06"]
+after = [2]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 4
+tracker_id = "#1702"
+type = "story"
+title = "Build workspace navigation visits and folder-aware pickers"
+description = "Deliver tabs, configurable dock panels, Game and Files navigation, file operations, linked-document visits and folder-aware asset pickers through shared services."
+verify = "Both hosts navigate one project from Game and Files, open one document from two routes, return from a linked visit, and safely copy an outside asset into its reserved folder."
+covers = ["CAP-15", "CAP-18", "T-01", "T-02", "T-03", "T-05"]
+after = [3]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 5
+tracker_id = "#1703"
+type = "story"
+title = "Provide schema-driven editor preferences"
+description = "Provide searchable validated editor preferences with schema-driven fields, effective value, scope and reset using host settings services."
+verify = "Changing, validating and resetting each supported preference updates both hosts consistently without modifying authored game data."
+covers = ["CAP-15", "CAP-18", "T-08"]
+after = [4]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 6
+tracker_id = "#1704"
+type = "story"
+title = "Edit complete project and game settings"
+description = "Implement complete .gam project, startup, battle, graphics and plugin settings in shared editor-ui with staged validation and actual format persistence."
+verify = "Both hosts edit and reopen representative fields in every T-10 through T-14 category while preserving unknown data and a runner loads the resulting project."
+covers = ["CAP-15", "CAP-18", "T-10", "T-11", "T-12", "T-13", "T-14"]
+after = [3, 4, "21.2"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 7
+tracker_id = "#1705"
+type = "story"
+title = "Integrate Monaco and native text with language services"
+description = "Deliver RPGCode editing with Monaco in standalone web and native VS Code text editing connected to the same language services and document ownership contract."
+verify = "In both hosts a .prg edits and saves with live coloring, symbols and comments navigation, call tips, command reference insertion, header template and distraction-free mode, even without Epic 22."
+covers = ["CAP-15", "CAP-18", "T-40"]
+after = [3, 5, "10.1", "10.5"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 8
+tracker_id = "#1706"
+type = "story"
+title = "Expose distinct game board and program launch services"
+description = "Implement contextual normal game, current program and board test launch services with explicit inputs, revision and host capability reporting."
+verify = "A real game launch and a fixture-backed program launch run in both hosts, a board launch identifies its state, and failed saves prevent launching stale revisions."
+covers = ["CAP-15", "CAP-18", "T-07", "T-41"]
+after = [3, 4, "9.3", "9.16"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 9
+tracker_id = "#1707"
+type = "story"
+title = "Author and execute real engine RPGCode creator tests"
+description = "Integrate code-authored unit and bounded gameplay tests with existing script-spec and implement the ruled tiny real-engine fixture and semantic player-action APIs."
+verify = "A code-authored fresh fixture runs passing and deliberately failing wall or door assertions with deterministic ticks, source-located results and identical supported headless and visible inputs."
+covers = ["CAP-15", "CAP-18", "T-41"]
+after = [1, 7, 8, "10.8"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 10
+tracker_id = "#1708"
+type = "story"
+title = "Create new projects with explicit starter contents"
+description = "Add the new-project wizard for game name, main file and standard reserved folder tree with optional rights-cleared starter contents."
+verify = "In both hosts a new project opens and its generated .gam and standard folders resolve correctly, while cancel and failed creation preserve existing data."
+covers = ["CAP-15", "CAP-18", "T-04", "T-05"]
+after = [4, 6]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 11
+tracker_id = "#1709"
+type = "story"
+title = "Connect contextual help and program quick reference"
+description = "Provide contextual manual, whats-new and searchable RPGCode reference entry points with focus return throughout the workspace."
+verify = "A creator opens help for a field, finds a built-in and inserts its documented syntax into the active program with keyboard-only navigation."
+covers = ["CAP-15", "CAP-18", "T-09", "T-40"]
+after = [4, 7, "10.9"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 12
+tracker_id = "#1710"
+type = "story"
+title = "Refactor sweep"
+description = "Remove only cleanup debt found in foundation story plans and review findings without absorbing unfinished feature scope."
+verify = "Every cleanup is completed or recorded as separately scoped work and no document or host behavior changes unintentionally."
+covers = ["CAP-15", "CAP-18"]
+after = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 13
+tracker_id = "#1711"
+type = "story"
+title = "Close the foundation with cross-host authoring acceptance"
+description = "Run the integrated authoring acceptance across web and VS Code including vscode.dev from project open through save, language services and real test execution."
+verify = "One acceptance suite proves .gam round trip, workspace and pickers, lifecycle conformance, .prg language and fixture execution in both hosts and enforces the dependency graph."
+covers = ["CAP-15", "CAP-18", "T-01", "T-02", "T-03", "T-04", "T-05", "T-06", "T-07", "T-08", "T-09", "T-10", "T-11", "T-12", "T-13", "T-14", "T-40", "T-41"]
+after = [12]
+hitl = false
+risk = "high"

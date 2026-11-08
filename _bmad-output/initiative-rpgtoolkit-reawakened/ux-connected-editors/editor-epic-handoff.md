@@ -2,6 +2,8 @@
 
 **Read-only planning reconnaissance, 2026-11-08.** Checked current `origin/main` at **379cc74e**, not the older design branch snapshot. GitHub parents #1357–#1361 are OPEN. The four editor epic `tickets.toml` files below are empty on that revision: these are envelopes to refine, not a ready implementation queue. No ticket state, epic scope, priority or dependency was changed here; no shipped-editor implementation audit was performed.
 
+**Superseded for queue/readiness:** the owner subsequently requested inception of all five epics. See the [editor delivery plan](editor-delivery-plan.md) and the epic ticket stores. The empty-breakdown statements below describe the pinned reconnaissance snapshot only.
+
 ## Existing homes
 
 | Epic / GitHub parent | Existing scope | How the new direction fits |

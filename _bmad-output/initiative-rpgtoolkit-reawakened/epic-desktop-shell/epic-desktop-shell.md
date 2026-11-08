@@ -48,6 +48,9 @@ and not the **player application**, which is epic web-runner-packaging's 9.10 an
 - reference - docs/architecture-options.md, section 4
 - ruling - _bmad-output/initiative-rpgtoolkit-reawakened/epic-web-runner-packaging/story-rulings-the-runner-boundary-the-desktop-shell-image-storage-plan.md, D-1
 - ruling - docs/adr/0013-desktop-shell-electron.md (lands with epic web-runner-packaging entry 9.1)
+- architecture - _bmad-output/initiative-rpgtoolkit-reawakened/architecture-rpgtoolkit-reawakened/architecture-rpgtoolkit-reawakened.md, AD-18–22 and AD-29
+- inventory - docs/editor-features.md, T-82
+- design - _bmad-output/initiative-rpgtoolkit-reawakened/ux-connected-editors/EXPERIENCE.md and connected-authoring-and-tests.md
 
 ## Notes
 
@@ -66,3 +69,13 @@ and not the **player application**, which is epic web-runner-packaging's 9.10 an
 - Waits on editor-assets-p0 because: the editor application cannot be measured without a board editor to edit, which is
   now the only reason — the shell comparison it once waited on is ruled and is not re-run.
 - Decision: envelope re-sliced against the architecture spine, 2026-10-10.
+
+### Inception (2026-11-08)
+
+- Decision: ADR 0013 already selects Electron; the first proof is a separate editor application opening, editing, saving and reopening a real `.gam` through the shared editor model and platform services, not a shell comparison. Desktop never owns a second editor feature or a player mode.
+- Source conflict: CAP-18's older success text names VS Code and PWA but omits the desktop proof; this epic's Done when explicitly requires the same shared build in desktop. The spec package map and earlier ADR 0001 text describe a shell spike, superseded by ADR 0013; the historical audit above is retained, and #1361 now exists.
+- Source conflict: the initiative's desktop prerequisite still says “board editor to spike against”; 12.1 is the board edit/save/render tracer for the desktop measurement, not a shell-selection spike. Parent integration must replace the stale epic prerequisite and declare the foundation dependency.
+- Requirement map: CAP-18 governs all entries; T-82 maps specifically to 15.4 and platform proof 15.7, including explicit, user-initiated association. T-01/T-06/T-07/T-08/T-40 are shared editor behaviors supplied by Epic 11 and exercised through its interfaces, not new desktop implementations.
+- Provider map: 11.1 shared contract ruling; 11.2 real `.gam` tracer; 11.3 document lifecycle/conformance; 11.4 workspace/navigation; 11.5 preferences; 11.7 Monaco and language service; 11.8 run boundaries; 11.9 creator test integration; 12.1 board tracer. These are planned providers, not claims of implementation.
+- Sequencing: 15.1 is the first runnable tracer; stories 15.2–15.6 deliberately serialize host integration surfaces; 15.7 measures the resulting host against the board tracer on three actual platforms. Release credentials and real OS access are human-operated gates, not assumed to exist. 15.9 sweeps after all delivery stories; 15.10 independently exercises the whole integrated application.
+- Open decisions: project-scoped OS filesystem authority, conflict/recovery details, file association packaging and updater channel/rollback policy require documented implementation decisions in the indicated stories, consistent with 11.1 and ADR 0013; no alternate shell is under consideration. Signed publication cannot be claimed without real credentials, platform access and verified distribution evidence.

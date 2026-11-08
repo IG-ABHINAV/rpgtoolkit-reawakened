@@ -125,7 +125,7 @@ tracker_id = "#1357"
 slug = "epic-editor-foundation"
 title = "Editor foundation: editor-ui, platform-services and two hosts"
 covers = ["CAP-15", "CAP-18"]
-after = [{ epic = 2, needs = "format readers" }, { epic = 9, needs = "runner-web for preview and test-run" }, { epic = 10, needs = "the program editor's language tooling" }]
+after = [{ epic = 2, needs = "format readers" }, { epic = 9, needs = "runner-web for preview and test-run" }, { epic = 10, needs = "the program editor's language tooling" }, { epic = 21, needs = "existing authored game-file audio settings, including default SoundFont (21.2)" }]
 
 [[epic]]
 id = 12
@@ -133,7 +133,7 @@ tracker_id = "#1358"
 slug = "epic-editor-assets-p0"
 title = "P0 asset editors: board, character, item, animation, tile bitmap, packaging"
 covers = ["CAP-15"]
-after = [{ epic = 11, needs = "editor-ui and both hosts" }]
+after = [{ epic = 2, needs = "round-tripping board and actor formats (2.5, 2.6)" }, { epic = 4, needs = "shared 2D and isometric board composition (4.14, 4.18)" }, { epic = 9, needs = "package delivery and interactive runner integration" }, { epic = 16, needs = "animated GIF decoding for stance previews (16.12)" }, { epic = 11, needs = "shared documents, workspace, tileset navigation, settings, new-project creation and contextual run/test services" }]
 
 [[epic]]
 id = 13
@@ -141,7 +141,7 @@ tracker_id = "#1359"
 slug = "epic-editor-p1"
 title = "P1 editor tools"
 covers = ["CAP-16"]
-after = [{ epic = 12, needs = "the board editor and shared tileset browser" }]
+after = [{ epic = 2, needs = "tile, artwork, actor and battle format readers/writers" }, { epic = 4, needs = "lighting and shared composition for editor/export" }, { epic = 10, needs = "existing language-service formatting and migration operations" }, { epic = 11, needs = "shared document, navigation, language and settings contracts" }, { epic = 12, needs = "board editing, shared sprite graphics and contextual tileset browser" }]
 
 [[epic]]
 id = 14
@@ -149,7 +149,7 @@ tracker_id = "#1360"
 slug = "epic-editor-p2"
 title = "P2 editor tools for beginners"
 covers = ["CAP-17"]
-after = [{ epic = 12, needs = "the program editor and board editor" }]
+after = [{ epic = 6, needs = "audio metadata and synth protocol for auditioning" }, { epic = 9, needs = "runner audio cue playback" }, { epic = 11, needs = "shared authoring, program/run services, fixture/action contracts and help" }, { epic = 12, needs = "board editor and game-package delivery" }]
 
 [[epic]]
 id = 15
@@ -157,7 +157,7 @@ tracker_id = "#1361"
 slug = "epic-desktop-shell"
 title = "Standalone editor in a desktop shell"
 covers = ["CAP-18"]
-after = [{ epic = 12, needs = "a board editor to spike against" }]
+after = [{ epic = 9, needs = "the independent player application (9.10) for editor/player release isolation acceptance" }, { epic = 11, needs = "shared editor documents, lifecycle, workspace, settings, language and run/test services" }, { epic = 12, needs = "the board editor for native editor-specific measurements, not a shell-choice spike" }]
 
 [[epic]]
 id = 17
