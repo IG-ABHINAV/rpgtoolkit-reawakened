@@ -13,7 +13,7 @@ preference going in and is treated as a hypothesis throughout.
 | Independence | Neither investigator read the other's output. Each conducted the whole comparison, not a format split. |
 | Reviewers | Four separate agents, none an author, each reviewing both reports without seeing the others' findings |
 | Exercised runtime | Node v26.13.0 (repository pin is 24.21.0), git 2.55.0, macOS 27.2, Apple M1 Pro; Chrome for Testing 150 for browser probes |
-| Status | Research complete and owner-reviewable. Owner acceptance and any format decision remain open. |
+| Status | Research complete. **Owner accepted (2026-11-08): YAML is the authored format, JSON the derived data form.** Remaining design items are listed below. |
 
 Read the originals beside this summary, not instead of it:
 
@@ -335,11 +335,14 @@ State these as limits, not caveats:
    the investigations; what keeps them stable across importer runs is a design
    question for the format, not something this research settles.
 
-## Owner direction so far (2026-11-08)
+## Owner decision (2026-11-08)
 
-Recorded from the owner's remarks during review. **This is a lean, not a decision**;
-no notation, schema or format is approved, and the hands-on walkthrough has not yet
-been done.
+**Decision: YAML is the authored (read/write) format and JSON is the derived (read/data)
+form.** Recorded from the owner's review of this research. The research recommends
+nothing beyond what it measured; the choice and its reasons below are the owner's.
+Still **not** approved by this PR: the exact YAML value profile, the schema, the layout
+contract, authored-versus-derived ids, and any editor change. Those are follow-up design
+work. The hands-on editor walkthrough has not yet been done.
 
 - **Leaning YAML.** The owner uses YAML at work and for Home Assistant, has seen it win
   out repeatedly where people hand-author content, and reports that VS Code and other
