@@ -106,6 +106,9 @@ Same notation (JSON), same content, same tile layer:
 | one row per line | 16,559 | 72 | conflict |
 | one cell per line | 30,671 | 1,836 | clean merge, correctly decoded |
 
+- Inline-script behaviour, including YAML block scalars and merging edits to different
+  lines of one script, is in [inline RPGCode](rpgcode-scripts.md).
+
 ## What this comparison does not establish
 
 - It does not rank notations. It isolates the printer's contribution, which both

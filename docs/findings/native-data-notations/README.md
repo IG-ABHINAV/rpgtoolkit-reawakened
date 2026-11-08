@@ -20,6 +20,7 @@ Read the originals beside this summary, not instead of it:
 - [Astra's independent report](astra/README.md) — model, candidates, projections, walkthrough, corrections.
 - [Opus's independent report](opus/README.md) — model, candidates, projections, walkthrough, corrections.
 - [Shared-model comparison](shared/README.md) and its [machine-readable results](shared/results/shared-comparison.json).
+- [Inline RPGCode: block scalars and script-line merges](shared/rpgcode-scripts.md) — follow-up on the owner's block-scalar question.
 - [Independent review record](reviews.md) — what each reviewer found, what was filed, what was fixed.
 
 ## What was asked, and what this answers
@@ -154,12 +155,26 @@ and reference checker regardless of notation.
 
 ### 4. Inline RPGCode is safe to normalise, and every notation preserved it
 
+> Added after the owner noticed that neither report examined YAML block scalars in
+> depth (each noted the `|`/`|-` trailing-newline trap; Astra checked one block
+> spelling). The follow-up is in [inline RPGCode](shared/rpgcode-scripts.md): it measures
+> script-line merges and block-scalar behaviour, and its results change what this
+> section's conclusion means for Git. Read it alongside this section.
+
 Under the owner's ruling that line endings may be normalised, scripts round-tripped
 through all eighteen adapter/notation pairs with content identical before any
 normalisation was even needed — quotes, backslashes, a triple-quote run, a pipe,
 a tab, a Windows path and non-ASCII text all survived. Extracting an inline script
 to an external program file and inlining it back was exact, with the binding made
 explicit.
+
+**Content surviving is not the same as lines merging.** The follow-up measured 126
+real three-way merges of edits to different lines of one inline script. Distant edits
+merged cleanly in every form where the script was written as real lines, and conflicted
+in every form where it was one escaped line. JSON has no multi-line string at all, so it
+cannot merge them; every other notation can spell a script as lines, but only the YAML
+library (and XML, and Opus's Hjson configuration) did so by default. TOML, KDL and EDN
+need a project-owned writer to match it.
 
 Three hand-typing traps were reproduced and are worth knowing:
 KDL `"""` silently drops a backslash followed by a space (`#"""…"""#` is exact);
@@ -309,7 +324,13 @@ State these as limits, not caveats:
    Caoquest and none in the demo, including `None` sentinels used as program and
    board names. The model must tolerate these; they are corpus facts, not notation
    evidence.
-6. **Order-and-identity stability across re-import is unresolved.** Placement and
+6. **YAML block scalars were only lightly covered by the two investigations.** They
+   noted the `|` versus `|-` trailing-newline trap and Astra verified one block
+   spelling; neither tested the other header forms, awkward content, hand-editing
+   damage or the merge consequence. The follow-up found two silent hand-editing failures (a dedented line that
+   contains `: `, and changing `|-` to `>`) that a creator could hit; whether a strict
+   core schema catches the stray key it produces was not exercised.
+7. **Order-and-identity stability across re-import is unresolved.** Placement and
    frame identities were authored in the shared construction and synthesised during
    the investigations; what keeps them stable across importer runs is a design
    question for the format, not something this research settles.

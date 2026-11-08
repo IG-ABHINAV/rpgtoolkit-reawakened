@@ -1,0 +1,845 @@
+{
+ "node": "v26.13.0",
+ "platform": "darwin-arm64",
+ "scriptLines": 6,
+ "yamlBlockCases": [
+  {
+   "case": "plain multi-line, no trailing newline",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "trailing newline",
+   "astra": {
+    "style": "|",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "two trailing newlines",
+   "astra": {
+    "style": "|+",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|+",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "first line indented (needs an indentation indicator)",
+   "astra": {
+    "style": "|2-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|2-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "every line indented (nested block body)",
+   "astra": {
+    "style": "|2-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|2-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "leading blank line",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "blank line between statements",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "trailing space on a line",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "a whitespace-only line",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "tab inside a line",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "line starting with #",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "line starting with \"- \"",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "line \"---\" (document marker)",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "line \"...\" (document end marker)",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "line starting with %",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "line containing \": \" and \" #\"",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "non-ASCII text",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "a 300-character line",
+   "astra": {
+    "style": "|-",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|-",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "single line, no newline",
+   "astra": {
+    "style": "plain",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "plain",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "single line with trailing newline",
+   "astra": {
+    "style": "|",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "empty string",
+   "astra": {
+    "style": "double-quoted",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "double-quoted",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "only a newline",
+   "astra": {
+    "style": "|+",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "|+",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "lone CR line ending (not normalised)",
+   "astra": {
+    "style": "double-quoted",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "double-quoted",
+    "roundTrips": true
+   }
+  },
+  {
+   "case": "CRLF line endings (not normalised)",
+   "astra": {
+    "style": "double-quoted",
+    "roundTrips": true
+   },
+   "opus": {
+    "style": "double-quoted",
+    "roundTrips": true
+   }
+  }
+ ],
+ "yamlHandEdits": [
+  {
+   "case": "intended text (control)",
+   "note": "control",
+   "outcome": "same-as-intended",
+   "error": null,
+   "value": "mwin(\"one\");\n// note: this has a colon\nmwin(\"three\");"
+  },
+  {
+   "case": "one line indented MORE than the block",
+   "note": "extra leading spaces preserved as the line text",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "mwin(\"one\");\n  // note: this has a colon\nmwin(\"three\");"
+  },
+  {
+   "case": "one line dedented below the block indent (still inside the mapping)",
+   "note": "the block ends early",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "mwin(\"one\");",
+   "otherKeys": {
+    "run.// note": "this has a colon mwin(\"three\");"
+   }
+  },
+  {
+   "case": "one line WITHOUT a colon dedented below the block indent",
+   "note": "plain text cannot be a key: loud error",
+   "outcome": "rejected",
+   "error": "Implicit keys need to be on a single line at line 5, column 3:"
+  },
+  {
+   "case": "one line WITHOUT a colon dedented to column 0",
+   "note": "plain text cannot be a key: loud error",
+   "outcome": "rejected",
+   "error": "Implicit keys need to be on a single line at line 5, column 1:"
+  },
+  {
+   "case": "one line dedented to column 0",
+   "note": "the block ends and the line becomes YAML",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "mwin(\"one\");",
+   "otherKeys": {
+    "// note": "this has a colon mwin(\"three\");"
+   }
+  },
+  {
+   "case": "dedented line that happens to contain \": \"",
+   "note": "becomes a new key",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "mwin(\"one\");",
+   "otherKeys": {
+    "label": "value mwin(\"three\");"
+   }
+  },
+  {
+   "case": "a line indented with a TAB",
+   "note": "tab used as indentation",
+   "outcome": "rejected",
+   "error": "Block scalar lines must not be less indented than their first line at line 5, column 1:"
+  },
+  {
+   "case": "header |- changed to | (drops the minus)",
+   "note": "adds one trailing newline",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "mwin(\"one\");\n// note: this has a colon\nmwin(\"three\");\n"
+  },
+  {
+   "case": "header |- changed to |+ (keep)",
+   "note": "keeps trailing blank lines",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "mwin(\"one\");\n// note: this has a colon\nmwin(\"three\");\n\n"
+  },
+  {
+   "case": "header changed to > (folded)",
+   "note": "newlines become spaces",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "mwin(\"one\"); // note: this has a colon mwin(\"three\");"
+  },
+  {
+   "case": "pasted block with different base indent (2 instead of 4)",
+   "note": "block indent comes from the first line",
+   "outcome": "rejected",
+   "error": "Implicit keys need to be on a single line at line 4, column 3:"
+  },
+  {
+   "case": "first line indented, no indicator",
+   "note": "later lines are less indented than the first",
+   "outcome": "rejected",
+   "error": "All mapping items must start at the same column at line 5, column 1:"
+  },
+  {
+   "case": "first line indented, with explicit indentation indicator |2-",
+   "note": "indicator fixes the base indent; first line keeps 2 extra spaces",
+   "outcome": "accepted-different-value",
+   "error": null,
+   "value": "  mwin(\"one\");\n// note: this has a colon\nmwin(\"three\");"
+  },
+  {
+   "case": "pasted block at a DEEPER base indent (6)",
+   "note": "any consistent indent deeper than the parent works",
+   "outcome": "same-as-intended",
+   "error": null,
+   "value": "mwin(\"one\");\n// note: this has a colon\nmwin(\"three\");"
+  }
+ ],
+ "scriptMerge": {
+  "scenarios": [
+   {
+    "name": "far-apart lines (1 vs 5)",
+    "kind": "independent"
+   },
+   {
+    "name": "adjacent lines (1 vs 2)",
+    "kind": "independent"
+   },
+   {
+    "name": "same line, incompatible",
+    "kind": "incompatible"
+   },
+   {
+    "name": "insert a line vs edit a distant line",
+    "kind": "independent"
+   },
+   {
+    "name": "delete a line vs edit a distant line",
+    "kind": "independent"
+   },
+   {
+    "name": "both append a different line",
+    "kind": "ambiguous"
+   }
+  ],
+  "rows": [
+   {
+    "notation": "YAML",
+    "form": "canonical (astra writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 392,
+    "lines": 10,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "YAML",
+    "form": "canonical (opus writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 392,
+    "lines": 10,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "YAML",
+    "form": "native literal block |-",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 392,
+    "lines": 10,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "JSON",
+    "form": "canonical (JSON.stringify)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 423,
+    "lines": 7,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "JSON5",
+    "form": "canonical (astra writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 401,
+    "lines": 7,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "JSON5",
+    "form": "canonical (opus writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 401,
+    "lines": 7,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "JSON5",
+    "form": "native line continuation \"…\\n\\<newline>\"",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 429,
+    "lines": 12,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "TOML",
+    "form": "canonical (astra writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 402,
+    "lines": 5,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "TOML",
+    "form": "canonical (opus writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 402,
+    "lines": 5,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "TOML",
+    "form": "native literal block '''",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 376,
+    "lines": 11,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "KDL",
+    "form": "canonical (astra writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 412,
+    "lines": 6,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "KDL",
+    "form": "canonical (opus writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 401,
+    "lines": 4,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "KDL",
+    "form": "native raw multi-line #\"\"\"",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 432,
+    "lines": 14,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "Hjson",
+    "form": "canonical (astra writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 416,
+    "lines": 8,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "Hjson",
+    "form": "canonical (opus writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 437,
+    "lines": 15,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "Hjson",
+    "form": "native multi-line '''",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 421,
+    "lines": 15,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "EDN",
+    "form": "canonical (astra writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 419,
+    "lines": 7,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "EDN",
+    "form": "canonical (opus writer)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "s",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "s",
+     "delete a line vs edit a distant line": "s",
+     "both append a different line": "O"
+    },
+    "bytes": 416,
+    "lines": 7,
+    "linesMergeIndependently": false
+   },
+   {
+    "notation": "EDN",
+    "form": "native literal newlines inside the string",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 401,
+    "lines": 8,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "XML",
+    "form": "canonical (opus writer, text node)",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 534,
+    "lines": 13,
+    "linesMergeIndependently": true
+   },
+   {
+    "notation": "XML",
+    "form": "native CDATA",
+    "roundTrips": true,
+    "scenarios": {
+     "far-apart lines (1 vs 5)": "C",
+     "adjacent lines (1 vs 2)": "s",
+     "same line, incompatible": "X",
+     "insert a line vs edit a distant line": "C",
+     "delete a line vs edit a distant line": "C",
+     "both append a different line": "O"
+    },
+    "bytes": 546,
+    "lines": 13,
+    "linesMergeIndependently": true
+   }
+  ]
+ },
+ "preserveEdit": [
+  {
+   "notation": "YAML",
+   "library": "yaml",
+   "form": "native literal block |-",
+   "unrelatedEdit": {
+    "decodesTo": null,
+    "added": 1,
+    "removed": 1,
+    "scriptUnchanged": true,
+    "formKept": true
+   },
+   "scriptEdit": {
+    "decodesTo": null,
+    "added": 1,
+    "removed": 1,
+    "correct": true,
+    "stillPerLine": true
+   }
+  },
+  {
+   "notation": "KDL",
+   "library": "@bgotink/kdl",
+   "form": "native raw multi-line #\"\"\"",
+   "unrelatedEdit": {
+    "decodesTo": null,
+    "added": 1,
+    "removed": 1,
+    "scriptUnchanged": true,
+    "formKept": true
+   },
+   "scriptEdit": {
+    "decodesTo": null,
+    "added": 1,
+    "removed": 8,
+    "correct": true,
+    "stillPerLine": false
+   }
+  },
+  {
+   "notation": "TOML",
+   "library": "@decimalturn/toml-patch, smol-toml",
+   "form": "native literal block '''",
+   "unrelatedEdit": {
+    "decodesTo": null,
+    "added": 1,
+    "removed": 1,
+    "scriptUnchanged": true,
+    "formKept": true
+   },
+   "scriptEdit": {
+    "decodesTo": null,
+    "added": 1,
+    "removed": 1,
+    "correct": true,
+    "stillPerLine": true
+   }
+  },
+  {
+   "notation": "Hjson",
+   "library": "hjson",
+   "form": "native multi-line '''",
+   "unrelatedEdit": {
+    "decodesTo": null,
+    "added": 9,
+    "removed": 9,
+    "scriptUnchanged": true,
+    "formKept": true
+   },
+   "scriptEdit": {
+    "decodesTo": null,
+    "added": 8,
+    "removed": 8,
+    "correct": true,
+    "stillPerLine": false
+   }
+  },
+  {
+   "notation": "XML",
+   "library": "@xmldom/xmldom",
+   "form": "native CDATA",
+   "unrelatedEdit": {
+    "decodesTo": null,
+    "added": 1,
+    "removed": 1,
+    "scriptUnchanged": true,
+    "formKept": true
+   },
+   "scriptEdit": {
+    "decodesTo": null,
+    "added": 3,
+    "removed": 3,
+    "correct": true,
+    "stillPerLine": false
+   }
+  }
+ ]
+}
