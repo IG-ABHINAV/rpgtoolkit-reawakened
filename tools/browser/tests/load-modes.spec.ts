@@ -246,14 +246,15 @@ test("AC5: during a blocking stall with an injected clock, 250 ms shows no spinn
       add: (ms) => { now += ms; },
     };
     window.__playerClock = () => now;
-    const original = AudioContext.prototype.createScriptProcessor;
-    AudioContext.prototype.createScriptProcessor = function (...args) {
-      const node = original.apply(this, args);
-      const analyser = this.createAnalyser();
-      analyser.fftSize = 2048;
-      node.connect(analyser);
-      (window as unknown as { __analyser?: AnalyserNode }).__analyser = analyser;
-      return node;
+    const original = AudioNode.prototype.connect;
+    AudioNode.prototype.connect = function (destination: any, output?: any, input?: any) {
+      if ((this instanceof AudioWorkletNode || this instanceof ScriptProcessorNode) && (window as unknown as { __analyser?: AnalyserNode }).__analyser === undefined) {
+        const analyser = this.context.createAnalyser();
+        analyser.fftSize = 2048;
+        original.call(this, analyser);
+        (window as unknown as { __analyser?: AnalyserNode }).__analyser = analyser;
+      }
+      return original.call(this, destination, output, input);
     };
   });
 

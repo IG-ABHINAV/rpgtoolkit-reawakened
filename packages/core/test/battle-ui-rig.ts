@@ -419,6 +419,8 @@ export type RigOptions = {
    * 20 × 15 tile bitmap, or none (the stock screen's flat fallback colour).
    */
   readonly background?: "png" | "tbm" | "none";
+  /** Instrument scanner completion in the one regression test that distinguishes fast-path from fallback scanning. */
+  readonly watchFastPathCompletion?: boolean;
 };
 
 const DEFAULT_PARTY = [
@@ -518,7 +520,7 @@ export function gameFiles(options: RigOptions = {}): { readonly files: Map<strin
   return { files, paths };
 }
 
-function catalogue(): readonly PackageCatalogueEntry[] {
+function catalogue(options: RigOptions): readonly PackageCatalogueEntry[] {
   const folder = join(repoRoot, "stock", "stock_battle");
   const manifest = JSON.parse(readFileSync(join(folder, "manifest.json"), "utf8")) as {
     readonly name: string;
@@ -527,17 +529,44 @@ function catalogue(): readonly PackageCatalogueEntry[] {
     readonly requests: PackageCatalogueEntry["requests"];
     readonly program: string;
   };
+  let startup = readFileSync(join(folder, manifest.program), "utf8");
+  if (options.watchFastPathCompletion === true) {
+    const fastPathReturn = "                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig";
+    const passScanner = "        if (ui.playerCount > 0) {\n            bar = ui.barScan";
+    const passEnd = "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        return 0\n    },\n    box:";
+    const refreshScan = "        size = battle.partySize(1)\n        if (size > 0) {\n            index = stockBattleUi.barScan";
+    const refreshScanEnd = "            stockBattleUi.barScan = (index + 1) % size\n        }\n        return 0\n    },\n    draw:";
+    if (!startup.includes(fastPathReturn) || !startup.includes(passScanner) || !startup.includes(passEnd) || !startup.includes(refreshScan) || !startup.includes(refreshScanEnd)) {
+      throw new Error("stock battle test hook location changed");
+    }
+    startup = startup.replace(
+      passScanner,
+      "        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        if (ui.playerCount > 0) {\n            bar = ui.barScan",
+    ).replace(
+      passEnd,
+      "            ui.barScan = (bar + 1) % ui.playerCount\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            ui.barScan = 3\n        }\n        return 0\n    },\n    box:",
+    ).replace(
+      refreshScan,
+      "        size = battle.partySize(1)\n        if (size > 0) {\n            if (stockBattleUi.testFastPathWatch != 0) {\n                stockBattleUi.barScan = 3\n            }\n            index = stockBattleUi.barScan",
+    ).replace(
+      refreshScanEnd,
+      "            stockBattleUi.barScan = (index + 1) % size\n        }\n        if (stockBattleUi.testFastPathWatch != 0) {\n            stockBattleUi.barScan = 3\n        }\n        return 0\n    },\n    draw:",
+    ).replace(
+      fastPathReturn,
+      "                if (stockBattleUi.testFastPathWatch != 0) {\n                    stockBattleUi.testFastPathCompleted = 1\n                }\n                return 1\n            }\n            stockBattleUi.controlSig = stockBattleUi.nextControlSig",
+    );
+  }
   return [{
     name: manifest.name,
     version: manifest.version,
     namespace: manifest.namespace,
     requests: manifest.requests,
     definition: { id: manifest.name, version: manifest.version, commands: [] },
-    startup: { kind: "inline", text: readFileSync(join(folder, manifest.program), "utf8"), ir: IR_VERSION, dialect: "tk3" },
+    startup: { kind: "inline", text: startup, ir: IR_VERSION, dialect: "tk3" },
   }];
 }
 
-type Reply = { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: string | null; readonly down: boolean } };
+type Reply = { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: string | null; readonly down: boolean } | { readonly kind: "action"; readonly action: string; readonly down: boolean; readonly source: string; readonly modalId: number | null } };
 
 export type UiRig = {
   readonly engine: Engine;
@@ -549,10 +578,13 @@ export type UiRig = {
   state(): GameState;
   /** The UI's own dictionary (`stockBattleUi`) as plain data, or null before the screen exists. */
   ui(): Record<string, unknown> | null;
-  /** The value of a dictionary member of the UI by dotted path. */
+  /** Mutate live state in the next triggers phase, before stock battle's render/refresh phase. */
+  mutateNextTick(mutate: (state: GameState) => void): void;
   tick(count?: number): void;
   /** Press one key (down, then up on the next tick) and run `ticks` ticks. */
   press(name: string, ticks?: number): void;
+  /** Send one normalized semantic action press/release pair through engine ticks. */
+  action(action: string, source: string, ticks?: number): void;
   /** Run until `done` is true, at most `limit` ticks. */
   until(done: (state: GameState) => boolean, limit?: number): void;
   /** The composed frame. */
@@ -573,6 +605,7 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
   });
   const stock = options.inventory ?? [{ source: "item/potion.itm", handle: "Potion", quantity: 3 }, { source: "item/ether.itm", handle: "Ether", quantity: 1 }, { source: "item/key.itm", handle: "Brass Key", quantity: 1 }, ...gems];
   let latest: GameState | null = null;
+  let nextTickMutation: ((state: GameState) => void) | null = null;
   let seeded = false;
   const font = new Uint8Array(readFileSync(join(repoRoot, "media", "fonts", "tkr-8x8.fnt")));
   const engine = createEngine({
@@ -586,11 +619,16 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
     height: SCREEN_HEIGHT,
     maxTicks: 100000,
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
-    packageCatalogue: catalogue(),
+    packageCatalogue: catalogue(options),
     phaseRegistrations: [{
       phase: "triggers",
       run: (state, post) => {
         latest = state;
+        if (nextTickMutation !== null) {
+          const mutate = nextTickMutation;
+          nextTickMutation = null;
+          mutate(state);
+        }
         if (seeded || post === undefined || state.vm.globals.ready !== 1 || state.world.board === null || state.world.board === undefined) return;
         seeded = true;
         const ids: number[] = [];
@@ -631,7 +669,7 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
   const requested: string[] = [];
   const cues: AudioCue[] = [];
   let replies: Reply[] = [];
-  const advance = (inputs: readonly Reply[] = [], ticks = 1): void => {
+  const advance = (inputs: readonly Reply[] = [], ticks = 1): number => {
     const report = engine.advance(ticks, [...replies, ...inputs] as never);
     replies = [];
     diagnostics.push(...report.diagnostics);
@@ -643,6 +681,7 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
         replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: game.files.get(request.key) ?? null } });
       }
     }
+    return report.ticksRun;
   };
   const read = (value: unknown): unknown => {
     const state = latest;
@@ -668,13 +707,27 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
       const value = read(latest.vm.globals.stockbattleui);
       return typeof value === "object" && value !== null ? value as Record<string, unknown> : null;
     },
+    mutateNextTick(mutate) {
+      if (nextTickMutation !== null) throw new Error("a live-state mutation is already queued");
+      nextTickMutation = mutate;
+    },
     tick(count = 1) {
+      // A broken host/engine can repeat requests forever without completing a tick.
+      const maxStalledAdvances = 1024;
+      let stalledAdvances = 0;
       for (let remaining = count; remaining > 0;) {
         // One advance computes one state hash, and with canvases in the state a hash is expensive: run in chunks
         // while nothing is loading, a tick at a time while the host answers asset requests.
         const chunk = replies.length > 0 ? 1 : Math.min(remaining, 8);
-        advance([], chunk);
-        remaining -= chunk;
+        const ran = advance([], chunk);
+        if (ran === 0) {
+          stalledAdvances += 1;
+          if (replies.length === 0) throw new Error("battle UI rig could not advance and has no asset replies");
+          if (stalledAdvances > maxStalledAdvances) throw new Error("battle UI rig could not advance after repeated asset replies");
+        } else {
+          stalledAdvances = 0;
+        }
+        remaining -= ran;
       }
     },
     press(name, ticks = 4) {
@@ -686,6 +739,14 @@ export function bootUiRig(options: RigOptions = {}): UiRig {
       ], ticks);
       // A sound or picture used for the first time is requested during these ticks; let the host answer it so the
       // cue it was waiting for is reported before the caller looks.
+      for (let guard = 0; guard < 6 && replies.length > 0; guard += 1) advance([], 2);
+    },
+    action(action, source, ticks = 4) {
+      const tick = latest?.time.tick ?? 0;
+      advance([
+        { tick, event: { kind: "action", action, down: true, source, modalId: null } },
+        { tick: tick + 1, event: { kind: "action", action, down: false, source, modalId: null } },
+      ], ticks);
       for (let guard = 0; guard < 6 && replies.length > 0; guard += 1) advance([], 2);
     },
     until(done, limit = 4000) {

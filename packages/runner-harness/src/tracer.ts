@@ -1,5 +1,5 @@
-import { assetKey, BinaryReader, createAssetIndex, createEngine, expandTileToRgba, hashDrawList, readBoard, readTileBitmap, readTileset, resolveTileReference, rasterize, tileDimensions, PACKAGE_ROOT } from "@tk-reawakened/core";
-import type { AssetIndex, AssetKey, DecodedTexture, DrawList, SpriteDraw, BoardBlit } from "@tk-reawakened/core";
+import { assetKey, BinaryReader, createAssetIndex, createEngine, expandTileToRgba, hashDrawList, readBoard, readTileBitmap, readTileset, resolveTileReference, rasterizePresentation, tileDimensions, PACKAGE_ROOT } from "@tk-reawakened/core";
+import type { AssetIndex, AssetKey, DecodedTexture, DrawList, HostDisplayGeometry, RasterSurfaces, SpriteDraw, BoardBlit, SurfaceId } from "@tk-reawakened/core";
 import { encodeRgbaPng } from "./png.ts";
 
 export type SceneLayerImage = {
@@ -217,7 +217,14 @@ export function runTracerScene(scene: TracerScene, files: ReadonlyMap<string, Ui
     report = engine.advance(Math.min(remaining, 60), []);
   }
   const drawList = engine.drawList(0, scene.view.include);
-  const raster = rasterize(drawList, textures);
+  const geometry: HostDisplayGeometry = {
+    content: { width: drawList.width, height: drawList.height },
+    game: { x: 0, y: 0, width: drawList.width, height: drawList.height },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const surfaces = new Map<SurfaceId, DecodedTexture>() as RasterSurfaces;
+  surfaces.get = (surface: SurfaceId, rev: number = 0) => engine.surfacePixels(surface, rev) ?? undefined;
+  const raster = rasterizePresentation(drawList, geometry, textures, surfaces);
   if (raster.error) return { scene: scene.name, drawList, drawHash: hashDrawList(drawList), stateHash: report.stateHash, pixels: raster.rgba, png: new Uint8Array(), error: raster.error, ticks: [{ tick: report.tickAfter, stateHash: report.stateHash, drawHash: hashDrawList(drawList) }], textures };
   const image: DecodedTexture = { w: raster.width, h: raster.height, rgba: raster.rgba };
   return { scene: scene.name, drawList, drawHash: hashDrawList(drawList), stateHash: report.stateHash, pixels: raster.rgba, png: encodeRgbaPng(image), error: null, ticks: [{ tick: report.tickAfter, stateHash: report.stateHash, drawHash: hashDrawList(drawList) }], textures };

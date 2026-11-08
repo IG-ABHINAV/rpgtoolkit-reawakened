@@ -1,6 +1,6 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { test } from "node:test";
-import { boardPixelSize, coordLayout, pixelToTile, stackedToRotated, tileToPixel } from "../src/index.ts";
+import { boardPixelSize, coordLayout, pixelToTile, placeplayerPixel, stackedToRotated, tileToPixel } from "../src/index.ts";
 
 /** A fixed multiplicative congruential stream: the same 100 cells on every run. */
 function cells(count: number, maxSize: number, maxIndex: number): Array<{ sizeX: number; x: number; y: number }> {
@@ -91,4 +91,17 @@ test("board pixel size follows board.md#board-pixel-dimensions", () => {
   deepEqual(boardPixelSize("2d", 4, 3), { width: 128, height: 96 });
   deepEqual(boardPixelSize("iso-stacked", 3, 5), { width: 160, height: 64 });
   deepEqual(boardPixelSize("iso-rotated", 3, 2), { width: 160, height: 64 });
+});
+
+test("placeplayerPixel converts each layout's tiles, keeps pixel positions verbatim and keeps older records on the 2D table", () => {
+  for (const { sizeX, x, y } of cells(30, 9, 40)) {
+    deepEqual(placeplayerPixel(x, y, "tile", 0, sizeX), tileToPixel("2d", sizeX, x, y), "2d tile");
+    deepEqual(placeplayerPixel(x, y, "tile", 1, sizeX), tileToPixel("iso-stacked", sizeX, x, y), "stacked tile");
+    deepEqual(placeplayerPixel(x, y, "tile", 2, sizeX), tileToPixel("iso-rotated", sizeX, x, y), "rotated tile");
+    // The flag 4 ("use pixel coordinates") writes no coordType, so a legacy effect record keeps the
+    // ordinary 2D conversion exactly as it played before the extra arguments existed (E-11).
+    deepEqual(placeplayerPixel(x, y, "tile", undefined, undefined), { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 }, "legacy record");
+  }
+  deepEqual(placeplayerPixel(64, 64, "pixel", 1, 8), { x: 64, y: 64 }, "a pixel placement is verbatim on any board");
+  deepEqual(placeplayerPixel(64, 64, undefined, 1, 8), { x: 64, y: 64 }, "no unit names pixels in older effects");
 });

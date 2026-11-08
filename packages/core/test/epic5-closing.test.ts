@@ -125,7 +125,7 @@ function runDemo(name: string, goal: { readonly x: number; readonly y: number },
   const scene = demoFixture(name);
   const board = demoBoard(scene);
   let state = createGameState({ seed: 0x511 });
-  state.world = { board: null };
+  state.world = { ...state.world, board: null };
   state.sprites = hydrateSprites({
     board,
     players: scene.setup.players.map((player) => ({
@@ -157,7 +157,7 @@ function runDemo(name: string, goal: { readonly x: number; readonly y: number },
       const checkpoint = restoreAt?.includes(tick) === true ? snapshot(state) : null;
       const events = runMovementPhase(state.sprites, activeBoard, tick);
       movementCompletions += events.filter((event) => event.type === "movement-complete").length;
-      const stateHash = hashState({ ...state, world: { board: null } });
+      const stateHash = hashState({ ...state, world: { ...state.world, board: null } });
       const drawHashValue = drawHash(state, activeBoard);
       stateHashes.push(stateHash);
       drawHashes.push(drawHashValue);
@@ -165,7 +165,7 @@ function runDemo(name: string, goal: { readonly x: number; readonly y: number },
         state = restoreGameState(checkpoint);
         const replayEvents = runMovementPhase(state.sprites, activeBoard, tick);
         movementCompletions += replayEvents.filter((event) => event.type === "movement-complete").length;
-        equal(hashState({ ...state, world: { board: null } }), stateHash);
+        equal(hashState({ ...state, world: { ...state.world, board: null } }), stateHash);
         equal(drawHash(state, activeBoard), drawHashValue);
       }
     }
@@ -199,7 +199,7 @@ test("Epic 5 demo NPC replays keep state and draw hashes across batching, restor
 test("Epic 5 reset and phase seams are section-owned and ordered", () => {
   const state = createGameState({ seed: 17 });
   state.input = createInputSection({ buttons: [{ id: "confirm", x: 0, y: 0, w: 8, h: 8, action: "confirm", enabled: true }] });
-  state.input.keys.push({ seq: 1, name: "A", code: "KeyA", char: "a" });
+  state.input.keys.push({ seq: 1, name: "A", code: "KeyA", char: "a", action: null, resolvedActions: [] });
   state.sprites.players.push({} as never);
   state.triggers.fired["stale"] = true;
   const order: string[] = [];

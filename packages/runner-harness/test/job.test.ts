@@ -175,11 +175,22 @@ test("goldenJob detects batching disagreement without throwing", () => {
         };
       },
       drawList(): DrawList {
-        return { tick: currentTick, width: 320, height: 240, commands: [] };
+        return { tick: currentTick, width: 320, height: 240, commands: [], marginCommands: [] };
       },
+      registeredActionNames() { return ["up", "down", "left", "right", "confirm", "cancel", "menu"]; },
+      registerGameAction(_action) { return false; },
+      setPointerMovementSuppressed(_suppressed) {},
+      reportUnknownAction(_action) {},
+      customTouchControlsDeclared() { return false; },
+      hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
+      hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+      surfaceCacheEpoch() { return 0; },
+      accessibilityTree() { return []; },
+      runnerControlPointerPreemption() { return null; },
       surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
         return null;
       },
+      picturePixels(): SurfacePixels | null { return null; },
       setBreakpoints(_breakpoints: readonly Breakpoint[]): void {},
       recoveryCandidate() { return null; },
       resumeRecovery() { return false; },

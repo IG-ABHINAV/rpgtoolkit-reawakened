@@ -1,8 +1,9 @@
 import {
   decodeLog,
   validateInputEvent,
-  type InputEvent,
+  type InputEventV1,
   type InputRecord,
+  type InputRecordV1,
   type PlainData,
   type PortData,
 } from "@tk-reawakened/core";
@@ -13,11 +14,20 @@ export type TickRecord = {
   readonly draw: string;
 };
 
-export type Run = {
+export type LegacyRun = {
   readonly schema: 1;
+  readonly ticks: number;
+  readonly log: readonly InputRecordV1[];
+};
+
+/** Active v2 replay logs carry normalized records without legacy conversion. */
+export type ActiveRun = {
+  readonly schema: 2;
   readonly ticks: number;
   readonly log: readonly InputRecord[];
 };
+
+export type Run = LegacyRun | ActiveRun;
 
 export type Golden = {
   readonly schema: 1;
@@ -46,7 +56,7 @@ function checkNoExtraKeys(
  * messages carry the record index. This is the only place that knows about
  * event shapes; `parseRun` keeps run-file structure.
  */
-export function parseEvent(raw: unknown, recordIndex: number): InputEvent {
+export function parseEvent(raw: unknown, recordIndex: number): InputEventV1 {
   const missingEvent = `run.json: record ${recordIndex}: event: missing or not an object`;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error(missingEvent);
@@ -80,6 +90,12 @@ export function parseEvent(raw: unknown, recordIndex: number): InputEvent {
         : `${prefix}${result.path}: ${result.message}`,
     );
   }
+  if (result.value.kind === "action" || result.value.kind === "host.gamepads") {
+    throw new Error(`run.json: record ${recordIndex}: kind: unknown input event`);
+  }
+  if (result.value.kind === "gamepad" && result.value.buttons > 0x7f) {
+    throw new Error(`run.json: record ${recordIndex}: buttons: expected a 7-bit legacy button mask`);
+  }
   return result.value;
 }
 
@@ -99,7 +115,7 @@ function readEventField(decoded: PortData): unknown {
   return undefined;
 }
 
-export function parseRun(text: string): Run {
+export function parseRun(text: string): LegacyRun {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -129,7 +145,7 @@ export function parseRun(text: string): Run {
     throw new Error("run.json: log must be an array");
   }
 
-  const log: InputRecord[] = [];
+  const log: InputRecordV1[] = [];
   for (let i = 0; i < root.log.length; i++) {
     const rawRec = root.log[i];
     if (

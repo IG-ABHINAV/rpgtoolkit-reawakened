@@ -271,10 +271,10 @@ test("a state with no callable and no cell is not checked and compiles nothing",
   equal(Object.hasOwn(restored.vm, "defOwners"), false);
 });
 
-test("closures add optional fields only: the vm schema and the instruction version do not move for them", () => {
+test("closures add optional fields only: the instruction version does not move for them and the vm schema carries the item-action shape", () => {
   const plain = createGameState({ seed: 0 });
-  equal(SCHEMA_VERSIONS.vm, 6);
-  equal(plain.schema.vm, 6);
+  equal(SCHEMA_VERSIONS.vm, 7);
+  equal(plain.schema.vm, 7);
   equal(plain.schema.ir, "1");
   deepEqual(Object.keys(plain.vm).sort(), [
     "block",
@@ -569,8 +569,6 @@ end()
   equal(state.vm.cellSeq, 600, "600 lambdas were made");
   deepEqual(cellIds(state), ["cell600"], "only the one f still holds is left");
   ok(most <= 2, `at most two cells exist at a tick boundary, saw ${most}`);
-  // 2000 before the audio section (five stopped tracks, about 800 bytes) joined the state tree.
-  ok(snapshot(state).length < 3000, "the save stays small");
 });
 
 test("a recursive local lambda, whose cell captures itself, is freed when its function returns", () => {

@@ -14,6 +14,8 @@
  */
 
 import type { Wait, WaitKindResolver, WaitPoll, WaitResult, WaitView } from "../ports/wait.ts";
+import type { PlainData } from "../ports/plain-data.ts";
+import type { SpritesSection } from "../sprites/model.ts";
 import { ScriptError } from "./errors.ts";
 import { DICTIONARY_CLASS } from "./objects.ts";
 
@@ -21,6 +23,20 @@ import { DICTIONARY_CLASS } from "./objects.ts";
 export const REQUEST_TIMEOUT_TEXT = "the request timed out";
 
 const DONE: WaitResult = { value: null, ok: true };
+/** Project actor state for movement and stance waits in every scheduler. */
+export function spriteWaitView(sprites: SpritesSection): NonNullable<WaitView["sprites"]> {
+  return [...sprites.players, ...sprites.items].map((actor) => {
+    const waypoint = actor.queue.waypoint;
+    const waypointPending = waypoint !== null && waypoint.points.length > 0 &&
+      (waypoint.cycles !== 0 || (waypoint.cycle === 0 && waypoint.cursor < waypoint.points.length));
+    return {
+      id: actor.id,
+      stance: actor.visual.stance,
+      stanceComplete: actor.visual.stanceComplete,
+      moving: actor.movement.active !== null || actor.queue.moves.length > 0 || waypointPending,
+    };
+  });
+}
 
 /** `sleep`: due at `until`; `until: null` is indefinite and only a wake ends it. */
 export function pollSleep(view: WaitView, wait: Wait): WaitResult | null {
@@ -30,24 +46,36 @@ export function pollSleep(view: WaitView, wait: Wait): WaitResult | null {
 
 type InputKeyWait = Extract<Wait, { readonly kind: "input.key" }>;
 
-function pollCursorMapKey(wait: InputKeyWait, key: string, count: number, claim?: number): WaitResult | null {
-  const normalized = key.toLowerCase();
+function pollCursorMapKey(wait: InputKeyWait, key: string, action: string | null, resolvedActions: readonly string[], count: number, claim?: number): WaitResult | null {
+  const normalized = (action ?? key).toLowerCase();
   let selected = Math.max(0, Math.min(count - 1, Math.trunc(wait.cursorSelection ?? 0)));
-  if (normalized === "left" || normalized === "up") selected = (selected + count - 1) % count;
-  else if (normalized === "right" || normalized === "down") selected = (selected + 1) % count;
-  else if (normalized === "enter" || normalized === "return" || normalized === "space") {
-    return claim === undefined ? { value: selected, ok: true } : { value: selected, ok: true, claim };
-  } else if (/^[0-9]+$/.test(normalized)) {
-    const direct = Number(normalized);
-    if (direct >= 0 && direct < count) {
-      return claim === undefined ? { value: direct, ok: true } : { value: direct, ok: true, claim };
+  let moved = false;
+  for (const resolved of resolvedActions) {
+    if (resolved === "left" || resolved === "up") {
+      selected = (selected + count - 1) % count;
+      moved = true;
+    } else if (resolved === "right" || resolved === "down") {
+      selected = (selected + 1) % count;
+      moved = true;
+    } else if (resolved === "confirm") {
+      wait.cursorSelection = selected;
+      return claim === undefined ? { value: selected, ok: true } : { value: selected, ok: true, claim };
     }
+  }
+  if (moved) {
+    wait.cursorSelection = selected;
+    return claim === undefined ? null : { value: null, ok: true, claim, keepWaiting: true };
+  }
+  if (normalized === "left" || normalized === "up" || normalized === "arrowleft" || normalized === "arrowup") selected = (selected + count - 1) % count;
+  else if (normalized === "right" || normalized === "down" || normalized === "arrowright" || normalized === "arrowdown") selected = (selected + 1) % count;
+  else if (normalized === "confirm" || normalized === "enter" || normalized === "return" || normalized === "space" || normalized === " ") {
+    return claim === undefined ? { value: selected, ok: true } : { value: selected, ok: true, claim };
   } else return null;
   wait.cursorSelection = selected;
-  return null;
+  return claim === undefined ? null : { value: null, ok: true, claim, keepWaiting: true };
 }
 
-/** `input.key`: resolve ordinary keys or cursor-map navigation/selection. */
+/** `input.key`: resolve ordinary keys or claim cursor-map navigation while keeping the wait parked. */
 export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
   if (wait.kind !== "input.key") return null;
   const floor = wait.parkSeq ?? 0;
@@ -60,41 +88,61 @@ export function pollInputKey(view: WaitView, wait: Wait): WaitResult | null {
       wait.key = null;
       return null;
     }
-    const pointer = view.input?.pointer;
-    if (pointer !== undefined && pointer.buttons !== 0) {
-      let best = 0;
-      let distance = Number.POSITIVE_INFINITY;
-      for (let index = 0; index < map.points.length; index += 1) {
-        const point = map.points[index]!;
-        const dx = point.x - pointer.x;
-        const dy = point.y - pointer.y;
-        const candidate = dx * dx + dy * dy;
-        if (candidate < distance) { distance = candidate; best = index; }
-      }
-      return { value: best, ok: true };
-    }
     if (view.input !== undefined) {
       for (const key of view.input.keys) {
         if (key.seq < floor || claimed.has(key.seq)) continue;
-        const result = pollCursorMapKey(wait, key.name, count, key.seq);
+        const result = pollCursorMapKey(wait, key.name, key.action ?? null, key.resolvedActions ?? [], count, key.seq);
         if (result !== null) return result;
       }
     }
     if (wait.key !== null) {
-      const result = pollCursorMapKey(wait, wait.key, count);
+      const result = pollCursorMapKey(wait, wait.key, null, [], count);
       wait.key = null;
       if (result !== null) return result;
     }
     return null;
   }
+  if (wait.pointer !== undefined) return pollInputPointer(view, wait, wait.pointer, floor, claimed);
   if (view.input !== undefined) {
     for (const key of view.input.keys) {
       if (key.seq < floor || claimed.has(key.seq)) continue;
-      return { value: key.name, ok: true, claim: key.seq };
+      return { value: key.name, ok: true, claim: key.seq, discardBefore: floor };
     }
   }
   if (wait.key === null) return null;
-  return { value: wait.key, ok: true };
+  return { value: wait.key, ok: true, discardBefore: floor };
+}
+
+/**
+ * `waitInput`: the `input.key` poll plus the pointer record. A key wins a same-tick tie and reports the baseline's
+ * pointer fields, so a pointer change that came with it is seen by the next wait; a pointer change reports the record.
+ */
+function pollInputPointer(view: WaitView, wait: InputKeyWait, baseline: NonNullable<InputKeyWait["pointer"]>, floor: number, claimed: ReadonlySet<number>): WaitResult | null {
+  const now = view.input?.pointer;
+  const current = {
+    x: now?.x ?? 0, y: now?.y ?? 0, buttons: now?.buttons ?? 0, downs: now?.downs ?? 0, ups: now?.ups ?? 0,
+    downX: now?.downX ?? 0, downY: now?.downY ?? 0, button: now?.button ?? 0,
+  };
+  const base = { x: baseline.x, y: baseline.y, buttons: baseline.buttons, downs: baseline.downs, ups: baseline.ups };
+  const keyRecord = (name: string): { readonly [field: string]: PlainData } => ({ kind: "key", key: name, ...base, downx: current.downX, downy: current.downY, button: current.button, moved: 0, newdowns: 0, newups: 0 });
+  if (view.input !== undefined) {
+    for (const key of view.input.keys) {
+      if (key.seq < floor || claimed.has(key.seq)) continue;
+      return { value: null, ok: true, record: keyRecord(key.name), claim: key.seq, discardBefore: floor };
+    }
+  }
+  if (wait.key !== null) return { value: null, ok: true, record: keyRecord(wait.key), discardBefore: floor };
+  if (current.x !== base.x || current.y !== base.y || current.buttons !== base.buttons || current.downs !== base.downs || current.ups !== base.ups) {
+    const { downX, downY, ...rest } = current;
+    return {
+      value: null, ok: true,
+      record: {
+        kind: "pointer", key: "", ...rest, downx: downX, downy: downY,
+        moved: current.x !== base.x || current.y !== base.y ? 1 : 0, newdowns: current.downs - base.downs, newups: current.ups - base.ups,
+      },
+    };
+  }
+  return null;
 }
 /** `menu.screen`: resolve provider input, or wait for the active shop context to close. */
 export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
@@ -108,6 +156,18 @@ export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
       if (key.seq < floor || claimed.has(key.seq)) continue;
       return { value: key.name, ok: true, claim: key.seq };
     }
+    const base = saved.pointer;
+    const now = view.input?.pointer;
+    if (base !== null && typeof base === "object" && !Array.isArray(base) && now !== undefined &&
+        (now.x !== base.x || now.y !== base.y || now.buttons !== base.buttons || (now.downs ?? 0) !== base.downs || (now.ups ?? 0) !== base.ups)) {
+      return {
+        value: null, ok: true,
+        record: {
+          x: now.x, y: now.y, buttons: now.buttons, downs: now.downs ?? 0, ups: now.ups ?? 0, downx: now.downX ?? 0, downy: now.downY ?? 0, button: now.button ?? 0,
+          moved: now.x !== base.x || now.y !== base.y ? 1 : 0, newdowns: (now.downs ?? 0) - Number(base.downs), newups: (now.ups ?? 0) - Number(base.ups),
+        },
+      };
+    }
     return null;
   }
   if (view.shopStock === undefined) throw new ScriptError("wait.no-menu-view", "a menu.screen wait was polled with no shop view");
@@ -119,10 +179,23 @@ export function pollMenuScreen(view: WaitView, wait: Wait): WaitResult | null {
 export function pollMovement(view: WaitView, wait: Wait): WaitResult | null {
   if (wait.kind !== "movement") return null;
   for (const move of wait.moves) {
+    if (move.actual === true) {
+      if (view.sprites === undefined) return null;
+      if (view.sprites.find((actor) => actor.id === move.sprite)?.moving === true) return null;
+      continue;
+    }
     if (view.tick < move.until) return null;
   }
   return DONE;
 }
+/** `sprite.movement`: resolve only when the actor has no active or queued move. */
+export function pollSpriteMovement(view: WaitView, wait: Wait): WaitResult | null {
+  if (wait.kind !== "sprite.movement") return null;
+  if (view.sprites === undefined) return null;
+  const actor = view.sprites.find((value) => value.id === wait.actor);
+  return actor === undefined || !actor.moving ? DONE : null;
+}
+
 
 /** `sprite.stance`: resolve only from the animation owner completion result. */
 export function pollStance(view: WaitView, wait: Wait): WaitResult | null {
@@ -140,7 +213,7 @@ export function pollRequest(view: WaitView, wait: Wait): WaitResult | null {
   return null;
 }
 
-/** Resolve the UI's prompt or button result from modal state or a key event. */
+/** Resolve the UI's prompt or button result from modal state, its captured modal action, or a key event. */
 export function pollRenderMsgBox(view: WaitView, wait: Wait): WaitResult | null {
   if (wait.kind !== "render.msgbox") return null;
   const modal = view.ui?.modal;
@@ -150,17 +223,30 @@ export function pollRenderMsgBox(view: WaitView, wait: Wait): WaitResult | null 
   }
   if (view.input === undefined) return null;
   const claimed = new Set(view.claims ?? []);
-  for (const key of view.input.keys) {
-    if (claimed.has(key.seq)) continue;
-    const normalized = key.name.toLowerCase();
+  const entries = [
+    ...view.input.keys.map((key) => ({ kind: "key" as const, seq: key.seq, key })),
+    ...(view.input.modalActions ?? []).map((action) => ({ kind: "modal" as const, seq: action.seq, action })),
+  ].sort((left, right) => left.seq - right.seq);
+  for (const entry of entries) {
+    if (claimed.has(entry.seq)) continue;
+    if (entry.kind === "modal") {
+      if (modal?.modalId !== entry.action.modalId) return { value: null, ok: true, claim: entry.seq, keepWaiting: true };
+      if (entry.action.action === "cancel") {
+        return { value: wait.id === "prompt" ? "" : modal.style === 1 ? 7 : 0, ok: true, claim: entry.seq };
+      }
+      return { value: wait.id === "prompt" ? "" : modal.style === 1 ? 6 : 1, ok: true, claim: entry.seq };
+    }
+    const { key } = entry;
+    const normalized = (key.action ?? key.name).toLowerCase();
+    const resolvedConfirm = key.resolvedActions?.includes("confirm") ?? false;
     if (wait.id === "prompt") {
-      if (normalized === "enter" || normalized === "return" || normalized === "space") return { value: key.char ?? "", ok: true, claim: key.seq };
+      if (resolvedConfirm || normalized === "confirm" || normalized === "enter" || normalized === "return" || normalized === "space") return { value: key.char ?? "", ok: true, claim: key.seq };
       continue;
     }
     const style = wait.payload[2] === 1 ? 1 : 0;
     if (normalized === "yes" || normalized === "y") return { value: 6, ok: true, claim: key.seq };
     if (normalized === "no" || normalized === "n") return { value: 7, ok: true, claim: key.seq };
-    if (normalized === "enter" || normalized === "return" || normalized === "space") return { value: style === 1 ? 6 : 1, ok: true, claim: key.seq };
+    if (resolvedConfirm || normalized === "confirm" || normalized === "enter" || normalized === "return" || normalized === "space") return { value: style === 1 ? 6 : 1, ok: true, claim: key.seq };
   }
   return null;
 }
@@ -267,6 +353,7 @@ export const WAIT_KIND_RESOLVERS: readonly WaitKindResolver[] = [
   { kind: "sleep", poll: pollSleep },
   { kind: "input.key", poll: pollInputKey },
   { kind: "movement", poll: pollMovement },
+  { kind: "sprite.movement", poll: pollSpriteMovement },
   { kind: "sprite.stance", poll: pollStance },
   { kind: "request", poll: pollRequest },
   { kind: "blob", poll: pollRequest },
@@ -305,6 +392,8 @@ export function describeWait(wait: Wait): string {
       return "input.key";
     case "movement":
       return `movement(${wait.moves.length} move(s))`;
+    case "sprite.movement":
+      return `sprite.movement(${wait.actor})`;
     case "sprite.stance":
       return `sprite.stance(${wait.actor})`;
     case "request":

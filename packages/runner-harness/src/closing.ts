@@ -20,6 +20,7 @@ import {
   fnv1a64,
   hashDrawList,
   PACKAGE_ROOT,
+  placeplayerPixel,
   writeMainFile,
 } from "@tk-reawakened/core";
 import type {
@@ -123,6 +124,8 @@ export type ClosingGameRun = {
 
 const INCLUDE: DrawListInclude = { shading: true, images: true, sprites: true };
 const PNG_DIRECTORY = "golden/regression/closing";
+// #585 re-pinned demo and Basic state hashes only: their startup menuGraphic now stores menu.graphic. Reverting
+// that command to its former mixed/ui responder restores all eight previous closing baselines; pixels did not move.
 export const CLOSING_BASELINE_PATH = "golden/regression/closing.json";
 export const CLOSING_PLAN_PATH = "golden/closing/plan.json";
 
@@ -167,8 +170,8 @@ function createBootDoubles(options: ClosingRunOptions = {}) {
   const sprites = (effect: EffectRecord): void => {
     if (effect.name === "createplayer") hasPlayer = true;
     if (effect.name === "placeplayer") {
-      const [x, y, , unit] = effect.args as [number, number, number, string];
-      position = unit === "tile" ? { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 } : { x, y };
+      const [x, y, , unit, coordType, sizeX] = effect.args as [number, number, number, string, number, number];
+      position = placeplayerPixel(x, y, unit, coordType, sizeX);
     }
   };
   const phaseRegistrations: EnginePhaseRegistration[] = [
@@ -246,7 +249,7 @@ function capture(engine: Engine, label: string, tick: number, stateHash: string)
   const list = engine.drawList(0, INCLUDE);
   const image = readScreen(engine);
   const surfaces = new Map<string, DecodedTexture | null>();
-  for (const command of list.commands) {
+  for (const command of [...list.commands, ...list.marginCommands]) {
     if (command.kind !== "blit" || "asset" in command.source) continue;
     const key = `${command.source.surface}:${command.source.rev}`;
     if (!surfaces.has(key)) surfaces.set(key, engine.surfacePixels(command.source.surface, command.source.rev));
@@ -255,7 +258,7 @@ function capture(engine: Engine, label: string, tick: number, stateHash: string)
     image,
     drawList: list,
     surfaces,
-    frame: { label, tick, stateHash, drawHash: hashDrawList(list), pixelHash: fnv1a64(image.rgba), commands: list.commands.length, width: image.w, height: image.h },
+    frame: { label, tick, stateHash, drawHash: hashDrawList(list), pixelHash: fnv1a64(image.rgba), commands: list.commands.length + list.marginCommands.length, width: image.w, height: image.h },
   };
 }
 

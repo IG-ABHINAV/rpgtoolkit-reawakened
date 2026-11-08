@@ -107,9 +107,11 @@ test("collision-solid-stairs-under: blocked, sliding, layers and under facts", (
   const solid = theCase("collision-solid-stairs-under", "tile-solid-blocks");
   deepEqual(events(solid, "blocked").map((e) => e.t), [24, 27]); // the second E step blocks as well; the third never starts
   const slide = theCase("collision-solid-stairs-under", "pixel-glancing-slide");
-  ok(actorAt(slide, 4, "hero")[2] > actorAt(slide, 3, "hero")[2], "one slide turns the step south");
+  // R-54 item 3: the glancing SE step turns south, adopts the slid point and ends there, so x never moves.
+  deepEqual(actorAt(slide, 0, "hero"), ["hero", 112, 67, 0, "waiting", "S"]);
+  deepEqual(events(slide, "movement-complete").map((e) => e.t), [0]);
   const head = theCase("collision-solid-stairs-under", "pixel-head-on-blocks");
-  equal(events(head, "blocked")[0].t, 3);
+  equal(events(head, "blocked")[0].t, 0);
   equal(actorAt(head, 3, "hero")[2], 63); // head-on never changes y
   const stairs = theCase("collision-solid-stairs-under", "stairs-change-layer-and-layers-are-scoped");
   deepEqual(events(stairs, "layer-change").map((e) => [e.from, e.to, e.by]), [[0, 1, "stairs-up"]]);
@@ -131,7 +133,8 @@ test("collision-sprite-blocking: R-51 loser order, 120-tick freeze, diversion, w
   equal(actorAt(thaw, 143, "npc")[4], "frozen"); // 120 ticks: 24 .. 143
   equal(actorAt(thaw, 144, "npc")[4], "waiting");
   deepEqual(events(thaw, "thaw").map((e) => e.t), [144]);
-  deepEqual(events(thaw, "sprite-collision").map((e) => e.t), [24, 145]); // still stationary, so it loses again
+  equal(actorAt(thaw, 144, "hero")[4], "waiting");
+  deepEqual(events(thaw, "sprite-collision").map((e) => e.t), [24, 145]); // only a fresh explicit attempt refreezes it
   deepEqual(events(theCase(sc, "controlled-player-wins-between-movers"), "sprite-collision").map((e) => e.winner), ["hero"]);
   deepEqual(events(theCase(sc, "faster-sprite-wins"), "sprite-collision").map((e) => [e.winner, e.loser]), [["fast", "slow"]]);
   deepEqual(events(theCase(sc, "equal-speed-larger-drawid-loses"), "sprite-collision").map((e) => [e.winner, e.loser]), [["first", "second"]]);
@@ -241,27 +244,38 @@ test("pathfinding-axial-diagonal-vector: routes, caps, nearest-free, tie order a
 test("input-replay-button-slots: bindings, dead zone, edges, merge, slots and click-to-move", () => {
   const sc = "input-replay-button-slots";
   equal(padMask({ axes: { x: 249, y: 0 }, buttons: 0 }), 0);
-  equal(padMask({ axes: { x: 250, y: -1000 }, buttons: 16 }), 8 | 1 | 16);
+  equal(padMask({ axes: { x: 250, y: -1000 }, buttons: 1 }), 8 | 1 | 16);
   const kb = theCase(sc, "keyboard-diagonal-and-repeat");
   equal(rowAt(kb, 2).intent, "NE");
-  deepEqual(kb.expect.flatMap((r) => (r.queue ?? []).map((q) => q.seq)), [1, 2, 3]);
-  equal(rowAt(kb, 3).queue, undefined); // auto-repeat appends nothing
+  deepEqual(kb.expect.flatMap((r) => (r.queue ?? []).map((q) => q.seq)), [1, 2, 3, 4, 5]);
+  deepEqual(rowAt(kb, 3).queue, [{ seq: 3, key: "right" }], "auto-repeat keeps one raw compatibility key but adds no action edge");
+  deepEqual(rowAt(kb, 4).queue, [{ seq: 4, key: "KeyQ" }], "an unbound physical key remains in the legacy queue");
+  deepEqual(rowAt(kb, 5).held, ["up", "right", "confirm", "menu"], "Enter's defaults include both confirm and the legacy menu action");
   equal(rowAt(theCase(sc, "diagonals-disabled-last-press-wins"), 2).intent, "E");
   const gp = theCase(sc, "gamepad-dead-zone-edges-and-merge");
   equal(rowAt(gp, 1).held.length, 0); // 249 is inside the dead zone
   deepEqual(rowAt(gp, 2).held, ["right"]); // 250 is active
-  deepEqual(rowAt(gp, 3).queue.map((q) => q.key), ["up", "confirm"]); // ascending bit order
-  equal(rowAt(gp, 4).queue, undefined); // a keyboard key on an action a pad already holds adds no entry
+  deepEqual(rowAt(gp, 3).queue.map((q) => q.key), ["confirm", "up"]); // ascending physical changed-control order
+  deepEqual(rowAt(gp, 4).queue, [{ seq: 4, key: "right" }], "a keyboard press still queues raw compatibility input while a pad holds right");
   deepEqual(rowAt(gp, 5).held, ["right"]);
+  const gamepadOnly = theCase(sc, "gamepad-only-named-actions");
+  deepEqual(rowAt(gamepadOnly, 1).held, ["confirm", "menu"]);
+  deepEqual(rowAt(gamepadOnly, 1).queue.map((q) => q.key), ["confirm", "menu"]);
   const dc = theCase(sc, "gamepad-disconnect-and-unknown-devices");
   deepEqual(rowAt(dc, 5).held, ["right"]); // device 1 still holds it
   deepEqual(rowAt(dc, 6).held, []);
   const ptr = theCase(sc, "pointer-click-to-move-and-button-slots");
   deepEqual(rowAt(ptr, 1).click, { logical: [100, 100], board: [260, 196], via: "pathfind" });
-  equal(rowAt(ptr, 2).slot, "attack");
-  equal(rowAt(ptr, 4).click.logical[0], 80); // one past the slot edge
-  deepEqual(rowAt(ptr, 5).notes, ["slot-disabled:menu"]);
-  deepEqual(rowAt(theCase(sc, "gamepad-only-named-actions"), 1).held, ["confirm"]); // the unbound menu bit is ignored
+  equal(rowAt(ptr, 2).queue, undefined, "slot press alone does not activate");
+  deepEqual(rowAt(ptr, 4).queue, [{ seq: 1, key: "confirm", via: "slot:attack" }]);
+  equal(rowAt(ptr, 5).click.logical[0], 80); // one past the slot edge
+  deepEqual(rowAt(ptr, 6).notes, ["slot-disabled:menu"]);
+  deepEqual(rowAt(ptr, 7).notes, ["slot:menu:enabled"]);
+  deepEqual(rowAt(ptr, 8).queue, [{ seq: 2, key: "menu", via: "slot:menu" }]);
+  const canceled = theCase(sc, "pointer-cancel-clears-slot-gesture");
+  equal(rowAt(canceled, 2).queue, undefined, "cancel is not a slot release");
+  deepEqual(rowAt(canceled, 4).click, { logical: [30, 30], board: [130, 230], via: "pathfind" });
+  equal(rowAt(canceled, 5).click, undefined, "cancel creates no click destination");
 });
 
 test("movement-waits: the wait is polled in the waits phase, one tick after completion", () => {

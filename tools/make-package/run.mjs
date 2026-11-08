@@ -22,7 +22,7 @@ import { lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  createEmptyMainFile,
+  newProjectMainFile,
   deriveGameId,
   derivePackageIdentity,
   loadPackage,
@@ -43,8 +43,8 @@ export const PACKAGE_SCHEMA = 1;
 
 /**
  * The main file a closing-plan entry describes when it synthesises one (the `demo` and `Basic` sample games carry no
- * `Main/<game>.gam`; their main is built from a startup program, board and character). This is the same construction the
- * closing suite performs, written to the path a package keeps it at.
+ * `Main/<game>.gam`; their main is built from a startup program, board and character). Unlike the headless closing
+ * suite, a playable package uses new-project defaults so its stock menu and battle providers are named.
  */
 export function synthesisedMain(planText, gameName) {
   const plan = JSON.parse(planText);
@@ -52,7 +52,7 @@ export function synthesisedMain(planText, gameName) {
   if (game === undefined) throw new Error(`the closing plan does not list ${gameName}`);
   const synthesised = game.main?.synthesised;
   if (synthesised === undefined) throw new Error(`${gameName} has no synthesised main; package its folder directly`);
-  const model = { ...createEmptyMainFile(), major: 2, minor: 9, ...synthesised };
+  const model = { ...newProjectMainFile(), major: 2, ...synthesised };
   const written = writeMainFile(model);
   if (!written.ok) throw new Error(`${written.error.message} (main-file writer)`);
   return { path: `Main/${gameName}.gam`, bytes: written.value };

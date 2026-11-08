@@ -64,9 +64,13 @@ function restoreValue(value: LedgerValue, handles: ReadonlyMap<number, number>, 
       if (handle === undefined) throw new Error(`recovery graph receiver ${value.receiver} was not allocated`);
       receiver = String(handle);
     }
+    const def =
+      value.owner !== null && value.owner !== "" && value.def.startsWith("<inline>#")
+        ? `<package:${value.owner}>#${value.def.slice("<inline>#".length)}`
+        : value.def;
     return {
       type: "callable",
-      def: value.def,
+      def,
       captures,
       receiver,
       ...(value.owner === null ? {} : { owner: value.owner }),
@@ -149,7 +153,14 @@ function restorePersistentGraph(state: GameState, ledger: GameLedgerV1, listener
   const savedDefOwners = graph.defOwners.state === "present" ? graph.defOwners.value : null;
   if (savedDefOwners !== null) {
     const defOwners = copyRecord(vm.defOwners ?? {});
-    for (const [definition, ref] of Object.entries(savedDefOwners)) setRecord(defOwners, definition, restoreProgramRef(ref));
+    for (const [definition, ref] of Object.entries(savedDefOwners)) {
+      const restoredRef = restoreProgramRef(ref);
+      const nextDef =
+        restoredRef.kind === "inline" && restoredRef.owner !== undefined && definition.startsWith("<inline>#")
+          ? `<package:${restoredRef.owner}>#${definition.slice("<inline>#".length)}`
+          : definition;
+      setRecord(defOwners, nextDef, restoredRef);
+    }
     vm.defOwners = defOwners;
   }
 
@@ -198,9 +209,23 @@ function restoreTriggers(state: GameState, ledger: GameLedgerV1): void {
 export function applyRecoveryLedger(
   state: GameState,
   ledger: GameLedgerV1,
+  movementDefaults: { readonly walking: number; readonly pushing: number },
   listenerHandles: ReadonlyMap<number, number> = new Map(),
 ): void {
-  state.party = { ...state.party, members: [...ledger.party.members], selected: ledger.party.selected, steps: ledger.party.steps };
+  state.world = {
+    ...state.world,
+    movement: {
+      walking: ledger.world.movement.walking ?? movementDefaults.walking,
+      pushing: ledger.world.movement.pushing ?? movementDefaults.pushing,
+    },
+  };
+  state.party = {
+    ...state.party,
+    members: [...ledger.party.members],
+    selected: ledger.party.selected,
+    steps: ledger.party.steps,
+    stepRemainder: ledger.party.stepRemainder,
+  };
   restoreActors(state, ledger);
   state.inventory = {
     ...state.inventory,
@@ -270,6 +295,7 @@ function restoreBoard(authored: WorldBoard, saved: LedgerBoard): WorldBoard {
   return {
     ...authored,
     ambient: { ...saved.ambient },
+    ...((saved as any).activeAmbient !== undefined ? { activeAmbient: { ...(saved as any).activeAmbient } } : {}),
     vectors: saved.vectors.map((vector) => ({ ...vector, points: vector.points.map((point) => ({ ...point })) })),
     programs: saved.programs.map((program) => ({ ...program, points: program.points.map((point) => ({ ...point })) })),
     rawItems,

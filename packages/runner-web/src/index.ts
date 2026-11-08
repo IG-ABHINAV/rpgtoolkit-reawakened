@@ -117,10 +117,15 @@ export function textureProvider(files: ClosingFiles): (asset: AssetKey) => Textu
  * Decoded textures for a session whose bytes arrive over time. `lookup` is the session's synchronous byte cache and
  * `prepared` the decode worker's pixels, if any; a texture is decoded once, from the worker's pixels when they are ready
  * and from the bytes otherwise. A key with no bytes yet is not cached as missing, because its bytes may still arrive.
+ *
+ * A kind the host cannot decode itself — a composed tile bitmap, whose pixels the core builds from other tiles — is
+ * taken from `pictures`, the engine's `picturePixels` accessor (docs/spec/engine/runners.md#picture-pixels). That
+ * result is not cached as missing: the core may not have composed the picture on the first frame that names it.
  */
 export function liveTextureProvider(
   lookup: (asset: AssetKey) => Uint8Array | null,
   prepared?: (asset: AssetKey) => TexturePixels | null,
+  pictures?: (asset: AssetKey) => TexturePixels | null,
 ): (asset: AssetKey) => TexturePixels | null {
   const cache = new Map<AssetKey, TexturePixels | null>();
   return (asset: AssetKey): TexturePixels | null => {
@@ -132,11 +137,21 @@ export function liveTextureProvider(
       return ready;
     }
     const bytes = lookup(asset);
-    if (bytes === null) return null;
+    if (bytes === null) {
+      const picture = pictures?.(asset) ?? null;
+      if (picture !== null) cache.set(asset, picture);
+      return picture;
+    }
     const decoded = decodeAssetTexture(asset, bytes);
-    const pixels = decoded === null ? null : { w: decoded.w, h: decoded.h, rgba: decoded.rgba };
-    cache.set(asset, pixels);
-    return pixels;
+    if (decoded !== null) {
+      const pixels = { w: decoded.w, h: decoded.h, rgba: decoded.rgba };
+      cache.set(asset, pixels);
+      return pixels;
+    }
+    const picture = pictures?.(asset) ?? null;
+    if (picture === null) return null;
+    cache.set(asset, picture);
+    return picture;
   };
 }
 
@@ -237,7 +252,9 @@ export function runScriptedFrame(options: ScriptedFrameOptions): FrameReport {
   const frame = run.frames.find((candidate) => candidate.tick === (options.tick ?? 120)) ?? run.frames.at(-1);
   if (frame === undefined) throw new Error(`runner-web: ${options.game} captured no frame`);
   const renderer = createWebgl2Renderer(options.gl);
-  const render = renderer.render(frame.drawList as DrawList, {
+  const list = frame.drawList as DrawList;
+  const geometry = { content: { width: list.width, height: list.height }, game: { x: 0, y: 0, width: list.width, height: list.height }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } };
+  const render = renderer.render(list, geometry, {
     textures: textureProvider(options.files),
     surfaces: (id: SurfaceId, rev: number) => {
       const pixels = frame.surfaces.get(`${id}:${rev}`);

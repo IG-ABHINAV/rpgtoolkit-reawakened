@@ -10,7 +10,7 @@
  * (AD-27, G4 rule 3).
  */
 
-import { assetKey, DEFAULT_FONT_ASSET, rasterize, type AssetKey, type DrawList, type RasterAsset, type SurfaceId } from "@tk-reawakened/core";
+import { assetKey, DEFAULT_FONT_ASSET, rasterizePresentation, type AssetKey, type DrawList, type HostDisplayGeometry, type RasterAsset, type RasterSurfaces, type ScratchId, type SurfaceId } from "@tk-reawakened/core";
 import { createWebgl2Renderer, type RenderStats, type TexturePixels } from "@tk-reawakened/render-webgl2";
 import {
   decodeAssetTexture,
@@ -40,6 +40,7 @@ type RowReport = {
 declare global {
   interface Window {
     __agreement?: readonly RowReport[];
+    __scratchFeedback?: boolean;
   }
 }
 
@@ -90,13 +91,18 @@ function renderBoth(input: Presentation): { actual: Uint8Array; worst: number; a
   const gl = canvas.getContext("webgl2", { premultipliedAlpha: false, antialias: false, alpha: true, preserveDrawingBuffer: true });
   if (gl === null) throw new Error("agreement: no WebGL2 context");
   const renderer = createWebgl2Renderer(gl);
+  const geometry: HostDisplayGeometry = {
+    content: { width: input.list.width, height: input.list.height },
+    game: { x: 0, y: 0, width: input.list.width, height: input.list.height },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
   const options = {
     textures: (asset: AssetKey) => input.textures.get(asset) ?? null,
     surfaces: (id: SurfaceId, rev: number) => input.surfaces.get(`${id}:${rev}`) ?? null,
     fonts: (asset: AssetKey) => input.fonts.get(asset),
     ...(input.fonts.get(DEFAULT_FONT_ASSET) === undefined ? {} : { fallbackFont: input.fonts.get(DEFAULT_FONT_ASSET) }),
   };
-  const stats = renderer.render(input.list, options);
+  const stats = renderer.render(input.list, geometry, options);
   const read = (): Uint8Array => {
     const pixels = new Uint8Array(input.list.width * input.list.height * 4);
     gl.readPixels(0, 0, input.list.width, input.list.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
@@ -111,24 +117,44 @@ function renderBoth(input: Presentation): { actual: Uint8Array; worst: number; a
   const reads: Uint8Array[] = [];
   for (let pass = 0; pass < 3; pass += 1) {
     if (pass > 0) renderer.flush();
-    renderer.render(input.list, options);
+    renderer.render(input.list, geometry, options);
     reads.push(read());
   }
   const first = reads[0]!;
   const flushStable = reads.every((frame) => frame.every((value, index) => value === first[index]));
+  // Exercise first-use and resized scratch FBOs on the actual WebGL2 context; sampler feedback is an INVALID_OPERATION.
+  for (let drained = 0; drained < 16 && gl.getError() !== gl.NO_ERROR; drained += 1) { /* discard errors from preceding ledger frame */ }
+  let scratchNoErrors = true;
+  for (const width of [2, 3]) {
+    const scratchList: DrawList = {
+      tick: 0, width, height: 2, marginCommands: [],
+      commands: [
+        { kind: "pushTarget", scratch: 1 as ScratchId },
+        { kind: "fill", rgb: { r: 20, g: 30, b: 40 } },
+        { kind: "popTarget" },
+        { kind: "fill", rgb: { r: 50, g: 60, b: 70 } },
+      ],
+    };
+    renderer.render(scratchList, {
+      content: { width, height: 2 }, game: { x: 0, y: 0, width, height: 2 },
+      safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+    }, options);
+    scratchNoErrors &&= gl.getError() === gl.NO_ERROR;
+  }
+  window.__scratchFeedback = (window.__scratchFeedback ?? true) && scratchNoErrors;
   renderer.dispose();
 
   // The oracle is the independent reference rasteriser replaying the same draw list; never the engine's own screen pixels.
   const assets = new Map<AssetKey, RasterAsset>([...input.textures, ...input.fonts]);
-  for (const command of input.list.commands) {
+  for (const command of [...input.list.commands, ...input.list.marginCommands]) {
     if (command.kind === "text" && !assets.has(command.font.asset)) {
       const fallback = input.fonts.get(DEFAULT_FONT_ASSET);
       if (fallback !== undefined) assets.set(command.font.asset, fallback);
     }
   }
-  const surfaces = new Map<SurfaceId, { readonly w: number; readonly h: number; readonly rgba: Uint8Array }>();
-  for (const [key, pixels] of input.surfaces) surfaces.set(Number(key.split(":")[0] ?? "0") as SurfaceId, pixels);
-  const raster = rasterize(input.list, assets, surfaces);
+  const surfaces = new Map<SurfaceId, { readonly w: number; readonly h: number; readonly rgba: Uint8Array }>() as RasterSurfaces;
+  surfaces.get = (id: SurfaceId, rev?: number) => input.surfaces.get(`${id}:${rev ?? 0}`);
+  const raster = rasterizePresentation(input.list, geometry, assets, surfaces);
   if (raster.error !== null) throw new Error(`agreement: the reference refused the frame: ${raster.error}`);
   const reference = raster.rgba!;
 
@@ -150,6 +176,7 @@ async function sceneFiles(scene: TracerScene): Promise<Map<string, Uint8Array>> 
 }
 
 void (async () => {
+  window.__scratchFeedback = true;
   const ledgerResponse = await fetch("/golden/ledger.json");
   if (!ledgerResponse.ok) throw new Error(`agreement: golden/ledger.json answered ${ledgerResponse.status}`);
   const ledger = (await ledgerResponse.json()) as { goldens: readonly LedgerRow[] };

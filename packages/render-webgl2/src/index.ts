@@ -1,21 +1,3 @@
-/**
- * The WebGL2 draw-list replayer (AD-3, AD-4, AD-27, AD-33; guard-rail G4).
- *
- * A renderer receives a `DrawList` and produces pixels. It owns no loop, no game state and no game logic, and every
- * cache it keeps can be flushed between frames without changing a pixel (G4 rule 3). What it carries is AD-3's pixel
- * pipeline — colour-key exclusion on the untinted source, the R-15 tint remap, `clamp(src + tint, 0, 255)`, and the
- * three blends — and the geometry decisions the core shares with it through `core/raster`'s leaves:
- * `linePixels`/`rectOutlinePixels`/`ellipsePixels` for the one-pixel shapes, `isoSourceOffset` for the `.iso`
- * projection, and `textInk` for a text run's covered pixels and their coverage.
- *
- * The agreement bound with the reference rasteriser is D-7: exact on key, tint and blend choice, at most one unit per
- * channel on blend arithmetic. Glyph coverage is blend arithmetic; the browser lane reports its worst channel.
- *
- * Presentation (AD-33) is a viewport decision, never a game-state one: the draw list is always drawn at its logical
- * resolution, and `letterbox` scales that viewport by an integer factor with black bars, while `expand` shows the
- * logical area at 1:1 and leaves the rest of the canvas black.
- */
-
 import {
   ellipsePixels,
   isoSourceOffset,
@@ -24,594 +6,183 @@ import {
   textInk,
   type RasterAsset,
 } from "@tk-reawakened/core";
-import type { AssetKey, DrawList, SurfaceId, TextCommand } from "@tk-reawakened/core";
+import type { AssetKey, DrawCommand, DrawListV2, HostDisplayGeometry, SurfaceId } from "@tk-reawakened/core";
 
-/** Decoded straight RGBA pixels, the shape `core/formats/image` produces and `surfacePixels` returns. */
-export type TexturePixels = {
-  readonly w: number;
-  readonly h: number;
-  readonly rgba: Uint8Array;
-};
-
-/** Where the renderer gets an asset's decoded pixels; `null` means the host cannot supply it. */
+export type TexturePixels = { readonly w: number; readonly h: number; readonly rgba: Uint8Array };
 export type TextureProvider = (asset: AssetKey) => TexturePixels | null;
-/** Where the renderer gets a surface's pixels at a revision (AD-27); `null` for an unknown or stale revision. */
 export type SurfaceProvider = (id: SurfaceId, rev: number) => TexturePixels | null;
-/** Where the renderer gets a font asset (`LegacyFont`, `TrueTypeFont` or TrueType bytes) for a text command. */
 export type FontProvider = (asset: AssetKey) => RasterAsset | undefined;
-
-export type RenderStats = {
-  readonly drawn: number;
-  readonly deferred: number;
-  readonly deferredByKind: { readonly [kind: string]: number };
-  readonly diagnostics: readonly string[];
-};
-
-/** The two AD-33 modes. `scale` is an integer factor; a fraction would break pixel-perfect letterboxing. */
-export type Presentation =
-  | { readonly mode: "letterbox"; readonly scale?: number }
-  | { readonly mode: "expand"; readonly width: number; readonly height: number };
-
-export type RenderOptions = {
-  readonly textures: TextureProvider;
-  readonly surfaces?: SurfaceProvider;
-  readonly fonts?: FontProvider;
-  /**
-   * The bitmap font a text command draws in when the host carries no font of the family it names (AD-15): the engine
-   * substitutes `DEFAULT_FONT_ASSET` before it rasterises, so a replayer that did not would present a different frame.
-   */
-  readonly fallbackFont?: RasterAsset | undefined;
-};
-
+export type RenderStats = { readonly drawn: number; readonly deferred: number; readonly deferredByKind: { readonly [kind: string]: number }; readonly diagnostics: readonly string[] };
+export type RenderOptions = { readonly textures: TextureProvider; readonly surfaces?: SurfaceProvider; readonly fonts?: FontProvider; readonly fallbackFont?: RasterAsset | undefined };
 export interface Webgl2Renderer {
-  /** Replay one frame; a second call is a new frame and keeps the caches. */
-  render(list: DrawList, options: RenderOptions): RenderStats;
-  /** Flush every cache; the next frame must produce identical pixels (G4 rule 3). */
+  render(list: DrawListV2, geometry: HostDisplayGeometry, options: RenderOptions): RenderStats;
   flush(): void;
-  /** The physical canvas size the current presentation decided. */
   readonly canvas: { readonly width: number; readonly height: number };
   dispose(): void;
 }
 
+type Target = { texture: WebGLTexture; framebuffer: WebGLFramebuffer; width: number; height: number };
 type Uploaded = { readonly texture: WebGLTexture; readonly w: number; readonly h: number };
+type Point = readonly [number, number, number];
 
 const VERTEX = `#version 300 es
-in vec2 aUnit;
-in vec4 aRect;
-in float aCoverage;
-uniform vec4 uRect;
-uniform float uCoverage;
-uniform vec2 uViewport;
-uniform int uInstanced;
-out vec2 vLocal;
-out float vCoverage;
-void main() {
-  vec4 rect = uInstanced == 1 ? aRect : uRect;
-  vec2 px = rect.xy + aUnit * rect.zw;
-  vec2 clip = (px / uViewport) * 2.0 - 1.0;
-  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
-  vLocal = aUnit;
-  vCoverage = uInstanced == 1 ? aCoverage : uCoverage;
-}`;
-
+in vec2 aUnit; in vec4 aRect; in float aCoverage;
+uniform vec4 uRect; uniform vec2 uViewport; uniform int uInstanced;
+out vec2 vLocal; out float vCoverage;
+void main(){ vec4 r=uInstanced==1?aRect:uRect; vec2 p=r.xy+aUnit*r.zw; vec2 c=(p/uViewport)*2.0-1.0; gl_Position=vec4(c.x,-c.y,0.0,1.0); vLocal=aUnit; vCoverage=uInstanced==1?aCoverage:1.0; }`;
 const FRAGMENT = `#version 300 es
-precision highp float;
-in vec2 vLocal;
-in float vCoverage;
-out vec4 outColor;
-uniform sampler2D uTex;
-uniform int uMode;
-uniform vec3 uColor;
-uniform vec3 uTint;
-uniform float uAlpha;
-uniform int uKeyOn;
-uniform vec3 uKey;
-uniform ivec2 uSrcOrigin;
-uniform ivec2 uSrcSize;
-uniform ivec2 uDstSize;
-void main() {
-  if (uMode == 0 || uMode == 2) {
-    // Nearest, with the reference rasteriser's mapping: source = src.origin + floor(dest * src / dst).
-    ivec2 at = ivec2(int(floor(vLocal.x * float(uDstSize.x) + 0.0001)), int(floor(vLocal.y * float(uDstSize.y) + 0.0001)));
-    ivec2 texel = ivec2(uSrcOrigin.x + at.x * uSrcSize.x / uDstSize.x, uSrcOrigin.y + at.y * uSrcSize.y / uDstSize.y);
-    vec4 texelValue = texelFetch(uTex, texel, 0);
-    if (texelValue.a == 0.0) discard;
-    if (uKeyOn == 1 && texelValue.r * 255.0 == uKey.r && texelValue.g * 255.0 == uKey.g && texelValue.b * 255.0 == uKey.b) discard;
-    // R-15: with a non-zero tint, pure white becomes 245 and pure black 10 before the tint is added (tiles.md#shading).
-    vec3 src = texelValue.rgb * 255.0;
-    if (uTint.r != 0.0 || uTint.g != 0.0 || uTint.b != 0.0) {
-      src = vec3(
-        src.r == 255.0 ? 245.0 : (src.r == 0.0 ? 10.0 : src.r),
-        src.g == 255.0 ? 245.0 : (src.g == 0.0 ? 10.0 : src.g),
-        src.b == 255.0 ? 245.0 : (src.b == 0.0 ? 10.0 : src.b));
-    }
-    vec3 c = clamp(src + uTint, 0.0, 255.0) / 255.0;
-    // A normal blit copies the texture's own alpha; a blend is weighted by the command's alpha, never the texture's (AD-3).
-    outColor = vec4(c, uMode == 0 ? texelValue.a : uAlpha);
-    return;
-  }
-  if (uMode == 3) {
-    // Text ink: the command's colour weighted by the glyph's coverage (AD-15). Coverage 255 is a plain write.
-    outColor = vec4(uColor, vCoverage);
-    return;
-  }
-  outColor = vec4(uColor, uAlpha);
+precision highp float; precision highp int;
+in vec2 vLocal; in float vCoverage; out vec4 outColor;
+uniform sampler2D uTex; uniform int uMode; uniform vec3 uColor; uniform vec3 uTint;
+uniform int uKeyOn; uniform vec3 uKey; uniform ivec2 uSrcOrigin; uniform ivec2 uSrcSize; uniform ivec2 uDstSize;
+void main(){
+ if(uMode==0||uMode==2){ ivec2 at=ivec2(int(floor(vLocal.x*float(uDstSize.x)+0.0001)),int(floor(vLocal.y*float(uDstSize.y)+0.0001))); ivec2 t=uSrcOrigin+at*uSrcSize/uDstSize; vec4 s=texelFetch(uTex,t,0); if(s.a==0.0)discard; vec3 c=s.rgb*255.0; if(uKeyOn==1&&all(lessThan(abs(c-uKey),vec3(0.5))))discard; if(any(notEqual(uTint,vec3(0.0)))) c=vec3(c.r==255.0?245.0:(c.r==0.0?10.0:c.r),c.g==255.0?245.0:(c.g==0.0?10.0:c.g),c.b==255.0?245.0:(c.b==0.0?10.0:c.b)); outColor=vec4(clamp(c+uTint,0.0,255.0)/255.0,uMode==0?s.a:1.0); return; }
+ if(uMode==3){outColor=vec4(uColor,vCoverage);return;} outColor=vec4(uColor,1.0);
 }`;
-
+const PRESENT_VERTEX = `#version 300 es
+void main(){vec2 p=gl_VertexID==0?vec2(-1.,-1.):(gl_VertexID==1?vec2(3.,-1.):vec2(-1.,3.));gl_Position=vec4(p,0.,1.);}`;
+const PRESENT_FRAGMENT = `#version 300 es
+precision highp float; precision highp int;
+uniform sampler2D uGamePlane; uniform sampler2D uMarginPlane;
+uniform vec2 uContent; uniform vec4 uGame; uniform vec4 uSafe; uniform ivec2 uLogical; uniform ivec4 uBounds; uniform ivec2 uMarginSize;
+out vec4 outColor;
+void main(){
+ vec2 center=vec2(gl_FragCoord.x,ceil(uContent.y)-gl_FragCoord.y);
+ if(center.x>=uContent.x||center.y>=uContent.y){outColor=vec4(0.);return;}
+ vec2 scale=uGame.zw/vec2(uLogical); ivec2 p=ivec2(floor((center-uGame.xy)/scale));
+ bool game=center.x>=uGame.x&&center.x<uGame.x+uGame.z&&center.y>=uGame.y&&center.y<uGame.y+uGame.w;
+ if(game&&all(greaterThanEqual(p,ivec2(0)))&&all(lessThan(p,uLogical))){outColor=texelFetch(uGamePlane,ivec2(p.x,uLogical.y-1-p.y),0);return;}
+ bool safe=center.x>=uSafe.x&&center.y>=uSafe.y&&center.x<uContent.x-uSafe.z&&center.y<uContent.y-uSafe.w;
+ vec2 cell0=uGame.xy+vec2(p)*scale; vec2 cell1=uGame.xy+(vec2(p)+vec2(1.))*scale;
+ bool eligible=safe&&!(all(greaterThanEqual(p,ivec2(0)))&&all(lessThan(p,uLogical)))&&p.x>=-uBounds.x&&p.x<uLogical.x+uBounds.y&&p.y>=-uBounds.z&&p.y<uLogical.y+uBounds.w&&all(greaterThanEqual(cell0,vec2(0.)))&&all(lessThanEqual(cell1,uContent))&&cell0.x>=uSafe.x&&cell0.y>=uSafe.y&&cell1.x<=uContent.x-uSafe.z&&cell1.y<=uContent.y-uSafe.w;
+ if(eligible){ivec2 m=p+uBounds.xz;outColor=texelFetch(uMarginPlane,ivec2(m.x,uMarginSize.y-1-m.y),0);return;} outColor=vec4(0.);
+}`;
 function compile(gl: WebGL2RenderingContext, kind: number, source: string): WebGLShader {
   const shader = gl.createShader(kind);
-  if (shader === null) throw new Error("render-webgl2: could not create a shader");
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const log = gl.getShaderInfoLog(shader) ?? "no log";
-    gl.deleteShader(shader);
-    throw new Error(`render-webgl2: shader did not compile: ${log}`);
-  }
+  if (shader === null) throw new Error("render-webgl2: could not create shader");
+  gl.shaderSource(shader, source); gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { const message = gl.getShaderInfoLog(shader) ?? "no log"; gl.deleteShader(shader); throw new Error(`render-webgl2: shader compilation failed: ${message}`); }
   return shader;
 }
-
-/**
- * Crop a tileset strip down to one tile. A strip of a large `.tst` can be wider than `MAX_TEXTURE_SIZE`, and an
- * incomplete texture samples as black — a wrong pixel with no trace — so a tiled blit uploads only the tile it names.
- */
-export function cropTile(pixels: TexturePixels, tileWidth: number, tile: number): TexturePixels {
-  const origin = (tile - 1) * tileWidth;
-  const width = Math.min(tileWidth, Math.max(0, pixels.w - origin));
-  const rgba = new Uint8Array(width * pixels.h * 4);
-  for (let y = 0; y < pixels.h; y += 1) {
-    const from = (y * pixels.w + origin) * 4;
-    rgba.set(pixels.rgba.subarray(from, from + width * 4), y * width * 4);
-  }
-  return { w: width, h: pixels.h, rgba };
+function makeProgram(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgram {
+  const program = gl.createProgram(); if (program === null) throw new Error("render-webgl2: could not create program");
+  const vertex = compile(gl, gl.VERTEX_SHADER, vs); const fragment = compile(gl, gl.FRAGMENT_SHADER, fs);
+  gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { const message = gl.getProgramInfoLog(program) ?? "no log"; gl.deleteProgram(program); throw new Error(`render-webgl2: program link failed: ${message}`); }
+  return program;
+}
+function uniform(gl: WebGL2RenderingContext, program: WebGLProgram, name: string): WebGLUniformLocation {
+  const value = gl.getUniformLocation(program, name); if (value === null) throw new Error(`render-webgl2: missing uniform ${name}`); return value;
+}
+function cropTile(pixels: TexturePixels, width: number, tile: number): TexturePixels {
+  const x = (tile - 1) * width; const w = Math.min(width, Math.max(0, pixels.w - x)); const rgba = new Uint8Array(w * pixels.h * 4);
+  for (let y = 0; y < pixels.h; y += 1) rgba.set(pixels.rgba.subarray((y * pixels.w + x) * 4, (y * pixels.w + x + w) * 4), y * w * 4);
+  return { w, h: pixels.h, rgba };
+}
+function marginBounds(list: DrawListV2, geometry: HostDisplayGeometry) {
+  const { content, game, safeArea } = geometry; const right = content.width - safeArea.right; const bottom = content.height - safeArea.bottom;
+  const empty = right <= safeArea.left || bottom <= safeArea.top; const sx = game.width / list.width; const sy = game.height / list.height;
+  const left = empty ? 0 : Math.floor(Math.max(0, game.x - safeArea.left) / sx);
+  const r = empty ? 0 : Math.floor(Math.max(0, right - game.x - game.width) / sx);
+  const top = empty ? 0 : Math.floor(Math.max(0, game.y - safeArea.top) / sy);
+  const b = empty ? 0 : Math.floor(Math.max(0, bottom - game.y - game.height) / sy);
+  return { left, right: r, top, bottom: b, width: list.width + left + r, height: list.height + top + b, empty };
 }
 
-/** Where a blit samples from: the texture cell, its cache key and, for a persistent surface, the revision. */
-export type BlitOrigin = {
-  /** The column in the upload the blit starts at: a tiled asset's upload is cropped to its tile, so this is `src.x`. */
-  readonly x: number;
-  readonly y: number;
-  readonly cacheKey: string;
-  readonly asset: AssetKey | null;
-  readonly surface: number | null;
-  readonly rev: number;
-  /** The tile's width for a tiled asset, `null` for a whole-image or surface upload. */
-  readonly tileWidth: number | null;
-  /** The 1-based tile, or `null`. */
-  readonly tile: number | null;
-};
-
-/** The texture column one blit samples from: a tileset is a strip whose tile `n` starts at `(n-1)*32` (or 64). */
-function sourceOrigin(command: Extract<DrawList["commands"][number], { kind: "blit" }>): BlitOrigin {
-  if ("asset" in command.source) {
-    const tile = command.source.tile;
-    const tileWidth = command.source.asset.endsWith(".iso") ? 64 : 32;
-    return {
-      x: command.src.x,
-      y: command.src.y,
-      cacheKey: tile === null ? `asset:${command.source.asset}` : `asset:${command.source.asset}#${tile}`,
-      asset: command.source.asset,
-      surface: null,
-      rev: 0,
-      tileWidth: tile === null ? null : tileWidth,
-      tile,
-    };
+/** Create a WebGL2 renderer that replays commands directly into reusable logical-plane FBOs. */
+export function createWebgl2Renderer(gl: WebGL2RenderingContext): Webgl2Renderer {
+  const replayProgram = makeProgram(gl, VERTEX, FRAGMENT); const presentProgram = makeProgram(gl, PRESENT_VERTEX, PRESENT_FRAGMENT);
+  const loc = (name: string) => uniform(gl, replayProgram, name);
+  const replay = { rect: loc("uRect"), viewport: loc("uViewport"), instanced: loc("uInstanced"), mode: loc("uMode"), color: loc("uColor"), tint: loc("uTint"), keyOn: loc("uKeyOn"), key: loc("uKey"), srcOrigin: loc("uSrcOrigin"), srcSize: loc("uSrcSize"), dstSize: loc("uDstSize"), tex: loc("uTex") };
+  const present = { game: uniform(gl, presentProgram, "uGamePlane"), margin: uniform(gl, presentProgram, "uMarginPlane"), content: uniform(gl, presentProgram, "uContent"), gameRect: uniform(gl, presentProgram, "uGame"), safe: uniform(gl, presentProgram, "uSafe"), logical: uniform(gl, presentProgram, "uLogical"), bounds: uniform(gl, presentProgram, "uBounds"), marginSize: uniform(gl, presentProgram, "uMarginSize") };
+  const quad = gl.createBuffer(); const pointBuffer = gl.createBuffer();
+  if (quad === null || pointBuffer === null) throw new Error("render-webgl2: could not create geometry buffers");
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]), gl.STATIC_DRAW);
+  const unit = gl.getAttribLocation(replayProgram, "aUnit"); const rectAttrib = gl.getAttribLocation(replayProgram, "aRect"); const coverageAttrib = gl.getAttribLocation(replayProgram, "aCoverage");
+  const uploads = new Map<string, Uploaded>(); const targets: Target[] = []; const scratch: Target[][] = [[], []]; let size = { width: 0, height: 0 }; let disposed = false;
+  function targetAt(pool: Target[], index: number, width: number, height: number): Target {
+    let target = pool[index];
+    if (target !== undefined && target.width === width && target.height === height) return target;
+    if (target !== undefined) { gl.deleteFramebuffer(target.framebuffer); gl.deleteTexture(target.texture); }
+    const texture = gl.createTexture(); const framebuffer = gl.createFramebuffer(); if (texture === null || framebuffer === null) throw new Error("render-webgl2: unable to allocate plane framebuffer");
+    gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    target = { texture, framebuffer, width, height }; pool[index] = target; return target;
   }
-  return {
-    x: command.src.x,
-    y: command.src.y,
-    cacheKey: `surface:${command.source.surface}:${command.source.rev}`,
-    asset: null,
-    surface: command.source.surface,
-    rev: command.source.rev,
-    tileWidth: null,
-    tile: null,
-  };
-}
-
-/** The physical canvas a presentation decides, the viewport inside it, and where that viewport starts. */
-export type PresentationFrame = {
-  readonly canvas: { readonly width: number; readonly height: number };
-  readonly viewport: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
-};
-
-/**
- * AD-33's two modes as geometry: `letterbox` scales the logical frame by an integer factor and centres it in the
- * canvas; `expand` shows it at 1:1 and leaves the rest of the canvas black. Pure, so a test can pin both without a GPU.
- */
-export function presentationFrame(presentation: Presentation, logical: { readonly width: number; readonly height: number }): PresentationFrame {
-  const scale = presentation.mode === "letterbox" ? Math.max(1, Math.floor(presentation.scale ?? 1)) : 1;
-  const width = presentation.mode === "letterbox" ? logical.width * scale : Math.max(presentation.width, logical.width);
-  const height = presentation.mode === "letterbox" ? logical.height * scale : Math.max(presentation.height, logical.height);
-  const scaledWidth = logical.width * scale;
-  const scaledHeight = logical.height * scale;
-  return {
-    canvas: { width, height },
-    viewport: {
-      x: Math.floor((width - scaledWidth) / 2),
-      y: Math.floor((height - scaledHeight) / 2),
-      width: scaledWidth,
-      height: scaledHeight,
-    },
-  };
-}
-
-/**
- * Create the replayer for one WebGL2 context. The context must be created with `premultipliedAlpha: false` so a
- * `normal` blit copies the texture's straight RGBA exactly, as `core/raster` does.
- */
-export function createWebgl2Renderer(gl: WebGL2RenderingContext, presentation: Presentation = { mode: "letterbox", scale: 1 }): Webgl2Renderer {
-  const program = gl.createProgram();
-  if (program === null) throw new Error("render-webgl2: could not create a program");
-  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
-  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT));
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error(`render-webgl2: program did not link: ${gl.getProgramInfoLog(program) ?? "no log"}`);
+  function upload(key: string, pixels: TexturePixels): Uploaded {
+    const existing = uploads.get(key); if (existing !== undefined) return existing;
+    const texture = gl.createTexture(); if (texture === null) throw new Error("render-webgl2: unable to allocate source texture");
+    gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, pixels.w, pixels.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels.rgba);
+    const result = { texture, w: pixels.w, h: pixels.h }; uploads.set(key, result); return result;
   }
-  const uniform = (name: string): WebGLUniformLocation => {
-    const location = gl.getUniformLocation(program, name);
-    if (location === null) throw new Error(`render-webgl2: missing uniform ${name}`);
-    return location;
-  };
-  const uRect = uniform("uRect");
-  const uCoverage = uniform("uCoverage");
-  const uInstanced = uniform("uInstanced");
-  const uViewport = uniform("uViewport");
-  const uMode = uniform("uMode");
-  const uSrcOrigin = uniform("uSrcOrigin");
-  const uSrcSize = uniform("uSrcSize");
-  const uDstSize = uniform("uDstSize");
-  const uColor = uniform("uColor");
-  const uTint = uniform("uTint");
-  const uAlpha = uniform("uAlpha");
-  const uKeyOn = uniform("uKeyOn");
-  const uKey = uniform("uKey");
-  const uTex = uniform("uTex");
-
-  const quad = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
-  const aUnit = gl.getAttribLocation(program, "aUnit");
-  const aRect = gl.getAttribLocation(program, "aRect");
-  const aCoverage = gl.getAttribLocation(program, "aCoverage");
-
-  // One instance per one-pixel quad: `x, y, w, h, coverage` — the shapes and text ink arrive as pixels, not as boxes.
-  const pixels = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, pixels);
-  gl.bufferData(gl.ARRAY_BUFFER, Float32Array.of(0, 0, 1, 1, 1), gl.DYNAMIC_DRAW);
-
-  /** Uploaded textures by cache key; a flush drops them all (G4 rule 3). */
-  let uploaded = new Map<string, Uploaded>();
-  let disposed = false;
-  let canvas = { width: 0, height: 0 };
-
-  function upload(cacheKey: string, source: TexturePixels): Uploaded {
-    const existing = uploaded.get(cacheKey);
-    if (existing !== undefined) return existing;
-    const texture = gl.createTexture();
-    if (texture === null) throw new Error("render-webgl2: could not create a texture");
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, source.w, source.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, source.rgba);
-    const result: Uploaded = { texture, w: source.w, h: source.h };
-    uploaded.set(cacheKey, result);
-    return result;
+  function blend(mode: "normal" | "translucent" | "additive" | "coverage", alpha = 1): void {
+    gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD);
+    if (mode === "normal") { gl.blendFuncSeparate(gl.ONE, gl.ZERO, gl.ONE, gl.ZERO); return; }
+    if (mode === "coverage") { gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA); return; }
+    gl.blendColor(0, 0, 0, alpha);
+    gl.blendFuncSeparate(gl.CONSTANT_ALPHA, mode === "additive" ? gl.ONE : gl.ONE_MINUS_CONSTANT_ALPHA, gl.ONE, gl.ZERO);
   }
-
-  /** Scratch targets for `pushTarget`/`popTarget`: frame-scoped, cleared at push (AD-27). */
-  const scratchStack: { texture: WebGLTexture; framebuffer: WebGLFramebuffer }[] = [];
-
-  function bindEnclosingTarget(): void {
-    const parent = scratchStack.at(-1);
-    if (parent === undefined) gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    else gl.bindFramebuffer(gl.FRAMEBUFFER, parent.framebuffer);
-    gl.viewport(0, 0, viewportWidth, viewportHeight);
-  }
-
-  // The viewport the frame is drawn into, in physical pixels, inside the canvas's black surround (AD-33).
-  let viewportWidth = 0;
-  let viewportHeight = 0;
-
-  /** AD-3's blend state for one command; the destination alpha stays the CPU's. */
-  function setBlend(mode: "normal" | "translucent" | "additive" | "coverage"): void {
-    if (mode === "normal") {
-      gl.blendFuncSeparate(gl.ONE, gl.ZERO, gl.ONE, gl.ZERO);
-      return;
-    }
-    if (mode === "coverage") {
-      // Glyph ink accumulates its coverage into the destination alpha, as the reference's `da + cov*(255-da)` does.
-      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      return;
-    }
-    gl.blendFuncSeparate(gl.SRC_ALPHA, mode === "additive" ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
-  }
-
-  /** A quad in logical pixels; `source` is the texel rectangle it samples, in the texture's own pixels. */
-  type Source = { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
-  function drawQuad(rect: { x: number; y: number; w: number; h: number }, source?: Source): void {
-    gl.uniform1i(uInstanced, 0);
-    gl.uniform4f(uRect, rect.x, rect.y, rect.w, rect.h);
-    gl.uniform2i(uDstSize, rect.w, rect.h);
-    if (source === undefined) gl.uniform2i(uSrcSize, 0, 0);
-    else {
-      gl.uniform2i(uSrcOrigin, source.x, source.y);
-      gl.uniform2i(uSrcSize, source.w, source.h);
-    }
+  function drawQuad(r: { x: number; y: number; w: number; h: number }, source?: { x: number; y: number; w: number; h: number }): void {
+    gl.uniform1i(replay.instanced, 0); gl.uniform4f(replay.rect, r.x, r.y, r.w, r.h); gl.uniform2i(replay.dstSize, r.w, r.h);
+    if (source === undefined) gl.uniform2i(replay.srcSize, 0, 0); else { gl.uniform2i(replay.srcOrigin, source.x, source.y); gl.uniform2i(replay.srcSize, source.w, source.h); }
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
-
-  /**
-   * Draw a set of one-pixel quads in one instanced call. `coverage` may be `null` for solid ink, in which case the
-   * shader reads `uCoverage`'s `1`.
-   */
-  function drawPixels(points: readonly (readonly [number, number, number])[]): void {
-    if (points.length === 0) return;
-    const data = new Float32Array(points.length * 5);
-    for (let index = 0; index < points.length; index += 1) {
-      const [x, y, coverage] = points[index]!;
-      data[index * 5] = x;
-      data[index * 5 + 1] = y;
-      data[index * 5 + 2] = 1;
-      data[index * 5 + 3] = 1;
-      data[index * 5 + 4] = coverage;
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, pixels);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(aRect);
-    gl.vertexAttribPointer(aRect, 4, gl.FLOAT, false, 20, 0);
-    gl.vertexAttribDivisor(aRect, 1);
-    gl.enableVertexAttribArray(aCoverage);
-    gl.vertexAttribPointer(aCoverage, 1, gl.FLOAT, false, 20, 16);
-    gl.vertexAttribDivisor(aCoverage, 1);
-    gl.uniform1i(uInstanced, 1);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, points.length);
-    gl.vertexAttribDivisor(aRect, 0);
-    gl.vertexAttribDivisor(aCoverage, 0);
-    gl.disableVertexAttribArray(aRect);
-    gl.disableVertexAttribArray(aCoverage);
-    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  function drawPixels(points: readonly Point[]): void {
+    if (points.length === 0) return; const data = new Float32Array(points.length * 5);
+    for (let i = 0; i < points.length; i += 1) { const [x,y,c] = points[i]!; data.set([x,y,1,1,c],i*5); }
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointBuffer); gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(rectAttrib); gl.vertexAttribPointer(rectAttrib,4,gl.FLOAT,false,20,0); gl.vertexAttribDivisor(rectAttrib,1); gl.enableVertexAttribArray(coverageAttrib); gl.vertexAttribPointer(coverageAttrib,1,gl.FLOAT,false,20,16); gl.vertexAttribDivisor(coverageAttrib,1); gl.uniform1i(replay.instanced,1); gl.drawArraysInstanced(gl.TRIANGLES,0,6,points.length); gl.vertexAttribDivisor(rectAttrib,0); gl.vertexAttribDivisor(coverageAttrib,0); gl.disableVertexAttribArray(rectAttrib); gl.disableVertexAttribArray(coverageAttrib);
   }
-
-  /**
-   * The blit path, shared by the whole-quad case and by the `.iso` projection's per-destination-pixel case. Returns
-   * `false` when the source could not be supplied, so the caller can count it deferred.
-   */
-  function bindBlitSource(
-    command: Extract<DrawList["commands"][number], { kind: "blit" }>,
-    options: RenderOptions,
-  ): { readonly ok: true; readonly origin: BlitOrigin } | { readonly ok: false; readonly why: string } {
-    const origin = sourceOrigin(command);
-    let sourcePixels: TexturePixels | null = null;
-    if (origin.asset !== null) sourcePixels = options.textures(origin.asset);
-    else if (options.surfaces !== undefined && origin.surface !== null) {
-      sourcePixels = options.surfaces(origin.surface as SurfaceId, origin.rev);
-    } else {
-      return { ok: false, why: "webgl2.no-source: a surface blit with no surface provider" };
-    }
-    if (sourcePixels === null) {
-      return { ok: false, why: `webgl2.missing-texture: ${origin.asset ?? `surface ${String(origin.surface)}`}` };
-    }
-    const toUpload = origin.tile !== null && origin.tileWidth !== null
-      ? cropTile(sourcePixels, origin.tileWidth, origin.tile)
-      : sourcePixels;
-    const texture = upload(origin.cacheKey, toUpload);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture.texture);
-    gl.uniform3f(uTint, command.tint.r, command.tint.g, command.tint.b);
-    if (command.key === null) gl.uniform1i(uKeyOn, 0);
-    else {
-      gl.uniform1i(uKeyOn, 1);
-      gl.uniform3f(uKey, command.key.r, command.key.g, command.key.b);
-    }
-    gl.uniform1f(uAlpha, command.alpha / 255);
-    gl.uniform1i(uMode, command.blend === "normal" ? 0 : 2);
-    setBlend(command.blend);
-    return { ok: true, origin };
-  }
-
-  /**
-   * Draw one text command's ink. `false` means the host could not supply a font the core can draw, which the caller
-   * counts as deferred: drawing nothing would be a silent wrong pixel.
-   */
-  function drawText(command: TextCommand, options: RenderOptions): boolean {
-    const ink = textInk(command, options.fonts?.(command.font.asset) ?? options.fallbackFont);
-    if (ink === null) return false;
-    gl.uniform1i(uMode, 3);
-    gl.uniform1i(uKeyOn, 0);
-    gl.uniform3f(uColor, command.rgb.r / 255, command.rgb.g / 255, command.rgb.b / 255);
-    gl.uniform1f(uAlpha, 1);
-    setBlend("coverage");
-    drawPixels(ink.map(({ x, y, coverage }) => [x, y, coverage / 255] as const));
-    return true;
-  }
-
-  return {
-    get canvas(): { readonly width: number; readonly height: number } {
-      return canvas;
-    },
-    render(list: DrawList, options: RenderOptions): RenderStats {
-      if (disposed) throw new Error("render-webgl2: renderer was disposed");
-      let drawn = 0;
-      let deferred = 0;
-      const deferredByKind: { [kind: string]: number } = {};
-      const diagnostics: string[] = [];
-      const defer = (kind: string, why: string): void => {
-        deferred += 1;
-        deferredByKind[kind] = (deferredByKind[kind] ?? 0) + 1;
-        if (!diagnostics.includes(why)) diagnostics.push(why);
-      };
-
-      // AD-33 presentation: the draw list is logical; the viewport is the physical area it occupies.
-      const frame = presentationFrame(presentation, list);
-      if (gl.canvas.width !== frame.canvas.width || gl.canvas.height !== frame.canvas.height) {
-        gl.canvas.width = frame.canvas.width;
-        gl.canvas.height = frame.canvas.height;
-      }
-      canvas = { width: frame.canvas.width, height: frame.canvas.height };
-      const offsetX = frame.viewport.x;
-      const offsetY = frame.viewport.y;
-      viewportWidth = frame.viewport.width;
-      viewportHeight = frame.viewport.height;
-
-      gl.viewport(offsetX, offsetY, viewportWidth, viewportHeight);
-      gl.useProgram(program);
-      gl.bindBuffer(gl.ARRAY_BUFFER, quad);
-      gl.enableVertexAttribArray(aUnit);
-      gl.vertexAttribPointer(aUnit, 2, gl.FLOAT, false, 0, 0);
-      gl.uniform2f(uViewport, list.width, list.height);
-      gl.uniform1f(uCoverage, 1);
-      gl.uniform1i(uTex, 0);
-      gl.enable(gl.BLEND);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      // A fresh frame is a zeroed RGBA buffer, exactly as `core/raster` allocates one: transparent black, not opaque.
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-
-      const setColour = (rgb: { r: number; g: number; b: number }, coverage: number): void => {
-        gl.uniform1i(uMode, coverage === 255 ? 1 : 3);
-        gl.uniform1i(uKeyOn, 0);
-        gl.uniform3f(uColor, rgb.r / 255, rgb.g / 255, rgb.b / 255);
-        gl.uniform1f(uAlpha, 1);
-        setBlend(coverage === 255 ? "normal" : "coverage");
-      };
-
-      /** Plot the reference's pixel set for a solid shape, one instanced call. */
-      const drawSolidPixels = (points: readonly (readonly [number, number])[], rgb: { r: number; g: number; b: number }): void => {
-        setColour(rgb, 255);
-        drawPixels(points.map(([x, y]) => [x, y, 1] as const));
-      };
-
-      for (const command of list.commands) {
-        switch (command.kind) {
-          case "fill": {
-            setColour(command.rgb, 255);
-            drawQuad({ x: 0, y: 0, w: list.width, h: list.height });
-            drawn += 1;
-            break;
-          }
-          case "rect": {
-            if (command.filled) {
-              setColour(command.rgb, 255);
-              drawQuad(command.rect);
-            } else {
-              drawSolidPixels(rectOutlinePixels(command.rect), command.rgb);
-            }
-            drawn += 1;
-            break;
-          }
-          case "line": {
-            drawSolidPixels(linePixels(command.x1, command.y1, command.x2, command.y2), command.rgb);
-            drawn += 1;
-            break;
-          }
-          case "ellipse": {
-            drawSolidPixels(ellipsePixels(command.rect, command.filled), command.rgb);
-            drawn += 1;
-            break;
-          }
-          case "blit": {
-            const bound = bindBlitSource(command, options);
-            if (!bound.ok) {
-              defer("blit", bound.why);
-              break;
-            }
-            if (!command.iso2d) {
-              drawQuad(command.dst, { x: bound.origin.x, y: bound.origin.y, w: command.src.w, h: command.src.h });
-              drawn += 1;
-              break;
-            }
-            // The `.iso` projection is a diamond, not a rectangle: each covered destination pixel samples the source
-            // at `isoSourceOffset`'s cell, so one 1×1 quad per pixel keeps the reference's exact mapping.
-            const isoPoints: (readonly [number, number, number])[] = [];
-            for (let y = 0; y < command.dst.h; y += 1) {
-              for (let x = 0; x < command.dst.w; x += 1) {
-                const unit = isoSourceOffset(x, y);
-                if (unit === null) continue;
-                const sourceX = command.src.x + unit[0] * command.src.w / 32;
-                const sourceY = command.src.y + unit[1] * command.src.h / 32;
-                gl.uniform2i(uSrcOrigin, bound.origin.x + Math.floor(sourceX), bound.origin.y + Math.floor(sourceY));
-                gl.uniform2i(uSrcSize, 1, 1);
-                gl.uniform4f(uRect, command.dst.x + x, command.dst.y + y, 1, 1);
-                gl.uniform2i(uDstSize, 1, 1);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-                isoPoints.push([command.dst.x + x, command.dst.y + y, 1]);
-              }
-            }
-            if (isoPoints.length > 0) drawn += 1;
-            else defer("blit", "webgl2.iso-empty: the .iso diamond covers no destination pixel");
-            break;
-          }
-          case "text": {
-            if (!drawText(command, options)) {
-              defer("text", `webgl2.missing-font: ${command.font.asset}`);
-              break;
-            }
-            drawn += 1;
-            break;
-          }
-          case "pushTarget": {
-            const texture = gl.createTexture();
-            const framebuffer = gl.createFramebuffer();
-            if (texture === null || framebuffer === null) throw new Error("render-webgl2: could not create a scratch target");
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, viewportWidth, viewportHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-            gl.clearColor(0, 0, 0, 0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.viewport(0, 0, viewportWidth, viewportHeight);
-            scratchStack.push({ texture, framebuffer });
-            drawn += 1;
-            break;
-          }
-          case "popTarget": {
-            // The reference pops the target stack and nothing else: a scratch never reaches the screen by itself.
-            const top = scratchStack.pop();
-            if (top === undefined) {
-              defer("popTarget", "webgl2.unbalanced-pop: popTarget without pushTarget");
-              break;
-            }
-            gl.deleteFramebuffer(top.framebuffer);
-            gl.deleteTexture(top.texture);
-            bindEnclosingTarget();
-            drawn += 1;
-            break;
-          }
-          default: {
-            const _never: never = command;
-            throw new TypeError(`render-webgl2: unknown draw command ${JSON.stringify(_never)}`);
-          }
+  const surfacePixels = new Map<string, TexturePixels | null>();
+  const usedSurfaceUploads = new Set<string>();
+  function drawCommands(commands: readonly DrawCommand[], dimensions: { width: number; height: number }, offset: { x: number; y: number }, root: Target, scratchPool: Target[], options: RenderOptions, defer: (kind: string, reason: string) => void): { drawn: number; deferred: number } {
+    const stack: Target[] = []; let drawn = 0; let deferred = 0;
+    gl.useProgram(replayProgram); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, null); gl.bindBuffer(gl.ARRAY_BUFFER,quad); gl.enableVertexAttribArray(unit); gl.vertexAttribPointer(unit,2,gl.FLOAT,false,0,0); gl.uniform1i(replay.tex,0); gl.uniform1i(replay.instanced,0); gl.enable(gl.BLEND);
+    const bind = (target: Target) => { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,null); gl.bindFramebuffer(gl.FRAMEBUFFER,target.framebuffer); gl.viewport(0,0,target.width,target.height); gl.uniform2f(replay.viewport,target.width,target.height); };
+    bind(root); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    const color = (rgb: {r:number;g:number;b:number}, coverage=255) => { gl.uniform1i(replay.mode,coverage===255?1:3); gl.uniform1i(replay.keyOn,0); gl.uniform3f(replay.color,rgb.r/255,rgb.g/255,rgb.b/255); blend(coverage===255?"normal":"coverage"); };
+    for (const command of commands) {
+      gl.uniform1i(replay.instanced, 0);
+      const offsetRect = (r: {x:number;y:number;w:number;h:number}) => ({...r,x:r.x+offset.x,y:r.y+offset.y});
+      switch(command.kind){
+        case "fill": color(command.rgb); drawQuad({x:0,y:0,w:dimensions.width,h:dimensions.height}); drawn++; break;
+        case "rect": if(command.filled){color(command.rgb);drawQuad(offsetRect(command.rect));}else{color(command.rgb);drawPixels(rectOutlinePixels(offsetRect(command.rect)).map(([x,y])=>[x,y,1] as const));} drawn++; break;
+        case "line": color(command.rgb);drawPixels(linePixels(command.x1+offset.x,command.y1+offset.y,command.x2+offset.x,command.y2+offset.y).map(([x,y])=>[x,y,1] as const));drawn++;break;
+        case "ellipse": color(command.rgb);drawPixels(ellipsePixels(offsetRect(command.rect),command.filled).map(([x,y])=>[x,y,1] as const));drawn++;break;
+        case "blit": {
+          let pixels: TexturePixels|null; let key: string; let originX=command.src.x; let originY=command.src.y;
+          if("asset" in command.source){const asset=command.source.asset;key=`asset:${asset}${command.source.tile===null?"":`#${command.source.tile}`}`;pixels=options.textures(asset);if(pixels!==null&&command.source.tile!==null){const w=asset.endsWith(".iso")?64:32;pixels=cropTile(pixels,w,command.source.tile);}}
+          else {const {surface,rev}=command.source;key=`surface:${surface}:${rev}`;const cacheKey=`${surface}:${rev}`;if(!surfacePixels.has(cacheKey))surfacePixels.set(cacheKey,options.surfaces?.(surface,rev)??null);pixels=surfacePixels.get(cacheKey)??null;}
+          if(pixels===null){const reason="asset" in command.source?`webgl2.missing-texture: ${command.source.asset}`:options.surfaces===undefined?"webgl2.no-source: a surface blit with no surface provider":`webgl2.missing-texture: surface ${String(command.source.surface)}`;defer("blit",reason);deferred++;break;}
+          if("surface" in command.source) usedSurfaceUploads.add(key);
+          const source=upload(key,pixels);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,source.texture);gl.uniform3f(replay.tint,command.tint.r,command.tint.g,command.tint.b);if(command.key===null)gl.uniform1i(replay.keyOn,0);else{gl.uniform1i(replay.keyOn,1);gl.uniform3f(replay.key,command.key.r,command.key.g,command.key.b);}gl.uniform1i(replay.mode,command.blend==="normal"?0:2);blend(command.blend,command.alpha/255);
+          if(!command.iso2d){drawQuad(offsetRect(command.dst),{x:originX,y:originY,w:command.src.w,h:command.src.h});drawn++;break;}
+          let count=0;for(let y=0;y<command.dst.h;y++)for(let x=0;x<command.dst.w;x++){const unitOffset=isoSourceOffset(x,y);if(unitOffset===null)continue;gl.uniform2i(replay.srcOrigin,originX+Math.floor(unitOffset[0]*command.src.w/32),originY+Math.floor(unitOffset[1]*command.src.h/32));gl.uniform2i(replay.srcSize,1,1);gl.uniform2i(replay.dstSize,1,1);gl.uniform4f(replay.rect,command.dst.x+offset.x+x,command.dst.y+offset.y+y,1,1);gl.drawArrays(gl.TRIANGLES,0,6);count++;}if(count)drawn++;else{defer("blit","webgl2.iso-empty: the .iso diamond covers no destination pixel");deferred++;}break;
         }
+        case "text": {const ink=textInk(command,options.fonts?.(command.font.asset)??options.fallbackFont);if(ink===null){defer("text",`webgl2.missing-font: ${command.font.asset}`);deferred++;break;}gl.uniform1i(replay.mode,3);gl.uniform1i(replay.keyOn,0);gl.uniform3f(replay.color,command.rgb.r/255,command.rgb.g/255,command.rgb.b/255);blend("coverage");drawPixels(ink.map(({x,y,coverage})=>[x+offset.x,y+offset.y,coverage/255] as const));drawn++;break;}
+        case "pushTarget": {const target=targetAt(scratchPool,stack.length,dimensions.width,dimensions.height);stack.push(target);bind(target);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);drawn++;break;}
+        case "popTarget": {const top=stack.pop();if(top===undefined){defer("popTarget","webgl2.unbalanced-pop: popTarget without pushTarget");deferred++;break;}bind(stack.at(-1)??root);drawn++;break;}
       }
-      for (const entry of scratchStack.splice(0)) {
-        gl.deleteFramebuffer(entry.framebuffer);
-        gl.deleteTexture(entry.texture);
-      }
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(offsetX, offsetY, viewportWidth, viewportHeight);
-      gl.disable(gl.BLEND);
-      return { drawn, deferred, deferredByKind, diagnostics };
+    }
+    if(stack.length!==0){defer("pushTarget","webgl2.unclosed-push: pushTarget without matching popTarget");deferred++;}
+    return {drawn,deferred};
+  }
+  function disposeTargets(pool: Target[]) { for(const target of pool){gl.deleteFramebuffer(target.framebuffer);gl.deleteTexture(target.texture);} pool.length=0; }
+  return {
+    get canvas(){return size;},
+    render(list,geometry,options){
+      if(disposed)throw new Error("render-webgl2: renderer was disposed");
+      const contentW=Math.ceil(geometry.content.width),contentH=Math.ceil(geometry.content.height);if(gl.canvas.width!==contentW||gl.canvas.height!==contentH){gl.canvas.width=contentW;gl.canvas.height=contentH;}size={width:contentW,height:contentH};
+      const bounds=marginBounds(list,geometry);const roots=[targetAt(targets,0,list.width,list.height),targetAt(targets,1,bounds.width,bounds.height)];
+      surfacePixels.clear();
+      usedSurfaceUploads.clear();
+      const diagnostics:string[]=[];const byKind:{[kind:string]:number}={};const defer=(kind:string,why:string)=>{byKind[kind]=(byKind[kind]??0)+1;if(!diagnostics.includes(why))diagnostics.push(why);};
+      const a=drawCommands(list.commands,{width:list.width,height:list.height},{x:0,y:0},roots[0]!,scratch[0]!,options,defer);
+      const b=drawCommands(list.marginCommands,{width:bounds.width,height:bounds.height},{x:bounds.left,y:bounds.top},roots[1]!,scratch[1]!,options,defer);
+      for(const [key,value] of uploads) if(key.startsWith("surface:")&&!usedSurfaceUploads.has(key)){gl.deleteTexture(value.texture);uploads.delete(key);}
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,contentW,contentH);gl.disable(gl.BLEND);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(presentProgram);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,roots[0]!.texture);gl.uniform1i(present.game,0);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,roots[1]!.texture);gl.uniform1i(present.margin,1);gl.uniform2f(present.content,geometry.content.width,geometry.content.height);gl.uniform4f(present.gameRect,geometry.game.x,geometry.game.y,geometry.game.width,geometry.game.height);gl.uniform4f(present.safe,geometry.safeArea.left,geometry.safeArea.top,geometry.safeArea.right,geometry.safeArea.bottom);gl.uniform2i(present.logical,list.width,list.height);gl.uniform4i(present.bounds,bounds.left,bounds.right,bounds.top,bounds.bottom);gl.uniform2i(present.marginSize,bounds.width,bounds.height);gl.drawArrays(gl.TRIANGLES,0,3);
+      return {drawn:a.drawn+b.drawn,deferred:a.deferred+b.deferred,deferredByKind:byKind,diagnostics};
     },
-    flush(): void {
-      for (const entry of uploaded.values()) gl.deleteTexture(entry.texture);
-      uploaded = new Map();
-    },
-    dispose(): void {
-      if (disposed) return;
-      for (const entry of uploaded.values()) gl.deleteTexture(entry.texture);
-      uploaded = new Map();
-      gl.deleteBuffer(quad);
-      gl.deleteBuffer(pixels);
-      gl.deleteProgram(program);
-      disposed = true;
-    },
+    flush(){if(disposed)return;for(const value of uploads.values())gl.deleteTexture(value.texture);uploads.clear();surfacePixels.clear();},
+    dispose(){if(disposed)return;this.flush();disposeTargets(targets);for(const pool of scratch)disposeTargets(pool);gl.deleteBuffer(quad);gl.deleteBuffer(pointBuffer);gl.deleteProgram(replayProgram);gl.deleteProgram(presentProgram);disposed=true;},
   };
-
 }

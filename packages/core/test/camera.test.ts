@@ -311,7 +311,7 @@ test("realignCamera aligns immediately without smoothing", () => {
 
 test("camera built-ins execute through RPGCode program", () => {
   const state = createGameState({ seed: 0 });
-  state.world = { board: dummyBoard(1000, 800) };
+  state.world = { ...state.world, board: dummyBoard(1000, 800) };
   state.camera = createCameraSection(640, 480);
   state.camera.x = 45;
   state.camera.y = 85;

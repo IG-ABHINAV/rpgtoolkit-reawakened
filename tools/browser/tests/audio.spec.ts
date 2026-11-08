@@ -24,6 +24,9 @@ type AudioReport = {
   readonly graphStarted: boolean;
   readonly analyserEnergy: number | null;
   readonly analyserSeconds: number | null;
+  readonly graphKind: "worklet" | "script" | null;
+  readonly graphLatencySeconds: number | null;
+  readonly graphBufferSize: number | null;
   readonly errors: readonly string[];
   readonly bankSha: string | null;
   readonly midiEnergy: number;
@@ -68,9 +71,12 @@ test("the cue player and the PCM sink agree with the spec's three runner rules",
   expect(report.analyserSeconds).toBeGreaterThan(0.35);
   expect(report.analyserSeconds).toBeLessThan(0.9);
 
-  // The shipped graph uses a buffer large enough to survive main-thread stalls (dropouts), not the tiny 1024-sample default.
-  expect(report.graphBufferSize).not.toBeNull();
-  expect(report.graphBufferSize).toBeGreaterThanOrEqual(4096);
+  // The shipped path uses AudioWorklet and stays under the 50 ms onset-latency target.
+  expect(report.graphKind).toBe("worklet");
+  expect(report.graphLatencySeconds).not.toBeNull();
+  expect(report.graphLatencySeconds).toBeLessThan(0.05);
+  // A fallback ScriptProcessorNode would report its buffer size; the worklet does not.
+  expect(report.graphBufferSize).toBeNull();
 
   // The bundled bank loads and MIDI renders through it in the browser too: the file's SHA-256 keys the cache, and the
   // 120-tick fixture makes sound instead of silence.

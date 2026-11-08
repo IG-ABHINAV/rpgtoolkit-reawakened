@@ -6,10 +6,12 @@ import type { DecodeAhead } from "../src/decode-types.ts";
 import { fetchBundled, fetchBundledFiles, fetchGame, fontProvider, distributionPackage, runScriptedFrame } from "../src/index.ts";
 import { createLoadController, type LoadModeRequest, type LoadState } from "../src/load-mode.ts";
 import { createOpfsPackageStore, createOpfsStaging } from "../src/opfs-store.ts";
-import { pointerEventToLogical } from "../src/pointer.ts";
-import { createLiveSession, fitCanvas, type LiveSession } from "../src/live-session.ts";
+import { attachPointerInput } from "../src/pointer.ts";
+import { createLiveSession, type LiveSession } from "../src/live-session.ts";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "../src/host-state.ts";
 import { registerPlayerWorker, type RegistrationResult } from "../src/register-worker.ts";
 import { createStallOverlay, type StallOverlay } from "../src/stall-overlay.ts";
+import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "../src/touch-controls.ts";
 
 type LiveReport = {
   tick: number;
@@ -22,6 +24,8 @@ type LiveReport = {
   load?: { mode: string | null; storage: LoadState["storage"] };
   /** Every completed asset stall and the asset the engine waits on now, for the lane and for a person reading it. */
   stalls?: { count: number; hinted: number; unhinted: number; blocking: string | null; spinner: boolean };
+  /** The last advance's located diagnostics, so a probe can assert what the engine reported. */
+  diagnostics?: readonly { code: string; file: string; line: number; message: string }[];
 };
 
 declare global {
@@ -99,7 +103,7 @@ async function boot(context: WebGL2RenderingContext, screen: HTMLCanvasElement, 
       ].join("\n");
       return;
     }
-    const session = createLiveSession({ planText, gameName: game, files, bundled, gl: context });
+    const session = await createLiveSession({ planText, gameName: game, files, bundled, gl: context });
     await runParity(session, report, game, pack);
   } catch (error) {
     window.__report = { error: String(error) };
@@ -162,7 +166,8 @@ async function loadPackage(params: URLSearchParams, report: HTMLPreElement, pack
  * the page's service-worker scope in Chromium and fails when the network is gone; fetching the bundle through the
  * controlled page hits the service worker's precache and runs identically online and offline.
  */
-async function prepareDecode(): Promise<(outputRateHz: number) => DecodeAhead | null> {
+// A worker factory retained across restarts, with one page-lifetime object URL.
+async function prepareDecode(): Promise<{ readonly create: (outputRateHz: number) => DecodeAhead | null; readonly dispose: () => void }> {
   let blobUrl: string | null = null;
   try {
     const response = await fetch(DECODE_WORKER_URL);
@@ -170,17 +175,21 @@ async function prepareDecode(): Promise<(outputRateHz: number) => DecodeAhead | 
   } catch {
     blobUrl = null;
   }
-  return (outputRateHz: number): DecodeAhead | null => {
-    try {
-      const decode = createDecodeAhead({ outputRateHz, ...(blobUrl === null ? {} : { workerUrl: blobUrl }) });
-      window.__decodeAhead = decode;
-      if (blobUrl !== null) window.addEventListener("pagehide", () => URL.revokeObjectURL(blobUrl!), { once: true });
-      return decode;
-    } catch (error) {
+  return {
+    create(outputRateHz) {
+      try {
+        const decode = createDecodeAhead({ outputRateHz, ...(blobUrl === null ? {} : { workerUrl: blobUrl }) });
+        window.__decodeAhead = decode;
+        return decode;
+      } catch (error) {
+        window.__decodeAhead = { unavailable: String(error) };
+        return null;
+      }
+    },
+    dispose() {
       if (blobUrl !== null) URL.revokeObjectURL(blobUrl);
-      window.__decodeAhead = { unavailable: String(error) };
-      return null;
-    }
+      blobUrl = null;
+    },
   };
 }
 
@@ -191,7 +200,8 @@ async function bootParityPackage(context: WebGL2RenderingContext, report: HTMLPr
   const { controller, source, bundled } = await loadPackage(params, report, pack);
   const clock = window.__playerClock ?? ((): number => performance.now());
   const decode = await prepareDecode();
-  const session = createLiveSession({ planText, gameName: game, source, bundled, gl: context, clock, decode });
+  window.addEventListener("pagehide", decode.dispose, { once: true });
+  const session = await createLiveSession({ planText, gameName: game, source, bundled, gl: context, clock, decode: decode.create });
   window.__session = session;
   await runParity(session, report, game, pack, () => ({ load: controller.state(), assets: session.loadState(), audio: session.audioState() }));
 }
@@ -202,6 +212,9 @@ async function bootInteractive(
   report: HTMLPreElement,
   params: URLSearchParams,
 ): Promise<void> {
+  const stage = document.querySelector<HTMLElement>("#stage");
+  if (stage === null) throw new Error("player: the page is missing its viewport stage");
+  const hostViewport: HostViewport = { canvas: screen, viewport: stage };
   const pack = params.get("package");
   if (pack === null) throw new Error("interactive play requires a distribution package in ?package=");
   const { controller, source, bundled } = await loadPackage(params, report, pack);
@@ -209,31 +222,93 @@ async function bootInteractive(
   if (blobs !== null) window.__blobHost = blobs;
   const clock = window.__playerClock ?? ((): number => performance.now());
   const spinner = document.querySelector<HTMLElement>("#spinner");
-  let overlay: StallOverlay | null = null;
   const decode = await prepareDecode();
-  const session = createLiveSession({
-    interactive: true,
-    source,
-    bundled,
-    gl: context,
-    clock,
-    ...(blobs === null ? {} : { blobs }),
-    decode,
-    onLoadChange: () => overlay?.update(),
-  });
-  window.__session = session;
-  if (spinner !== null) overlay = createStallOverlay({ element: spinner, state: session.loadState, clock });
-  const view = session.viewSize();
-  const fit = (): void => {
-    fitCanvas(screen, view.width, view.height, {
-      width: window.innerWidth,
-      height: Math.max(80, window.innerHeight - report.offsetHeight - 24),
-    });
+  let stopped = false;
+  let generation = 0;
+  let activeSession: LiveSession | null = null;
+  let disposeLoop: (() => void) | null = null;
+
+  const pagehide = (): void => {
+    if (stopped) return;
+    stopped = true;
+    generation += 1;
+    const cleanup = disposeLoop;
+    disposeLoop = null;
+    const session = activeSession;
+    activeSession = null;
+    if (cleanup !== null) cleanup();
+    else session?.close();
+    decode.dispose();
   };
-  fit();
-  window.addEventListener("resize", fit);
-  window.addEventListener("pagehide", () => window.removeEventListener("resize", fit), { once: true });
-  startLiveLoop(session, screen, report, overlay, controller.state);
+  window.addEventListener("pagehide", pagehide, { once: true });
+
+  const launch = async (): Promise<void> => {
+    if (stopped) return;
+    const sessionGeneration = ++generation;
+    let session: LiveSession | null = null;
+    let quitBeforeReady = false;
+    let overlay: StallOverlay | null = null;
+    try {
+      const created = await createLiveSession({
+        interactive: true,
+        source,
+        bundled,
+        gl: context,
+        hostViewport,
+        clock,
+        ...(blobs === null ? {} : { blobs }),
+        decode: decode.create,
+        onLoadChange: () => {
+          if (!stopped && sessionGeneration === generation) overlay?.update();
+        },
+        onQuit: () => {
+          if (stopped || sessionGeneration !== generation) return;
+          if (session === null) {
+            quitBeforeReady = true;
+            return;
+          }
+          restart(sessionGeneration, session);
+        },
+      });
+      session = created;
+      if (stopped || sessionGeneration !== generation) {
+        created.close();
+        return;
+      }
+      activeSession = created;
+      window.__session = created;
+      if (quitBeforeReady) {
+        restart(sessionGeneration, created);
+        return;
+      }
+      if (spinner !== null) overlay = createStallOverlay({ element: spinner, state: created.loadState, clock });
+      disposeLoop = startLiveLoop(created, screen, report, overlay, controller.state, hostViewport);
+    } catch (error) {
+      if (stopped || sessionGeneration !== generation) return;
+      activeSession?.close();
+      activeSession = null;
+      delete window.__session;
+      window.__live = { tick: 0, stateHash: "", drawHash: "", board: null, player: null, error: String(error) };
+      report.textContent = `player: ${String(error)}`;
+    }
+  };
+
+  const restart = (sessionGeneration: number, session: LiveSession): void => {
+    if (stopped || sessionGeneration !== generation || activeSession !== session) return;
+    generation += 1;
+    const cleanup = disposeLoop;
+    disposeLoop = null;
+    activeSession = null;
+    delete window.__session;
+    delete window.__live;
+    delete window.__report;
+    report.textContent = "restarting game…";
+    if (cleanup !== null) cleanup();
+    else session.close();
+    void launch();
+  };
+
+  void launch();
 }
 
 async function runParity(session: LiveSession, report: HTMLPreElement, game: string, pack: string | null, extra: () => object = () => ({})): Promise<void> {
@@ -272,111 +347,174 @@ function startLiveLoop(
   report: HTMLPreElement,
   overlay: StallOverlay | null,
   loadState: () => LoadState,
-): void {
+  hostViewport: HostViewport,
+): () => void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
   let disposed = false;
   let advancing = false;
-  let pending: InputRecord[] = [];
+  let frameId: number | null = null;
+  let pending: PendingInput[] = [];
   const viewSize = session.viewSize();
-  const pointer = (event: PointerEvent): void => {
-    const { x, y } = pointerEventToLogical(event, canvas, viewSize);
-    pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
+  const displayGeometry = createObservedHostGeometry(session.displayGeometry());
+  const fallbackControlKeys = new Set<string>();
+  let fallbackActionSequence = 0;
+  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean, modalId: number | null = null): number => {
+    let event: InputRecord["event"];
+    if (modalId === null) {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId: null };
+    } else if (action === "confirm" || action === "cancel") {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId };
+    } else {
+      throw new Error("only confirm or cancel may target a modal");
+    }
+    pending.push({ tick: null, event, pointerGeometry: null });
+    fallbackActionSequence += 1;
+    return fallbackActionSequence;
   };
+  const touchControls = createFallbackTouchControls(hostViewport.viewport, displayGeometry.current, dispatchFallbackAction);
+  const hostObserver = observeHostState(hostViewport, viewSize, (event) => {
+    displayGeometry.observe(event);
+    pending.push({ tick: null, event, pointerGeometry: null });
+  }, session.hostState ?? undefined);
+  session.setHostRestoreSnapshotProvider(() => {
+    const snapshot = hostObserver.snapshotForRestore(pending);
+    for (const event of snapshot.observations) displayGeometry.observe(event);
+    return snapshot;
+  });
+  const stopPointerInput = attachPointerInput(
+    hostViewport.viewport,
+    viewSize,
+    displayGeometry.current,
+    ({ x, y }, buttons) => {
+      const geometry = displayGeometry.current();
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
+    },
+    ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
+    dispatchFallbackAction,
+    () => session.engine.surfaceCacheEpoch(),
+  );
   const key = (event: KeyboardEvent, down: boolean): void => {
+    if (shouldSuppressGameplayKey(event.code, event.repeat, down, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) } });
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
   const onKeyDown = (event: KeyboardEvent): void => key(event, true);
   const onKeyUp = (event: KeyboardEvent): void => key(event, false);
   const focus = (state: "lost" | "gained"): void => {
-    pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+    pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   };
-  const onBlur = (): void => focus("lost");
+  const onBlur = (): void => {
+      fallbackControlKeys.clear();
+      focus("lost");
+    };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
+  const onContextMenu = (event: MouseEvent): void => event.preventDefault();
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);
-  canvas.addEventListener("pointerdown", pointer);
-  canvas.addEventListener("pointermove", pointer);
-  canvas.addEventListener("pointerup", pointer);
-  canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+  canvas.addEventListener("contextmenu", onContextMenu);
+  const syncTouchControls = (): void => {
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
+  };
   // The spinner is driven by its own timer as well as by each frame, so it appears even if the browser throttles
   // animation frames, and never from the pending `advance`, which cannot resolve while the engine waits on an asset.
   const spinnerTimer = overlay === null ? null : window.setInterval(() => overlay.update(), 100);
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
+    hostObserver.dispose();
+    if (frameId !== null) window.cancelAnimationFrame(frameId);
     if (spinnerTimer !== null) window.clearInterval(spinnerTimer);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onBlur);
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
-    canvas.removeEventListener("pointerdown", pointer);
-    canvas.removeEventListener("pointermove", pointer);
-    canvas.removeEventListener("pointerup", pointer);
+    stopPointerInput();
+    canvas.removeEventListener("contextmenu", onContextMenu);
+    touchControls.close();
     session.close();
   };
-  window.addEventListener("pagehide", dispose, { once: true });
   const summary = (spinner: boolean): NonNullable<LiveReport["stalls"]> => {
     const state = session.loadState();
     const hinted = state.stalls.filter((stall) => stall.hinted).length;
     return { count: state.stalls.length, hinted, unhinted: state.stalls.length - hinted, blocking: state.blocking?.key ?? null, spinner };
   };
   const frame = (now: number): void => {
+    frameId = null;
     if (disposed) return;
     const elapsed = Math.max(0, now - previous);
     previous = now;
     const spinner = overlay?.update() ?? false;
+    hostObserver.poll();
+    syncTouchControls();
     // While the engine waits on an asset the simulation is frozen, so wall time is not banked: a long wait must not come
     // back as a burst of catch-up ticks. The last presented frame stays on the canvas and the loop keeps running.
     if (!advancing) {
       accumulator += elapsed;
       const wholeTicks = Math.floor(accumulator / stepMs);
       accumulator -= wholeTicks * stepMs;
-      const inputs = pending;
-      pending = [];
-      advancing = true;
-      session.advance(wholeTicks, inputs).then(() => {
-        advancing = false;
-        if (disposed) return;
-        const drawn = session.draw(accumulator / stepMs);
-        const player = session.playerPosition();
-        const state = loadState();
-        const live: LiveReport = {
-          tick: session.tick(),
-          stateHash: session.stateHash(),
-          drawHash: drawn.drawHash,
-          board: session.boardKey(),
-          player,
-          load: { mode: state.mode, storage: state.storage },
-          stalls: summary(overlay?.update() ?? false),
-        };
-        window.__live = live;
-        window.__report = live;
-        report.textContent = [
-          `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
-          `state ${live.stateHash}`,
-          `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
-          player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
-          `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
-          "Move: arrows or WASD; click the board to walk.",
-        ].join("\n");
-      }).catch((error: unknown) => {
-        advancing = false;
-        window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };
-        report.textContent = `player: ${String(error)}`;
-        dispose();
-      });
+      const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), displayGeometry, pending);
+      if (wholeTicks !== 0 || !geometryNeedsTick) {
+        const inputs = stampPendingInputs(pending, session.tick());
+        const submittedActionSequence = fallbackActionSequence;
+        const tickBeforeAdvance = session.tick();
+        pending = [];
+        advancing = true;
+        session.advance(wholeTicks, inputs).then(() => {
+          if (disposed) return;
+          if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
+          reconcileObservedHostFeaturesAfterAdvance(session.engine.hostFeatures(), hostObserver, pending);
+          const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), displayGeometry, pending, session.tick());
+          advancing = false;
+          if (disposed || restoredGeometryNeedsTick) return;
+          const drawn = session.draw(accumulator / stepMs);
+          const player = session.playerPosition();
+          const state = loadState();
+          const live: LiveReport = {
+            tick: session.tick(),
+            stateHash: session.stateHash(),
+            drawHash: drawn.drawHash,
+            board: session.boardKey(),
+            player,
+            load: { mode: state.mode, storage: state.storage },
+            stalls: summary(overlay?.update() ?? false),
+            diagnostics: session.diagnostics(),
+          };
+          window.__live = live;
+          window.__report = live;
+          report.textContent = [
+            `live ${location.search.includes("package=") ? "package" : "game"} — tick ${live.tick}`,
+            `state ${live.stateHash}`,
+            `draw  ${live.drawHash} (${drawn.commands} commands; ${drawn.render.drawn} drawn, ${drawn.render.deferred} deferred)`,
+            player === null ? "player position unavailable" : `player ${player.x}, ${player.y}`,
+            `package ${state.mode ?? "?"}; storage ${state.storage.kept ? "kept" : "not kept"}; stalls ${live.stalls?.count ?? 0}`,
+            ...(session.audioError() === null ? [] : [`audio: ${session.audioError()}`]),
+            "Move: arrows or WASD; click the board to walk.",
+          ].join("\n");
+        }).catch((error: unknown) => {
+          advancing = false;
+          if (disposed) return;
+          window.__live = { tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error), stalls: summary(false) };
+          report.textContent = `player: ${String(error)}`;
+          dispose();
+        });
+      }
     } else if (window.__live !== undefined) {
       window.__live = { ...window.__live, stalls: summary(spinner) };
     }
-    requestAnimationFrame(frame);
+    if (!disposed) frameId = window.requestAnimationFrame(frame);
   };
-  requestAnimationFrame(frame);
+  frameId = window.requestAnimationFrame(frame);
+  return dispose;
 }

@@ -31,16 +31,18 @@ export type BoardBlit = {
 };
 
 export type SpriteFrame = {
+  /** GIF frames use a content-derived private key for their decoded page texture. */
   readonly asset?: AssetKey;
   readonly file?: string;
   readonly tile?: number | null;
   readonly src?: Rect;
+  /** Where a tile frame's cell sits inside the frame canvas; absent when a picture fills the canvas (E-54). */
+  readonly dst?: Rect;
   readonly width?: number;
   readonly height?: number;
   readonly anchorX?: number;
   readonly anchorY?: number;
   readonly transparent?: Rgb | null;
-  readonly cells?: readonly WorldImageCell[];
   readonly tint?: Tint;
 };
 
@@ -66,7 +68,6 @@ export type SpriteDraw = {
   readonly width?: number;
   readonly height?: number;
   readonly transparent?: Rgb | null;
-  readonly cells?: readonly WorldImageCell[];
   readonly tint?: Tint;
   readonly alpha?: number;
 };
@@ -376,31 +377,22 @@ function emitSprite(
   const worldX = pos.x;
   const worldY = pos.y;
 
-  const cells = sprite.frame?.cells ?? sprite.cells;
   let width = sprite.frame?.width ?? sprite.width;
   let height = sprite.frame?.height ?? sprite.height;
 
   const file = sprite.frame?.file ?? sprite.file;
   const explicitAsset = sprite.frame?.asset ?? sprite.asset;
-  const texture = (file !== undefined || explicitAsset !== undefined)
+  const frameTile = sprite.frame?.tile ?? sprite.tile;
+  // A frame that names a tile (an animation frame such as `char.tst1`) is that tile, not the whole asset: an
+  // `.anm` frame's picture is a cell of a tileset or tile bitmap, and the texture path would blit the entire
+  // strip (docs/spec/formats/animation.md, E-54).
+  const tileFrame = frameTile !== undefined && frameTile !== null && explicitAsset !== undefined;
+  const texture = !tileFrame && (file !== undefined || explicitAsset !== undefined)
     ? textureFor(view.assets, file ?? "", explicitAsset)
     : null;
 
   if (width === undefined && texture !== null) width = texture.texture.w;
   if (height === undefined && texture !== null) height = texture.texture.h;
-
-  if (cells !== undefined && cells.length > 0) {
-    if (width === undefined) {
-      let maxX = 0;
-      for (const cell of cells) if (cell.x > maxX) maxX = cell.x;
-      width = (maxX + 1) * TILE_SIZE;
-    }
-    if (height === undefined) {
-      let maxY = 0;
-      for (const cell of cells) if (cell.y > maxY) maxY = cell.y;
-      height = (maxY + 1) * TILE_SIZE;
-    }
-  }
 
   const spriteW = width ?? 16;
   const spriteH = height ?? 16;
@@ -416,50 +408,22 @@ function emitSprite(
   const dstRect: Rect = { x: dstX, y: dstY, w: spriteW, h: spriteH };
 
   if (visible(dstRect, view.viewport)) {
-    if (cells !== undefined && cells.length > 0) {
-      for (const cell of cells) {
-        if (cell.tile === null) continue;
-        const tile = selectedTile(cell.tile, view.tick);
-        const cellW = tile.width ?? TILE_SIZE;
-        const cellH = tile.height ?? TILE_SIZE;
-        const cdx = dstX + cell.x * TILE_SIZE;
-        const cdy = dstY + cell.y * TILE_SIZE;
-        const cellDst: Rect = { x: cdx, y: cdy, w: cellW, h: cellH };
-        if (!visible(cellDst, view.viewport)) continue;
-        // Shading is stored per tile of the board grid. On isometric boards the
-        // tile under the cell's centre (inverse of board.md#coordinates) supplies it.
-        const layout = coordLayout(board.coordType);
-        const under = isIsometric(layout)
-          ? pixelToTile(layout, board.sizeX, boardLeft + cell.x * TILE_SIZE + TILE_SIZE / 2, boardTop + cell.y * TILE_SIZE + TILE_SIZE / 2)
-          : null;
-        const cellBoardX = under === null ? Math.floor(boardLeft / TILE_SIZE) + cell.x : under.x - 1;
-        const cellBoardY = under === null ? Math.floor(boardTop / TILE_SIZE) + cell.y : under.y - 1;
-        const cellTintOverride = addTint(cell.tint ?? NO_TINT, sprite.frame?.tint ?? sprite.tint ?? NO_TINT);
-        commands.push(tileCommand(
-          board,
-          tile,
-          view.tick,
-          sprite.layer,
-          cellBoardX,
-          cellBoardY,
-          cdx,
-          cdy,
-          view.include.shading,
-          view.globalAmbient,
-          cellTintOverride,
-        ));
-      }
-    } else if (texture !== null) {
+    if (texture !== null) {
       const key = sprite.frame?.transparent ?? sprite.transparent ?? { r: 255, g: 255, b: 255 };
       const tint = view.include.shading ? ambientTint(board, view.globalAmbient) : NO_TINT;
       const alpha = sprite.translucency ?? sprite.alpha ?? 255;
       const blend = sprite.blend ?? "normal";
       const src = sprite.frame?.src ?? sprite.src ?? { x: 0, y: 0, w: texture.texture.w, h: texture.texture.h };
+      // A frame may place its picture at its own size inside a larger canvas (a single-tile `.gph` frame), exactly
+      // as the tile branch places a cell; without `dst` the picture fills the canvas.
+      const pictureDst = sprite.frame?.dst === undefined
+        ? dstRect
+        : { x: dstX + sprite.frame.dst.x, y: dstY + sprite.frame.dst.y, w: sprite.frame.dst.w, h: sprite.frame.dst.h };
       commands.push({
         kind: "blit",
         source: { asset: texture.key, tile: null },
         src,
-        dst: dstRect,
+        dst: pictureDst,
         key,
         tint,
         alpha,
@@ -475,11 +439,16 @@ function emitSprite(
         const alpha = sprite.translucency ?? sprite.alpha ?? 255;
         const blend = sprite.blend ?? "normal";
         const src = sprite.frame?.src ?? sprite.src ?? { x: 0, y: 0, w: spriteW, h: spriteH };
+        // A tile frame draws its cell at the cell's own size, placed at the frame canvas origin; the canvas
+        // (width/height) only sets the anchor, so a 64x32 frame naming a 32x32 cell paints one cell, not two.
+        const cellDst = sprite.frame?.dst === undefined
+          ? dstRect
+          : { x: dstX + sprite.frame.dst.x, y: dstY + sprite.frame.dst.y, w: sprite.frame.dst.w, h: sprite.frame.dst.h };
         commands.push({
           kind: "blit",
           source: { asset: tileAsset, tile: tileIndex },
           src,
-          dst: dstRect,
+          dst: cellDst,
           key,
           tint,
           alpha,
@@ -551,6 +520,7 @@ function tileCommand(
   includeShading: boolean,
   globalAmbient: Tint | undefined,
   extraTint?: Tint,
+  key: Rgb = TILE_KEY,
 ): DrawCommand {
   const selected = selectedTile(tile, tick);
   const width = selected.width ?? TILE_SIZE;
@@ -560,7 +530,7 @@ function tileCommand(
     source: { asset: selected.asset, tile: selected.tile },
     src: { x: 0, y: 0, w: width, h: height },
     dst: { x: dx, y: dy, w: width, h: height },
-    key: TILE_KEY,
+    key,
     tint: tileTint(board, layer, x, y, includeShading, globalAmbient, addTint(selected.tint ?? NO_TINT, extraTint ?? NO_TINT)),
     alpha: 255,
     blend: "normal",
@@ -777,7 +747,7 @@ function composeBoardView(view: BoardView): DrawList {
       iso2d: blit.iso2d ?? false,
     });
   }
-  return { tick: view.tick, width: viewport.width, height: viewport.height, commands };
+  return { tick: view.tick, width: viewport.width, height: viewport.height, commands, marginCommands: [] };
 }
 
 export type BoardComposeView = Omit<BoardView, "board" | "assets"> & {

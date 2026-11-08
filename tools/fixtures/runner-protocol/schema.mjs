@@ -12,8 +12,8 @@ const TYPES = new Set(["object", "array", "string", "integer", "number", "boolea
 /** Every keyword the evaluator understands. Annotations (`title`, `description`, `contentEncoding`) never reject. */
 export const KEYWORDS = new Set([
   "$schema", "$id", "$ref", "$defs", "title", "description", "contentEncoding",
-  "type", "const", "enum", "minLength", "pattern", "minimum", "maximum",
-  "oneOf", "items", "required", "properties", "additionalProperties",
+  "type", "const", "enum", "minLength", "pattern", "minimum", "exclusiveMinimum", "maximum",
+  "oneOf", "items", "prefixItems", "minItems", "maxItems", "required", "properties", "additionalProperties",
 ]);
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
@@ -49,14 +49,24 @@ export function schemaErrors(root, value, current = root, path = "$") {
   }
   if (typeof value === "number") {
     if (typeof current.minimum === "number" && value < current.minimum) errors.push(`${path}: below minimum`);
+    if (typeof current.exclusiveMinimum === "number" && value <= current.exclusiveMinimum) errors.push(`${path}: at or below exclusive minimum`);
     if (typeof current.maximum === "number" && value > current.maximum) errors.push(`${path}: above maximum`);
   }
   if (Array.isArray(current.oneOf)) {
     const matches = current.oneOf.filter((candidate) => schemaErrors(root, value, candidate, path).length === 0).length;
     if (matches !== 1) errors.push(`${path}: oneOf matched ${matches}`);
   }
-  if (Array.isArray(value) && isObject(current.items)) {
-    value.forEach((item, index) => errors.push(...schemaErrors(root, item, current.items, `${path}[${index}]`)));
+  if (Array.isArray(value)) {
+    if (typeof current.minItems === "number" && value.length < current.minItems) errors.push(`${path}: too few items`);
+    if (typeof current.maxItems === "number" && value.length > current.maxItems) errors.push(`${path}: too many items`);
+    const prefix = Array.isArray(current.prefixItems) ? current.prefixItems : [];
+    prefix.forEach((child, index) => {
+      if (index < value.length) errors.push(...schemaErrors(root, value[index], child, `${path}[${index}]`));
+    });
+    if (isObject(current.items)) {
+      value.slice(prefix.length).forEach((item, index) =>
+        errors.push(...schemaErrors(root, item, current.items, `${path}[${index + prefix.length}]`)));
+    }
   }
   if (isObject(value)) {
     for (const key of current.required ?? []) if (!hasOwn(value, key)) errors.push(`${path}: missing ${key}`);
@@ -76,6 +86,7 @@ function children(node) {
   for (const [name, property] of Object.entries(node.properties ?? {})) out.push([`properties.${name}`, property]);
   if (isObject(node.items)) out.push(["items", node.items]);
   if (isObject(node.additionalProperties)) out.push(["additionalProperties", node.additionalProperties]);
+  (Array.isArray(node.prefixItems) ? node.prefixItems : []).forEach((item, index) => out.push([`prefixItems[${index}]`, item]));
   (Array.isArray(node.oneOf) ? node.oneOf : []).forEach((alternative, index) => out.push([`oneOf[${index}]`, alternative]));
   return out;
 }
@@ -84,8 +95,8 @@ function children(node) {
 export function schemaProblems(schema) {
   const problems = [];
   if (schema.$schema !== DRAFT) problems.push(`schema: $schema must be ${DRAFT}`);
-  if (typeof schema.$id !== "string" || !schema.$id.endsWith("runner-protocol-v1.schema.json")) {
-    problems.push("schema: $id must name runner-protocol-v1.schema.json");
+  if (typeof schema.$id !== "string" || !/^https:\/\/tk-reawakened\.dev\/schema\/runner-protocol-v[12]\.schema\.json$/.test(schema.$id)) {
+    problems.push("schema: $id must name a supported runner-protocol schema version");
   }
   if (!isObject(schema.$defs)) return [...problems, "schema: $defs is missing"];
 
@@ -106,6 +117,10 @@ export function schemaProblems(schema) {
     if (node.type !== undefined && !TYPES.has(node.type)) problems.push(`schema ${label}: unknown type ${JSON.stringify(node.type)}`);
     if (node.enum !== undefined && !(Array.isArray(node.enum) && node.enum.length > 0)) problems.push(`schema ${label}: enum must be a non-empty array`);
     if (node.oneOf !== undefined && !(Array.isArray(node.oneOf) && node.oneOf.length > 0)) problems.push(`schema ${label}: oneOf must be a non-empty array`);
+    if (node.prefixItems !== undefined && !(Array.isArray(node.prefixItems) && node.prefixItems.length > 0)) problems.push(`schema ${label}: prefixItems must be a non-empty array`);
+    for (const keyword of ["minItems", "maxItems"]) {
+      if (node[keyword] !== undefined && (!Number.isInteger(node[keyword]) || node[keyword] < 0)) problems.push(`schema ${label}: ${keyword} must be a non-negative integer`);
+    }
     if (node.properties !== undefined) {
       // AD-14: a record has exactly its keys, so an object that declares keys is closed.
       if (node.additionalProperties !== false) problems.push(`schema ${label}: an object with properties must set additionalProperties: false`);

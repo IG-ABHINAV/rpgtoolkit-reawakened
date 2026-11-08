@@ -21,7 +21,7 @@ const PORTS = "packages/core/src/ports";
 /** The three record families on the boundary: where each TypeScript type lives and the schema `$defs` that describes it. */
 export const ROOTS = [
   { file: `${PORTS}/draw.ts`, alias: "DrawList", def: "drawList" },
-  { file: `${PORTS}/input.ts`, alias: "InputRecord", def: "inputRecord" },
+  { file: `${PORTS}/input.ts`, alias: "InputRecordV1", def: "inputRecord" },
   { file: `${PORTS}/requests.ts`, alias: "RunnerRequest", def: "request" },
 ];
 
@@ -34,7 +34,7 @@ const cache = new Map();
  * Build one program over the three port files. `sources` maps a repository-relative path to a function
  * that rewrites that file's text, so a test can perturb a type without touching the working tree.
  */
-function createProgram(sources) {
+function createProgram(sources, roots) {
   const config = ts.getParsedCommandLineOfConfigFile(
     join(repo, "packages/core/tsconfig.json"),
     { noEmit: true, composite: false },
@@ -52,22 +52,21 @@ function createProgram(sources) {
     cache.set(fileName, { text, file });
     return file;
   };
-  return ts.createProgram(ROOTS.map((root) => join(repo, root.file)), config.options, host);
+  return ts.createProgram(roots.map((root) => join(repo, root.file)), config.options, host);
 }
 
 /** Problems between the wire types in `core` and `schema`; empty when they describe the same records. */
-export function typeProblems(schema, { sources = {} } = {}) {
+export function typeProblems(schema, { sources = {}, inputAlias = "InputRecordV1" } = {}) {
   const problems = [];
   const defs = schema.$defs ?? {};
-
-  // The schema root is exactly the three families.
+  const roots = ROOTS.map((root) => root.def === "inputRecord" ? { ...root, alias: inputAlias } : root);
   const rootRefs = (schema.oneOf ?? []).map((alternative) => refName(alternative.$ref)).sort();
-  const wanted = ROOTS.map((root) => root.def).sort();
+  const wanted = roots.map((root) => root.def).sort();
   if (JSON.stringify(rootRefs) !== JSON.stringify(wanted)) {
     problems.push(`schema root: oneOf must reference exactly ${wanted.join(", ")}; it references ${rootRefs.join(", ") || "nothing"}`);
   }
 
-  const program = createProgram(sources);
+  const program = createProgram(sources, roots);
   const checker = program.getTypeChecker();
   const typeIds = new Map();
   const nodeIds = new Map();
@@ -119,6 +118,9 @@ export function typeProblems(schema, { sources = {} } = {}) {
       const name = refName(node.$ref);
       if (name === null || defs[name] === undefined || seen.has(name)) out.push({ k: "unsupported", text: `$ref ${String(node.$ref)}` });
       else leaves(defs[name], name, UNTAGGED_BYTES.has(name), new Set(seen).add(name), out);
+    } else if (node.type === "array" && node.items !== undefined) {
+      // Array ordering/length refinements are enforced by schema vectors, not TypeScript.
+      out.push({ k: "array", items: node.items });
     } else if (Array.isArray(node.oneOf)) {
       for (const alternative of node.oneOf) leaves(alternative, def, untagged, seen, out);
     } else if (Array.isArray(node.enum)) {
@@ -131,8 +133,6 @@ export function typeProblems(schema, { sources = {} } = {}) {
       out.push({ k: "number" });
     } else if (node.type === "boolean" || node.type === "null") {
       out.push({ k: node.type });
-    } else if (node.type === "array" && node.items !== undefined) {
-      out.push({ k: "array", items: node.items });
     } else if (node.type === "object" && node.properties !== undefined) {
       out.push({ k: "object", properties: node.properties, required: new Set(node.required ?? []), def });
     } else if (node.type === "object" && typeof node.additionalProperties === "object") {
@@ -246,7 +246,7 @@ export function typeProblems(schema, { sources = {} } = {}) {
     }
   }
 
-  for (const root of ROOTS) {
+  for (const root of roots) {
     const source = program.getSourceFile(join(repo, root.file));
     const declaration = source?.statements.find((statement) => ts.isTypeAliasDeclaration(statement) && statement.name.text === root.alias);
     if (declaration === undefined) {

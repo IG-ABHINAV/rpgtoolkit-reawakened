@@ -1,12 +1,10 @@
 /**
  * The one state tree (AD-10, AD-23; decisions Q2/Q3).
  *
- * `GameState` has exactly AD-10's 20 sections. Entry 2 owns four of them —
- * `schema` (here), `vm` (`core/script`), `rng` (`core/rng`) and `time`
- * (`core/time`); of the other sixteen, seven are real sections declared under
- * `save/sections/` (`world`, `camera`, `ui`, `fx`, `surfaces`, `input`,
- * `engine`), nine are owned by their modules (`sprites`, `actors`,
- * `triggers`, `audio`, `events`, `party`, `inventory`, `menu`, and `battle`).
+ * `GameState` has 22 sections. Entry 2 owns four of them — `schema` (here), `vm`
+ * (`core/script`), `rng` (`core/rng`) and `time` (`core/time`). Other sections are declared under
+ * `save/sections/` or owned by their modules (`sprites`, `actors`, `triggers`, `audio`, `events`,
+ * `party`, `inventory`, `menu`, `battle`, plus host capabilities and display geometry).
  * `SchemaState` is AD-23's per-section version map plus the instruction version (`ir`).
  *
  * **The version rules (AD-7's check; owner ruling 2026-10-30).** A change to a
@@ -21,6 +19,7 @@
  * versions); docs/spec/formats/save-game.md#layout-minor-4 (the saved game).
  */
 
+import { UI_SCHEMA_VERSION } from "./sections/ui.ts";
 import type { AssertPlainData } from "../ports/plain-data.ts";
 import { seedRng, type RngState } from "../rng/xoshiro.ts";
 import { IR_VERSION } from "../script/program.ts";
@@ -57,29 +56,34 @@ import {
   PARTY_SCHEMA_VERSION, INVENTORY_SCHEMA_VERSION, MENU_SCHEMA_VERSION,
 } from "../menu/model.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection } from "../battle/model.ts";
+import { INPUT_SCHEMA_VERSION } from "./sections/input.ts";
+import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
+import { DISPLAY_SCHEMA_VERSION, HOST_FEATURES_SCHEMA_VERSION, createDisplaySection, normalizeDisplayGeometry, normalizeHostFeatures, type DisplaySection, type HostFeaturesSection } from "./sections/host.ts";
 
 /** Every `GameState` section key (AD-10), i.e. the schema version map's keys. */
 export const SCHEMA_VERSIONS = {
   schema: 2,
-  world: 1,
+  world: 2,
   sprites: 2,
   actors: 2,
   party: PARTY_SCHEMA_VERSION,
   inventory: INVENTORY_SCHEMA_VERSION,
   triggers: 2,
-  vm: 6,
+  vm: 7,
   battle: BATTLE_SCHEMA_VERSION,
   menu: MENU_SCHEMA_VERSION,
-  input: 2,
-  ui: 1,
+  input: INPUT_SCHEMA_VERSION,
+  ui: UI_SCHEMA_VERSION,
   camera: 1,
   fx: 1,
   audio: 2,
   surfaces: 1,
   rng: 1,
   time: 1,
-  engine: 1,
+  engine: 2,
   events: 1,
+  features: HOST_FEATURES_SCHEMA_VERSION,
+  display: DISPLAY_SCHEMA_VERSION,
 } as const;
 
 /** One `GameState` section key. */
@@ -107,10 +111,12 @@ export type SchemaState = {
   time: number;
   engine: number;
   events: number;
+  features: number;
+  display: number;
   ir: string;
 };
 
-/** AD-10's 20-section state tree (`events` is entry 19.10's); `SaveState` is this type. */
+/** AD-10's 22-section state tree; `SaveState` is this type. */
 export type GameState = {
   schema: SchemaState;
   world: WorldSection;
@@ -131,6 +137,8 @@ export type GameState = {
   rng: RngState;
   time: TimeState;
   engine: EngineSection;
+  features: HostFeaturesSection;
+  display: DisplaySection;
   events: EventsSection;
 };
 
@@ -160,15 +168,17 @@ export function createSchemaState(): SchemaState {
     time: SCHEMA_VERSIONS.time,
     engine: SCHEMA_VERSIONS.engine,
     events: SCHEMA_VERSIONS.events,
+    features: SCHEMA_VERSIONS.features,
+    display: SCHEMA_VERSIONS.display,
     ir: IR_VERSION,
   };
 }
 
 /** A fresh `GameState`: empty sections, a seeded RNG and the tick counter at 0. */
-export function createGameState(init: { seed: number }): GameState {
+export function createGameState(init: { seed: number; width?: number; height?: number; features?: HostFeatures; displayGeometry?: HostDisplayGeometry }): GameState {
   return {
     schema: createSchemaState(),
-    world: {},
+    world: { movement: { walking: null, pushing: null } },
     sprites: createSpritesSection(),
     actors: createActorsSection(),
     party: createPartySection(),
@@ -178,14 +188,16 @@ export function createGameState(init: { seed: number }): GameState {
     battle: createBattleSection(),
     menu: createMenuSection(),
     input: createInputSection(),
-    ui: {} as UiSection,
+    features: normalizeHostFeatures(init.features),
+    display: { geometry: init.displayGeometry === undefined ? createDisplaySection(init.width ?? 320, init.height ?? 240).geometry : normalizeDisplayGeometry(init.displayGeometry) },
+    ui: createUiSection(),
     camera: {} as CameraSection,
     fx: {} as FxSection,
     audio: createAudioSection(),
     surfaces: {} as SurfacesSection,
     rng: seedRng(init.seed),
     time: createTimeState(),
-    engine: {},
+    engine: { cacheKeys: [] },
     events: createEventsSection(),
   };
 }

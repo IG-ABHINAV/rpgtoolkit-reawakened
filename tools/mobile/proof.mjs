@@ -1,4 +1,4 @@
-// Exercise the built Capacitor APK on an API 33 emulator and retain only readings
+// Exercise the built Capacitor APK on an Android device or emulator and retain only readings
 // observed from its live page. No browser or filesystem mocks are installed here.
 //
 //   pnpm mobile:proof
@@ -9,13 +9,18 @@
 // rotates the device, then relaunches and checks the page's host-blob-presence
 // probe. The field records existence, not game-state restoration.
 
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
+import { _android } from "@playwright/test";
 import { assertDocumentTitle, assertReport, assertScreenshotManifest } from "./proof-validation.mjs";
+import { adbWithTimeout, installApk, runAdbWithTimeout } from "./proof-adb.mjs";
 import { classifyProcess } from "./proof-process.mjs";
+import { adbServerOptions, attachPage, closeDevice, selectDevice } from "./proof-android.mjs";
+import { launchAndConnect as retryAttach } from "./proof-retry.mjs";
+import { probeScreenshotStages } from "./proof-telemetry.mjs";
+import { scheduleEmulatorCleanup } from "./proof-cleanup.mjs";
+import { dispatchCanvasTap, prepareTapTarget, waitForPointerEvents } from "./proof-tap.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..", "..");
@@ -23,10 +28,9 @@ const appId = "com.tkreawakened.player";
 const activity = `${appId}/.MainActivity`;
 const apk = join(root, "packages", "runner-mobile", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk");
 const output = resolve(process.env.MOBILE_PROOF_DIR ?? join(root, "artifacts", "mobile-proof"));
-const devtoolsPort = 9222;
 const proof = {
   schema: 1,
-  platform: "Android emulator API 33 x86_64",
+  platform: "Android (device details not yet available)",
   apk,
   readings: {},
   screenshots: {},
@@ -40,7 +44,7 @@ const ATTACH_BACKOFF_INITIAL_MS = 500;
 const ATTACH_BACKOFF_MAX_MS = 8_000;
 const ATTACH_LOGCAT_LINES = 20;
 const ADB_COMMAND_TIMEOUT_MS = 15_000;
-const PROTOCOL_TIMEOUT_MS = 10_000;
+const PROTOCOL_TIMEOUT_MS = Number(process.env.PROTOCOL_TIMEOUT_MS ?? 60_000);
 
 function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   let timer;
@@ -53,38 +57,8 @@ function protocolCall(description, operation, timeoutMs = PROTOCOL_TIMEOUT_MS) {
 
 mkdirSync(output, { recursive: true });
 
-function runAdbWithTimeout(timeoutMs, ...args) {
-  try {
-    return {
-      status: 0,
-      stdout: execFileSync("adb", args, {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        timeout: timeoutMs,
-        maxBuffer: 20 * 1024 * 1024,
-      }).trim(),
-      stderr: "",
-    };
-  } catch (error) {
-    return {
-      status: error.status ?? null,
-      stdout: String(error.stdout ?? "").trim(),
-      stderr: String(error.stderr ?? error.message ?? "").trim(),
-    };
-  }
-}
-
 function runAdb(...args) {
   return runAdbWithTimeout(ADB_COMMAND_TIMEOUT_MS, ...args);
-}
-
-function adbWithTimeout(timeoutMs, ...args) {
-  const result = runAdbWithTimeout(timeoutMs, ...args);
-  if (result.status !== 0) {
-    const status = result.status === null ? "" : ` (exit ${result.status})`;
-    throw new Error(`adb ${args.join(" ")} failed${status}: ${result.stderr || result.stdout || "no output"}`);
-  }
-  return result.stdout;
 }
 
 function adb(...args) {
@@ -100,73 +74,157 @@ function delay(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }
 
-async function livePage(browser, timeoutMs = PROTOCOL_TIMEOUT_MS) {
+async function livePage(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
-    for (const context of browser.contexts()) {
-      for (const page of context.pages()) {
-        if (page.isClosed()) continue;
-        try {
-          const hasReport = await protocolCall("checking for the mobile page report", () =>
-            page.evaluate(() => window.__mobile !== undefined),
-            Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
-          if (hasReport) return page;
-        } catch (error) {
-          lastError = error;
-        }
-      }
+    try {
+      const hasReport = await protocolCall("checking for the mobile page report",
+        () => page.evaluate(() => window.__mobile !== undefined),
+        Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
+      if (hasReport) return page;
+    } catch (error) {
+      lastError = error;
     }
     await delay(Math.min(500, Math.max(0, deadline - Date.now())));
   }
-  const detail = lastError === undefined ? "no usable WebView page was exposed" : `last page protocol error: ${String(lastError)}`;
+  const detail = lastError === undefined ? "window.__mobile remained undefined" : `last error: ${String(lastError)}`;
   throw new Error(`The Android WebView did not publish window.__mobile before its deadline; ${detail}`, { cause: lastError });
 }
 
-async function report(page) {
-  return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null));
+async function report(page, timeoutMs = PROTOCOL_TIMEOUT_MS) {
+  return protocolCall("reading the mobile page report", () => page.evaluate(() => window.__mobile ?? null), timeoutMs);
 }
 
-async function waitFor(page, predicate, description, timeoutMs = 60_000) {
+async function waitFor(page, predicate, description, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   let last;
+  let sliceMs = 15_000;
   while (Date.now() < deadline) {
-    last = await report(page).catch(() => null);
+    const remaining = Math.max(5_000, Math.min(sliceMs, deadline - Date.now()));
+    try {
+      last = await report(page, remaining);
+    } catch {
+      sliceMs = Math.min(sliceMs * 1.5, PROTOCOL_TIMEOUT_MS);
+      await delay(1_000);
+      continue;
+    }
     if (predicate(last)) return last;
     if (last?.error) throw new Error(`${description}: page error: ${last.error}`);
-    await delay(250);
+    await delay(500);
   }
   throw new Error(`${description} timed out; last page report: ${JSON.stringify(last)}`);
 }
 
-async function captureReading(page, label, options) {
-  const captured = await protocolCall(`capturing ${label} page reading`, () => page.evaluate(() => ({
-    report: window.__mobile ?? null,
-    documentTitle: document.title,
-  })));
-  const pageReport = assertReport(captured.report, label, options);
-  assertDocumentTitle(pageReport, captured.documentTitle, label);
-  return { report: pageReport, documentTitle: captured.documentTitle };
+async function captureReading(page, label, options, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  let sliceMs = 15_000;
+  while (Date.now() < deadline) {
+    try {
+      const remaining = Math.max(5_000, Math.min(sliceMs, deadline - Date.now()));
+      const captured = await protocolCall(`capturing ${label} page reading`, () => page.evaluate(() => ({
+        report: window.__mobile ?? null,
+        documentTitle: document.title,
+      })), remaining);
+      const pageReport = assertReport(captured.report, label, options);
+      assertDocumentTitle(pageReport, captured.documentTitle, label);
+      return { report: pageReport, documentTitle: captured.documentTitle };
+    } catch (err) {
+      lastError = err;
+      sliceMs = Math.min(sliceMs * 1.5, 60_000);
+      await delay(1_000);
+    }
+  }
+  throw lastError;
+}
+async function captureCanvasContent(page) {
+  return protocolCall("reading rendered mobile canvas pixels", () => page.evaluate(() => {
+    const canvas = document.querySelector("#screen");
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error("the mobile screen canvas is absent");
+    const gl = canvas.getContext("webgl2");
+    if (gl === null) throw new Error("the mobile screen has no WebGL2 context");
+    const width = gl.drawingBufferWidth;
+    const height = gl.drawingBufferHeight;
+    if (width <= 0 || height <= 0) throw new Error(`the mobile drawing buffer is empty: ${width}x${height}`);
+    const pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let nonBlackPixels = 0;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index] === 0 && pixels[index + 1] === 0 && pixels[index + 2] === 0) continue;
+      nonBlackPixels += 1;
+      const pixel = index / 4;
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+    return {
+      width,
+      height,
+      nonBlackPixels,
+      nonBlackRatio: nonBlackPixels / (width * height),
+      bounds: nonBlackPixels === 0 ? null : { minX, minY, maxX, maxY },
+    };
+  }));
 }
 
-async function screenshot(page, name) {
+function assertTitleRendering(reading, canvasContent) {
+  const render = reading.report.render;
+  if (render === null || typeof render !== "object" ||
+    !Number.isSafeInteger(render.drawn) || render.drawn <= 0 ||
+    !Number.isSafeInteger(render.deferred) || render.deferred !== 0 ||
+    render.deferredByKind === null || typeof render.deferredByKind !== "object" ||
+    Array.isArray(render.deferredByKind) ||
+    Object.values(render.deferredByKind).some((count) => !Number.isSafeInteger(count) || count !== 0) ||
+    !Array.isArray(render.diagnostics) || render.diagnostics.length !== 0) {
+    throw new Error(`title frame did not render completely: ${JSON.stringify(render)}`);
+  }
+  const minimumContentPixels = Math.max(64, Math.ceil(canvasContent.width * canvasContent.height * 0.001));
+  if (canvasContent.nonBlackPixels < minimumContentPixels) {
+    throw new Error(`title canvas is black or lacks visible content: ${JSON.stringify({ canvasContent, minimumContentPixels })}`);
+  }
+}
+
+
+async function screenshot(page, name, reconnect = null) {
   const path = join(output, `${name}.png`);
-  await protocolCall(`saving ${name} screenshot`, () => page.screenshot({ path, animations: "disabled" }));
-  proof.screenshots[name] = path;
+  proof.screenshotTelemetry = proof.screenshotTelemetry ?? {};
+  const probe = await probeScreenshotStages(page, name, PROTOCOL_TIMEOUT_MS);
+  proof.screenshotTelemetry[name] = probe;
+  await delay(500);
+  const captureStart = Date.now();
+  const slices = [20_000, 30_000, PROTOCOL_TIMEOUT_MS];
+  let lastError;
+  for (let attempt = 0; attempt < slices.length; attempt += 1) {
+    const sliceMs = slices[attempt];
+    try {
+      await protocolCall(`saving ${name} screenshot (attempt ${attempt + 1})`, () =>
+        page.screenshot({ path, animations: "disabled", timeout: sliceMs }),
+        sliceMs + 500);
+      probe.capture = { durationMs: Date.now() - captureStart, status: "completed", attempts: attempt + 1 };
+      proof.screenshots[name] = path;
+      return page;
+    } catch (err) {
+      lastError = err;
+      if (attempt + 1 < slices.length) {
+        await delay(1_000 * (attempt + 1));
+        if (reconnect !== null && (page.isClosed?.() === true || /closed/i.test(String(err?.message ?? err)))) {
+          page = await reconnect();
+        }
+      }
+    }
+  }
+  probe.capture = { durationMs: Date.now() - captureStart, error: lastError.message, attempts: slices.length };
+  throw lastError;
 }
 
-async function connectToApp(pid, deadline) {
-  const removeTimeout = Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now()));
-  try { adbWithTimeout(removeTimeout, "forward", "--remove", `tcp:${devtoolsPort}`); } catch { /* no forwarding remains */ }
-  const forwardTimeout = Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now()));
-  adbWithTimeout(forwardTimeout, "forward", `tcp:${devtoolsPort}`, `localabstract:webview_devtools_remote_${pid}`);
-  const remaining = deadline - Date.now();
-  if (remaining <= 0) throw new Error("Android WebView connection exhausted the startup deadline");
-  return chromium.connectOverCDP(`http://127.0.0.1:${devtoolsPort}`, {
-    noDefaults: true,
-    timeout: Math.min(PROTOCOL_TIMEOUT_MS, remaining),
-  });
-}
 
 function attachObservation(stage, attempt, startedAt, deadline) {
   const process = attachAdb(deadline, "shell", "pidof", appId);
@@ -183,9 +241,6 @@ function attachObservation(stage, attempt, startedAt, deadline) {
     logcat: { exitCode: logcat.status, output: logcat.stdout, stderr: logcat.stderr },
   };
 }
-function processDescription(result) {
-  return `exit ${result.exitCode ?? "unknown"}: ${result.stderr || (result.output ? "stdout: " + result.output : "no error output")}`;
-}
 
 // Keep the raw pidof response diagnosable without dumping unbounded bytes into
 // the artifact: strip control characters and cap the retained text (#1080).
@@ -194,181 +249,126 @@ function retainedStdout(text) {
 }
 
 
-async function launchAndConnect(stage, timeoutMs = ATTACH_TIMEOUT_MS) {
-  const startedAt = Date.now();
-  const deadline = startedAt + timeoutMs;
-  let lastError;
-  let attempt = 0;
-  let backoffMs = ATTACH_BACKOFF_INITIAL_MS;
-  while (Date.now() < deadline) {
-    attempt += 1;
-    const observation = attachObservation(stage, attempt, startedAt, deadline);
-    console.log(`Android WebView attach ${stage} attempt ${attempt}: process=${observation.processState}${observation.pid === null ? "" : ` (${observation.pid})`}; logcat=${JSON.stringify(observation.logcat.output)}`);
-    if (observation.processState === "unknown") {
-      observation.attachError = `pidof failed or returned an invalid response: ${processDescription(observation.pidof)}`;
-      lastError = new Error(observation.attachError);
-    } else if (observation.processState === "absent") {
-      const start = Date.now() < deadline
-        ? attachAdb(deadline, "shell", "am", "start", "-n", activity)
-        : { status: null, stdout: "", stderr: "attach deadline expired before am start" };
-      observation.activityStart = { exitCode: start.status, output: start.stdout, stderr: start.stderr };
-      lastError = new Error(`Android process ${appId} was absent at attach attempt ${attempt}`);
-      if (start.status !== 0) {
-        observation.attachError = `am start failed (exit ${start.status ?? "unknown"}): ${start.stderr || start.stdout || "no output"}`;
-        lastError = new Error(observation.attachError);
-      }
-      try {
-        adbWithTimeout(Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now())),
-          "forward", "--remove", `tcp:${devtoolsPort}`);
-      } catch { /* no forwarding remains */ }
-    } else {
-      let browser;
-      try {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) throw new Error("Android WebView connection exhausted the startup deadline");
-        browser = await connectToApp(observation.pid, deadline);
-        const pageRemaining = deadline - Date.now();
-        if (pageRemaining <= 0) throw new Error("Android WebView page discovery exhausted the startup deadline");
-        const page = await livePage(browser, Math.min(PROTOCOL_TIMEOUT_MS, pageRemaining));
-        observation.connected = true;
-        observation.elapsedMs = Date.now() - startedAt;
-        proof.attachAttempts.push(observation);
-        console.log(`Android WebView attach ${stage} succeeded after ${observation.elapsedMs}ms (${attempt} attempts)`);
-        return { browser, page };
-      } catch (error) {
-        lastError = error;
-        observation.attachError = String(error);
-        if (browser !== undefined) {
-          try {
-            await protocolCall("closing failed Android WebView connection", () => browser.close(),
-              Math.min(PROTOCOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
-          } catch (closeError) {
-            lastError = new Error(`${String(error)}; closing the failed connection also failed: ${String(closeError)}`, { cause: error });
-            observation.closeError = String(closeError);
-          }
-        }
-        try {
-          adbWithTimeout(Math.max(1, Math.min(PROTOCOL_TIMEOUT_MS, deadline - Date.now())),
-            "forward", "--remove", `tcp:${devtoolsPort}`);
-        } catch { /* no forwarding remains */ }
-      }
-    }
-    proof.attachAttempts.push(observation);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    await delay(Math.min(backoffMs, remaining));
-    backoffMs = Math.min(backoffMs * 2, ATTACH_BACKOFF_MAX_MS);
-  }
-  throw new Error(`could not expose the Android WebView page within ${timeoutMs}ms after ${attempt} attach attempts: ${String(lastError ?? "no attempt completed")}`, { cause: lastError });
+function launchAndConnect(stage, serial, serverOptions, timeoutMs = ATTACH_TIMEOUT_MS) {
+  return retryAttach(stage, serial, timeoutMs, {
+    now: Date.now,
+    observe: attachObservation,
+    start: (deadline) => attachAdb(deadline, "shell", "am", "start", "-n", activity),
+    select: (target, remaining) => selectDevice(_android, target, remaining, serverOptions),
+    attach: attachPage,
+    live: livePage,
+    close: closeDevice,
+    delay,
+    attempts: proof.attachAttempts,
+    log: console.log,
+    appId,
+    protocolTimeoutMs: 90_000,
+    initialBackoffMs: ATTACH_BACKOFF_INITIAL_MS,
+    maxBackoffMs: ATTACH_BACKOFF_MAX_MS,
+  });
 }
 
-async function enterBoard(page) {
-  await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the title sequence");
+async function enterBoard(page, timeoutMs = 90_000) {
+  await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the title sequence", timeoutMs);
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const value = await report(page);
+    const value = await report(page).catch(() => null);
     if (value?.board !== null && value?.board !== undefined) break;
-    await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"));
+    await protocolCall("sending title-entry key", () => page.keyboard.press("Enter"), 10_000).catch(() => {});
     await delay(500);
   }
-  return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board");
+  return waitFor(page, (value) => value?.board !== null && value?.board !== undefined, "entering the demo board", timeoutMs);
 }
 
-async function settledPlayer(page) {
-  const deadline = Date.now() + 30_000;
-  let previous = null;
+async function settledPlayer(page, initialReport = null, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+  let previous = initialReport ?? null;
   let stableTicks = 0;
+  const targetStable = initialReport !== null ? 1 : 2;
+  let sliceMs = 15_000;
   while (Date.now() < deadline) {
-    const current = await report(page).catch(() => null);
+    const remaining = Math.max(5_000, Math.min(sliceMs, deadline - Date.now()));
+    let reading = null;
+    try {
+      reading = await protocolCall("reading settled player report", () => page.evaluate(() => ({
+        report: window.__mobile ?? null,
+        documentTitle: document.title,
+      })), remaining);
+    } catch {
+      sliceMs = Math.min(sliceMs * 1.5, PROTOCOL_TIMEOUT_MS);
+      await delay(1_000);
+      continue;
+    }
+
+    const current = reading?.report;
     if (current?.error) throw new Error(`waiting for a settled player: ${current.error}`);
-    if (current?.board !== null && current?.board !== undefined && current.player !== null) {
+    if (current?.board !== null && current?.board !== undefined && current?.player !== null && current?.player !== undefined) {
       if (previous !== null && current.tick > previous.tick) {
         if (current.player.x === previous.player.x && current.player.y === previous.player.y) stableTicks += 1;
         else stableTicks = 0;
-        if (stableTicks >= 3) return captureReading(page, "settled pre-tap baseline");
+        if (stableTicks >= targetStable) {
+          const pageReport = assertReport(reading.report, "settled pre-tap baseline");
+          assertDocumentTitle(pageReport, reading.documentTitle, "settled pre-tap baseline");
+          return { report: pageReport, documentTitle: reading.documentTitle };
+        }
       }
       previous = current;
     }
-    await delay(250);
+    await delay(500);
   }
   throw new Error(`player did not settle before tap; last report: ${JSON.stringify(previous)}`);
 }
 
 async function canvasTap(page, baseline) {
-  const target = await protocolCall("reading canvas tap target", () =>
-    page.locator("canvas#screen").evaluate((canvas) => {
-      const rect = canvas.getBoundingClientRect();
-      const logical = { x: Math.floor(canvas.width / 2), y: Math.floor(canvas.height / 2) };
-      return {
-        coordinateSpace: "CDP CSS viewport pixels, derived from the canvas client rect",
-        logical,
-        cssViewport: {
-          x: rect.left + ((logical.x + 0.5) / canvas.width) * rect.width,
-          y: rect.top + ((logical.y + 0.5) / canvas.height) * rect.height,
-        },
-        canvas: { width: canvas.width, height: canvas.height },
-        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-        devicePixelRatio: window.devicePixelRatio,
-      };
-    }));
+  const target = await prepareTapTarget(page, {
+    timeoutMs: 90_000,
+    initialSliceMs: 15_000,
+    maxSliceMs: 45_000,
+    sliceFactor: 1.5,
+    initialBackoffMs: 500,
+    maxBackoffMs: 4_000,
+    delay,
+    now: Date.now,
+    protocolCall,
+  });
 
-  await protocolCall("installing canvas pointer observers", () => page.evaluate(() => {
-    const canvas = document.querySelector("canvas#screen");
-    if (canvas === null) throw new Error("mobile canvas is absent");
-    window.__mobileProofPointerEvents = [];
-    const observe = (event) => {
-      const rect = canvas.getBoundingClientRect();
-      window.__mobileProofPointerEvents.push({
-        type: event.type,
-        pointerType: event.pointerType,
-        trusted: event.isTrusted,
-        buttons: event.buttons,
-        logical: {
-          x: Math.floor(Math.max(0, Math.min(canvas.width - 1, (event.clientX - rect.left) * canvas.width / rect.width))),
-          y: Math.floor(Math.max(0, Math.min(canvas.height - 1, (event.clientY - rect.top) * canvas.height / rect.height))),
-        },
-      });
-    };
-    canvas.addEventListener("pointerdown", observe, { once: true });
-    canvas.addEventListener("pointerup", observe, { once: true });
-  }));
+  await dispatchCanvasTap(page, target, {
+    timeoutMs: 60_000,
+    initialSliceMs: 15_000,
+    maxSliceMs: 30_000,
+    sliceFactor: 1.5,
+    initialBackoffMs: 1_000,
+    maxBackoffMs: 4_000,
+    delay,
+    now: Date.now,
+    protocolCall,
+  });
 
-  const cdp = await protocolCall("opening touch input session", () => page.context().newCDPSession(page));
-  try {
-    const point = { x: target.cssViewport.x, y: target.cssViewport.y, radiusX: 1, radiusY: 1, force: 1, id: 0 };
-    await protocolCall("dispatching Android touch start", () =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] }));
-    await protocolCall("dispatching Android touch end", () =>
-      cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }));
-    const pointerEvents = await protocolCall("reading trusted canvas pointer events", () =>
-      page.evaluate(() => window.__mobileProofPointerEvents ?? []));
-    const down = pointerEvents.find((event) => event.type === "pointerdown");
-    const up = pointerEvents.find((event) => event.type === "pointerup");
-    if (down?.trusted !== true || down.pointerType !== "touch" || down.buttons !== 1 ||
-      down.logical.x !== target.logical.x || down.logical.y !== target.logical.y) {
-      throw new Error(`touch did not reach intended canvas point ${JSON.stringify(target.logical)}: ${JSON.stringify(pointerEvents)}`);
-    }
-    if (up?.trusted !== true || up.pointerType !== "touch" ||
-      up.logical.x !== target.logical.x || up.logical.y !== target.logical.y) {
-      throw new Error(`touch release did not reach intended canvas point ${JSON.stringify(target.logical)}: ${JSON.stringify(pointerEvents)}`);
-    }
+  const pointerEvents = await waitForPointerEvents(page, {
+    target,
+    timeoutMs: 45_000,
+    initialSliceMs: 10_000,
+    maxSliceMs: 30_000,
+    sliceFactor: 1.5,
+    pollIntervalMs: 500,
+    delay,
+    now: Date.now,
+    protocolCall,
+  });
 
-    const beforePlayer = baseline.report.player;
-    const changed = await waitFor(page,
-      (value) => value?.player !== null && value?.player !== undefined &&
-        (value.player.x !== beforePlayer.x || value.player.y !== beforePlayer.y),
-      `waiting for player position to change after canvas tap at ${target.logical.x},${target.logical.y}`,
-      90_000);
-    const reading = await captureReading(page, "canvas tap");
-    return {
-      reading,
-      target,
-      pointerEvents,
-      playerBefore: beforePlayer,
-      playerAfter: changed.player,
-    };
-  } finally {
-    await protocolCall("closing Android touch input session", () => cdp.detach()).catch(() => {});
-  }
+  const beforePlayer = baseline.report.player;
+  const changed = await waitFor(page,
+    (value) => value?.player !== null && value?.player !== undefined &&
+      (value.player.x !== beforePlayer.x || value.player.y !== beforePlayer.y),
+    `waiting for player position to change after canvas tap at ${target.logical.x},${target.logical.y}`,
+    90_000);
+  const reading = await captureReading(page, "canvas tap");
+  return {
+    reading,
+    target,
+    pointerEvents,
+    playerBefore: beforePlayer,
+    playerAfter: changed.player,
+  };
 }
 
 function captureFailureEvidence(error) {
@@ -380,6 +380,7 @@ function captureFailureEvidence(error) {
   const evidence = {
     error: error instanceof Error ? error.stack ?? error.message : String(error),
     apk: { path: apk, exists: apkExists, sizeBytes: apkExists ? statSync(apk).size : null },
+    screenshotTelemetry: proof.screenshotTelemetry ?? null,
     androidLogcat: {
       command: "adb logcat -d -v threadtime -s chromium:* ActivityManager:* AndroidRuntime:*",
       exitCode: logcat.status,
@@ -404,19 +405,54 @@ function captureFailureEvidence(error) {
   return path;
 }
 async function main() {
+  const serverOptions = adbServerOptions(process.env);
   adb("wait-for-device");
-  adb("install", "-r", apk);
+  const serial = adb("get-serialno");
+  if (!serial || serial === "unknown") throw new Error(`adb did not identify a usable Android device: ${serial}`);
+  process.env.ANDROID_SERIAL = serial;
+  proof.deviceSerial = serial;
+  proof.platform = `Android ${adb("shell", "getprop", "ro.build.version.release")} API ${adb("shell", "getprop", "ro.build.version.sdk")} ${adb("shell", "getprop", "ro.product.cpu.abi")}`;
+  installApk(apk);
   if (process.env.CI === "true") {
     const cleared = adb("shell", "pm", "clear", appId);
     if (cleared !== "Success") throw new Error(`could not clear Android app data for a fresh CI proof: ${cleared}`);
   }
-  const initial = await launchAndConnect("initial launch");
-  let browser = initial.browser;
+  try {
+    adb("shell", "settings", "put", "global", "cached_apps_freezer", "disabled");
+    adb("shell", "device_config", "put", "activity_manager_native_boot", "use_freezer", "false");
+    adb("shell", "svc", "power", "stayon", "true");
+    adb("shell", "wm", "dismiss-keyguard");
+    for (const pkg of [
+      "com.google.android.googlequicksearchbox",
+      "com.google.android.apps.photos",
+      "com.google.android.apps.messaging",
+      "com.google.android.settings.intelligence",
+      "com.google.android.federatedcompute",
+      "com.google.android.healthconnect.controller",
+      "com.google.android.nfc",
+      "com.google.android.ondevicepersonalization.services",
+      "com.google.android.projection.gearhead",
+      "com.google.android.rkpdapp",
+      "com.google.android.adservices.api",
+      "com.google.android.ext.services",
+      "com.android.vending",
+    ]) {
+      try { runAdb("shell", "pm", "disable-user", "--user", "0", pkg); } catch {}
+      try { runAdb("shell", "am", "force-stop", pkg); } catch {}
+    }
+  } catch {}
+  const initial = await launchAndConnect("initial launch", serial, serverOptions);
+  let device = initial.device;
   let page = initial.page;
   try {
-    const titleCandidate = await waitFor(page, (value) => value !== null && value.tick > 30, "waiting for the live title report");
+    const titleCandidate = await waitFor(page,
+      (value) => value !== null && value.tick > 30 && value.render !== undefined,
+      "waiting for the live rendered title report");
     if (titleCandidate.board !== null) throw new Error(`title checkpoint unexpectedly already has a board: ${JSON.stringify(titleCandidate)}`);
     const titleReading = await captureReading(page, "title", { needsBoard: false, needsSave: false });
+    const titleCanvas = await captureCanvasContent(page);
+    assertTitleRendering(titleReading, titleCanvas);
+    titleReading.canvas = titleCanvas;
     if (titleReading.report.save?.blobPresent !== false) {
       throw new Error(`first launch found an existing host blob; the proof requires clean app data: ${JSON.stringify(titleReading.report.save)}`);
     }
@@ -425,13 +461,35 @@ async function main() {
     }
     if (titleReading.report.board !== null) throw new Error(`title screenshot is not on the title screen: ${JSON.stringify(titleReading.report)}`);
     proof.readings.title = titleReading;
-    await screenshot(page, "title");
+    await delay(500);
+    page = await screenshot(page, "title", async () => {
+      await closeDevice(device, PROTOCOL_TIMEOUT_MS).catch(() => {});
+      device = undefined;
+      const reconnected = await launchAndConnect("title screenshot reconnect", serial, serverOptions);
+      device = reconnected.device;
+      page = reconnected.page;
+      return page;
+    });
+
+    const reconnectBoardPage = async (stage) => {
+      await closeDevice(device, PROTOCOL_TIMEOUT_MS).catch(() => {});
+      device = undefined;
+      const reconnected = await launchAndConnect(stage, serial, serverOptions);
+      device = reconnected.device;
+      page = reconnected.page;
+      await enterBoard(page);
+      await delay(1_000);
+      return page;
+    };
 
     await enterBoard(page);
+    await delay(1_000);
     const board = await captureReading(page, "board entry");
     proof.readings.board = board;
+    await delay(1_000);
 
-    const tapBaseline = await settledPlayer(page);
+    const tapBaseline = await settledPlayer(page, board.report);
+    await delay(1_000);
     const tapped = await canvasTap(page, tapBaseline);
     const playerBefore = tapBaseline.report.player;
     const playerAfter = tapped.reading.report.player;
@@ -447,7 +505,13 @@ async function main() {
         playerAfter,
       },
     };
-    await screenshot(page, "tap");
+    await delay(500);
+    page = await screenshot(page, "tap", async () => {
+      const reconnectedPage = await reconnectBoardPage("tap screenshot reconnect");
+      tapped.reading = await captureReading(reconnectedPage, "tap after reconnect");
+      return reconnectedPage;
+    });
+    await delay(1_000);
 
     const beforeRotation = await protocolCall("reading viewport before rotation", () => page.evaluate(() => ({
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
@@ -456,7 +520,7 @@ async function main() {
     adb("shell", "settings", "put", "system", "accelerometer_rotation", "0");
     const requestedRotation = beforeRotation.viewport.width > beforeRotation.viewport.height ? "0" : "1";
     adb("shell", "settings", "put", "system", "user_rotation", requestedRotation);
-    const rotationDeadline = Date.now() + 30_000;
+    const rotationDeadline = Date.now() + 60_000;
     let afterRotation = beforeRotation;
     while (Date.now() < rotationDeadline) {
       await delay(500);
@@ -482,7 +546,9 @@ async function main() {
       throw new Error(`rotation replaced the live document instead of preserving its session: ${beforeRotation.timeOrigin} -> ${afterRotation.timeOrigin}`);
     }
     proof.readings.rotation = { ...rotated, viewportBefore: beforeRotation, viewportAfter: afterRotation };
-    await screenshot(page, "rotation");
+    await delay(500);
+    page = await screenshot(page, "rotation", () => reconnectBoardPage("rotation screenshot reconnect"));
+    await delay(1_000);
 
     const beforeStop = await captureReading(page, "before force-stop");
     if (beforeStop.report.save?.written !== true) {
@@ -490,24 +556,24 @@ async function main() {
     }
     proof.readings.beforeForceStop = beforeStop;
 
-    await protocolCall("closing Android WebView before relaunch", () => browser.close());
-    browser = undefined;
-    adb("forward", "--remove", `tcp:${devtoolsPort}`);
+    await closeDevice(device, PROTOCOL_TIMEOUT_MS);
+    device = undefined;
     adb("shell", "am", "force-stop", appId);
     await delay(1_000);
-    const relaunched = await launchAndConnect("force-stop relaunch");
-    browser = relaunched.browser;
+    const relaunched = await launchAndConnect("force-stop relaunch", serial, serverOptions);
+    device = relaunched.device;
     page = relaunched.page;
     await enterBoard(page);
+    await delay(1_000);
     const relaunch = await captureReading(page, "relaunch");
     if (relaunch.report.save?.blobPresent !== true) {
       throw new Error(`relaunch did not observe the previously written host blob: ${JSON.stringify(relaunch.report.save)}`);
     }
-    await screenshot(page, "relaunch");
+    await delay(500);
+    page = await screenshot(page, "relaunch", () => reconnectBoardPage("relaunch screenshot reconnect"));
     proof.readings.relaunch = relaunch;
   } finally {
-    if (browser !== undefined) await protocolCall("closing Android WebView during cleanup", () => browser.close()).catch(() => {});
-    try { adb("forward", "--remove", `tcp:${devtoolsPort}`); } catch { /* no forwarding remains */ }
+    if (device !== undefined) await closeDevice(device, PROTOCOL_TIMEOUT_MS).catch(() => {});
   }
 }
 
@@ -529,6 +595,7 @@ try {
   writeFileSync(path, `${JSON.stringify(proof, null, 2)}\n`);
   console.log(`Mobile emulator proof ${proof.result}; readings: ${path}`);
   if (proof.error) console.error(proof.error);
+  scheduleEmulatorCleanup();
   if (process.exitCode !== undefined) {
     const exitCode = process.exitCode;
     const forceExit = setTimeout(() => process.exit(exitCode), 3_000);

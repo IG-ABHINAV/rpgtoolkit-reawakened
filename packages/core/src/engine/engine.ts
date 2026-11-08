@@ -3,11 +3,13 @@ import { restoreGameSave, snapshotGameSave, restoreRecoveryCandidate, snapshotRe
 import { deriveGameId } from "../save/game-id.ts";
 import { restoreGameState, snapshot } from "../save/snapshot.ts";
 import { createPluginLayers, type PluginLayers } from "../script/layers.ts";
+import { spriteWaitView } from "../script/waits.ts";
+import { MENU_GRAPHIC_EFFECT, MENU_HAND_EFFECT } from "../script/packs/menu.ts";
 import { actorEmitterKey, actorId } from "../actors/model.ts";
 import type { AudioSaveProjection } from "../audio/save.ts";
 import { projectGameLedger, type GameLedgerV1, type LedgerProgramRef, type LedgerTile } from "../save/ledger.ts";
 import { applyRecoveryLedger, installRecoveryBoard } from "./recovery.ts";
-import { updateActorStats, type ActorTransition } from "../actors/rules.ts";
+import { updateActorStats, type ActorRuleResult, type ActorTransition } from "../actors/rules.ts";
 import { queueActorTransition, registerActorObject } from "../actors/object.ts";
 import { resolveAsset, assetKey, resolveTileReference } from "../formats/resolver/resolver.ts";
 import { classifyImageReference } from "../formats/animation/image-reference.ts";
@@ -33,7 +35,9 @@ import type { AssetIndex, AssetRoot } from "../formats/resolver/model.ts";
 import type { DrawCommand, DrawList, Rgb, Tint } from "../ports/draw.ts";
 import type { InputRecord } from "../ports/input.ts";
 import type { Engine, Diagnostic, Breakpoint, DrawListInclude, RecoveryStatus, ResumeMode, SurfacePixels } from "../ports/engine.ts";
+import type { HostDisplayGeometry, HostFeatures, NormalizedHostFeatures } from "../ports/host.ts";
 import type { InputConfig } from "../input/input.ts";
+import type { RegisteredAction } from "../save/sections/input.ts";
 import type { PlainData } from "../ports/plain-data.ts";
 import type { Value } from "../ports/value.ts";
 import type { RunnerRequest } from "../ports/requests.ts";
@@ -41,7 +45,8 @@ import type { StartupPorts } from "../ports/startup.ts";
 import type { AssetKey, SurfaceId } from "../ports/keys.ts";
 import type { BlobKey } from "../ports/requests.ts";
 import { createGameState, type GameState, type SectionKey } from "../save/state.ts";
-import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { resetUiForProgramStart, type UiMessageWindow } from "../save/sections/ui.ts";
+import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 import { applyMenuStateEffect, createMenuOwnerPorts } from "../menu/index.ts";
 import { createShopSessionRuntime } from "./shop-session.ts";
 import { hashGameState } from "../save/hash.ts";
@@ -53,22 +58,24 @@ import type { AudioInfo } from "../formats/audio/model.ts";
 import type { AssetDecoder } from "../formats/registry/decoder.ts";
 import { BUILTIN_TRACKS, MAX_VOICES } from "../audio/model.ts";
 import type { Logger } from "../ports/logger.ts";
-import { composeBoard, type BoardBlit, type SpriteDraw } from "../render/compose.ts";
-import { composeUi, composeUiCursor, renderNowBlit } from "../render/ui.ts";
+import { composeBoard, type BoardBlit, type SpriteDraw, type SpriteFrame } from "../render/compose.ts";
+import { composeUi, composeUiCursor, composeUiMargins, renderNowBlit, uiAccessibilityTree } from "../render/ui.ts";
 import { emitText, layoutText, resolveFontAsset } from "../render/text.ts";
 import { applyFxDrawList, advanceFx, applyFxEffect } from "../render/fx.ts";
-import { advanceAnimations, animationBlits, loadAnimation, releaseAnimationSurfaces } from "../render/animation.ts";
+import { advanceAnimations, animationBlits, decodeAnimationFrames, loadAnimation, releaseAnimationSurfaces, type DecodedAnimation } from "../render/animation.ts";
 import { hydrateBoard } from "../world/hydrate.ts";
-import { coordLayout, tileToPixel } from "../world/coords.ts";
-import { boardEmitterKey, type WorldBoard, type WorldTile } from "../world/model.ts";
+import { coordLayout, tileToPixel, usesPixelCoordinates } from "../world/coords.ts";
+import { boardEmitterKey, type WorldBoard, type WorldImageCell, type WorldTile } from "../world/model.ts";
 import type { AnimationState, FxSection } from "../save/sections.ts";
-import { applyInputEvent, createInputSection, inputView, processGamepadEvents, pruneClaimed } from "../input/index.ts";
+import type { UiActionClaim } from "../save/sections/ui.ts";
+import { applyInputEvent, applySemanticActionEdge, claimInputBefore, createInputSection, inputView, processGamepadEvents, pruneClaimed, rebuildKeyboardActionClaimIndex, recomputeInputActions, registerGameAction, routePointerUpActivations, setPointerMovementSuppressed } from "../input/index.ts";
 import { applyWorldEffect, expireProgramTileEdits } from "../world/effects.ts";
 import { applyCameraEffect, createCameraSection, initCameraForBoard, positionAt, realignCamera, updateCamera } from "../world/camera.ts";
 import { applyInputEffect, applySpriteEffect } from "../script/packs/world.ts";
 import type { CameraPoint, CameraTarget } from "../ports/camera.ts";
 import type { SpriteActor, Facing } from "../sprites/model.ts";
-import { resetSpritesSection, placeSelectedPlayer, selectActor as selectPartyActor, removeActorSprite, spriteDraws, createInitialPlayer, type SpriteRuntime } from "../sprites/runtime.ts";
+import { placeSelectedPlayer, selectActor as selectPartyActor, removeActorSprite, spriteDraws, createInitialPlayer, hydrateSprites, itemKey, type SpriteRuntime, type SpriteThreadResolver } from "../sprites/runtime.ts";
+import { runAnimationPhase as runActorAnimationPhase } from "../sprites/animation.ts";
 import { boardCollisionAt } from "../sprites/movement.ts";
 import { resetTriggersSection } from "../triggers/model.ts";
 import { applyTriggerEffect } from "../triggers/runtime.ts";
@@ -93,6 +100,7 @@ import {
   compileRestoredPrograms,
   verifyRestoredHandles,
   runThreadsPhase,
+  discardMenuFrames,
   runWaitsPhase,
   layerRoots,
   withOwner,
@@ -111,15 +119,18 @@ import {
   type ScriptServices,
   createVmState,
 } from "../script/index.ts";
-import type { ObjectRecord, Thread, VmState } from "../script/state.ts";
+import { hasLiveBlockingThread, type Frame, type ObjectRecord, type Thread, type VmState } from "../script/state.ts";
 import { findObject, readMember } from "../script/objects.ts";
 import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.ts";
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
-import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
-import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch } from "../raster/surfaces.ts";
+import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, resetScriptScreen, copyPresentedFrameToScriptScreen, SCRIPT_SCREEN, renderNowCanvas, renderNowEnabled, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
+import { rasterizeAuthorMargin } from "../raster/raster.ts";
+import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
+
+const MENU_HAND_ASSET = assetKey("media/cursors/tkr-menu-hand.png");
 
 /** AD-26's immutable phase order. */
 export const ENGINE_PHASES = [
@@ -146,6 +157,8 @@ export type { EnginePhase };
 export type EnginePhaseRegistration = {
   readonly phase: EnginePhase;
   readonly rank?: number;
+  /** Legacy main-file movement mode used as the scene default when no main file exists. */
+  readonly pixelMovement?: number;
   readonly run: (state: GameState, postEffect?: (section: SectionKey, effect: PostEffect) => void) => void;
 };
 
@@ -186,6 +199,9 @@ type EngineCommonInit = {
   readonly defaultSoundFont?: AssetKey | null;
   readonly input?: InputConfig;
   readonly include?: DrawListInclude;
+  readonly features?: HostFeatures;
+  /** Measured CSS-pixel geometry for the logical game viewport. */
+  readonly displayGeometry?: HostDisplayGeometry;
   /** Decoded image assets supplied by a host or deterministic scene runner. */
   readonly assets?: ReadonlyMap<AssetKey, DecodedTexture>;
   /** Files the host ships with the engine under `media/` (the default bitmap font, bundled TrueType fonts and cursor images), as bytes like every other asset. */
@@ -238,13 +254,16 @@ type RequestEntry = { readonly reqId: number; readonly key: AssetKey; readonly k
 type PendingBlobRequest = {
   readonly reqId: number;
   readonly vmReqId: number;
-  readonly kind: "loadBlob" | "saveBlob";
+  /** Script effect order; delayed game-save snapshots must remain on their requested side of QuitGame. */
+  readonly issueSeq: number;
+  readonly kind: "loadBlob" | "saveBlob" | "listBlobs";
   readonly blob: BlobKey;
   readonly gameSave: boolean;
   readonly gameLoad: boolean;
   readonly hex: string | null;
   published: boolean;
 };
+type PendingQuitRequest = { readonly reqId: number; readonly issueSeq: number };
 type RecoveryCandidate = { readonly bytes: Uint8Array; readonly tick: number };
 type RecoveryLaunch = {
   readonly candidate: RestoredRecoveryCandidate;
@@ -311,12 +330,33 @@ export function createEngine(init: EngineInit): Engine {
     ? null
     : new Uint8Array(init.recoveryCandidate);
   const recoveryLaunchRequested = recoveryCandidateBytes !== null;
-  const state: GameState = createGameState({ seed: init.seed });
-  state.input = createInputSection(init.input);
-  state.engine = { claims: [] };
+  const state: GameState = createGameState({
+    seed: init.seed,
+    width: init.width,
+    height: init.height,
+    ...(init.features === undefined ? {} : { features: init.features }),
+    ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+  });
+  init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
+  state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+  const externallyRegisteredActions: RegisteredAction[] = [];
+  function replayExternallyRegisteredActions(): void {
+    const registered = new Set(state.input.registeredActions.map((action) => action.name));
+    for (const action of externallyRegisteredActions) {
+      if (registered.has(action.name)) continue;
+      if (registerGameAction(state.input, action)) registered.add(action.name);
+    }
+  }
+  state.engine = { cacheKeys: [], claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
   let mainFile: MainFile | null = null;
+  let scenePixelMovement = 0;
+  function movementDefaults(main: MainFile | null): { walking: number; pushing: number } {
+    const mode = main?.pixelMovement ?? scenePixelMovement;
+    return { walking: mode === 1 || mode === 2 ? 1 : 0, pushing: mode === 2 ? 1 : 0 };
+  }
+
   let sceneBoardKey: AssetKey | null = null;
   let loader: ProgramLoader | null = null;
   let initialCharacterKey: AssetKey | null = null;
@@ -324,22 +364,52 @@ export function createEngine(init: EngineInit): Engine {
   let mainKey: AssetKey | null = null;
   const installedFonts = new Map<AssetKey, Uint8Array>();
   const cache = new Map<AssetKey, Uint8Array>();
+  // Source resolution is synchronous; installed sources remain physically available when Load hides newer keys.
+  const programSources = new Map<AssetKey, Uint8Array>();
+  let cacheKeysSnapshot: string[] = [];
+  let cacheKeysDirty = true;
   const inventoryItemDefinitions = new Map<AssetKey, Item>();
   const inventoryCharacterDefinitions = new Map<AssetKey, Character>();
   const decodedImages = new Map<AssetKey, DecodedTexture>();
   const decodedTiles = new Map<AssetKey, DecodedTexture>();
+  /**
+   * Actor walk/idle/battle animation metadata, decoded from the animation file's bytes (E-21, E-54). Asset-derived,
+   * so it is a per-run cache and never saved state; `null` records a file that cannot be decoded so it is not retried.
+   */
+  const spriteAnimations = new Map<AssetKey, DecodedAnimation | null>();
+  /** Source byte object used to invalidate actor animation metadata when the same key is reloaded with new content. */
+  const spriteAnimationSourceBytes = new Map<AssetKey, Uint8Array>();
+  /** Decoded GIF pages owned by actor animations, released when those animations leave the active visual set. */
+  const spriteGifPageAssets = new Map<AssetKey, readonly AssetKey[]>();
+  /** Animation files whose frames name a missing asset, so each is reported once rather than every tick. */
+  const missingSpriteAnimationAssets = new Set<AssetKey>();
   const decodedBundled = new Map<AssetKey, RasterAsset | null>();
   const canvasTextAssets = new Map<AssetKey, RasterAsset>();
   const pending = new Map<number, RequestEntry>();
+  const pendingTileBitmapAnimations = new Set<number>();
+  const restoreAssetRequests = new Set<number>();
+  let restoringSavedAssets = false;
+  let savedAssetRestoreKeys: readonly AssetKey[] = [];
+  let nextRestoreRequestId = 0x20000000;
+  const deferredRestoreDecode = new Set<AssetKey>();
   const pendingBlobs = new Map<number, PendingBlobRequest>();
   const pendingImageEffects: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
   const pendingBoardPreviews: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
   const queuedInputs: InputRecord[] = [];
   const requestsOut: RunnerRequest[] = [];
+  const postQuitWriteFailures: number[] = [];
+  let pendingQuit: PendingQuitRequest | null = null;
+  let quitPublished = false;
   /** The last prefetch plan sent, so a board entry only sends a hint set that differs from it. */
   let lastPrefetch = "";
   /** Backgrounds unavailable for prefetch, including decode failures; do not request them again. */
   const missingBattleBackgrounds = new Set<AssetKey>();
+  /** Menu-graphic references already reported missing (E-80 item 12): one `asset.missing` each, and never fatal. */
+  const missingMenuGraphics = new Set<string>();
+  /** `winGraphic` references already resolved against the asset index (E-55); null records an unresolved one. */
+  const messageGraphics = new Map<string, AssetKey | null>();
+  /** The bundled hand marker is optional decoration too: report a missing bundle at most once. */
+  let missingMenuHandReported = false;
   /** Sound facts from battle backgrounds fetched only for prefetch; kept out of the saved asset cache so prefetch hints stay hash-neutral. */
   const prefetchedBattleBackgrounds = new Map<AssetKey, PrefetchFacts["battle"]>();
   /** In-flight prefetch-only asset requests and their ids; these deliberately do not live in the saved engine section. */
@@ -358,6 +428,12 @@ export function createEngine(init: EngineInit): Engine {
   let recoveryInitialized = false;
   let recoveryResumed = false;
   const diagnostics: Diagnostic[] = [];
+  const reportedUnknownActions = new Set<string>();
+  const reportUnknownAction = (action: string): void => {
+    if (Object.hasOwn(state.input.actionRegistry, action) || reportedUnknownActions.has(action)) return;
+    reportedUnknownActions.add(action);
+    diagnostics.push({ code: "input.unknown-action", file: mainKey ?? "", line: 0, message: `input names unregistered action "${action}"` });
+  };
   const registrations = [...(init.phaseRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0));
   const registrationByPhase = new Map<EnginePhase, EnginePhaseRegistration[]>();
   for (const registration of registrations) {
@@ -365,6 +441,10 @@ export function createEngine(init: EngineInit): Engine {
     list.push(registration);
     registrationByPhase.set(registration.phase, list);
   }
+  scenePixelMovement = registrations.find((registration) => registration.phase === "movement" && registration.pixelMovement !== undefined)?.pixelMovement
+    ?? registrations.find((registration) => registration.phase === "input" && registration.pixelMovement !== undefined)?.pixelMovement
+    ?? 0;
+  if (init.mainFile === undefined) state.world = { ...state.world, movement: movementDefaults(null) };
   const bus = new EffectBus(state, (diagnostic) => diagnostics.push(diagnostic));
 
   const shopSession = createShopSessionRuntime(() => state.vm.threads);
@@ -412,6 +492,18 @@ export function createEngine(init: EngineInit): Engine {
       applyEquipment(actorId, equipped, catalog) {
         return services.actors.applyEquipment(actorId, equipped, catalog) !== null;
       },
+      updateStats(actorId, patch) {
+        return services.actors.updateStats(actorId, patch, { cause: "script", source: null }) !== null;
+      },
+      prepareEquipment(actorId, equipped, catalog) {
+        return services.actors.prepareEquipment(actorId, equipped, catalog);
+      },
+      commitPreparedEquipment(prepared) {
+        return services.actors.commitPreparedEquipment(prepared) !== null;
+      },
+      discardPreparedEquipment(prepared) {
+        services.actors.discardPreparedEquipment(prepared);
+      },
       shopStock: () => shopSession.stock(),
       setShopStock: shopSession.setStock,
       closeShop: shopSession.close,
@@ -451,7 +543,12 @@ export function createEngine(init: EngineInit): Engine {
     },
   );
   for (const section of ["party", "inventory", "menu"] as const) {
-    bus.register(section, (effect) => applyMenuStateEffect(menuOwners, effect));
+    bus.register(section, (effect) => {
+      applyMenuStateEffect(menuOwners, effect);
+      if (effect.name === "destroyplayer") {
+        boardRedraw();
+      }
+    });
   }
   // The script-facing media owner (MEDIA-1): starts post through the one bus so
   // the audio applier stays the only start route; `bind` fills the returned voice.
@@ -468,7 +565,17 @@ export function createEngine(init: EngineInit): Engine {
       diagnostics.push({ code, file: typeof file === "string" ? file : "", line: 0, message: `${op}: ${code} ${text}`.trimEnd() });
     },
   );
-  bus.register("world", (effect) => applyWorldEffect(state, effect));
+  bus.register("world", (effect) => {
+    applyWorldEffect(state, effect);
+    if (
+      effect.name === "forceredraw" ||
+      effect.name === "setambientlevel" ||
+      effect.name === "layerput" ||
+      effect.name === "put"
+    ) {
+      boardRedraw();
+    }
+  });
   bus.register("camera", (effect) => applyCameraEffect(state, effect));
   bus.register("ui", (effect) => {
     const lower = effect.name.toLowerCase();
@@ -476,7 +583,18 @@ export function createEngine(init: EngineInit): Engine {
       applyCanvasText(lower === "text", effect.args);
       return;
     }
-    applyUiEffect(state, effect.name, effect.args, (name) => resolveFontAsset(name, index.keys));
+    applyUiEffect(state, effect.name, effect.args, (name) => resolveFontAsset(name, index.keys), (owner, message) => {
+      const thread = state.vm.threads.find((candidate) => candidate.id === owner);
+      const location = thread === undefined ? null : threadLocation(thread);
+      diagnostics.push({ code: "a11y.surface", file: location?.file ?? mainKey ?? "", line: location?.line ?? 0, message });
+    });
+    if (lower === "uiend") {
+      for (const surface of state.ui.actionSurfaces) {
+        for (const item of surface.items) if (item.action !== undefined) reportUnknownAction(item.action);
+      }
+    }
+    // `winGraphic` names an image; resolve and fetch it now so the window can draw it (E-55).
+    if (lower === "wingraphic") primeMessageGraphic();
   });
   bus.register("fx", (effect) => applyFxEffect(state, effect));
   bus.register("surfaces", (effect) => applySurfaceEffect(effect));
@@ -558,8 +676,11 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
-    applySpriteEffect(state, effect.name, values);
+    applySpriteEffect(state, effect.name, values, effect.thread);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
+    if (isSpriteRedrawCommand(effect.name) && blockingAlive()) {
+      boardRedraw();
+    }
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
   /**
@@ -573,7 +694,7 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     const kind = blockingAlive() ? "board" : "blocking";
-    if (kind === "blocking") resetUiForProgramStart(state.ui);
+    if (kind === "blocking") beginOutermostProgram();
     const ref: ProgramRef = {
       kind: "inline",
       text: `${command}(${JSON.stringify(encodeInlineScriptString(serialized))})`,
@@ -600,7 +721,7 @@ export function createEngine(init: EngineInit): Engine {
         return;
       }
       if (!blockingAlive()) {
-        resetUiForProgramStart(state.ui);
+        beginOutermostProgram();
         startProgram(state.vm, { kind: "inline", text: "wait()", ir: IR_VERSION });
       }
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
@@ -670,7 +791,119 @@ export function createEngine(init: EngineInit): Engine {
   state.surfaces = createSurfacesSection(init.width, init.height);
   state.camera = createCameraSection(init.width, init.height);
   const surfaceCache: SurfacePixelCache = new Map();
+  let surfaceCacheEpoch = 0;
+  let generatedMarginPixels: { readonly id: SurfaceId; readonly rev: number; readonly pixels: SurfacePixels } | null = null;
   let frameHash: string | null = null;
+  /** Set when an outermost program ended in the current tick; suppresses tick-end and tail presentation so its final screen stays committed as surface 0 until the next free-roam draw (ADR 0018 R5). */
+  let endedProgramThisTick = false;
+  /** When true, `engine.drawList` presents surface 0 (the committed final program screen) instead of re-rasterising the board; cleared when a free-roam frame is actually committed. */
+  let holdProgramFrame = false;
+  /** True when a tick has advanced the presented scene since surface 0 was last rasterised (ADR 0018 T13). */
+  let presentedFrameDirty = false;
+  /** Whether a live blocking thread was present at the end of the previous threads phase. */
+  let blockingWasAlive = false;
+  /** Transient flag set while committing the final program screen before hiding the message window (ADR 0018 R5, #1186). */
+  let committingFinalProgramScreen = false;
+  /** Animation ID watermark when the currently running outermost program started; used to filter thread animations started earlier (#1183). */
+  let outermostProgramStartAnimationId = 1;
+  /** The baked overlay command active during a running program; updated only at board redraws (3.1 P3, #1184). */
+  let programActiveOverlay: DrawCommand | null = null;
+  /** Snapshot of canvas pixels captured at the last board redraw (3.1 P3, #1184). */
+  let programOverlayPixels: { readonly w: number; readonly h: number; readonly rgba: Uint8Array } | null = null;
+  let programOverlayRev = 0;
+
+  function activeProgramForCompose(): boolean {
+    const activeSurface = blockingAlive() || committingFinalProgramScreen;
+    return activeSurface && state.world.board != null && state.battle === null && state.menu.screens.length === 0;
+  }
+
+  function captureProgramOverlay(): void {
+    if (!renderNowEnabled(state.surfaces)) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const canvasId = renderNowCanvas(state.surfaces);
+    if (canvasId === null) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const canvasEntry = state.surfaces.entries[String(canvasId)];
+    if (canvasEntry === undefined) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const pixels = readSurfacePixels(state.surfaces, canvasId, canvasEntry.rev, surfaceCache);
+    if (pixels === null) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    programOverlayRev = canvasEntry.rev;
+    programOverlayPixels = { w: pixels.w, h: pixels.h, rgba: new Uint8Array(pixels.rgba) };
+    programActiveOverlay = {
+      kind: "blit",
+      source: { surface: canvasId, rev: programOverlayRev },
+      src: { x: 0, y: 0, w: pixels.w, h: pixels.h },
+      dst: { x: 0, y: 0, w: pixels.w, h: pixels.h },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: 255,
+      blend: "normal",
+      iso2d: false,
+    };
+  }
+
+  function isSpriteRedrawCommand(name: string): boolean {
+    switch (name.toLowerCase()) {
+      case "playerstep":
+      case "itemstep":
+      case "push":
+      case "pushitem":
+      case "wander":
+      case "playerpath":
+      case "itempath":
+      case "playerdirection":
+      case "itemdirection":
+      case "playerstance":
+      case "itemstance":
+      case "stance":
+      case "posture":
+      case "putplayer":
+      case "eraseplayer":
+      case "destroyplayer":
+      case "putitem":
+      case "eraseitem":
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * P2 commands redraw the whole board (board, sprites, thread animations, overlay if on)
+   * into the program surface from scratch, erasing whatever the program had drawn, then
+   * present it with the message window on top (3.1 P2, #1182, ADR 0018).
+   */
+  function boardRedraw(): void {
+    resetScriptScreen(state.surfaces);
+    state.ui.draws = [];
+    captureProgramOverlay();
+    if (state.world.board !== null) refreshFrame(false);
+  }
+
+  function currentSurfaceTextures(): ReadonlyMap<SurfaceId, DecodedTexture> {
+    const textures = new Map<SurfaceId, DecodedTexture>(surfaceTextures(state.surfaces, surfaceCache));
+    if (activeProgramForCompose() && programOverlayPixels !== null) {
+      const rnId = renderNowCanvas(state.surfaces);
+      if (rnId !== null) {
+        textures.set(rnId, { w: programOverlayPixels.w, h: programOverlayPixels.h, rgba: new Uint8Array(programOverlayPixels.rgba) });
+      }
+    }
+    return textures;
+  }
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
   let frameFailure: { readonly hash: string; readonly message: string } | null = null;
   // Presentation inputs are plain draw-list data; decoded textures remain runner-owned (AD-29).
@@ -802,7 +1035,9 @@ export function createEngine(init: EngineInit): Engine {
     if (board.enterPrg !== undefined && board.enterPrg !== "" && entryProgram === null) return null;
     for (const name of board.threads ?? []) if (name !== "" && fingerprintProgram(name) === null) return null;
     for (const item of state.sprites.items) {
-      if (item.multitaskProgram !== null && fingerprintProgram(item.multitaskProgram) === null) return null;
+      if (item.multitaskProgram !== null && (item.multitaskProgram.toLowerCase().endsWith(".prg")
+        ? fingerprintProgram(item.multitaskProgram) === null
+        : !fingerprintProgramRef({ kind: "inline", text: item.multitaskProgram, ir: IR_VERSION, dialect: "tk3" }))) return null;
     }
     const graph = ledger.script.persistentGraph;
     for (const object of graph.objects) {
@@ -893,6 +1128,36 @@ export function createEngine(init: EngineInit): Engine {
   function flushSurfaces(): void {
     flushSurfaceBatch(state.surfaces);
   }
+  /** Recover request order from the recorded VM effect; independent threads share this monotonic sequence. */
+  function scriptRequestEffectSeq(reqId: number): number {
+    for (let index = state.vm.effects.length - 1; index >= 0; index -= 1) {
+      const effect = state.vm.effects[index]!;
+      if (effect.kind === "request" && effect.request?.reqId === reqId) return effect.seq;
+    }
+    return state.vm.effectSeq;
+  }
+  /** Settle blocked script writes so nothing issued after quit can reach the host. */
+  function settlePostQuitWriteFailures(): boolean {
+    if (postQuitWriteFailures.length === 0) return false;
+    for (const reqId of postQuitWriteFailures.splice(0)) {
+      try {
+        replyToRequest(state.vm, reqId, { ok: false, value: "write requested after quit" });
+      } catch (error) {
+        if (error instanceof ScriptError) diagnostics.push(toDiagnostic(error));
+      }
+    }
+    return true;
+  }
+  /** Do not publish quit ahead of an earlier game-save snapshot that is still waiting on engine work. */
+  function publishQuitRequest(): void {
+    if (pendingQuit === null || quitPublished) return;
+    const earlierSaveUnpublished = [...pendingBlobs.values()].some(
+      (entry) => entry.gameSave && entry.issueSeq < pendingQuit!.issueSeq && !entry.published,
+    );
+    if (earlierSaveUnpublished) return;
+    requestsOut.push({ kind: "quit", reqId: pendingQuit.reqId });
+    quitPublished = true;
+  }
   function makeServices(
     plugins: readonly ResolvedPlugin[],
     programLoader?: ProgramLoader,
@@ -916,6 +1181,7 @@ export function createEngine(init: EngineInit): Engine {
             typeof request.blob === "object" && request.blob !== null && !Array.isArray(request.blob)) {
           const rawBlob = request.blob as Record<string, unknown>;
           if ((rawBlob.area === "saves" || rawBlob.area === "files") && typeof rawBlob.path === "string" && rawBlob.path !== "") {
+            const issueSeq = scriptRequestEffectSeq(request.reqId);
             // AD-17: no identity means no save area. Refuse at the seam as well as
             // in the builtins, so a future command cannot publish a shared path.
             if (currentGameId === null) {
@@ -932,6 +1198,11 @@ export function createEngine(init: EngineInit): Engine {
               }
               return;
             }
+            // Quit is latched across lifecycle resets; every later write is refused before the host closes.
+            if (request.kind === "saveBlob" && pendingQuit !== null) {
+              postQuitWriteFailures.push(request.reqId);
+              return;
+            }
             const reqId = SCRIPT_REQUEST_BASE + request.reqId;
             const gameSave = request.kind === "saveBlob" && request.gameSave === true;
             const gameLoad = request.kind === "loadBlob" && request.gameLoad === true;
@@ -939,13 +1210,41 @@ export function createEngine(init: EngineInit): Engine {
             const bytes = request.kind === "saveBlob" && !gameSave ? decodeHex(hex) : null;
             const published = request.kind === "loadBlob" || (!gameSave && bytes !== null);
             const blob: BlobKey = { area: rawBlob.area, path: rawBlob.path };
-            pendingBlobs.set(reqId, { reqId, vmReqId: request.reqId, kind: request.kind, blob, gameSave, gameLoad, hex, published });
+            pendingBlobs.set(reqId, { reqId, vmReqId: request.reqId, issueSeq, kind: request.kind, blob, gameSave, gameLoad, hex, published });
             if (request.kind === "loadBlob") requestsOut.push({ kind: "loadBlob", reqId, blob });
             else if (bytes !== null) requestsOut.push({ kind: "saveBlob", reqId, blob, bytes });
             return;
           }
         }
         const scriptArea = request.kind === "asset" && typeof request.area === "string" && Object.hasOwn(SCRIPT_ASSET_AREAS, request.area) ? SCRIPT_ASSET_AREAS[request.area] : undefined;
+        if (request.kind === "listBlobs" &&
+            typeof request.reqId === "number" && Number.isSafeInteger(request.reqId) &&
+            request.reqId > 0 && request.reqId < SCRIPT_REQUEST_BASE &&
+            (request.area === "saves" || request.area === "files")) {
+          // The stock menu's save/load picker reads the area through `savelist()`; a listing publishes nothing, so it
+          // never blocks a snapshot and never becomes a game save (docs/spec/engine/rpgcode-functions.md).
+          if (currentGameId === null) {
+            diagnostics.push({
+              code: "save.no-game-identity",
+              file: mainKey ?? "",
+              line: 0,
+              message: "listBlobs refused: this engine has no game identity (docs/spec/formats/save-game.md#reawakened-full-engine-save-and-load)",
+            });
+            try {
+              replyToRequest(state.vm, request.reqId, { ok: false, value: "" });
+            } catch (error) {
+              if (error instanceof ScriptError) diagnostics.push(toDiagnostic(error));
+            }
+            return;
+          }
+          const reqId = SCRIPT_REQUEST_BASE + request.reqId;
+          pendingBlobs.set(reqId, {
+            reqId, vmReqId: request.reqId, issueSeq: scriptRequestEffectSeq(request.reqId), kind: "listBlobs", blob: { area: request.area, path: "" },
+            gameSave: false, gameLoad: false, hex: null, published: true,
+          });
+          requestsOut.push({ kind: "listBlobs", reqId, area: request.area });
+          return;
+        }
         if (request.kind === "asset" && scriptArea !== undefined &&
             typeof request.path === "string" && typeof request.reqId === "number" &&
             Number.isSafeInteger(request.reqId) && request.reqId > 0 && request.reqId < SCRIPT_REQUEST_BASE) {
@@ -976,7 +1275,15 @@ export function createEngine(init: EngineInit): Engine {
       () => { recoveryCaptureRequested = true; },
       capturePreBattleRecoveryCandidate,
       () => refreshFrame(true),
+      () => ({
+        move: mainFile?.cursorMoveSound ?? "",
+        choose: mainFile?.cursorSelectSound ?? "",
+        cancel: mainFile?.cursorCancelSound ?? "",
+      }),
+      mainFile?.pixelMovement ?? 0,
+      { width: init.width, height: init.height },
     );
+    init.spriteRuntime?.bindItemThreadCleanup?.((thread) => discardMenuFrames(nextServices, thread));
     media.activateDeclared();
     if (runStartups) {
       nextServices.setPackageStartup(true);
@@ -994,11 +1301,53 @@ export function createEngine(init: EngineInit): Engine {
       } finally {
         nextServices.setPackageStartup(false);
       }
+      replayExternallyRegisteredActions();
     }
     startupServicesReady = runStartups;
     return nextServices;
   }
-  function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
+  function rebaseModalTimeline(candidate: GameState, nextIdFloor: number): void {
+    const ids = new Set<number>();
+    if (candidate.ui.modal !== null) ids.add(candidate.ui.modal.modalId);
+    for (const action of candidate.input.modalActions) ids.add(action.modalId);
+
+    const remapped = new Map<number, number>();
+    let nextId = Math.max(candidate.ui.nextModalId, nextIdFloor);
+    for (const oldId of [...ids].sort((left, right) => left - right)) {
+      if (oldId >= nextIdFloor) continue;
+      if (!Number.isSafeInteger(nextId)) throw new ScriptError("restore.shape", "modal identity space is exhausted");
+      remapped.set(oldId, nextId++);
+    }
+    if (candidate.ui.modal !== null) {
+      const id = remapped.get(candidate.ui.modal.modalId);
+      if (id !== undefined) candidate.ui.modal = { ...candidate.ui.modal, modalId: id };
+    }
+    candidate.input.modalActions = candidate.input.modalActions.map((action) => {
+      const id = remapped.get(action.modalId);
+      return id === undefined ? action : { ...action, modalId: id };
+    });
+    candidate.ui.nextModalId = nextId;
+  }
+
+  function applyLoadedGame(
+    candidate: GameState,
+    projection: AudioSaveProjection,
+    callingThread?: Thread,
+    savedMessage?: UiMessageWindow,
+  ): void {
+    const previousCache = new Map(cache);
+    const previousDeferredDecode = new Set(deferredRestoreDecode);
+    const savedKeys = candidate.engine.cacheKeys;
+    const retainedKeys = savedKeys === null
+      ? new Set<AssetKey>([
+          ...(mainKey === null ? [] : [mainKey]),
+          ...installedFonts.keys(),
+          ...programKeys(index, root),
+          ...(initialCharacterKey === null ? [] : [initialCharacterKey]),
+        ].filter((key) => cache.has(key)))
+      : new Set(savedKeys.filter((key) => index.byKey.has(assetKey(key))).map(assetKey));
+    const modalIdFloor = state.ui.nextModalId;
+    const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
     const previousServices = services;
     const previousLayers = pluginLayers;
@@ -1009,16 +1358,87 @@ export function createEngine(init: EngineInit): Engine {
     const previousFrameFailure = frameFailure;
     const restoredLayers = createPluginLayers();
     try {
-      Object.assign(state, createGameState({ seed: init.seed }));
+      Object.assign(state, createGameState({
+        seed: init.seed,
+        width: init.width,
+        height: init.height,
+        ...(init.features === undefined ? {} : { features: init.features }),
+        ...(init.displayGeometry === undefined ? {} : { displayGeometry: init.displayGeometry }),
+      }));
       makeServices(activePlugins, loader ?? undefined, true, restoredLayers);
       if (failed) throw new ScriptError("restore.shape", "installed package start-up failed during restore");
+      const externalNames = new Set(externallyRegisteredActions.map((action) => action.name));
+      const startupActions = state.input.registeredActions.filter((action) => !externalNames.has(action.name));
       Object.assign(state, previous);
       services = previousServices;
       pluginLayers = previousLayers;
       startupServicesReady = previousStartupServicesReady;
       failed = previousFailed;
 
+      rebaseModalTimeline(candidate, modalIdFloor);
       Object.assign(state, candidate);
+
+      if (callingThread !== undefined) {
+        if (previous.engine.boot !== undefined) {
+          state.engine.boot = { ...previous.engine.boot, ...candidate.engine?.boot, stage: "running" };
+        }
+        delete state.engine.transition;
+        delete state.engine.pendingEnterThread;
+
+        if (savedMessage !== undefined) {
+          state.ui.message = { ...savedMessage };
+        }
+
+        const player = state.sprites.players.find((candidateActor) => candidateActor.id === state.sprites.selectedPlayer) ?? state.sprites.players[0];
+        if (player !== undefined) {
+          const placement: PlainData[] = [player.x, player.y, player.layer, "pixel"];
+          bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
+        }
+        if (state.world.board !== null && state.world.board !== undefined) {
+          postBoardMusic(state.world.board);
+        }
+
+        const restoredThreads = [...candidate.vm.threads];
+        let nextId = Math.max(callingThread.id, ...restoredThreads.map((t) => t.id), 0) + 1;
+        for (const t of restoredThreads) {
+          if (t.id === callingThread.id) {
+            t.id = nextId++;
+          }
+        }
+        const callerFrame = callingThread.frames[callingThread.frames.length - 1];
+        if (callerFrame !== undefined) {
+          callerFrame.operands.push({ value: 1, ref: null });
+        }
+        callingThread.wait = null;
+        callingThread.status = "ready";
+        state.vm.threads = [callingThread, ...restoredThreads];
+      }
+
+      const actionRegistry = createInputSection();
+      for (const action of startupActions) registerGameAction(actionRegistry, action);
+      for (const action of externallyRegisteredActions) registerGameAction(actionRegistry, action);
+      state.input.registeredActions = actionRegistry.registeredActions;
+      state.input.actionRegistry = actionRegistry.actionRegistry;
+      state.input.controlActions = actionRegistry.controlActions;
+      state.input.actionOrder = actionRegistry.actionOrder;
+      state.input.actionPadMasks = actionRegistry.actionPadMasks;
+      for (const action of new Set([...Object.keys(state.input.actions), ...Object.keys(state.input.keyboardActions), ...Object.keys(state.input.keyboardActionSources), ...Object.keys(state.input.semanticActionSources)])) {
+        if (Object.hasOwn(state.input.actionRegistry, action)) continue;
+        delete state.input.actions[action];
+        delete state.input.keyboardActions[action];
+        delete state.input.keyboardActionSources[action];
+        delete state.input.semanticActionSources[action];
+        state.input.directionOrder = state.input.directionOrder.filter((held) => held !== action);
+      }
+      rebuildKeyboardActionClaimIndex(state.input);
+      state.world = {
+        ...state.world,
+        movement: {
+          walking: state.world.movement.walking ?? movementFallback.walking,
+          pushing: state.world.movement.pushing ?? movementFallback.pushing,
+        },
+      };
+
       // A save may carry a bare section; the restored continuation must still render, so the engine completes
       // the surface section it owns, exactly as it does at creation (never inventing game data).
       if (Object.keys(state.surfaces).length === 0) state.surfaces = createSurfacesSection(init.width, init.height);
@@ -1030,18 +1450,97 @@ export function createEngine(init: EngineInit): Engine {
       pluginLayers = restoredLayers;
       const restoredServices = makeServices(activePlugins, loader ?? undefined, false, restoredLayers);
       runPackageStartup(state, restoredServices, [], activePlugins, restoredServices.listenersBeforePackageStartup);
+      replayExternallyRegisteredActions();
       compileRestoredPrograms(state.vm, restoredServices);
       verifyRestoredHandles(state.vm, restoredServices, state.events);
       services = restoredServices;
+
+      const enterPrgAlreadyRunning =
+        candidate.battle !== null ||
+        candidate.vm.threads.some(
+          (t) =>
+            t.status !== "finished" &&
+            t.frames.some(
+              (f) =>
+                (f.program.kind === "file" && f.program.path === state.world.board?.enterPrg) ||
+                (f.program.kind === "inline" && f.program.text === state.world.board?.enterPrg),
+            ),
+        );
+
+      if (
+        callingThread !== undefined &&
+        loader !== null &&
+        !enterPrgAlreadyRunning &&
+        state.world.board?.enterPrg !== undefined &&
+        state.world.board.enterPrg !== ""
+      ) {
+        try {
+          const enterRef = fileProgramRef(loader, state.world.board.enterPrg, state.vm.redirects);
+          services.programs.get(enterRef);
+          const callerPair = { source: callingThread.source, target: callingThread.target };
+          const rootFrame: Frame = {
+            program: enterRef,
+            ip: 0,
+            locals: {},
+            operands: [],
+            errorHandler: null,
+            autoLocal: false,
+            programRoot: { restore: callerPair },
+          };
+          callingThread.frames.push(rootFrame);
+        } catch (error) {
+          if (error instanceof ScriptError) {
+            diagnostics.push({
+              code: error.code,
+              file: error.pos?.file ?? state.world.board.enterPrg,
+              line: error.pos?.line ?? 0,
+              message: error.message,
+            });
+          } else {
+            throw error;
+          }
+        }
+      }
+
       startupServicesReady = true;
       audio.load(projection);
+      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       clearPathfindingCache();
+      cache.clear();
+      cacheKeysDirty = true;
+      for (const key of retainedKeys) {
+        const bytes = previousCache.get(key);
+        if (bytes !== undefined) cacheAsset(key, bytes);
+      }
+      savedAssetRestoreKeys = [...retainedKeys];
+      restoringSavedAssets = true;
+      inventoryItemDefinitions.clear();
+      inventoryCharacterDefinitions.clear();
+      decodedImages.clear();
+      decodedTiles.clear();
+      spriteAnimations.clear();
+      spriteAnimationSourceBytes.clear();
+      spriteGifPageAssets.clear();
+      spriteCellSizes.clear();
+      missingSpriteAnimationAssets.clear();
+      decodedBundled.clear();
+      canvasTextAssets.clear();
+      deferredRestoreDecode.clear();
+      for (const key of retainedKeys) if (cache.has(key)) deferredRestoreDecode.add(key);
       surfaceCache.clear();
       frameHash = null;
       frameFailure = null;
-      refreshFrame(true);
+      endedProgramThisTick = false;
+      holdProgramFrame = false;
+      presentedFrameDirty = false;
+      blockingWasAlive = blockingAlive();
+      pendingTileBitmapAnimations.clear();
+      surfaceCacheEpoch += 1;
+      boardRedraw();
     } catch (error) {
       Object.assign(state, previous);
+      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
+      init.spriteRuntime?.bindItemThreadCleanup?.((thread) => discardMenuFrames(previousServices, thread));
       services = previousServices;
       pluginLayers = previousLayers;
       startupServicesReady = previousStartupServicesReady;
@@ -1049,6 +1548,13 @@ export function createEngine(init: EngineInit): Engine {
       frameHash = previousFrameHash;
       frameFailure = previousFrameFailure;
       nextRequestId = previousNextRequestId;
+      cache.clear();
+      cacheKeysDirty = true;
+      for (const [key, bytes] of previousCache) cacheAsset(key, bytes);
+      restoringSavedAssets = false;
+      restoreAssetRequests.clear();
+      deferredRestoreDecode.clear();
+      for (const key of previousDeferredDecode) deferredRestoreDecode.add(key);
       throw error;
     }
   }
@@ -1059,7 +1565,7 @@ export function createEngine(init: EngineInit): Engine {
     const ref: ProgramRef = typeof init.program === "string"
       ? { kind: "inline", text: init.program, ir: IR_VERSION, dialect: "tk3" }
       : init.program;
-    resetUiForProgramStart(state.ui);
+    beginOutermostProgram();
     startProgram(state.vm, ref);
   }
 
@@ -1070,21 +1576,67 @@ export function createEngine(init: EngineInit): Engine {
     pending.set(entry.reqId, entry);
     requestsOut.push({ kind: "asset", reqId: entry.reqId, key });
   }
+  function cacheAsset(key: AssetKey, bytes: Uint8Array): void {
+    if (!cache.has(key)) cacheKeysDirty = true;
+    cache.set(key, bytes);
+  }
+  function readProgramSource(key: AssetKey): Uint8Array | undefined {
+    const cached = cache.get(key);
+    if (cached !== undefined) {
+      if (programSources.get(key) !== cached) programSources.set(key, cached);
+      return cached;
+    }
+    const source = programSources.get(key);
+    if (source !== undefined) cacheAsset(key, source);
+    return source;
+  }
+  function beginSavedAssetRestore(): void {
+    restoreAssetRequests.clear();
+    for (const key of savedAssetRestoreKeys) {
+      if (cache.has(key)) continue;
+      const reqId = nextRestoreRequestId++;
+      const entry: RequestEntry = { reqId, key, kind: requestKindFor(key) };
+      pending.set(reqId, entry);
+      restoreAssetRequests.add(reqId);
+      requestsOut.push({ kind: "asset", reqId, key });
+    }
+    if (restoreAssetRequests.size === 0) finishSavedAssetRestore();
+  }
+  function finishSavedAssetRestore(): void {
+    restoringSavedAssets = false;
+    const board = state.world.board;
+    // Background/free-image blits need decoded dimensions before they appear in a draw list.
+    if (board !== null && board !== undefined) {
+      for (const reference of [board.backgroundImage ?? "", ...(board.images ?? []).map((image) => image.file)]) {
+        if (reference === "") continue;
+        const resolved = resolveAsset(index, root, "bitmaps", reference);
+        if (!resolved.ok) continue;
+        if (cache.has(resolved.value)) imageTexture(resolved.value);
+        else request(resolved.value, "image");
+      }
+    }
+    primeMessageGraphic();
+    if (pending.size === 0) refreshFrame(true);
+  }
+
   const IMAGE_EFFECTS: Record<string, true> = {
     bitmap: true,
     setimage: true,
     setimagetransparent: true,
     setimagetranslucent: true,
     setimageadditive: true,
+    [MENU_GRAPHIC_EFFECT]: true,
+    [MENU_HAND_EFFECT]: true,
   };
   function imageTexture(key: AssetKey): DecodedTexture | null {
+    deferredRestoreDecode.delete(key);
     const cached = decodedImages.get(key);
     if (cached !== undefined) return cached;
     // A tile bitmap is an image like any other for `bitmap` and the `setimage*` family
     // (docs/spec/formats/tiles.md#tile-bitmap-tbm: "can be used wherever an image file is accepted"), but its pixels
     // are tiles from other files, so it is composed from the tile decoders rather than the picture decoders.
     if (key.toLowerCase().endsWith(".tbm")) return tileBitmapTexture(key);
-    const bytes = cache.get(key);
+    const bytes = cache.get(key) ?? init.bundled?.get(key);
     if (bytes === undefined) return null;
     const decoded = decodeTexture(bytes, key);
     if (!decoded.ok) {
@@ -1213,6 +1765,7 @@ export function createEngine(init: EngineInit): Engine {
     return ok({ w: tileWidth, h: strip.h, rgba });
   }
   function tileTexture(key: AssetKey): DecodedTexture | null {
+    deferredRestoreDecode.delete(key);
     const cached = decodedTiles.get(key);
     if (cached !== undefined) return cached;
     const bytes = cache.get(key);
@@ -1272,19 +1825,56 @@ export function createEngine(init: EngineInit): Engine {
     const resolved = resolveAsset(index, root, "bitmaps", file);
     return resolved.ok ? resolved.value : null;
   }
+  /**
+   * The canonical key of a `winGraphic` reference (E-55), resolved once through the asset index. A reference the index
+   * cannot answer is reported once and is not fatal: the message window keeps its colour background.
+   */
+  function messageGraphicAsset(reference: string): AssetKey | null {
+    if (messageGraphics.has(reference)) return messageGraphics.get(reference) ?? null;
+    const key = imageAsset(reference);
+    messageGraphics.set(reference, key);
+    if (key === null) {
+      diagnostics.push({ code: "asset.missing", file: reference, line: 0, message: `message window image: image "${reference}" is not in the asset index` });
+    }
+    return key;
+  }
+  /** Ask for the message-window image's bytes; the draw list shows the picture once its texture is decoded. */
+  function primeMessageGraphic(): void {
+    if (restoringSavedAssets) return;
+    const reference = state.ui.message?.graphic ?? "";
+    if (reference === "") return;
+    const key = messageGraphicAsset(reference);
+    if (key === null) return;
+    if (cache.has(key)) imageTexture(key);
+    else request(key, "image");
+  }
+  /** The message-window image's key while its texture is decoded, so the draw list never names a texture a renderer lacks. */
+  function messageGraphicKey(): AssetKey | null {
+    const reference = state.ui.message?.graphic ?? "";
+    if (reference === "") return null;
+    const key = messageGraphics.get(reference) ?? null;
+    return key !== null && decodedImages.has(key) ? key : null;
+  }
   function imageDiagnostic(file: unknown, message: string): void {
     const located = typeof file === "string" && file !== "" ? file : "<image>";
     diagnostics.push({ code: "asset.missing", file: located, line: 0, message });
     failed = true;
     if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
   }
+  function appendAuthorMarginBlit(command: DrawCommand): void {
+    if (command.kind !== "blit") return;
+    const { x, y, w, h } = command.dst;
+    if (![x, y, w, h, x + w, y + h].every(Number.isSafeInteger) || w <= 0 || h <= 0) return;
+    if (x >= 0 && y >= 0 && x + w <= init.width && y + h <= init.height) return;
+    state.ui.authorMarginCommands = [...(state.ui.authorMarginCommands ?? []), command];
+  }
   /** E-56 `text` / `pixelText` with a canvas: draw the glyphs into that canvas with the active font, colour and underline. */
   function applyCanvasText(cells: boolean, args: readonly PlainData[]): void {
     const canvas = args[3] as SurfaceId;
     const value = typeof args[2] === "string" ? args[2] : "";
     const font = state.ui.font;
-    const x = typeof args[0] === "number" ? (cells ? (args[0] - 1) * font.size : args[0]) : 0;
-    const y = typeof args[1] === "number" ? (cells ? (args[1] - 1) * font.size : args[1]) : 0;
+    const x = typeof args[0] === "number" ? (cells ? Math.trunc((args[0] - 1) * font.size) : args[0]) : 0;
+    const y = typeof args[1] === "number" ? (cells ? Math.trunc((args[1] - 1) * font.size) : args[1]) : 0;
     const layout = layoutText(value, font);
     const width = Math.ceil(layout.width);
     const height = Math.ceil(layout.height);
@@ -1293,14 +1883,14 @@ export function createEngine(init: EngineInit): Engine {
     const assets = rasterAssets(canvasTextAssets);
     const fallbackFont = assets.get(defaultFontAsset);
     if (fallbackFont !== undefined && !assets.has(font.asset)) assets.set(font.asset, fallbackFont);
-    const rendered = rasterize({ tick: state.time.tick, width, height, commands }, assets);
+    const rendered = rasterize({ tick: state.time.tick, width, height, commands, marginCommands: [] }, assets);
     if (rendered.error !== null) {
       diagnostics.push({ code: "render.failed", file: "", line: 0, message: `text: ${rendered.error}` });
       return;
     }
     blitTexture(state.surfaces, { w: rendered.width, h: rendered.height, rgba: rendered.rgba }, canvas, x, y);
   }
-  function applySurfaceImage(effect: EffectRecord, texture: DecodedTexture): void {
+  function applySurfaceImage(effect: EffectRecord, texture: DecodedTexture, sourceAsset: AssetKey): void {
     const args = effect.args;
     let destination = 0 as SurfaceId;
     let x = 0;
@@ -1310,6 +1900,7 @@ export function createEngine(init: EngineInit): Engine {
     let keyColour: { readonly r: number; readonly g: number; readonly b: number } | undefined;
     let alpha = 255;
     let additive = false;
+    let translucent = false;
     if (effect.name === "bitmap") {
       destination = typeof args[1] === "number" ? args[1] as SurfaceId : destination;
       const size = state.surfaces.entries[String(destination)]?.bitmap;
@@ -1327,7 +1918,10 @@ export function createEngine(init: EngineInit): Engine {
         g: typeof args[6] === "number" ? args[6] : 0,
         b: typeof args[7] === "number" ? args[7] : 0,
       };
-      if (effect.name === "setimagetranslucent") alpha = 128;
+      if (effect.name === "setimagetranslucent") {
+        alpha = 128;
+        translucent = true;
+      }
       if (effect.name === "setimageadditive") {
         const percent = typeof args[5] === "number" ? Math.max(0, Math.min(100, Math.trunc(args[5]))) : 0;
         alpha = Math.trunc(percent * 255 / 100);
@@ -1338,12 +1932,39 @@ export function createEngine(init: EngineInit): Engine {
       imageDiagnostic(args[0], `${effect.name}: image dimensions are invalid`);
       return;
     }
+    const screenTarget = destination === (0 as SurfaceId);
+    const dst = {
+      x: Math.trunc(x),
+      y: Math.trunc(y),
+      w: Math.max(0, Math.trunc(width)),
+      h: Math.max(0, Math.trunc(height)),
+    };
+    const keyPixels = keyColour === undefined ? null : [keyColour.r, keyColour.g, keyColour.b].map(Math.trunc);
+    const normalizedKey = keyPixels !== null && keyPixels.every((value) => Number.isSafeInteger(value) && value >= 0 && value <= 255)
+      ? { r: keyPixels[0]!, g: keyPixels[1]!, b: keyPixels[2]! }
+      : null;
+    const source: DrawCommand = {
+      kind: "blit",
+      source: { asset: sourceAsset, tile: null },
+      src: { x: 0, y: 0, w: texture.w, h: texture.h },
+      dst,
+      key: normalizedKey,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha,
+      blend: additive ? "additive" : translucent ? "translucent" : "normal",
+      iso2d: false,
+    };
     // An image that names no canvas lands on the script-screen layer, exactly like the drawing commands
     // (docs/spec/engine/runners.md#surface-read-and-state-hash); destination 0 is the derived presented frame.
-    if (destination === (0 as SurfaceId)) destination = ensureScriptScreen(state.surfaces);
+    if (destination === (0 as SurfaceId)) {
+      if (presentedFrameDirty && !Object.hasOwn(state.surfaces.entries, String(SCRIPT_SCREEN))) refreshFrame(false);
+      destination = ensureScriptScreen(state.surfaces);
+    }
     if (!blitTexture(state.surfaces, texture, destination, x, y, width, height, keyColour, alpha, additive)) {
       imageDiagnostic(args[0], `${effect.name}: destination surface is not live`);
+      return;
     }
+    if (screenTarget) appendAuthorMarginBlit(source);
   }
   function applySurfaceEffect(effect: EffectRecord): void {
     if (!IMAGE_EFFECTS[effect.name]) {
@@ -1358,8 +1979,28 @@ export function createEngine(init: EngineInit): Engine {
       }
       return;
     }
+    if (effect.name === MENU_HAND_EFFECT) {
+      const texture = imageTexture(MENU_HAND_ASSET);
+      if (texture === null) {
+        if (!missingMenuHandReported && !failed) {
+          missingMenuHandReported = true;
+          diagnostics.push({ code: "asset.missing", file: MENU_HAND_ASSET, line: 0, message: "menu hand marker: bundled image is unavailable" });
+        }
+        return;
+      }
+      applySurfaceImage(effect, texture, MENU_HAND_ASSET);
+      return;
+    }
+    const optional = effect.name === MENU_GRAPHIC_EFFECT;
+    const reference = typeof effect.args[0] === "string" ? effect.args[0] : "";
+    if (optional && missingMenuGraphics.has(reference)) return;
     const key = imageAsset(effect.args[0]);
     if (key === null) {
+      if (optional) {
+        missingMenuGraphics.add(reference);
+        diagnostics.push({ code: "asset.missing", file: reference, line: 0, message: `menu graphic: image "${reference}" is not in the asset index` });
+        return;
+      }
       imageDiagnostic(effect.args[0], `${effect.name}: image is not in the asset index`);
       return;
     }
@@ -1369,10 +2010,15 @@ export function createEngine(init: EngineInit): Engine {
       request(key, "image");
       return;
     }
-    applySurfaceImage(effect, texture);
+    applySurfaceImage(effect, texture, key);
   }
   function syncEngineState(): void {
+    if (cacheKeysDirty) {
+      cacheKeysSnapshot = Array.from(cache.keys()).sort();
+      cacheKeysDirty = false;
+    }
     const next: EngineSection = {
+      cacheKeys: cacheKeysSnapshot,
       nextRequestId,
       ...(state.engine.nextBattleId === undefined ? {} : { nextBattleId: state.engine.nextBattleId }),
       pending: Array.from(pending.values(), (entry) => ({ reqId: entry.reqId, key: entry.key, kind: entry.kind })),
@@ -1465,12 +2111,20 @@ export function createEngine(init: EngineInit): Engine {
     if (entry === undefined) return;
     pending.delete(entry.reqId);
     consumed.push(record);
+    if (restoreAssetRequests.delete(entry.reqId)) {
+      if (record.event.bytes !== null) {
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
+        deferredRestoreDecode.add(entry.key);
+      }
+      if (restoreAssetRequests.size === 0) finishSavedAssetRestore();
+      return;
+    }
     if (entry.kind === "initial-character") {
       initialCharacterResolved = true;
       if (record.event.bytes === null) {
         diagnostics.push({ code: "asset.missing", file: entry.key, line: 0, message: `asset not found: ${entry.key}` });
       } else {
-        cache.set(entry.key, new Uint8Array(record.event.bytes));
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
       }
       return;
     }
@@ -1480,7 +2134,7 @@ export function createEngine(init: EngineInit): Engine {
       } else {
         let hex = "";
         for (const byte of record.event.bytes) hex += byte.toString(16).padStart(2, "0");
-        cache.set(entry.key, new Uint8Array(record.event.bytes));
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
         replyToRequest(state.vm, entry.reqId - SCRIPT_REQUEST_BASE, { ok: true, value: hex });
       }
       return;
@@ -1492,13 +2146,20 @@ export function createEngine(init: EngineInit): Engine {
     }
     if (record.event.bytes === null) {
       diagnostics.push({ code: "asset.missing", file: entry.key, line: 0, message: `asset not found: ${entry.key}` });
+      const waiting = pendingImageEffects.filter((item) => item.key === entry.key);
+      if (waiting.length > 0 && waiting.every((item) => item.effect.name === MENU_GRAPHIC_EFFECT)) {
+        // An optional menu graphic that the host cannot supply is reported once and skipped on every later redraw.
+        for (const item of waiting) if (typeof item.effect.args[0] === "string") missingMenuGraphics.add(item.effect.args[0]);
+        pendingImageEffects.splice(0, pendingImageEffects.length, ...pendingImageEffects.filter((item) => item.key !== entry.key));
+        return;
+      }
       failed = true;
       pendingImageEffects.splice(0, pendingImageEffects.length, ...pendingImageEffects.filter((item) => item.key !== entry.key));
       pendingBoardPreviews.splice(0, pendingBoardPreviews.length, ...pendingBoardPreviews.filter((item) => item.key !== entry.key));
       if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
       return;
     }
-    cache.set(entry.key, new Uint8Array(record.event.bytes));
+    cacheAsset(entry.key, new Uint8Array(record.event.bytes));
     if (entry.kind === "image") {
       imageTexture(entry.key);
     } else if (entry.kind === "tile") {
@@ -1522,32 +2183,48 @@ export function createEngine(init: EngineInit): Engine {
         continue;
       }
       pendingImageEffects.splice(index, 1);
-      applySurfaceImage(item.effect, texture);
+      applySurfaceImage(item.effect, texture, item.key);
     }
   }
   function consumeBlob(record: InputRecord, consumed: InputRecord[]): BlobReplyResult {
     const event = record.event;
-    if (event.kind !== "blob.loaded" && event.kind !== "blob.saved") return "ignored";
+    if (event.kind !== "blob.loaded" && event.kind !== "blob.saved" && event.kind !== "blob.listed") return "ignored";
     const entry = pendingBlobs.get(event.reqId);
     if (entry === undefined ||
         (entry.kind === "loadBlob" && event.kind !== "blob.loaded") ||
-        (entry.kind === "saveBlob" && event.kind !== "blob.saved")) return "ignored";
+        (entry.kind === "saveBlob" && event.kind !== "blob.saved") ||
+        (entry.kind === "listBlobs" && event.kind !== "blob.listed")) return "ignored";
     pendingBlobs.delete(entry.reqId);
     consumed.push(record);
+    if (entry.kind === "listBlobs") {
+      // Names are newline-separated in the reply: no save name may contain a newline, and `savelist` splits on it.
+      replyToRequest(state.vm, entry.vmReqId, { ok: true, value: event.kind === "blob.listed" ? event.names.join("\n") : "" });
+      return "consumed";
+    }
     if (entry.gameLoad && event.kind === "blob.loaded") {
       if (event.bytes === null) {
         replyToRequest(state.vm, entry.vmReqId, { ok: false, value: "saved game was not found" });
         return "consumed";
       }
       try {
-        const restored = restoreGameSave(utf8Decode(event.bytes), state.audio);
+        const restored = restoreGameSave(utf8Decode(event.bytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
         diagnostics.push(...restored.diagnostics);
-        applyLoadedGame(restored.state, restored.audio);
+        const callingThread = state.vm.threads.find(
+          (t) => t.status === "waiting" && (t.wait?.kind === "request" || t.wait?.kind === "blob") && t.wait.reqId === entry.vmReqId,
+        );
+        const isStartupProgram =
+          (state.engine.boot?.stage === "startup" || state.world.board === null) &&
+          callingThread?.kind === "blocking" &&
+          restored.state.battle === null;
+        const threadToContinue = isStartupProgram ? callingThread : undefined;
+        const savedMessage = isStartupProgram && state.ui.message ? { ...state.ui.message } : undefined;
+        applyLoadedGame(restored.state, restored.audio, threadToContinue, savedMessage);
         discardRecoveryCandidates();
         pending.clear();
         pendingBlobs.clear();
         pendingImageEffects.length = 0;
         pendingBoardPreviews.length = 0;
+        beginSavedAssetRestore();
         return "loaded";
       } catch (error) {
         if (error instanceof ScriptError) diagnostics.push(toDiagnostic(error));
@@ -1561,7 +2238,7 @@ export function createEngine(init: EngineInit): Engine {
         ok: event.bytes !== null,
         value: event.bytes === null ? "" : encodeHex(event.bytes),
       });
-    } else {
+    } else if (event.kind === "blob.saved") {
       // Game saves report success as 1 so scripts can observe the result; file writes keep the legacy null value.
       const value = event.ok && entry.gameSave ? 1 : null;
       replyToRequest(state.vm, entry.vmReqId, { ok: event.ok, value });
@@ -1587,6 +2264,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function rasterAssets(assets = new Map<AssetKey, RasterAsset>()): Map<AssetKey, RasterAsset> {
     for (const key of cache.keys()) {
+      if (deferredRestoreDecode.has(key)) continue;
       if (isBitmapKey(key)) imageTexture(key);
       else {
         const lower = key.toLowerCase();
@@ -1683,6 +2361,18 @@ export function createEngine(init: EngineInit): Engine {
   /** `send` posts its request here; the engine swaps boards between ticks (E-19). A later send replaces an earlier one. */
   function applyEngineEffect(effect: EffectRecord): void {
     const [, second] = effect.args;
+    if (effect.name === "diagnostic") {
+      // Phases without a host diagnostics reporter (the core trigger phase and friends) post a located
+      // report here; it reaches the tick report beside every script diagnostic.
+      const [code, file, line, message] = effect.args;
+      diagnostics.push({
+        code: typeof code === "string" ? code : "engine.diagnostic",
+        file: typeof file === "string" ? file : "",
+        line: typeof line === "number" ? line : 0,
+        message: typeof message === "string" ? message : "",
+      });
+      return;
+    }
     if (effect.name === "send") {
       const [board, x, y, layer] = effect.args;
       if (typeof board === "string" && typeof x === "number" && typeof y === "number" && typeof layer === "number") state.engine.transition = { board, x, y, layer };
@@ -1692,22 +2382,41 @@ export function createEngine(init: EngineInit): Engine {
       resetLifecycle();
       return;
     }
-    if (effect.name === "mainFile" && typeof second === "string") {
+    if ((effect.name === "mainfile" || effect.name === "mainFile") && typeof second === "string") {
       resetLifecycle(second);
       return;
     }
-    if (effect.name === "quit" && !quitRequested) {
+    if ((effect.name === "quitgame" || effect.name === "dos" || effect.name === "windows") && pendingQuit === null) {
       quitRequested = true;
-      requestsOut.push({ kind: "quit", reqId: nextRequestId++ });
+      pendingQuit = { reqId: nextRequestId++, issueSeq: effect.seq };
     }
   }
   function resetLifecycle(nextMain?: string): void {
+    reportedUnknownActions.clear();
     discardRecoveryCandidates();
     clearStartupAnchors();
     const rng = state.rng;
     const time = state.time;
-    const fresh = createGameState({ seed: 0 });
-    state.world = fresh.world;
+    const nextModalId = state.ui.nextModalId;
+    let heldPrimary = state.input.primaryPointerSuppressedUntilRelease || (state.input.pointer.buttons & 1) !== 0;
+    for (const record of queuedInputs) {
+      if (record.event.kind === "pointer") heldPrimary = (record.event.buttons & 1) !== 0;
+    }
+    if (nextMain !== undefined) {
+      initialCharacterKey = null;
+      initialCharacterResolved = true;
+    }
+    const hostFeatures = state.features;
+    const hostGeometry = state.display.geometry;
+    const hostGamepads = state.input.gamepads;
+    const fresh = createGameState({
+      seed: 0,
+      width: init.width,
+      height: init.height,
+      features: hostFeatures,
+      displayGeometry: hostGeometry,
+    });
+    state.world = { ...fresh.world, movement: movementDefaults(mainFile) };
     state.sprites = fresh.sprites;
     state.actors = fresh.actors;
     state.party = fresh.party;
@@ -1717,15 +2426,33 @@ export function createEngine(init: EngineInit): Engine {
     state.events = fresh.events;
     state.battle = fresh.battle;
     state.menu = fresh.menu;
-    state.input = createInputSection(init.input);
+    state.input = createInputSection({ ...init.input, pointerPlane: { width: init.width, height: init.height } });
+    state.input.primaryPointerSuppressedUntilRelease = heldPrimary;
     state.ui = fresh.ui;
+    state.ui.nextModalId = Math.max(state.ui.nextModalId, nextModalId);
     state.camera = createCameraSection(init.width, init.height);
     state.fx = fresh.fx;
     state.surfaces = createSurfacesSection(init.width, init.height);
+    surfaceCache.clear();
+    generatedMarginPixels = null;
+    frameHash = null;
+    frameFailure = null;
+    endedProgramThisTick = false;
+    holdProgramFrame = false;
+    presentedFrameDirty = false;
+    blockingWasAlive = false;
+    programActiveOverlay = null;
+    programOverlayPixels = null;
+    programOverlayRev = 0;
+    surfaceCacheEpoch += 1;
     state.rng = rng;
     state.time = time;
     shopSession.reset();
     pending.clear();
+    restoringSavedAssets = false;
+    restoreAssetRequests.clear();
+    savedAssetRestoreKeys = [];
+    pendingTileBitmapAnimations.clear();
     pendingImageEffects.length = 0;
     pendingBoardPreviews.length = 0;
     queuedInputs.length = 0;
@@ -1733,10 +2460,10 @@ export function createEngine(init: EngineInit): Engine {
     decodedImages.clear();
     decodedTiles.clear();
     failed = false;
-    quitRequested = false;
-    state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
+    postQuitWriteFailures.length = 0;
+    state.engine = mainKey === null ? { cacheKeys: [], claims: [] } : { cacheKeys: [], claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
-    if (init.spriteRuntime !== undefined) resetSpritesSection(init.spriteRuntime.section);
+    init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
       const found = index.byKey.get(assetKey(nextMain));
       if (found === undefined) {
@@ -1761,6 +2488,10 @@ export function createEngine(init: EngineInit): Engine {
     } else {
       services = makeServices(activePlugins, loader ?? undefined, true);
     }
+    state.input.gamepads = { ...hostGamepads };
+    recomputeInputActions(state.input, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
+    });
     audio.retry();
   }
   function fail(diagnostic: Diagnostic): void {
@@ -1769,11 +2500,21 @@ export function createEngine(init: EngineInit): Engine {
     if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
   }
   function blockingAlive(): boolean {
-    return state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
+    return hasLiveBlockingThread(state.vm);
+  }
+
+  /** Start of an outermost program: reset the UI for a program start, and reset the script screen to transparent black (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle). */
+  function beginOutermostProgram(): void {
+    if (presentedFrameDirty) refreshFrame(false);
+    resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+    resetScriptScreen(state.surfaces);
+    outermostProgramStartAnimationId = (state.fx as Partial<FxSection>)?.nextAnimationId ?? 1;
+    programActiveOverlay = null;
+    programOverlayPixels = null;
   }
 
   /** Hydrate board `key`, requesting its file and then each missing tile asset in turn. */
-  function loadBoard(key: AssetKey, tick = state.time.tick): "pending" | WorldBoard | null {
+  function loadBoard(key: AssetKey, tick = state.time.tick, active = true): "pending" | WorldBoard | null {
     const bytes = cache.get(key);
     if (bytes === undefined) {
       request(key, "board");
@@ -1789,6 +2530,27 @@ export function createEngine(init: EngineInit): Engine {
       return "pending";
     }
     const board = result.value?.board ?? null;
+    for (const dependency of result.value?.dependencies ?? []) {
+      if (!deferredRestoreDecode.has(dependency)) continue;
+      if (isBitmapKey(dependency)) imageTexture(dependency);
+      else {
+        const lower = dependency.toLowerCase();
+        if (lower.endsWith(".tst") || lower.endsWith(".iso") || lower.endsWith(".gph")) tileTexture(dependency);
+      }
+    }
+    if (board !== null && active) {
+      for (const item of board.items ?? []) {
+        const resolved = resolveAsset(index, root, "items", item.itemFile);
+        if (!resolved.ok) {
+          fail({ code: "asset.missing", file: item.itemFile, line: 0, message: `board item "${item.itemFile}" is not in the asset index` });
+          return null;
+        }
+        if (!cache.has(resolved.value)) {
+          request(resolved.value, "board-item");
+          return "pending";
+        }
+      }
+    }
     if (board === null) failed = true;
     return board;
   }
@@ -1807,6 +2569,20 @@ export function createEngine(init: EngineInit): Engine {
     } catch (error) {
       if (!(error instanceof ScriptError)) throw error;
       diagnostics.push({ code: error.code, file: error.pos?.file ?? owner, line: error.pos?.line ?? 0, message: error.message });
+      return null;
+    }
+  }
+  function resolveSpriteProgram(name: string): ProgramRef | null {
+    if (loader === null) return null;
+    try {
+      const ref: ProgramRef = name.toLowerCase().endsWith(".prg")
+        ? fileProgramRef(loader, name)
+        : { kind: "inline", text: name, ir: IR_VERSION, dialect: "tk3" };
+      services.programs.get(ref);
+      return ref;
+    } catch (error) {
+      if (!(error instanceof ScriptError)) throw error;
+      diagnostics.push({ code: error.code, file: error.pos?.file ?? mainKey ?? "", line: error.pos?.line ?? 0, message: error.message });
       return null;
     }
   }
@@ -1967,9 +2743,15 @@ export function createEngine(init: EngineInit): Engine {
   }
 
   function stopOldBoardThreads(): void {
+    // Every thread this teardown ends loses the menu frames its open provider or item action added.
+    for (const thread of state.vm.threads) {
+      const doomed = thread.kind === "board" ||
+        (thread.kind === "item" && state.sprites.items.some((item) => itemKey(item) === thread.source));
+      if (doomed) discardMenuFrames(services, thread);
+    }
     endBoardThreads(state.vm);
     for (const item of state.sprites.items) {
-      const source = item.handle === null ? item.id : `item:${item.source}`;
+      const source = itemKey(item);
       endItemThreads(state.vm, source);
     }
     expireProgramTileEdits(state);
@@ -1994,31 +2776,74 @@ export function createEngine(init: EngineInit): Engine {
   function arrive(board: WorldBoard, arrival: Arrival, fromSend: boolean): void {
     const previous = state.world.board;
     const player = state.sprites.players.find((candidate) => candidate.id === state.sprites.selectedPlayer) ?? state.sprites.players[0];
-    if (fromSend) stopOldBoardThreads();
+    if (fromSend || previous !== undefined && previous !== null) stopOldBoardThreads();
     if (previous !== undefined && previous !== null && previous.key !== board.key) {
       const leftEvent = boardLifecycle("left", previous, player);
       deferUnregisterEmitter(state.events, boardEmitterKey(previous.key), leftEvent);
     }
     registerEmitter(state.vm, state.events, boardEmitterKey(board.key));
     clearPathfindingCache();
-    state.world = { board };
+    const itemFiles = new Map<string, Item>();
+    const hydratedItems: NonNullable<WorldBoard["items"]>[number][] = [];
+    const activationPrograms = new Map<number, string>();
+    for (const item of board.items ?? []) {
+      const resolved = resolveAsset(index, root, "items", item.itemFile);
+      if (!resolved.ok) continue;
+      const bytes = cache.get(resolved.value);
+      if (bytes === undefined) continue;
+      const parsed = readItem(new BinaryReader(bytes, resolved.value));
+      if (!parsed.ok) {
+        fail({ code: "asset.invalid", file: resolved.value, line: parsed.error.offset, message: parsed.error.message });
+        return;
+      }
+      itemFiles.set(item.itemFile, parsed.value);
+      activationPrograms.set(item.slot, item.activationPrg || parsed.value.activationProgram);
+      hydratedItems.push(item);
+    }
+    const activeItems = (board.items ?? []).map((item) => ({ ...item, activationPrg: activationPrograms.get(item.slot) ?? item.activationPrg }));
+    const activeRaw = board.rawItems?.map((item) => ({ ...item, activationPrg: activationPrograms.get(item.slot) ?? item.activationPrg }));
+    state.world = { ...state.world, board: { ...board, items: activeItems, ...(activeRaw === undefined ? {} : { rawItems: activeRaw }) } };
+    const variables: Record<string, string | number | boolean> = Object.create(null);
+    for (const [name, value] of Object.entries(state.vm.globals)) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") variables[name] = value;
+    }
+    const hydrated = hydrateSprites({
+      board: { ...board, items: hydratedItems }, actorFiles: itemFiles, actors: state.actors, variables, vm: state.vm,
+      programRef: resolveSpriteProgram,
+    });
+    state.sprites.items = hydrated.items;
+    state.sprites.nextItemHandle = hydrated.nextItemHandle;
     resetTriggersSection(state.triggers);
     state.triggers.boardKey = board.key;
+    // Keep the boot poll pending through any blocking board-enter program.
+    if (!fromSend) state.triggers.lastKeySeq = -1;
     const placement: PlainData[] = [arrival.x, arrival.y, arrival.layer, arrival.unit];
-    placeSelectedPlayer(state.sprites, arrival.x, arrival.y, arrival.layer, arrival.unit);
-    bus.postEffect("sprites", engineEffect("sprites", "placeplayer", placement));
+    const spritePlacement = arrival.unit === "tile"
+      ? [...placement, board.coordType, board.sizeX]
+      : placement;
+    placeSelectedPlayer(state.sprites, arrival.x, arrival.y, arrival.layer, arrival.unit, coordLayout(board.coordType), board.sizeX);
+    bus.postEffect("sprites", engineEffect("sprites", "placeplayer", spritePlacement));
+    init.spriteRuntime?.prepareRecovery(state.world.board!, state.sprites).commit();
     state.camera = realignCamera(state.camera, board, cameraAim(board, arrival));
-    bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
+    if (fromSend) bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
     postBoardMusic(board);
     postPrefetch(board);
     boardLifecycle("entered", board, player);
+    if (fromSend) {
+      boardRedraw();
+    } else {
+      captureProgramOverlay();
+    }
     // An empty list is stored as one empty string and empty entries are ignored (docs/spec/formats/board.md#threads-constants-and-settings).
     for (const name of board.threads ?? []) if (name !== "") startFileProgram(name, board.key, "board");
     if (board.enterPrg !== undefined && board.enterPrg !== "") {
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // A blocking enter program is a new outermost program; reset the message window.
       const blocking = blockingAlive();
-      if (!blocking) resetUiForProgramStart(state.ui);
+      if (!blocking) {
+        if (fromSend) refreshFrame(false);
+        beginOutermostProgram();
+      }
       const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
       if (blocking && enterThread !== null) state.engine.pendingEnterThread = enterThread.id;
       else delete state.engine.pendingEnterThread;
@@ -2043,7 +2868,7 @@ export function createEngine(init: EngineInit): Engine {
       clearPendingExit(player.id);
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // An edge link that runs a program starts a new outermost program.
-      resetUiForProgramStart(state.ui);
+      beginOutermostProgram();
       startFileProgram(link, board.key, "blocking");
       return;
     }
@@ -2193,6 +3018,7 @@ export function createEngine(init: EngineInit): Engine {
         return false;
       }
       mainFile = parsed.value;
+      state.world = { ...state.world, movement: movementDefaults(mainFile) };
       if (root.kind === "game") root = { kind: "game", projectPath: mainFile.projectPath };
       refreshGameId();
       for (const key of [...privateFontKeys(index, root), ...programKeys(index, root)]) request(key, key.endsWith(".ttf") ? "font" : "program");
@@ -2213,6 +3039,8 @@ export function createEngine(init: EngineInit): Engine {
       if (mainFile === null) return false;
       const fonts = privateFontKeys(index, root);
       const programs = programKeys(index, root);
+      for (const key of fonts) request(key, "font");
+      for (const key of programs) if (readProgramSource(key) === undefined) request(key, "program");
       if (!initialCharacterResolved || ![...fonts, ...programs].every((key) => cache.has(key))) return false;
       for (const key of fonts) {
         const gated = gateTrueType(cache.get(key) ?? new Uint8Array(), key);
@@ -2226,7 +3054,7 @@ export function createEngine(init: EngineInit): Engine {
       const manifest = pluginManifestFor(mainFile, mainKey, init.packageCatalogue ?? []);
       const resolvedPlugins = resolveManifestPlugins(manifest.manifest, mainKey, init.packageCatalogue ?? []);
       diagnostics.push(...manifest.diagnostics, ...resolvedPlugins.diagnostics);
-      loader = { index, root, read: (key) => cache.get(key) };
+      loader = { index, root, read: readProgramSource };
       activePlugins = init.plugins ?? resolvedPlugins.plugins;
       if (mainFileAudioNeedsApply) {
         applyMainFileAudio(mainFile, activePlugins);
@@ -2234,13 +3062,18 @@ export function createEngine(init: EngineInit): Engine {
       } else {
         registerAudio();
       }
-      if (!startupServicesReady) services = makeServices(activePlugins, loader, true);
+      if (!startupServicesReady) {
+        services = makeServices(activePlugins, loader, true);
+        recomputeInputActions(state.input, (action, down, firstSeq) => {
+          routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
+        });
+      }
       if (failed) return false;
       if (initialCharacterKey !== null && cache.has(initialCharacterKey)) {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
       }
       if (mainFile.startupPrg !== "") {
-        resetUiForProgramStart(state.ui);
+        beginOutermostProgram();
         startFileProgram(mainFile.startupPrg, mainKey, "blocking");
       }
       boot.stage = "startup";
@@ -2297,13 +3130,13 @@ export function createEngine(init: EngineInit): Engine {
   function initializeRecovery(): boolean {
     if (recoveryCandidateBytes === null) return recoveryFailure("recovery.candidate-missing", "recovery was requested without candidate bytes");
     try {
-      const candidate = restoreRecoveryCandidate(utf8Decode(recoveryCandidateBytes), state.audio);
+      const candidate = restoreRecoveryCandidate(utf8Decode(recoveryCandidateBytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
       const ledger = projectGameLedger(candidate.state);
       if (ledger.world.board.state !== "present") throw new Error("the recovery candidate has no saved board");
       const cloneDiagnostics: Diagnostic[] = [];
       const staged = restoreGameState(snapshot(state), cloneDiagnostics);
       if (cloneDiagnostics.length > 0) throw new Error(cloneDiagnostics.map((entry) => entry.message).join("; "));
-      applyRecoveryLedger(staged, ledger, recoveryListenerHandles(candidate.recoveryAssets));
+      applyRecoveryLedger(staged, ledger, movementDefaults(mainFile), recoveryListenerHandles(candidate.recoveryAssets));
       recoveryLaunch = { candidate, ledger, staged, boardKey: assetKey(ledger.world.board.value.key) };
       return true;
     } catch (error) {
@@ -2383,7 +3216,21 @@ export function createEngine(init: EngineInit): Engine {
     }
     const currentLoader = loader;
     if (currentLoader === null) return recoveryFailure("recovery.program-loader", "the program loader is unavailable");
-    const resolveProgram = (name: string): ProgramRef | null => {
+    const resolveProgram = (name: string, itemProgram = false): ProgramRef | null => {
+      if (itemProgram && !name.toLowerCase().endsWith(".prg")) {
+        const ref: ProgramRef = { kind: "inline", text: name, ir: IR_VERSION, dialect: "tk3" };
+        try {
+          const compiled = services.programs.get(ref);
+          if (!Object.values(compiled.fileKeys).every((key) => programFingerprints.has(key))) {
+            recoveryFailure("recovery.asset-manifest", "an inline program includes an unfingerprinted asset");
+            return null;
+          }
+          return ref;
+        } catch (error) {
+          recoveryFailure("recovery.program-invalid", error instanceof Error ? error.message : String(error));
+          return null;
+        }
+      }
       const resolved = resolveAsset(index, root, "programs", name);
       if (!resolved.ok) {
         recoveryFailure("recovery.asset-missing", `required program "${name}" is not in the asset index`);
@@ -2422,7 +3269,7 @@ export function createEngine(init: EngineInit): Engine {
     const itemPrograms = new Map<string, ProgramRef>();
     for (const sprite of ledger.sprites.items) {
       if (!sprite.visible || sprite.multitaskProgram === null) continue;
-      const ref = resolveProgram(sprite.multitaskProgram);
+      const ref = resolveProgram(sprite.multitaskProgram, true);
       if (ref === null) return false;
       itemPrograms.set(sprite.id, ref);
     }
@@ -2479,7 +3326,7 @@ export function createEngine(init: EngineInit): Engine {
       const staged = launch.staged;
       endBoardThreads(staged.vm);
       for (const item of staged.sprites.items) {
-        endItemThreads(staged.vm, item.handle === null ? item.id : `item:${item.source}`);
+        endItemThreads(staged.vm, itemKey(item));
       }
       const board = installRecoveryBoard(staged, authoredBoard, launch.ledger);
       const player = staged.sprites.players.find((candidate) => candidate.id === staged.sprites.selectedPlayer);
@@ -2528,14 +3375,14 @@ export function createEngine(init: EngineInit): Engine {
         if (!item.visible || item.multitaskProgram === null) return item;
         const ref = prepared.itemPrograms.get(item.id);
         if (ref === undefined) throw new Error(`item program "${item.multitaskProgram}" was not prepared`);
-        const source = item.handle === null ? item.id : `item:${item.source}`;
+        const source = itemKey(item);
         const thread = startThread(stagedVm, { ref, kind: "item", owner: "world", source, target: source });
         return { ...item, multitaskThread: thread.id };
       });
       for (const ref of prepared.boardPrograms) startThread(stagedVm, { ref, kind: "board", owner: "world" });
       if (prepared.entryProgram !== null) {
         const blocking = stagedVm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
-        if (!blocking) resetUiForProgramStart(state.ui);
+        if (!blocking) beginOutermostProgram();
         startThread(stagedVm, { ref: prepared.entryProgram, kind: blocking ? "board" : "blocking", owner: blocking ? "world" : "script" });
       }
     } catch (error) {
@@ -2593,6 +3440,22 @@ export function createEngine(init: EngineInit): Engine {
     if (live === undefined || original !== live || ordinal === undefined) return null;
     return { ordinal, className: live.className, hostType: live.hostType ?? null };
   }
+  /**
+   * A board thread has no lifetime owner during startup until a board is installed; before the first
+   * board is installed, no background thread receives a slice (owner-relayed 3.1-source fact, 2026-11-05):
+   * persistence decides only whether a spawned thread survives long enough to be eligible afterwards.
+   * Once a board is installed during startup (a start-up `send`/`Load`), a real board exists and its
+   * threads and persistent threads become eligible and may run, as everywhere else (a live blocking
+   * thread still owns the phase; see #1167). The blocking program itself never becomes ineligible.
+   */
+  function startupThreadEligible(thread: Thread): boolean {
+    return state.engine.boot?.stage !== "startup"
+      || (state.world.board !== null && state.world.board !== undefined)
+      || thread.kind === "blocking";
+  }
+  function discardUnboardedStartupThreads(): void {
+    if (state.world.board === null || state.world.board === undefined) endBoardThreads(state.vm);
+  }
   function stepBoot(boot: NonNullable<EngineSection["boot"]>): boolean {
     if (boot.stage === "recovery") return stepRecovery();
     if (boot.stage === "main" || boot.stage === "assets") return startBoot(boot);
@@ -2606,6 +3469,7 @@ export function createEngine(init: EngineInit): Engine {
       }
       recordStartupAnchors();
       if (recoveryCandidateBytes !== null) {
+        discardUnboardedStartupThreads();
         delete state.engine.transition;
         boot.stage = "recovery";
         return true;
@@ -2614,6 +3478,7 @@ export function createEngine(init: EngineInit): Engine {
         boot.stage = "running";
         return false;
       }
+      discardUnboardedStartupThreads();
       boot.stage = "board";
       return true;
     }
@@ -2639,16 +3504,19 @@ export function createEngine(init: EngineInit): Engine {
     const loaded = loadBoard(target.value);
     if (loaded === "pending" || loaded === null) return false;
     delete state.engine.transition;
-    arrive(loaded, { x: transition.x, y: transition.y, layer: transition.layer, unit: "tile" }, true);
+    // send names a position in the destination board's own coordinate mode
+    // (docs/spec/engine/movement-and-collision.md#reawakened-send-board, #1246).
+    arrive(loaded, { x: transition.x, y: transition.y, layer: transition.layer, unit: usesPixelCoordinates(loaded.coordType) ? "pixel" : "tile" }, true);
     return true;
   }
   function stepScene(): boolean {
     if (sceneBoardKey === null || state.world.board !== undefined && state.world.board !== null) return false;
-    const loaded = loadBoard(sceneBoardKey);
+    // Scene-only renderers supply their own sprites and do not enter a playable board.
+    const loaded = loadBoard(sceneBoardKey, state.time.tick, false);
     if (loaded === "pending" || loaded === null) return false;
     registerEmitter(state.vm, state.events, boardEmitterKey(loaded.key));
     clearPathfindingCache();
-    state.world = { board: loaded };
+    state.world = { ...state.world, board: loaded };
     state.camera = initCameraForBoard(state.camera, loaded, init.cameraTarget);
     postPrefetch(loaded);
     boardLifecycle("entered", loaded, state.sprites.players[0]);
@@ -2659,8 +3527,12 @@ export function createEngine(init: EngineInit): Engine {
    * `send`, the scene board) until one waits for a host reply or a tick.
    */
   function drive(): void {
+    if (restoringSavedAssets) return;
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
+      prepareSpriteVisuals();
+      // Keep ordinary image animations on the animation phase clock; only composed tile bitmaps need pre-tick dependency completion.
+      if (!failed && pending.size === 0 && pendingBlobs.size === 0) prepareAnimations(true);
       if (failed || pending.size > 0 || pendingBlobs.size > 0 || state.engine.openTick !== undefined) return;
       if (pendingBoardPreviews.length > 0 && !prepareBoardPreviews()) return;
       const boot = state.engine.boot;
@@ -2669,7 +3541,8 @@ export function createEngine(init: EngineInit): Engine {
       if (boot === undefined) progressed = transition !== undefined ? stepTransition(transition) : stepScene();
       else if (transition !== undefined && boot.stage !== "main" && boot.stage !== "assets") progressed = stepTransition(transition);
       else progressed = stepBoot(boot);
-      if (!progressed) return;
+      const settledPostQuitWrite = settlePostQuitWriteFailures();
+      if (!progressed && !settledPostQuitWrite) return;
     }
   }
   /** Ticks run once nothing is outstanding: a scene needs its board, boot needs the start-up program or the main loop. */
@@ -2685,11 +3558,7 @@ export function createEngine(init: EngineInit): Engine {
       tick: state.time.tick,
       input: inputView(state.input),
       ui: state.ui,
-      sprites: [...state.sprites.players, ...state.sprites.items].map((actor) => ({
-        id: actor.id,
-        stance: actor.visual.stance,
-        stanceComplete: actor.visual.stanceComplete,
-      })),
+      sprites: spriteWaitView(state.sprites),
       claims: state.engine.claims ?? [],
       audio: state.audio,
       events: state.events,
@@ -2728,8 +3597,19 @@ export function createEngine(init: EngineInit): Engine {
   function requestFrameAssets(animation: AnimationState): boolean {
     let waiting = false;
     for (const frame of animation.frames) {
-      if (frame.asset === null || frame.surface !== undefined || cache.has(frame.asset)) continue;
-      request(frame.asset, requestKindFor(frame.asset));
+      if (frame.asset === null || frame.surface !== undefined) continue;
+      const isTileBitmap = frame.asset.toLowerCase().endsWith(".tbm");
+      if (isTileBitmap) pendingTileBitmapAnimations.add(animation.id);
+      const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
+      if (cache.has(frame.asset)) {
+        if (deferredRestoreDecode.has(frame.asset)) {
+          if (kind === "tile") tileTexture(frame.asset);
+          else imageTexture(frame.asset);
+        }
+        if (isTileBitmap && imageTexture(frame.asset) === null) waiting = true;
+        continue;
+      }
+      request(frame.asset, kind);
       waiting = true;
     }
     return waiting;
@@ -2750,13 +3630,18 @@ export function createEngine(init: EngineInit): Engine {
     const ready = animations.filter((animation) => animation.frames.every((frame) => frame.asset === null || frame.surface !== undefined || cache.has(frame.asset)));
     return { ...state.fx, animations: ready };
   }
-  function prepareAnimations(): void {
+  function prepareAnimations(tileBitmapsOnly = false): void {
     const animations = (state.fx as Partial<FxSection>).animations ?? [];
     for (const animation of animations) {
-      if (animation.loaded || animation.finished) continue;
+      if (tileBitmapsOnly && !pendingTileBitmapAnimations.has(animation.id)) continue;
+      if (animation.loaded || animation.finished) {
+        pendingTileBitmapAnimations.delete(animation.id);
+        continue;
+      }
       const key = animation.asset ?? resolveAnimationFile(animation.file);
       if (key === null) {
         animation.finished = true;
+        pendingTileBitmapAnimations.delete(animation.id);
         diagnostics.push({ code: "asset.missing", file: animation.file, line: 0, message: `animation "${animation.file}" is not in the asset index` });
         continue;
       }
@@ -2768,23 +3653,287 @@ export function createEngine(init: EngineInit): Engine {
       }
       if (!loadAnimation(state, animation, bytes, resolveAnimationImage)) {
         animation.finished = true;
+        pendingTileBitmapAnimations.delete(animation.id);
         diagnostics.push({ code: "asset.invalid", file: key, line: 0, message: `cannot decode animation "${animation.file}"` });
         continue;
       }
       // A frame's picture is a separate asset. The animation starts playing, and its frame clock starts, only once every
-      // picture is in the cache, so the first drawn frame is never a missing texture and the frames are on the same
-      // ticks on every run.
+      // picture is in the cache; the tile-bitmap path can finish from drive after every composed dependency arrives.
       const waiting = requestFrameAssets(animation);
       if (waiting) {
         releaseAnimationSurfaces(state, animation);
         animation.loaded = false;
         animation.frames = [];
+      } else {
+        pendingTileBitmapAnimations.delete(animation.id);
       }
     }
   }
+  /**
+   * Every animation file an actor's visual state can select, in stable actor order: walk, idle and battle slots plus
+   * custom stances and the current selection (docs/spec/formats/character.md#defaults-and-fall-backs, E-21).
+   */
+  function spriteAnimationFiles(): string[] {
+    const files: string[] = [];
+    const seen = new Set<string>();
+    const add = (file: string): void => {
+      if (file === "") return;
+      const key = assetKey(file);
+      if (seen.has(key)) return;
+      seen.add(key);
+      files.push(file);
+    };
+    for (const actor of [...state.sprites.players, ...state.sprites.items]) {
+      for (const slot of actor.visual.movement) add(slot);
+      for (const slot of actor.visual.idle) add(slot);
+      for (const slot of actor.visual.battle) add(slot);
+      for (const stance of actor.visual.custom) add(stance.animation);
+      if (actor.visual.file !== null) add(actor.visual.file);
+    }
+    return files;
+  }
+
+  /**
+   * The drawn size of one tileset cell an actor animation frame names (E-54). A frame's art is the tile itself, so its
+   * source rectangle is the tileset's own cell size, never the animation header's size: a 64×32 animation may name a
+   * 32×32 cell, and reading 64 pixels of a 32-pixel strip would sample the next cell or leave the texture.
+   */
+  const spriteCellSizes = new Map<AssetKey, { readonly w: number; readonly h: number }>();
+
+  function spriteTileCellSize(key: AssetKey): { readonly w: number; readonly h: number } | null {
+    const cached = spriteCellSizes.get(key);
+    if (cached !== undefined) return cached;
+    const bytes = cache.get(key);
+    if (bytes === undefined) return null;
+    const lower = key.toLowerCase();
+    let size: { readonly w: number; readonly h: number } | null = null;
+    if (lower.endsWith(".gph")) {
+      const parsed = readSingleTile(bytes, key);
+      if (parsed.ok) size = { w: parsed.value.width, h: parsed.value.height };
+    } else if (lower.endsWith(".tst") || lower.endsWith(".iso")) {
+      const parsed = readTileset(bytes, key);
+      if (parsed.ok) {
+        const native = tileDimensions(parsed.value.detail);
+        const scale = parsed.value.detail.size === 16 ? 2 : 1;
+        size = { w: native.width * scale, h: native.height * scale };
+      }
+    }
+    if (size === null) return null;
+    spriteCellSizes.set(key, size);
+    return size;
+  }
+
+  /**
+   * Ask for every picture an animation's frames draw that the engine has not decoded yet. Runs on both the first
+   * decode and on every later use of cached metadata, so a reply that was dropped when a save load or reset cleared
+   * the pending queue is asked for again instead of leaving the actor on its marker for the rest of the run (#1259).
+   */
+  function requestSpriteFrameAssets(decoded: DecodedAnimation): void {
+    // GIF pages are installed in the decoded picture cache during preparation, never during draw-list reads.
+    if (decoded.gifPixels !== undefined) return;
+    for (const frame of decoded.frames) {
+      if (frame.asset === null || frame.surface !== undefined) continue;
+      if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) {
+        // A tileset cell or a single tile: the tile decoder expands it and the draw names the tile.
+        if (!cache.has(frame.asset)) request(frame.asset, "tile");
+        else tileTexture(frame.asset);
+        continue;
+      }
+      // An ordinary picture — a `.tbm` included, which the picture decoder composes and whose cells it requests.
+      if (imageTexture(frame.asset) === null && !cache.has(frame.asset)) request(frame.asset, "image");
+    }
+  }
+
+  /**
+   * Decode one actor animation file from the asset cache (E-54): its frame list, delay and size, shared by every
+   * sprite that names the file. Returns null while bytes are outstanding and caches undecodable files as null.
+   * GIF pages are prepared separately as content-addressed picture entries.
+   */
+  function decodeSpriteAnimation(key: AssetKey): DecodedAnimation | null {
+    const bytes = cache.get(key);
+    if (bytes === undefined) {
+      request(key, "animation");
+      return null;
+    }
+    const cached = spriteAnimations.get(key);
+    if (cached !== undefined && spriteAnimationSourceBytes.get(key) === bytes) {
+      if (cached !== null) requestSpriteFrameAssets(cached);
+      return cached;
+    }
+    releaseSpriteGifPageAssets(key);
+    spriteAnimationSourceBytes.set(key, bytes);
+    const decoded = decodeAnimationFrames(bytes, key, key, resolveAnimationImage);
+    if (decoded === null) {
+      spriteAnimations.set(key, null);
+      diagnostics.push({ code: "asset.invalid", file: key, line: 0, message: `cannot decode animation "${key}"` });
+      return null;
+    }
+    requestSpriteFrameAssets(decoded);
+    spriteAnimations.set(key, decoded);
+    return decoded;
+  }
+  /** Give every GIF page a deterministic private picture key derived from the exact animation bytes and frame index. */
+  function spriteGifAssetKeys(key: AssetKey, decoded: DecodedAnimation): readonly AssetKey[] {
+    const pages = decoded.gifPixels;
+    if (pages === undefined) return [];
+    const cached = spriteGifPageAssets.get(key);
+    if (cached !== undefined) {
+      for (let index = 0; index < pages.length; index += 1) {
+        const asset = cached[index];
+        const pixels = pages[index];
+        if (asset !== undefined && pixels !== undefined && !decodedImages.has(asset)) {
+          decodedImages.set(asset, { w: decoded.width, h: decoded.height, rgba: pixels });
+        }
+      }
+      return cached;
+    }
+    const bytes = spriteAnimationSourceBytes.get(key);
+    if (bytes === undefined) return [];
+    const contentIdentity = fnv1a64(bytes);
+    const assets: AssetKey[] = [];
+    for (let index = 0; index < pages.length; index += 1) {
+      const pixels = pages[index];
+      if (pixels === undefined) continue;
+      // NUL cannot occur in an indexed path, keeping this private namespace disjoint from authored assets.
+      const pageKey = `\u0000rpgtoolkit-gif-page/${contentIdentity}/${index}` as AssetKey;
+      decodedImages.set(pageKey, { w: decoded.width, h: decoded.height, rgba: pixels });
+      assets.push(pageKey);
+    }
+    spriteGifPageAssets.set(key, assets);
+    return assets;
+  }
+  function releaseSpriteGifPageAssets(key: AssetKey): void {
+    const assets = spriteGifPageAssets.get(key);
+    if (assets === undefined) return;
+    spriteGifPageAssets.delete(key);
+    for (const asset of assets) {
+      let referenced = false;
+      for (const pages of spriteGifPageAssets.values()) {
+        if (pages.includes(asset)) {
+          referenced = true;
+          break;
+        }
+      }
+      if (!referenced) decodedImages.delete(asset);
+    }
+  }
+
+  function releaseInactiveSpriteGifPages(active: ReadonlySet<AssetKey>): void {
+    for (const key of spriteGifPageAssets.keys()) {
+      if (active.has(key)) continue;
+      releaseSpriteGifPageAssets(key);
+      const decoded = spriteAnimations.get(key);
+      if (decoded?.gifPixels !== undefined) {
+        spriteAnimations.delete(key);
+        spriteAnimationSourceBytes.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Ask for every actor animation file before a tick can use it. Runs beside the boot/board driver, so a board never
+   * ticks its sprites with an unknown frame clock: the requests it posts stop ticking until the host answers (E-21).
+   */
+  function prepareSpriteVisuals(): void {
+    if (failed || pending.size > 0 || pendingBlobs.size > 0) return;
+    const active = new Set<AssetKey>();
+    for (const file of spriteAnimationFiles()) {
+      const key = resolveAnimationFile(file);
+      if (key === null) {
+        const folded = assetKey(file);
+        if (!missingSpriteAnimationAssets.has(folded)) {
+          missingSpriteAnimationAssets.add(folded);
+          diagnostics.push({ code: "asset.missing", file, line: 0, message: `sprite animation "${file}" is not in the asset index` });
+        }
+        continue;
+      }
+      active.add(key);
+      const decoded = decodeSpriteAnimation(key);
+      if (decoded !== null) spriteGifAssetKeys(key, decoded);
+    }
+    releaseInactiveSpriteGifPages(active);
+  }
+  /** The actor animation clock's metadata: the count of non-empty frames and the frame delay (E-21, E-54). */
+  function resolveSpriteAnimationSpec(file: string): { readonly file: string; readonly frames: number; readonly delayTicks: number } | null {
+    const key = resolveAnimationFile(file);
+    if (key === null) return null;
+    const data = spriteAnimations.get(key) ?? decodeSpriteAnimation(key);
+    if (data === null || data.frames.length === 0) return null;
+    return { file, frames: data.frames.length, delayTicks: data.delayTicks };
+  }
+
+  /**
+   * The draw payload of one actor animation frame: the tileset cell (or picture) the compositor blits at the sprite's
+   * position. A frame whose picture is still outstanding yields null so the sprite keeps its marker until its artwork
+   * is available.
+   */
+  function spriteFrameFor(file: string, frame: number): SpriteFrame | null {
+    const key = resolveAnimationFile(file);
+    if (key === null) return null;
+    const data = spriteAnimations.get(key) ?? decodeSpriteAnimation(key);
+    if (data === null || data.frames.length === 0) return null;
+    const index = ((Math.trunc(frame) % data.frames.length) + data.frames.length) % data.frames.length;
+    const entry = data.frames[index];
+    if (entry === undefined || entry.asset === null) return null;
+    if (data.gifPixels !== undefined) {
+      const pageAsset = spriteGifPageAssets.get(key)?.[index];
+      if (pageAsset === undefined) return null;
+      return {
+        file,
+        asset: pageAsset,
+        tile: null,
+        src: { x: 0, y: 0, w: data.width, h: data.height },
+        width: data.width,
+        height: data.height,
+        transparent: entry.transparent,
+      };
+    }
+    // A draw can happen without a preparation pass (a stance started mid-tick), so re-acquire ordinary assets here too.
+    requestSpriteFrameAssets(data);
+    if (entry.surface !== undefined) return null;
+    // The frame's picture is a separate asset; until the host has delivered and decoded it the sprite keeps its
+    // marker, so a frame never names a texture the runner cannot resolve yet.
+    const lower = entry.asset.toLowerCase();
+    if (entry.tile === null && !lower.endsWith(".gph")) {
+      // An ordinary picture (a `.tbm` is one too: `imageTexture` composes it). The header's width/height is the frame
+      // canvas and the anchor; the source rectangle is the picture's own pixels, so a 64×32 canvas naming a 32×32 image
+      // draws the whole image instead of reading past the texture (animation.md#layout, #1270).
+      const picture = imageTexture(entry.asset);
+      if (picture === null) return null;
+      return {
+        file,
+        asset: entry.asset,
+        tile: null,
+        src: { x: 0, y: 0, w: picture.w, h: picture.h },
+        width: data.width,
+        height: data.height,
+        transparent: entry.transparent,
+      };
+    }
+    // A tileset cell (entry.tile) or a whole single tile `.gph`: the tile decoder expands it, and the art keeps its
+    // own cell size instead of the animation header's.
+    if (entry.tile === null && tileTexture(entry.asset) === null) return null;
+    const cell = spriteTileCellSize(entry.asset);
+    if (cell === null) return null;
+    // The animation's width/height is the frame canvas (and so the anchor); the tile is drawn at its own cell size
+    // from the canvas origin, never stretched to the canvas (a 64×32 frame naming a 32×32 cell).
+    return {
+      file,
+      asset: entry.asset,
+      tile: entry.tile,
+      src: { x: 0, y: 0, w: cell.w, h: cell.h },
+      dst: { x: 0, y: 0, w: cell.w, h: cell.h },
+      width: data.width,
+      height: data.height,
+    };
+  }
+
   function runAnimationPhase(): void {
     advanceFx(state);
     prepareAnimations();
+    // Actor walk, idle and stance playback belongs to this same animation phase (E-21): one owner per tick, not a
+    // second phase, and the host's own animation-phase registrations still run after it.
+    runActorAnimationPhase(state.sprites, state.time.tick, { resolve: resolveSpriteAnimationSpec });
     const sounds = advanceAnimations(state);
     for (const sound of sounds) {
       const resolved = resolveAsset(index, root, "media", sound.sound);
@@ -2820,34 +3969,296 @@ export function createEngine(init: EngineInit): Engine {
     }
   }
 
+  function applyHostStateEvent(event: InputRecord["event"]): boolean {
+    if (event.kind === "host.features") {
+      state.features = normalizeHostFeatures(event.features);
+      return true;
+    }
+    if (event.kind === "host.gamepads") {
+      const connected = new Set(event.devices.map((device) => device.device));
+      const stagedConnected = new Set(
+        Object.entries(state.input.gamepads)
+          .filter(([, pad]) => pad.connected)
+          .map(([device]) => Number(device)),
+      );
+      for (const pending of state.input.pendingGamepads) {
+        if (pending.connected) stagedConnected.add(pending.device);
+        else stagedConnected.delete(pending.device);
+      }
+      for (const device of [...stagedConnected].sort((left, right) => left - right)) {
+        if (!connected.has(device)) {
+          state.input.pendingGamepads.push({ device, connected: false, axes: { x: 0, y: 0 }, buttons: 0 });
+        }
+      }
+      for (const device of event.devices) {
+        state.input.pendingGamepads.push({ ...device, connected: true });
+      }
+      return true;
+    }
+    if (event.kind === "host.display") {
+      const previous = state.display.geometry;
+      const geometry = normalizeDisplayGeometry(event.geometry);
+      state.display = { geometry };
+      if (
+        previous.content.width !== geometry.content.width ||
+        previous.content.height !== geometry.content.height ||
+        previous.game.x !== geometry.game.x ||
+        previous.game.y !== geometry.game.y ||
+        previous.game.width !== geometry.game.width ||
+        previous.game.height !== geometry.game.height ||
+        previous.safeArea.top !== geometry.safeArea.top ||
+        previous.safeArea.right !== geometry.safeArea.right ||
+        previous.safeArea.bottom !== geometry.safeArea.bottom ||
+        previous.safeArea.left !== geometry.safeArea.left
+      ) {
+        const scaleX = geometry.game.width / init.width;
+        const scaleY = geometry.game.height / init.height;
+        // Script member names are ASCII-folded by the RPGCode parser.
+        queueNativeEvent(state.vm, state.events, "game", "viewportResized", {
+          marginleft: Math.floor(geometry.game.x / scaleX),
+          marginright: Math.floor((geometry.content.width - geometry.game.x - geometry.game.width) / scaleX),
+          margintop: Math.floor(geometry.game.y / scaleY),
+          marginbottom: Math.floor((geometry.content.height - geometry.game.y - geometry.game.height) / scaleY),
+          safeareatop: Math.floor(geometry.safeArea.top / scaleY),
+          safearearight: Math.floor(geometry.safeArea.right / scaleX),
+          safeareabottom: Math.floor(geometry.safeArea.bottom / scaleY),
+          safearealeft: Math.floor(geometry.safeArea.left / scaleX),
+        });
+      }
+      return true;
+    }
+    return false;
+  }
+
+  const authorSurfaceSelectionKey = (owner: number, surfaceId: string): string => `${owner}:${surfaceId}`;
+  function authorSurfaceTargetAt(x: number, y: number): UiActionClaim | null {
+    const width = init.width;
+    const height = init.height;
+    const inPlane1 = x >= 0 && y >= 0 && x < width && y < height;
+    if (!inPlane1) {
+      const geometry = state.display.geometry;
+      const scaleX = geometry.game.width / width;
+      const scaleY = geometry.game.height / height;
+      const left = geometry.game.x + x * scaleX;
+      const right = left + scaleX;
+      const top = geometry.game.y + y * scaleY;
+      const bottom = top + scaleY;
+      const safeLeft = geometry.safeArea.left;
+      const safeRight = geometry.content.width - geometry.safeArea.right;
+      const safeTop = geometry.safeArea.top;
+      const safeBottom = geometry.content.height - geometry.safeArea.bottom;
+      if (left < 0 || top < 0 || right > geometry.content.width || bottom > geometry.content.height ||
+          left < safeLeft || right > safeRight || top < safeTop || bottom > safeBottom) return null;
+    }
+    const surfaces = state.ui.actionSurfaces ?? [];
+    for (let surfaceIndex = surfaces.length - 1; surfaceIndex >= 0; surfaceIndex -= 1) {
+      const surface = surfaces[surfaceIndex]!;
+      for (let index = 0; index < surface.items.length; index += 1) {
+        const item = surface.items[index]!;
+        if (item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
+            x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h) {
+          return { surfaceId: surface.id, owner: surface.owner, itemId: item.id, index, action: item.action ?? null, inputSeq: null, cancelled: false };
+        }
+      }
+    }
+    return null;
+  }
+
+  function dispatchAuthorSurfaceAction(claim: UiActionClaim): number | null {
+    if (claim.action === null) return null;
+    const source = `ui:${claim.owner}/${claim.surfaceId}/${claim.itemId}`;
+    const inputSeq = state.input.nextSeq;
+    if (!applySemanticActionEdge(state.input, claim.action, true, source)) {
+      reportUnknownAction(claim.action);
+      return null;
+    }
+    applySemanticActionEdge(state.input, claim.action, false, source);
+    return state.input.nextSeq > inputSeq ? inputSeq : null;
+  }
+  function routeAuthorSurfaceAction(action: string, down: boolean, inputSeq: number | null = null): void {
+    if (!down || state.ui.modal !== null) return;
+    const surfaces = state.ui.actionSurfaces ?? [];
+    const surface = surfaces[surfaces.length - 1];
+    if (surface === undefined) return;
+    if (action === "cancel") {
+      state.ui.surfaceCancelled = true;
+      state.ui.surfaceCancelledSeq = inputSeq;
+      state.ui.surfaceCancelledOwner = surface.owner;
+      return;
+    }
+    if (action === "confirm") {
+      const item = surface.items[surface.selection];
+      if (item?.enabled) state.ui.surfaceActivated = { owner: surface.owner, surfaceId: surface.id, itemId: item.id, index: surface.selection, action: null, inputSeq, cancelled: false, };
+      return;
+    }
+    if (action !== "up" && action !== "down" && action !== "left" && action !== "right") return;
+    const step = action === "up" || action === "left" ? -1 : 1;
+    const count = surface.items.length;
+    if (count === 0) return;
+    let index = surface.selection;
+    for (let attempt = 0; attempt < count; attempt += 1) {
+      index = (index + step + count) % count;
+      if (surface.items[index]?.enabled) {
+        state.ui.surfaceSelection[authorSurfaceSelectionKey(surface.owner, surface.id)] = index;
+        state.ui.actionSurfaces = surfaces.map((candidate) =>
+          candidate.owner === surface.owner && candidate.id === surface.id ? { ...candidate, selection: index } : candidate,
+        );
+        return;
+      }
+    }
+  }
+  function applyRoutedInputEvent(event: InputRecord["event"]): void {
+    if (event.kind === "pointer.cancel") { applyInputEvent(state.input, event, reportUnknownAction); state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); return; }
+    if (event.kind === "action") {
+      const before = state.input.actions[event.action] === true;
+      const firstSeq = state.input.nextSeq;
+      applyInputEvent(state.input, event, reportUnknownAction);
+      const down = state.input.actions[event.action] === true;
+      if (event.modalId === null && before !== down) routeAuthorSurfaceAction(event.action, down, down ? firstSeq : null);
+      return;
+    }
+    if (event.kind !== "pointer") {
+      if (event.kind === "key") {
+        const firstSeq = state.input.nextSeq;
+        applyInputEvent(state.input, event, reportUnknownAction, (action, down) => {
+          routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
+        });
+      } else {
+        applyInputEvent(state.input, event, reportUnknownAction);
+        if (event.kind === "focus" && event.state === "lost") { state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); }
+      }
+      return;
+    }
+    // Preserve the simulation camera at consumption, not the runner's presentation-only interpolation.
+    // Pending world points retain this offset even if the camera moves before they are processed.
+    state.input.camera = positionAt(state.camera, 1);
+    if (state.input.primaryPointerSuppressedUntilRelease) {
+      applyInputEvent(state.input, event, reportUnknownAction);
+      return;
+    }
+    const previousButtons = state.input.pointer.buttons;
+    const wasPrimaryDown = (previousButtons & 1) !== 0;
+    const isPrimaryDown = (event.buttons & 1) !== 0;
+    const downEdge = !wasPrimaryDown && isPrimaryDown;
+    const releaseEdge = wasPrimaryDown && !isPrimaryDown;
+    const pressed = state.ui.surfacePointerClaim ?? null;
+    const target = authorSurfaceTargetAt(event.x, event.y);
+    const pendingClicks = state.input.pendingClicks;
+    const pendingClickCount = pendingClicks.length;
+    const pendingPointerUps = state.input.pendingPointerUps;
+    const pendingPointerUpCount = pendingPointerUps.length;
+    const keys = state.input.keys.length;
+    const pendingActions = state.input.pendingActions.length;
+    const nextSeq = state.input.nextSeq;
+    applyInputEvent(state.input, event, reportUnknownAction);
+    const restorePendingPointerQueues = (): void => {
+      pendingClicks.length = pendingClickCount;
+      pendingPointerUps.length = pendingPointerUpCount;
+      state.input.pendingClicks = pendingClicks;
+      state.input.pendingPointerUps = pendingPointerUps;
+    };
+
+    if (state.ui.modal != null) { restorePendingPointerQueues(); if (pressed !== null) { state.ui.surfacePointerClaim = { ...pressed, cancelled: true }; if (releaseEdge) { state.ui.surfacePointerClaim = null; setPointerMovementSuppressed(state.input, false); } } return; }
+    if (pressed !== null) { const sameTarget = target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId; if (!sameTarget && !pressed.cancelled) state.ui.surfacePointerClaim = { ...pressed, cancelled: true }; restorePendingPointerQueues(); state.input.keys.length = keys; state.input.pendingActions.length = pendingActions; state.input.nextSeq = nextSeq; state.input.pressedButtonSlot = null; }
+    if (downEdge && target !== null) {
+      setPointerMovementSuppressed(state.input, true);
+      state.ui.surfacePointerClaim = target;
+      restorePendingPointerQueues();
+      state.input.keys.length = keys;
+      state.input.pendingActions.length = pendingActions;
+      state.input.nextSeq = nextSeq;
+      const surfaces = state.ui.actionSurfaces ?? [];
+      state.ui.actionSurfaces = surfaces.map((surface) =>
+        surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+      );
+      state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
+      state.input.pressedButtonSlot = null;
+      return;
+    }
+    if (releaseEdge && pressed !== null) {
+      state.ui.surfacePointerClaim = null;
+      restorePendingPointerQueues();
+      state.input.keys.length = keys;
+      state.input.pendingActions.length = pendingActions;
+      state.input.nextSeq = nextSeq;
+      state.input.pressedButtonSlot = null;
+      setPointerMovementSuppressed(state.input, false);
+      if (!pressed.cancelled && target?.owner === pressed.owner && target.surfaceId === pressed.surfaceId && target.itemId === pressed.itemId) { const inputSeq = dispatchAuthorSurfaceAction(pressed); state.ui.surfaceActivated = { ...pressed, inputSeq }; }
+      return;
+    }
+    if (target !== null) {
+      const surfaces = state.ui.actionSurfaces ?? [];
+      state.ui.actionSurfaces = surfaces.map((surface) =>
+        surface.owner === target.owner && surface.id === target.surfaceId ? { ...surface, selection: target.index } : surface,
+      );
+      state.ui.surfaceSelection[authorSurfaceSelectionKey(target.owner, target.surfaceId)] = target.index;
+    }
+    if (event.x < 0 || event.y < 0 || event.x >= init.width || event.y >= init.height) {
+      restorePendingPointerQueues();
+    }
+  }
+
+  function processPendingGamepadEvents(): void {
+    processGamepadEvents(state.input, ({ device, connected }) => {
+      queueNativeEvent(state.vm, state.events, "game", connected ? "device.connected" : "device.disconnected", {
+        device,
+        type: "gamepad",
+      });
+    }, (action, down, firstSeq) => {
+      routeAuthorSurfaceAction(action, down, down ? firstSeq : null);
+    });
+  }
+  function applyQueuedInputRecords(consumed: InputRecord[]): void {
+    const records = takeQueuedInputs(state.time.tick);
+    for (const record of records) {
+      if (record.event.kind === "host.display" && state.input.pendingPointerUps.length > 0) {
+        routePointerUpActivations(state);
+      }
+      if (applyHostStateEvent(record.event)) {
+        consumed.push(record);
+        continue;
+      }
+      if (record.event.kind === "asset") {
+        consumeAsset(record, consumed);
+        continue;
+      }
+      applyRoutedInputEvent(record.event);
+      consumed.push(record);
+    }
+    processPendingGamepadEvents();
+  }
+
+  /** End the pending one-shot preservation only at the actual script-thread phase boundary. */
+  function finishScriptThreadPass(): void {
+    state.ui.surfaceResultsPending = false;
+  }
   function runPhase(phase: EnginePhase, consumed: InputRecord[]): void {
     state.engine.phase = phase;
     switch (phase) {
       case "input": {
-        const records = takeQueuedInputs(state.time.tick);
-        for (const record of records) {
-          if (record.event.kind === "asset") {
-            consumeAsset(record, consumed);
-            continue;
-          }
-          applyInputEvent(state.input, record.event);
-          consumed.push(record);
+        if (!state.ui.surfaceResultsPending) {
+          state.ui.surfaceActivated = null;
+          state.ui.surfaceCancelled = false;
+          state.ui.surfaceCancelledSeq = null;
+          state.ui.surfaceCancelledOwner = null;
         }
-        processGamepadEvents(state.input);
+        for (const thread of state.vm.threads) {
+          if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
+        }
+        applyQueuedInputRecords(consumed);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state);
         return;
       }
       case "waits":
-        for (const thread of state.vm.threads) {
-          if (thread.wait?.kind === "input.key" && thread.wait.parkSeq === undefined) thread.wait.parkSeq = state.input.nextSeq;
-        }
-        // `get()` and `clearBuffer()` claim keys during the threads phase; remove those records before the claim list is
-        // rebuilt for the waiting threads, or the key would be returned again on the next tick.
+        // `get()` and `clearBuffer()` claims made during threads are pruned before rebuilding waits-phase claims.
         pruneClaimed(state.input, state.engine.claims ?? []);
         state.engine.claims = [];
         const videoBefore = state.engine.video;
-        runWaitsPhase(state.vm, phaseView(), defaultWaitPoll, (seq) => {
-          if (!(state.engine.claims ?? []).includes(seq)) (state.engine.claims ??= []).push(seq);
+        runWaitsPhase(state.vm, phaseView(), defaultWaitPoll, (seq, discardBefore) => {
+          const claims = state.engine.claims ??= [];
+          // Use this waiter's park floor, not its selected sequence: another input wait can preserve intervening keys.
+          if (discardBefore !== undefined) claimInputBefore(state.input, discardBefore, claims);
+          if (seq !== undefined && !claims.includes(seq)) claims.push(seq);
         }, undefined, (wait) => {
           if (wait.kind === "input.key" && wait.dialogue !== undefined) {
             queueNativeEvent(state.vm, state.events, "game", "dialogue.completed", wait.dialogue);
@@ -2865,10 +4276,14 @@ export function createEngine(init: EngineInit): Engine {
         pruneClaimed(state.input, state.engine.claims ?? []);
         return;
       case "threads": {
+        if (presentedFrameDirty && blockingAlive() && !blockingWasAlive) {
+          refreshFrame(false);
+        }
         const liveBlockingBefore = new Set(
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
-        withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET));
+        withSurfaceBatch(() => runThreadsPhase(state.vm, services, STEP_BUDGET, startupThreadEligible));
+        finishScriptThreadPass();
         if (state.engine.pendingEnterThread !== undefined) {
           const enterThread = state.vm.threads.find((thread) => thread.id === state.engine.pendingEnterThread);
           if (enterThread === undefined || enterThread.status === "finished") {
@@ -2884,6 +4299,7 @@ export function createEngine(init: EngineInit): Engine {
             onBlockingThreadFinished(thread);
           }
         }
+        blockingWasAlive = blockingAlive();
         expireProgramTileEdits(state);
         return;
       }
@@ -2894,11 +4310,16 @@ export function createEngine(init: EngineInit): Engine {
         return;
       case "time":
         runTimePhase(state.time);
+        state.ui.surfaceBuilders = state.ui.surfaceBuilders.filter((builder) => builder.openedTick >= state.time.tick);
+        state.ui.actionSurfaces = state.ui.actionSurfaces.filter((surface) => surface.publishedTick >= state.time.tick - 1);
         collectStateGarbage(state, layerRoots(services.layers));
         return;
       case "movement":
         state.camera = updateCamera(state.camera, state.world.board ?? null, init.cameraTarget ?? init.spriteRuntime);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state, (section, effect) => bus.postEffect(section, effect));
+        if (state.vm.threads.some((thread) => thread.kind === "blocking" && (thread.wait?.kind === "sprite.movement" || thread.wait?.kind === "movement" || thread.wait?.kind === "sprite.stance"))) {
+          boardRedraw();
+        }
         return;
       case "edges":
         runEdgesPhase();
@@ -2943,69 +4364,202 @@ export function createEngine(init: EngineInit): Engine {
     queuedInputs.push(...deferred);
     return ready;
   }
-  function processPreTickEvents(consumed: InputRecord[]): void {
+  function processPreTickEvents(consumed: InputRecord[]): boolean {
     const records = takeQueuedInputs(state.time.tick);
     const deferred: InputRecord[] = [];
+    const hasPointerRecord = records.some((record) => record.event.kind === "pointer");
+    let inputFocused = state.input.focused;
+    let restoredOpenTick = false;
     for (let index = 0; index < records.length; index += 1) {
       const record = records[index]!;
+      if (record.event.kind === "host.display" && state.input.pendingPointerUps.length > 0) {
+        routePointerUpActivations(state);
+      }
       if (record.event.kind === "asset") {
         consumeAsset(record, consumed);
-      } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved") {
+      } else if (record.event.kind === "blob.loaded" || record.event.kind === "blob.saved" || record.event.kind === "blob.listed") {
+        if (record.event.kind === "blob.loaded") {
+          // Earlier host observations belong to the old timeline, not a later tick after a load rewinds it.
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (earlier.event.kind === "host.display" && deferred.some((item) => item.event.kind === "pointer")) break;
+            if (!applyHostStateEvent(earlier.event)) break;
+            consumed.push(earlier);
+            deferred.splice(at, 1);
+          }
+        }
+        // Records already queued when Load commits still belong to the old physical gesture.
+        let heldPrimary = state.input.primaryPointerSuppressedUntilRelease || (state.input.pointer.buttons & 1) !== 0;
+        for (const pending of deferred) {
+          if (pending.event.kind === "pointer") heldPrimary = (pending.event.buttons & 1) !== 0;
+        }
+        const consumedBeforeReply = consumed.length;
         const result = consumeBlob(record, consumed);
         if (result === "ignored") deferred.push(record);
         if (result === "loaded") {
-          for (const queued of records.slice(index + 1)) {
-            if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved") continue;
-            deferred.push({ ...queued, tick: state.time.tick });
+          state.input.primaryPointerSuppressedUntilRelease = heldPrimary;
+          state.input.pointer = { ...state.input.pointer, buttons: state.input.pointer.buttons & ~1 };
+          state.input.pointerGestureId = null;
+          state.input.pressedButtonSlot = null;
+          state.input.pendingClicks = [];
+          state.input.pendingPointerUps = [];
+          state.ui.surfacePointerClaim = null;
+          setPointerMovementSuppressed(state.input, false);
+          let consumedOldPointerAt = consumedBeforeReply;
+          for (let at = 0; at < deferred.length;) {
+            const earlier = deferred[at]!;
+            if (earlier.event.kind === "pointer" || earlier.event.kind === "pointer.cancel") {
+              consumed.splice(consumedOldPointerAt++, 0, earlier);
+              deferred.splice(at, 1);
+            } else at += 1;
           }
+          for (let at = 0; at < deferred.length; at += 1) {
+            deferred[at] = { ...deferred[at]!, tick: state.time.tick };
+          }
+          for (const queued of records.slice(index + 1)) {
+            if (queued.event.kind === "asset" || queued.event.kind === "blob.loaded" || queued.event.kind === "blob.saved" || queued.event.kind === "blob.listed") continue;
+            const rebased = { ...queued, tick: state.time.tick };
+            deferred.push(rebased);
+          }
+          restoredOpenTick = state.engine.openTick !== undefined;
           break;
         }
       } else if (record.event.kind === "video.ended") {
         if (state.engine.video?.reqId === record.event.reqId) state.engine.video = { ...state.engine.video, ended: true };
         consumed.push(record);
       } else if (record.event.kind === "focus") {
-        if (record.event.state === "lost" && state.engine.openTick === undefined) {
-          // Records queued before the blur happened before it. Apply the keys among them first, so a key pressed in
-          // the blur's own frame is released with the rest instead of surviving into the resumed game
-          // (display-input-audio.md rule 4; issue #1120).
+        if (record.event.state === "lost" && deferred.length > 0 && state.engine.openTick === undefined) {
+          const priorActivation = state.ui.surfaceActivated;
+          const priorCancellation = state.ui.surfaceCancelled;
+          const priorCancellationSeq = state.ui.surfaceCancelledSeq;
+          const priorCancellationOwner = state.ui.surfaceCancelledOwner;
           for (let at = 0; at < deferred.length;) {
             const earlier = deferred[at]!;
-            if (earlier.event.kind !== "key") {
-              at += 1;
+            if (applyHostStateEvent(earlier.event)) {
+              consumed.push(earlier);
+              deferred.splice(at, 1);
               continue;
             }
-            applyInputEvent(state.input, earlier.event);
+            if (earlier.event.kind !== "key" && earlier.event.kind !== "action" && earlier.event.kind !== "gamepad"
+              && earlier.event.kind !== "pointer" && earlier.event.kind !== "pointer.cancel") break;
+            applyRoutedInputEvent(earlier.event);
             consumed.push(earlier);
             deferred.splice(at, 1);
           }
+          processPendingGamepadEvents();
+          if (state.ui.surfaceActivated !== priorActivation || state.ui.surfaceCancelled !== priorCancellation
+            || state.ui.surfaceCancelledSeq !== priorCancellationSeq || state.ui.surfaceCancelledOwner !== priorCancellationOwner) {
+            state.ui.surfaceResultsPending = true;
+          }
         }
-        applyInputEvent(state.input, record.event);
+        inputFocused = record.event.state === "gained";
+        applyRoutedInputEvent(record.event);
+        consumed.push(record);
+      } else if (!inputFocused && hasPointerRecord && (record.event.kind === "host.display" || record.event.kind === "pointer")) {
+        deferred.push(record);
+      } else if (hasPointerRecord || deferred.length > 0) {
+        deferred.push(record);
+      } else if (applyHostStateEvent(record.event)) {
         consumed.push(record);
       } else {
         deferred.push(record);
       }
     }
     queuedInputs.unshift(...deferred);
+    return restoredOpenTick;
   }
   function consumeStoppedInputs(consumed: InputRecord[]): void {
     if (!failed) return;
     const records = takeQueuedInputs(state.time.tick);
     for (const record of records) {
-      applyInputEvent(state.input, record.event);
-      consumed.push(record);
+      if (applyHostStateEvent(record.event)) {
+        consumed.push(record);
+      } else {
+        applyRoutedInputEvent(record.event);
+        consumed.push(record);
+      }
     }
   }
-  /** Hide the message window when an outermost (blocking) program ends, without clearing its text. */
+  /** Hide the message window when an outermost (blocking) program ends, without clearing its text, and commit
+   * the program's final screen (surface + window pixels) as the presented frame before the window is hidden
+   * (ADR 0018 R5, fixes #1186). */
   function onBlockingThreadFinished(thread: Thread): void {
     if (thread.kind !== "blocking") return;
     if (blockingAlive()) return;
-    if (state.ui.message === undefined) return;
-    state.ui.message = { ...state.ui.message, visible: false };
+    committingFinalProgramScreen = true;
+    try {
+      refreshFrame(false);
+    } finally {
+      committingFinalProgramScreen = false;
+    }
+    endedProgramThisTick = true;
+    holdProgramFrame = true;
+    if (state.ui.message !== undefined) state.ui.message = { ...state.ui.message, visible: false };
     state.ui.modal = null;
   }
 
+  function lowerAuthorMarginCommands(commands: readonly DrawCommand[]): DrawCommand[] {
+    generatedMarginPixels = null;
+    if (commands.length === 0) return [];
+    const geometry = state.display.geometry;
+    const { content, game, safeArea } = geometry;
+    const scaleX = game.width / init.width;
+    const scaleY = game.height / init.height;
+    const emptySafeArea = content.width - safeArea.left - safeArea.right <= 0 ||
+      content.height - safeArea.top - safeArea.bottom <= 0;
+    const left = emptySafeArea ? 0 : Math.floor(Math.max(0, game.x - safeArea.left) / scaleX);
+    const right = emptySafeArea ? 0 : Math.floor(Math.max(0, content.width - safeArea.right - game.x - game.width) / scaleX);
+    const top = emptySafeArea ? 0 : Math.floor(Math.max(0, game.y - safeArea.top) / scaleY);
+    const bottom = emptySafeArea ? 0 : Math.floor(Math.max(0, content.height - safeArea.bottom - game.y - game.height) / scaleY);
+    if (left + right + top + bottom === 0) return [...commands];
+    const width = init.width + left + right;
+    const height = init.height + top + bottom;
+    const offset = { x: left, y: top };
+    const shifted = commands.map((command): DrawCommand => {
+      switch (command.kind) {
+        case "blit":
+          return { ...command, dst: { ...command.dst, x: command.dst.x + offset.x, y: command.dst.y + offset.y } };
+        case "line":
+          return { ...command, x1: command.x1 + offset.x, y1: command.y1 + offset.y, x2: command.x2 + offset.x, y2: command.y2 + offset.y };
+        case "rect":
+        case "ellipse":
+          return { ...command, rect: { ...command.rect, x: command.rect.x + offset.x, y: command.rect.y + offset.y } };
+        case "text":
+          return { ...command, x: command.x + offset.x, y: command.y + offset.y };
+        case "fill":
+        case "pushTarget":
+        case "popTarget":
+          return command;
+        default: {
+          const exhaustive: never = command;
+          return exhaustive;
+        }
+      }
+    });
+    const rendered = rasterizeAuthorMargin(
+      { tick: state.time.tick, width, height, commands: shifted, marginCommands: [] },
+      rasterAssets(),
+      currentSurfaceTextures(),
+    );
+    if (rendered.error !== null) return [...commands];
+    const id = state.surfaces.nextId as SurfaceId;
+    const rev = Number.parseInt(fnv1a64(`${width}x${height}:${fnv1a64(rendered.rgba)}`).slice(0, 13), 16) || 1;
+    generatedMarginPixels = { id, rev, pixels: { w: width, h: height, rgba: rendered.rgba } };
+    return [{
+      kind: "blit",
+      source: { surface: id, rev },
+      src: { x: 0, y: 0, w: width, h: height },
+      dst: { x: -left, y: -top, w: width, h: height },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: 255,
+      blend: "normal",
+      iso2d: false,
+    }];
+  }
+
   function currentDrawList(alpha = 0, include = init.include ?? { shading: false, images: false, sprites: false }): DrawList {
-    const spriteInput = [...spriteDraws(state.sprites), ...(presentation.sprites ?? [])];
+    const spriteInput = [...spriteDraws(state.sprites, spriteFrameFor), ...(presentation.sprites ?? [])];
     const board: WorldBoard | null = state.world.board ?? null;
     const camera = positionAt(state.camera, Number.isFinite(alpha) ? Math.min(1, Math.max(0, alpha)) : 0);
     const debugCommands = (): DrawList["commands"] => {
@@ -3037,9 +4591,10 @@ export function createEngine(init: EngineInit): Engine {
       if (debug.fps !== undefined) commands.push({ kind: "text", x: 4, y: 4, text: `FPS ${Math.round(debug.fps)}`, font: state.ui.font, rgb: colour, advances: [] });
       return commands;
     };
-    const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"] };
+    const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"], marginCommands: [] as DrawList["marginCommands"] };
+    const held = (holdProgramFrame || (board === null && !blockingAlive() && frameHash !== null)) ? surfaceBlit(state.surfaces, 0 as SurfaceId) : null;
     const base = board === null
-      ? empty
+      ? (held === null ? empty : { ...empty, commands: [held] })
       : composeBoard({
         board,
         tick: state.time.tick,
@@ -3054,24 +4609,49 @@ export function createEngine(init: EngineInit): Engine {
     const cursorMap = state.ui.activeCursorMap;
     const waitingCursor = cursorMap === undefined
       ? undefined
-      : state.vm.threads.find((thread) => thread.wait?.kind === "input.key" && thread.wait.cursorMap === cursorMap);
+      : state.vm.threads.find((thread) => thread.status === "waiting" && thread.wait?.kind === "input.key" && thread.wait.cursorMap === cursorMap);
     const cursorSelection = waitingCursor?.wait?.kind === "input.key" ? waitingCursor.wait.cursorSelection : undefined;
     const fx = drawableFx();
-    const withFx = applyFxDrawList(base, fx);
-    // A script-screen layer is visible only while an outermost program runs (#1045).
-    const activeSurface = blockingAlive();
+    const sourceSize = (frame: AnimationState["frames"][number]): { readonly w: number; readonly h: number } | null => {
+      if (frame.asset === null) return null;
+      if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) return spriteTileCellSize(frame.asset);
+      return imageTexture(frame.asset);
+    };
+    const activeSurface = blockingAlive() || committingFinalProgramScreen;
     const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
+    // While a program runs outside battle and menu, neither the render-now overlay nor thread animations
+    // started earlier are composed live (3.1 P1, #1183, ADR 0018).
+    const activeProgram = activeProgramForCompose();
+    const fxForCompose = activeProgram
+      ? { ...fx, animations: fx.animations.filter((a) => a.pinned === true || a.id >= outermostProgramStartAnimationId) }
+      : fx;
+    const withFx = applyFxDrawList(base, fxForCompose, sourceSize);
     // E-57: the enabled render-now canvas sits above the board, sprites and animations and below UI text and the message window.
-    const overlay = renderNowBlit(state.surfaces);
+    // While a program runs outside battle, the overlay is baked at board redraws, not composed live (3.1 P3, #1184).
+    const overlay = activeProgram ? programActiveOverlay : renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
-    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true)] };
+    const withOverlay = {
+      ...withScript,
+      commands: [
+        ...withScript.commands,
+        ...(overlay === null ? [] : [overlay]),
+        ...animationBlits(fxForCompose, true, sourceSize),
+      ],
+    };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const uiForCompose = activeSurface
       ? state.ui
-      : { ...state.ui, draws: [], message: { ...state.ui.message, visible: false }, modal: null };
-    const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection)] };
-    return { ...withUi, commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection)] };
+      : { ...state.ui, draws: [], authorMarginCommands: [], message: { ...state.ui.message, visible: false }, modal: null };
+    const withUi = { ...withOverlay, commands: [...withOverlay.commands, ...debugCommands(), ...composeUi(uiForCompose, init.width, init.height, state.input, false, cursorSelection, messageGraphicKey())] };
+    return {
+      ...withUi,
+      commands: [...withUi.commands, ...composeUiCursor(state.ui, state.input, cursorSelection, waitingCursor !== undefined)],
+      marginCommands: [
+        ...lowerAuthorMarginCommands(uiForCompose.authorMarginCommands ?? []),
+        ...composeUiMargins(uiForCompose, init.width, init.height).slice(uiForCompose.authorMarginCommands?.length ?? 0),
+      ],
+    };
   }
   /** A blit of one whole persistent surface, sized from its stored bitmap (E-57's script-screen layer). */
   function surfaceBlit(surfaces: GameState["surfaces"], id: SurfaceId | null): DrawCommand | null {
@@ -3092,6 +4672,27 @@ export function createEngine(init: EngineInit): Engine {
       iso2d: false,
     };
   }
+  function primeCurrentDrawAssets(list: DrawList): boolean {
+    let ready = true;
+    for (let layer = 0; layer < 2; layer += 1) {
+      const commands = layer === 0 ? list.commands : list.marginCommands;
+      for (const command of commands) {
+        if (command.kind !== "blit" || !("asset" in command.source)) continue;
+        const asset = command.source.asset;
+        if (decodedImages.has(asset) || decodedTiles.has(asset)) continue;
+        const kind = command.source.tile !== null || asset.endsWith(".gph") ? "tile" : "image";
+        if (cache.has(asset) || init.bundled?.has(asset)) {
+          const texture = kind === "tile" ? tileTexture(asset) : imageTexture(asset);
+          if (texture === null) ready = false;
+        } else if (layer === 1 || index.byKey.has(asset)) {
+          request(asset, kind);
+          ready = false;
+        }
+      }
+    }
+    return ready;
+  }
+
   /**
    * Rebuild the presented screen (surface 0) from the current state. `report` is true only for the deterministic
    * operations a script or a restore asks for; the presentation refresh at the end of `advance` renders the same frame
@@ -3099,7 +4700,10 @@ export function createEngine(init: EngineInit): Engine {
    * reads a frame that cannot be replayed is told (docs/spec/engine/runners.md#surface-read-and-state-hash).
    */
   function refreshFrame(report: boolean): void {
+    if (restoringSavedAssets) return;
+    presentedFrameDirty = false;
     const list = currentDrawList(0);
+    if (!primeCurrentDrawAssets(list)) return;
     // The rasteriser reads the list's size and commands, never its tick, so a static scene is rebuilt once, not every
     // tick. A rebuild is also forced when an asset has arrived, because a command that named it may now replay.
     const nextHash = `${hashDrawList({ ...list, tick: 0 })}:${cache.size}:${installedFonts.size}`;
@@ -3111,12 +4715,35 @@ export function createEngine(init: EngineInit): Engine {
     // A font the game does not ship (a legacy family name such as "Comic Sans MS") draws in the default bitmap font.
     const fallbackFont = assets.get(defaultFontAsset);
     if (fallbackFont !== undefined) for (const command of list.commands) if (command.kind === "text" && !assets.has(command.font.asset)) assets.set(command.font.asset, fallbackFont);
-    const rendered = rasterize(list, assets, surfaceTextures(state.surfaces, surfaceCache));
+    const rendered = rasterize(list, assets, currentSurfaceTextures());
     // A frame that could not be replayed is never left as a silently blank or partial image.
     frameFailure = rendered.error === null ? null : { hash: nextHash, message: rendered.error };
     if (report && frameFailure !== null) reportRenderFailure(frameFailure.message);
     replaceSurface(state.surfaces, 0 as SurfaceId, rendered.width, rendered.height, rendered.rgba);
     frameHash = nextHash;
+  }
+
+  /** Mark the presented frame (surface 0) dirty at the end of a tick unless an outermost program ended this tick,
+   * in which case its final committed screen must survive until the next free-roam draw. Also does nothing when
+   * there is no board and no live blocking program (fixes #1171's boot interval). Clears `holdProgramFrame` when
+   * a tick advances without ending a program, deferring CPU rasterisation until an outermost program starts, a
+   * script reads surface 0, or `advance()` finishes (ADR 0018 T13). */
+  function markPresentedFrameDirty(): void {
+    if (endedProgramThisTick) return;
+    if (!blockingAlive() && state.world.board === null) return;
+    holdProgramFrame = false;
+    presentedFrameDirty = true;
+  }
+
+  /** Refresh the presented frame (surface 0) unless an outermost program ended this tick, in which case its
+   * final committed screen must survive until the next free-roam draw. Also does nothing when there is no board
+   * and no live blocking program (fixes #1171's boot interval). Clears `holdProgramFrame` when it actually
+   * commits a board frame. */
+  function refreshPresentedFrame(): void {
+    if (endedProgramThisTick) return;
+    if (!blockingAlive() && state.world.board === null) return;
+    holdProgramFrame = false;
+    refreshFrame(false);
   }
   function reportRenderFailure(message: string): void {
     diagnostics.push({ code: "render.failed", file: state.world.board?.key ?? "", line: 0, message });
@@ -3136,8 +4763,12 @@ export function createEngine(init: EngineInit): Engine {
     return { thread: thread.id, frame: Math.max(0, thread.frames.length - 1), line: location.line };
   }
   function beginOpenTick(): void {
+    if (presentedFrameDirty && blockingAlive() && !blockingWasAlive) {
+      refreshFrame(false);
+    }
+    blockingWasAlive = blockingAlive();
     const readyThreads = state.vm.threads
-      .filter((thread) => thread.status === "ready")
+      .filter((thread) => thread.status === "ready" && startupThreadEligible(thread))
       .sort((left, right) => left.id - right.id)
       .map((thread) => thread.id);
     state.engine.openTick = { readyThreads, readyIndex: 0, currentThread: readyThreads[0] ?? 0, stepsUsed: 0 };
@@ -3156,7 +4787,7 @@ export function createEngine(init: EngineInit): Engine {
     if (cursor === undefined) return null;
     while (state.engine.openTick !== undefined) {
       const active = state.vm.threads.find((thread) => thread.id === cursor.currentThread);
-      if (active === undefined || active.status !== "ready") {
+      if (active === undefined || active.status !== "ready" || !startupThreadEligible(active)) {
         nextOpenThread();
         continue;
       }
@@ -3182,6 +4813,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function finishOpenTick(consumed: InputRecord[], mode: ResumeMode): Paused | null {
     const paused = withSurfaceBatch(() => runOpenThreads(mode));
+    if (state.engine.openTick === undefined) finishScriptThreadPass();
     if (paused !== null || state.engine.openTick !== undefined) return paused;
     for (const phase of ENGINE_PHASES) {
       if (phase !== "input" && phase !== "waits" && phase !== "threads") runPhase(phase, consumed);
@@ -3192,10 +4824,17 @@ export function createEngine(init: EngineInit): Engine {
   const engine: Engine = {
     advance(ticks: number, inputs: readonly InputRecord[], maxTicks?: number, resume: ResumeMode = "continue") {
       requestsOut.length = 0;
+      // A restored save can carry a `winGraphic` reference this engine never saw called: fetch its bytes before the
+      // report is built, so the message window draws it once the reply lands (E-55).
+      primeMessageGraphic();
       const consumed: InputRecord[] = [];
       const failedAtStart = failed;
       for (const input of inputs) queuedInputs.push(input);
-      processPreTickEvents(consumed);
+      const restoredOpenTick = processPreTickEvents(consumed);
+      if (restoredOpenTick) {
+        state.engine.phase = "input";
+        applyQueuedInputRecords(consumed);
+      }
       drive();
       if (failedAtStart) consumeStoppedInputs(consumed);
       const requestedTicks = Number.isFinite(ticks) ? Math.max(0, Math.trunc(ticks)) : 0;
@@ -3204,6 +4843,8 @@ export function createEngine(init: EngineInit): Engine {
       let ticksRun = 0;
       let paused: Paused | null = null;
       while (canTick() && state.input.focused && (state.engine.openTick !== undefined || ticksRun < bounded)) {
+        // A program-end frame must survive the tail of the tick it ends in; the flag clears on the next tick.
+        endedProgramThisTick = false;
         if (state.engine.openTick === undefined) {
           runPhase("input", consumed);
           if (!state.input.focused) break;
@@ -3221,10 +4862,13 @@ export function createEngine(init: EngineInit): Engine {
         ticksRun += 1;
         resume = "continue";
         drive();
+        markPresentedFrameDirty();
       }
       syncEngineState();
+      settlePostQuitWriteFailures();
       finalizeBlobRequests();
-      refreshFrame(false);
+      publishQuitRequest();
+      refreshPresentedFrame();
       const reportDiagnostics = [...diagnostics.splice(0), ...drainDiagnostics(services)];
       return {
         ticksRun,
@@ -3237,6 +4881,29 @@ export function createEngine(init: EngineInit): Engine {
         paused,
         stateHash: hashGameState(state),
       };
+    },
+    registeredActionNames() {
+      return ["up", "down", "left", "right", "confirm", "cancel", "menu", ...state.input.registeredActions.map((action) => action.name)];
+    },
+    registerGameAction(action: RegisteredAction) {
+      const registered = registerGameAction(state.input, action);
+      if (registered && !externallyRegisteredActions.some((existing) => existing.name === action.name)) {
+        const definition = state.input.registeredActions.find((existing) => existing.name === action.name);
+        if (definition !== undefined) externallyRegisteredActions.push(definition);
+      }
+      if (!registered) diagnostics.push({
+        code: "input.action-registration",
+        file: mainKey ?? "",
+        line: 0,
+        message: "game action registration was rejected (invalid metadata or duplicate name)",
+      });
+      return registered;
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      setPointerMovementSuppressed(state.input, suppressed);
+    },
+    reportUnknownAction(action: string) {
+      reportUnknownAction(action);
     },
     recoveryCandidate() {
       if (recoveryCaptureRequested) {
@@ -3261,8 +4928,47 @@ export function createEngine(init: EngineInit): Engine {
     drawList(alpha = 0, include: DrawListInclude = { shading: false, images: false, sprites: false }) {
       return currentDrawList(alpha, include);
     },
+    customTouchControlsDeclared(): boolean {
+      return state.ui.customTouchControlsDeclared === true;
+    },
+    accessibilityTree() {
+      return uiAccessibilityTree(state.ui);
+    },
+    runnerControlPointerPreemption(x: number, y: number): number | "author" | null {
+      if (state.ui.modal != null) return state.ui.modal.modalId;
+      return authorSurfaceTargetAt(x, y) !== null ? "author" : null;
+    },
+    hostFeatures(): NormalizedHostFeatures {
+      return { ...state.features };
+    },
+    hostDisplayGeometry(): HostDisplayGeometry {
+      const { content, game, safeArea } = state.display.geometry;
+      return {
+        content: { ...content },
+        game: { ...game },
+        safeArea: { ...safeArea },
+      };
+    },
+    surfaceCacheEpoch(): number {
+      return surfaceCacheEpoch;
+    },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
+      const rnId = renderNowCanvas(state.surfaces);
+      if (activeProgramForCompose() && programOverlayPixels !== null && rnId !== null && id === rnId && rev === programOverlayRev) {
+        return { w: programOverlayPixels.w, h: programOverlayPixels.h, rgba: new Uint8Array(programOverlayPixels.rgba) };
+      }
+      if (generatedMarginPixels?.id === id && generatedMarginPixels.id === state.surfaces.nextId && generatedMarginPixels.rev === rev) {
+        const { w, h, rgba } = generatedMarginPixels.pixels;
+        return { w, h, rgba: new Uint8Array(rgba) };
+      }
       return readSurfacePixels(state.surfaces, id, rev, surfaceCache);
+    },
+    picturePixels(key: AssetKey): SurfacePixels | null {
+      // A copy, because the decoder's cache must not be mutable from the runner (AD-1). A picture the core has not
+      // decoded — including a composed tile bitmap whose cells are still arriving — is null, and the runner defers
+      // that command for the frame (docs/spec/engine/runners.md#picture-pixels).
+      const texture = decodedImages.get(key);
+      return texture === undefined ? null : { w: texture.w, h: texture.h, rgba: new Uint8Array(texture.rgba) };
     },
     setBreakpoints(next: readonly Breakpoint[]) { breakpoints = next; },
   };

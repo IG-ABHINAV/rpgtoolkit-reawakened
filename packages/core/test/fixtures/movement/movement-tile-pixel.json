@@ -60,7 +60,7 @@
         {"t":18,"a":[["hero",76,63,0,"moving","E"]]},
         {"t":19,"a":[["hero",76,63,0,"moving","E"]]},
         {"t":20,"a":[["hero",76,63,0,"moving","E"]]},
-        {"t":21,"a":[["hero",80,63,0,"moving","E"]]},
+        {"t":21,"a":[["hero",80,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":22,"a":[["hero",80,63,0,"moving","E"]]},
         {"t":23,"a":[["hero",80,63,0,"moving","E"]]},
         {"t":24,"a":[["hero",84,63,0,"moving","E"]]},
@@ -84,7 +84,7 @@
         {"t":42,"a":[["hero",108,63,0,"moving","E"]]},
         {"t":43,"a":[["hero",108,63,0,"moving","E"]]},
         {"t":44,"a":[["hero",108,63,0,"moving","E"]]},
-        {"t":45,"a":[["hero",112,63,0,"moving","E"]]},
+        {"t":45,"a":[["hero",112,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":46,"a":[["hero",112,63,0,"moving","E"]]},
         {"t":47,"a":[["hero",112,63,0,"moving","E"]]},
         {"t":48,"a":[["hero",112,67,0,"moving","S"]]},
@@ -108,7 +108,7 @@
         {"t":66,"a":[["hero",112,91,0,"moving","S"]]},
         {"t":67,"a":[["hero",112,91,0,"moving","S"]]},
         {"t":68,"a":[["hero",112,91,0,"moving","S"]]},
-        {"t":69,"a":[["hero",112,95,0,"waiting","S"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
+        {"t":69,"a":[["hero",112,95,0,"waiting","S"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
         {"t":70,"a":[["hero",112,95,0,"waiting","S"]]},
         {"t":71,"a":[["hero",112,95,0,"waiting","S"]]},
         {"t":72,"a":[["hero",112,95,0,"waiting","S"]]},
@@ -198,7 +198,7 @@
         {"t":46,"a":[["hero",76,63,0,"moving","E"]]},
         {"t":47,"a":[["hero",76,63,0,"moving","E"]]},
         {"t":48,"a":[["hero",76,63,0,"moving","E"]]},
-        {"t":49,"a":[["hero",80,63,0,"waiting","E"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
+        {"t":49,"a":[["hero",80,63,0,"waiting","E"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
         {"t":50,"a":[["hero",80,63,0,"waiting","E"]]},
         {"t":51,"a":[["hero",80,63,0,"waiting","E"]]},
         {"t":52,"a":[["hero",80,63,0,"waiting","E"]]},
@@ -250,7 +250,7 @@
         {"t":4,"a":[["hero",68,63,0,"moving","E"]]},
         {"t":5,"a":[["hero",72,63,0,"moving","E"]]},
         {"t":6,"a":[["hero",76,63,0,"moving","E"]]},
-        {"t":7,"a":[["hero",80,63,0,"moving","E"]]},
+        {"t":7,"a":[["hero",80,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":8,"a":[["hero",80,67,0,"moving","S"]]},
         {"t":9,"a":[["hero",80,71,0,"moving","S"]]},
         {"t":10,"a":[["hero",80,75,0,"moving","S"]]},
@@ -258,7 +258,7 @@
         {"t":12,"a":[["hero",80,83,0,"moving","S"]]},
         {"t":13,"a":[["hero",80,87,0,"moving","S"]]},
         {"t":14,"a":[["hero",80,91,0,"moving","S"]]},
-        {"t":15,"a":[["hero",80,95,0,"waiting","S"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
+        {"t":15,"a":[["hero",80,95,0,"waiting","S"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
         {"t":16,"a":[["hero",80,95,0,"waiting","S"]]},
         {"t":17,"a":[["hero",80,95,0,"waiting","S"]]},
         {"t":18,"a":[["hero",80,95,0,"waiting","S"]]},
@@ -304,14 +304,14 @@
         {"t":4,"a":[["hero",48,43,0,"moving","N"]]},
         {"t":5,"a":[["hero",48,39,0,"moving","N"]]},
         {"t":6,"a":[["hero",48,35,0,"moving","N"]]},
-        {"t":7,"a":[["hero",48,31,0,"waiting","N"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
+        {"t":7,"a":[["hero",48,31,0,"waiting","N"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
         {"t":8,"a":[["hero",48,31,0,"waiting","N"]]},
         {"t":9,"a":[["hero",48,31,0,"waiting","N"]]}
       ]
     },
     {
-      "name": "pixel-push-eight",
-      "note": "Pixel movement, 8 px per direction step (E-23 pixel push): a step is two advances and a short last advance never overshoots.",
+      "name": "pixel-step-four",
+      "note": "E-23: either pixel mode steps 4 px, which is exactly one advance, so every step ends on an advance and no advance is ever shortened.",
       "setup": {
         "board": "field",
         "boards": {
@@ -326,8 +326,7 @@
             "programs": [],
             "items": [],
             "links": {},
-            "threads": [],
-            "pixelStep": 8
+            "threads": []
           }
         },
         "players": [{"id":"hero","x":48,"y":63,"layer":0,"speed":0.05,"facing":"S","controlled":true}]
@@ -344,31 +343,31 @@
         {"e":"threads-started","ids":[]}
       ],
       "expect": [
-        {"t":0,"a":[["hero",52,63,0,"moving","E"]],"ev":[{"e":"key-press","dir":"E"},{"e":"key-press","dir":"E"},{"e":"key-press","dir":"S"}]},
+        {"t":0,"a":[["hero",52,63,0,"moving","E"]],"ev":[{"e":"key-press","dir":"E"},{"e":"key-press","dir":"E"},{"e":"key-press","dir":"S"},{"e":"step-complete","actor":"hero"}]},
         {"t":1,"a":[["hero",52,63,0,"moving","E"]]},
         {"t":2,"a":[["hero",52,63,0,"moving","E"]]},
-        {"t":3,"a":[["hero",56,63,0,"moving","E"]]},
+        {"t":3,"a":[["hero",56,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":4,"a":[["hero",56,63,0,"moving","E"]]},
         {"t":5,"a":[["hero",56,63,0,"moving","E"]]},
-        {"t":6,"a":[["hero",60,63,0,"moving","E"]]},
-        {"t":7,"a":[["hero",60,63,0,"moving","E"]]},
-        {"t":8,"a":[["hero",60,63,0,"moving","E"]]},
-        {"t":9,"a":[["hero",64,63,0,"moving","E"]]},
-        {"t":10,"a":[["hero",64,63,0,"moving","E"]]},
-        {"t":11,"a":[["hero",64,63,0,"moving","E"]]},
-        {"t":12,"a":[["hero",64,67,0,"moving","S"]]},
-        {"t":13,"a":[["hero",64,67,0,"moving","S"]]},
-        {"t":14,"a":[["hero",64,67,0,"moving","S"]]},
-        {"t":15,"a":[["hero",64,71,0,"waiting","S"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
-        {"t":16,"a":[["hero",64,71,0,"waiting","S"]]},
-        {"t":17,"a":[["hero",64,71,0,"waiting","S"]]},
-        {"t":18,"a":[["hero",64,71,0,"waiting","S"]]},
-        {"t":19,"a":[["hero",64,71,0,"waiting","S"]]}
+        {"t":6,"a":[["hero",56,67,0,"waiting","S"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
+        {"t":7,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":8,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":9,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":10,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":11,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":12,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":13,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":14,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":15,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":16,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":17,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":18,"a":[["hero",56,67,0,"waiting","S"]]},
+        {"t":19,"a":[["hero",56,67,0,"waiting","S"]]}
       ]
     },
     {
-      "name": "pixel-one-pixel-step",
-      "note": "Pixel movement with a 1 px step: the advance is capped at the distance left (1 px).",
+      "name": "pixel-modes-1-and-2-step-alike",
+      "note": "E-23: modes 1 and 2 differ in how scripts push, not in how the player walks — both step 4 px.",
       "setup": {
         "board": "field",
         "boards": {
@@ -383,8 +382,7 @@
             "programs": [],
             "items": [],
             "links": {},
-            "threads": [],
-            "pixelStep": 1
+            "threads": []
           }
         },
         "players": [{"id":"hero","x":48,"y":63,"layer":0,"speed":0.05,"facing":"S","controlled":true}]
@@ -401,18 +399,18 @@
         {"e":"threads-started","ids":[]}
       ],
       "expect": [
-        {"t":0,"a":[["hero",49,63,0,"moving","E"]],"ev":[{"e":"key-press","dir":"E"},{"e":"key-press","dir":"E"},{"e":"key-press","dir":"E"}]},
-        {"t":1,"a":[["hero",49,63,0,"moving","E"]]},
-        {"t":2,"a":[["hero",49,63,0,"moving","E"]]},
-        {"t":3,"a":[["hero",50,63,0,"moving","E"]]},
-        {"t":4,"a":[["hero",50,63,0,"moving","E"]]},
-        {"t":5,"a":[["hero",50,63,0,"moving","E"]]},
-        {"t":6,"a":[["hero",51,63,0,"waiting","E"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
-        {"t":7,"a":[["hero",51,63,0,"waiting","E"]]},
-        {"t":8,"a":[["hero",51,63,0,"waiting","E"]]},
-        {"t":9,"a":[["hero",51,63,0,"waiting","E"]]},
-        {"t":10,"a":[["hero",51,63,0,"waiting","E"]]},
-        {"t":11,"a":[["hero",51,63,0,"waiting","E"]]}
+        {"t":0,"a":[["hero",52,63,0,"moving","E"]],"ev":[{"e":"key-press","dir":"E"},{"e":"key-press","dir":"E"},{"e":"key-press","dir":"E"},{"e":"step-complete","actor":"hero"}]},
+        {"t":1,"a":[["hero",52,63,0,"moving","E"]]},
+        {"t":2,"a":[["hero",52,63,0,"moving","E"]]},
+        {"t":3,"a":[["hero",56,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
+        {"t":4,"a":[["hero",56,63,0,"moving","E"]]},
+        {"t":5,"a":[["hero",56,63,0,"moving","E"]]},
+        {"t":6,"a":[["hero",60,63,0,"waiting","E"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
+        {"t":7,"a":[["hero",60,63,0,"waiting","E"]]},
+        {"t":8,"a":[["hero",60,63,0,"waiting","E"]]},
+        {"t":9,"a":[["hero",60,63,0,"waiting","E"]]},
+        {"t":10,"a":[["hero",60,63,0,"waiting","E"]]},
+        {"t":11,"a":[["hero",60,63,0,"waiting","E"]]}
       ]
     },
     {
@@ -470,7 +468,7 @@
         {"t":18,"a":[["hero",76,63,0,"moving","E"]]},
         {"t":19,"a":[["hero",76,63,0,"moving","E"]]},
         {"t":20,"a":[["hero",76,63,0,"moving","E"]]},
-        {"t":21,"a":[["hero",80,63,0,"moving","E"]]},
+        {"t":21,"a":[["hero",80,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":22,"a":[["hero",80,63,0,"moving","E"]]},
         {"t":23,"a":[["hero",80,63,0,"moving","E"]]},
         {"t":24,"a":[["hero",84,63,0,"moving","E"]]},
@@ -500,7 +498,7 @@
         {"t":48,"a":[["hero",88,35,0,"moving","N"]]},
         {"t":49,"a":[["hero",88,35,0,"moving","N"]]},
         {"t":50,"a":[["hero",88,35,0,"moving","N"]]},
-        {"t":51,"a":[["hero",88,31,0,"waiting","N"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
+        {"t":51,"a":[["hero",88,31,0,"waiting","N"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
         {"t":52,"a":[["hero",88,31,0,"waiting","N"]]},
         {"t":53,"a":[["hero",88,31,0,"waiting","N"]]},
         {"t":54,"a":[["hero",88,31,0,"waiting","N"]]},
@@ -568,7 +566,7 @@
         {"t":12,"a":[["hero",100,63,0,"moving","E"]]},
         {"t":13,"a":[["hero",104,63,0,"moving","E"]]},
         {"t":14,"a":[["hero",108,63,0,"moving","E"]]},
-        {"t":15,"a":[["hero",112,63,0,"moving","E"]]},
+        {"t":15,"a":[["hero",112,63,0,"moving","E"]],"ev":[{"e":"step-complete","actor":"hero"}]},
         {"t":16,"a":[["hero",112,67,0,"moving","S"]]},
         {"t":17,"a":[["hero",112,71,0,"moving","S"]]},
         {"t":18,"a":[["hero",112,75,0,"moving","S"]]},
@@ -576,7 +574,7 @@
         {"t":20,"a":[["hero",112,83,0,"moving","S"]]},
         {"t":21,"a":[["hero",112,87,0,"moving","S"]]},
         {"t":22,"a":[["hero",112,91,0,"moving","S"]]},
-        {"t":23,"a":[["hero",112,95,0,"waiting","S"]],"ev":[{"e":"movement-complete","actor":"hero"}]},
+        {"t":23,"a":[["hero",112,95,0,"waiting","S"]],"ev":[{"e":"step-complete","actor":"hero"},{"e":"movement-complete","actor":"hero"}]},
         {"t":24,"a":[["hero",112,95,0,"waiting","S"]]},
         {"t":25,"a":[["hero",112,95,0,"waiting","S"]]},
         {"t":26,"a":[["hero",112,95,0,"waiting","S"]]},

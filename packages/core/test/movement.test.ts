@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import {
+  composeBoard,
   createEmptyBoard,
   createGameState,
   enqueueDirectionMove,
@@ -12,6 +13,7 @@ import {
   runMovementPhase,
   snapshot,
   hashState,
+  spriteDraws,
   ticksPerAdvance,
   type MovementEvent,
   type WorldBoard,
@@ -71,6 +73,68 @@ test("R-50 moves a tile in eight 4-pixel advances and completes at tick 21", () 
   equal(events.some((record) => record.type === "movement-complete" && record.tick === 21), true);
 });
 
+test("diagonal pixel directions finish both axes in one advance in both modes", () => {
+  const cases = [["NE", 52, 59], ["SE", 52, 67], ["SW", 44, 67], ["NW", 44, 59]] as const;
+  for (const mode of [1, 2]) {
+    for (const [facing, x, y] of cases) {
+      const currentBoard = board();
+      const sprites = playerState(currentBoard);
+      enqueueDirectionMove(sprites, "hero", facing, mode);
+      const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+      equal(sprites.players[0]?.x, x, `${mode} ${facing} x`);
+      equal(sprites.players[0]?.y, y, `${mode} ${facing} y`);
+      equal(sprites.players[0]?.movement.active, null);
+      equal(events.filter((record) => record.type === "step-complete").length, 1);
+      equal(events.filter((record) => record.type === "movement-complete").length, 1);
+    }
+  }
+});
+
+test("diagonal pixel movement samples collision at its full four-pixel destination", () => {
+  const wall = { handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 66, y: 40 }, { x: 70, y: 40 }, { x: 70, y: 90 }, { x: 66, y: 90 }] };
+  for (const mode of [1, 2]) {
+    const currentBoard = board([wall]);
+    const sprites = playerState(currentBoard);
+    enqueueDirectionMove(sprites, "hero", "SE", mode);
+    const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+    equal(events.some((record) => record.type === "blocked"), false);
+    equal(events.filter((record) => record.type === "step-complete").length, 1);
+    equal(sprites.players[0]?.movement.active, null);
+    equal(sprites.players[0]?.x, 48, "glancing wall slides south without moving east");
+    equal(sprites.players[0]?.y, 67);
+
+    const distantWall = { ...wall, points: wall.points.map((point) => ({ x: point.x + 100, y: point.y })) };
+    const distantBoard = board([distantWall]);
+    const clear = playerState(distantBoard);
+    enqueueDirectionMove(clear, "hero", "SE", mode);
+    const clearEvents = runMovementPhase(clear, distantBoard, 0, { pixelMovement: mode });
+    equal(clearEvents.some((record) => record.type === "blocked"), false);
+    equal(clearEvents.filter((record) => record.type === "step-complete").length, 1);
+    equal(clear.players[0]?.x, 52, "a distant wall does not block east movement");
+    equal(clear.players[0]?.y, 67);
+  }
+});
+
+test("corner collision is independent of polygon winding and starting vertex", () => {
+  const points = [{ x: 100, y: 100 }, { x: 140, y: 100 }, { x: 140, y: 140 }, { x: 100, y: 140 }];
+  const variants = [points, [...points].reverse(), [...points.slice(1), points[0]!]];
+  for (const mode of [1, 2]) {
+    const outcomes = variants.map((vertices) => {
+      const currentBoard = board([{ handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: vertices }]);
+      const sprites = playerState(currentBoard, 82);
+      sprites.players[0] = { ...sprites.players[0]!, y: 101 };
+      enqueueDirectionMove(sprites, "hero", "E", mode);
+      const events = runMovementPhase(sprites, currentBoard, 0, { pixelMovement: mode });
+      return { x: sprites.players[0]?.x, y: sprites.players[0]?.y, events };
+    });
+    deepEqual(outcomes[1], outcomes[0]);
+    deepEqual(outcomes[2], outcomes[0]);
+    equal(outcomes[0]?.x, 82);
+    equal(outcomes[0]?.y, 101);
+    equal(outcomes[0]?.events.filter((record) => record.type === "blocked").length, 1);
+  }
+});
+
 test("solid vectors block a tile step without moving the actor", () => {
   const currentBoard = board([{ handle: "wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 96, y: 32 }, { x: 128, y: 32 }, { x: 128, y: 224 }, { x: 96, y: 224 }] }]);
   const sprites = playerState(currentBoard);
@@ -94,10 +158,57 @@ test("direct sprite collision freezes the stationary loser for 120 ticks", () =>
   equal(events.some((record) => record.type === "sprite-collision" && record.winner === "hero" && record.loser === "npc.itm"), true);
 });
 
+test("a newly solid wall, item or actor ends the active step and allows retreat", () => {
+  for (const obstacle of ["wall", "item", "actor"]) {
+    let currentBoard = board([], obstacle === "item" ? [npcItem()] : []);
+    const sprites = playerState(currentBoard);
+    if (obstacle === "actor") sprites.players.push({ ...sprites.players[0]!, id: "other", index: 1, controlled: false, x: 112 });
+    enqueueDirectionMove(sprites, "hero", "E", 0);
+    runMovementPhase(sprites, currentBoard, 0);
+    equal(sprites.players[0]?.x, 52);
+    if (obstacle === "wall") currentBoard = board([{ handle: "closing-wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 70, y: 32 }, { x: 74, y: 32 }, { x: 74, y: 90 }, { x: 70, y: 90 }] }]);
+    else if (obstacle === "item") sprites.items[0] = { ...sprites.items[0]!, x: 84 };
+    else sprites.players[1] = { ...sprites.players[1]!, x: 84 };
+    const events: MovementEvent[] = [];
+    for (let tick = 1; tick <= 3; tick += 1) events.push(...runMovementPhase(sprites, currentBoard, tick));
+    equal(sprites.players[0]?.x, 52, obstacle);
+    equal(sprites.players[0]?.movement.active, null, obstacle);
+    equal(events.some((event) => event.type === "step-complete"), false, obstacle);
+    equal(events.filter((event) => event.type === "movement-complete" && event.actor === "hero" && event.blocked === true).length, 1, obstacle);
+    enqueueDirectionMove(sprites, "hero", "W", 1, true);
+    for (let tick = 4; tick <= 6; tick += 1) runMovementPhase(sprites, currentBoard, tick, { pixelMovement: 1 });
+    equal(sprites.players[0]?.x, 48, `${obstacle}: retreat`);
+    if (obstacle === "item") {
+      setWaypoint(sprites, "npc.itm", [{ x: 120, y: 63 }], 0, true);
+      runMovementPhase(sprites, currentBoard, 123);
+      runMovementPhase(sprites, currentBoard, 124);
+      equal(sprites.items[0]?.x, 88, "the NPC patrol resumes after thaw");
+    }
+  }
+});
+
+test("cadence, frozen and idle ticks do not replay a previous displacement", () => {
+  for (const state of ["moving", "frozen", "waiting"] as const) {
+    const currentBoard = board();
+    const sprites = playerState(currentBoard);
+    const renderedX = (alpha: number) => composeBoard({
+      board: { ...currentBoard, layers: [{ tiles: [] }], background: { r: 0, g: 0, b: 0 }, ambient: { r: 0, g: 0, b: 0 } }, tick: 0, camera: { x: 0, y: 0 }, viewport: { width: 320, height: 320 },
+      alpha, include: { shading: false, images: false, sprites: true }, sprites: spriteDraws(sprites),
+    }).commands.filter((command) => command.kind === "rect").find((command) => command.rect.w === 16 && command.rect.h === 16)?.rect.x;
+    enqueueDirectionMove(sprites, "hero", "E", 0);
+    runMovementPhase(sprites, currentBoard, 0);
+    equal(renderedX(0), 40, "the movement tick starts at the previous position");
+    equal(renderedX(0.5), 42, "actual movement still interpolates");
+    sprites.players[0] = { ...sprites.players[0]!, state, frozenUntil: state === "frozen" ? 120 : null, movement: { ...sprites.players[0]!.movement, active: state === "waiting" ? null : sprites.players[0]!.movement.active } };
+    runMovementPhase(sprites, currentBoard, 1);
+    deepEqual([renderedX(0), renderedX(0.5), renderedX(1)], [44, 44, 44], state);
+  }
+});
+
 test("active movement survives snapshot restore with equal later behavior", () => {
   const currentBoard = board();
   const left = createGameState({ seed: 7 });
-  left.world = { board: currentBoard };
+  left.world = { ...left.world, board: currentBoard };
   left.sprites = playerState(currentBoard);
   enqueueDirectionMove(left.sprites, "hero", "E", 0);
   runMovementPhase(left.sprites, currentBoard, 0);
@@ -115,7 +226,7 @@ type MovementFixtureCase = {
   readonly name: string;
   readonly setup: {
     readonly board: string;
-    readonly boards: Record<string, { readonly w: number; readonly h: number; readonly gameSpeed: number; readonly pixelMovement: number; readonly pixelStep?: number; readonly vectors: readonly { readonly id: string; readonly type: string; readonly layer: number; readonly closed: boolean; readonly points: readonly [number, number][]; readonly attributes?: number; readonly toLayer?: number }[]; readonly items?: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string }[] }>;
+    readonly boards: Record<string, { readonly w: number; readonly h: number; readonly gameSpeed: number; readonly pixelMovement: number; readonly vectors: readonly { readonly id: string; readonly type: string; readonly layer: number; readonly closed: boolean; readonly points: readonly [number, number][]; readonly attributes?: number; readonly toLayer?: number }[]; readonly items?: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string }[] }>;
     readonly players: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string; readonly controlled?: boolean }[];
   };
   readonly script: readonly { readonly t: number; readonly op: string; readonly actor?: string; readonly dirs?: string; readonly dir?: string; readonly clear?: boolean }[];
@@ -163,9 +274,9 @@ test("owned authored movement scenes reproduce every in-scope case through core"
         const inputEvents: MovementEvent[] = [];
         for (const command of byTick.get(tick) ?? []) {
           if (command.actor !== undefined && command.dirs !== undefined) {
-            for (const direction of command.dirs.split(",")) enqueueDirectionMove(sprites, command.actor, direction as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement, source.pixelStep ?? 8, command.clear === true);
+            for (const direction of command.dirs.split(",")) enqueueDirectionMove(sprites, command.actor, direction as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement, command.clear === true);
           } else if (command.actor === undefined && command.dir !== undefined) {
-            enqueueDirectionMove(sprites, "hero", command.dir as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement, source.pixelStep ?? 8);
+            enqueueDirectionMove(sprites, "hero", command.dir as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW", source.pixelMovement);
             inputEvents.push({ type: "key-press", tick, direction: command.dir as "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW" });
           }
         }

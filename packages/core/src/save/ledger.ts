@@ -91,13 +91,14 @@ export type {
 export const GAME_LEDGER_DOMAIN = "tkr.game-ledger";
 
 /** The ledger projection version; it is independent of every section schema version. */
-export const GAME_LEDGER_VERSION = 2;
+export const GAME_LEDGER_VERSION = 4;
 
-/** Party roster, selection and steps; `party.version` is schema metadata. */
+/** Party roster, selection, steps and the sub-tile movement remainder. */
 export type LedgerParty = {
   readonly members: number[];
   readonly selected: number | null;
   readonly steps: number;
+  readonly stepRemainder: number;
 };
 
 /** The compatibility stats an actor owns. */
@@ -284,8 +285,9 @@ export type LedgerBoard = {
   readonly runtime: LedgerPresence<LedgerBoardRuntime>;
 };
 
-/** The world section: absent board, explicit `null` board, or a present board. */
+/** World state includes independent, nullable movement settings for main-file fallback. */
 export type LedgerWorld = {
+  readonly movement: { readonly walking: number | null; readonly pushing: number | null };
   readonly board: LedgerPresence<LedgerBoard>;
 };
 
@@ -427,6 +429,15 @@ export function hashGameLedger(ledger: GameLedgerV1): string {
   return hashState(envelope);
 }
 
+/**
+ * Hash the pre-movement v3 ledger envelope for validating already-promoted
+ * recovery checkpoints. New checkpoints must use `hashGameLedger`.
+ */
+export function hashGameLedgerV3(ledger: GameLedgerV1): string {
+  const legacyLedger = { ...ledger, world: { board: ledger.world.board } };
+  return hashState({ domain: GAME_LEDGER_DOMAIN, version: 3, ledger: legacyLedger } as never);
+}
+
 function projectActors(section: ActorsSection): LedgerActors {
   const record = ledgerRecord(section, "actors");
   const nextId = ledgerInteger(record.nextId, "actors.nextId", 1);
@@ -532,7 +543,10 @@ function projectParty(section: PartySection, actorKinds: ReadonlyMap<number, Led
   if (selected === null ? members.length > 0 : !seen.has(selected)) {
     failLedger(LEDGER_REFERENCE, "party.selected", "must name a member, or be null for an empty party");
   }
-  return { members, selected, steps: ledgerInteger(record.steps, "party.steps", 0) };
+  const steps = ledgerInteger(record.steps, "party.steps", 0);
+  const stepRemainder = ledgerInteger(record.stepRemainder, "party.stepRemainder", 0);
+  if (stepRemainder >= 32 * 256) failLedger(LEDGER_SHAPE, "party.stepRemainder", "must be below 8192");
+  return { members, selected, steps, stepRemainder };
 }
 
 function projectInventory(section: InventorySection, actorIds: ReadonlySet<number>): LedgerInventory {
@@ -581,9 +595,18 @@ function projectInventory(section: InventorySection, actorIds: ReadonlySet<numbe
 
 function projectWorld(section: WorldSection): LedgerWorld {
   const record = ledgerRecord(section, "world");
-  if (!Object.hasOwn(record, "board")) return { board: { state: "absent" } };
-  if (record.board === null) return { board: { state: "null" } };
-  return { board: { state: "present", value: projectBoard(record.board) } };
+  const raw = record.movement === undefined ? {} : ledgerRecord(record.movement, "world.movement");
+  const setting = (field: "walking" | "pushing"): number | null => {
+    const value = raw[field];
+    if (value === undefined || value === null) return null;
+    const number = ledgerInteger(value, `world.movement.${field}`, 0);
+    if (number > 1) failLedger(LEDGER_SHAPE, `world.movement.${field}`, "expected 0 or 1");
+    return number;
+  };
+  const movement = { walking: setting("walking"), pushing: setting("pushing") };
+  if (!Object.hasOwn(record, "board")) return { movement, board: { state: "absent" } };
+  if (record.board === null) return { movement, board: { state: "null" } };
+  return { movement, board: { state: "present", value: projectBoard(record.board) } };
 }
 
 function projectBoard(value: unknown): LedgerBoard {
@@ -672,7 +695,7 @@ function projectRawItem(value: unknown, path: string): LedgerRawItem {
     x: ledgerNumber(item.x, `${path}.x`),
     y: ledgerNumber(item.y, `${path}.y`),
     layer: ledgerNumber(item.layer, `${path}.layer`),
-    reserved: ledgerInteger(item.reserved, `${path}.reserved`, 0),
+    reserved: ledgerInteger(item.reserved, `${path}.reserved`, -32768),
   };
 }
 

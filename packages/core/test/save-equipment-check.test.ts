@@ -292,6 +292,43 @@ test("an empty inventory and an unprojected actor are consistent", () => {
   deepEqual(checkEquipmentConsistency(empty, stateWith(actor), assets()), { ok: true, error: null });
 });
 
+test("a composed item replacement publishes a projection checkEquipmentConsistency accepts", () => {
+  const state = createGameState({ seed: 13 });
+  const actor = addActor(state.actors, { kind: "party", source: "hero.tem", name: "Hero" });
+  state.party.members = [actor.id];
+  state.party.selected = actor.id;
+  const item = sword();
+  const character = hero();
+  const service = createActorService(state.actors);
+  const runtime = {
+    item: (source: string) => source === "item/sword.itm" ? item : undefined,
+    character: () => character,
+    applyEquipment: (actorId: number, equipped: readonly string[], catalog: readonly EquipmentItemDefinition[]) =>
+      service.applyEquipment(actorId, equipped, catalog) !== null,
+    prepareEquipment: (actorId: number, equipped: readonly string[], catalog: readonly EquipmentItemDefinition[]) =>
+      service.prepareEquipment(actorId, equipped, catalog),
+    commitPreparedEquipment: (prepared: Parameters<typeof service.commitPreparedEquipment>[0]) =>
+      service.commitPreparedEquipment(prepared) !== null,
+    discardPreparedEquipment: (prepared: Parameters<typeof service.discardPreparedEquipment>[0]) =>
+      service.discardPreparedEquipment(prepared),
+  };
+  const ports = createMenuOwnerPorts(state, undefined, runtime);
+  ok(ports.inventory.apply({ type: "addItem", source: "item/sword.itm", handle: "Sword", amount: 1 }).ok);
+  const equippedId = state.inventory.items[0]!.id;
+  ok(ports.inventory.apply({ type: "equip", actorId: actor.id, slot: "right-hand", entryId: equippedId }).ok);
+  ok(ports.inventory.apply({ type: "addItem", source: "item/sword.itm", handle: "Sword 2", amount: 1 }).ok);
+  const incomingId = state.inventory.items[1]!.id;
+  const request = { kind: "replace" as const, entryId: incomingId, actorId: actor.id, slot: "right-hand" };
+  const preflight = ports.inventory.preflightItemAction(request);
+  ok(preflight.ok, "the composed replacement preflights");
+  deepEqual(
+    ports.inventory.commitItemAction(request, preflight.selection, { programStarted: true }),
+    { status: "complete", error: null },
+  );
+  equal(state.inventory.equipment[0]?.itemId, incomingId, "the composed replacement changed the tuple");
+  deepEqual(checkEquipmentConsistency(state.inventory, state.actors, runtime), { ok: true, error: null });
+});
+
 test("a renamed actor keeps a consistent projection after an allowed equip", () => {
   const state = createGameState({ seed: 11 });
   const actor = addActor(state.actors, { kind: "party", source: "hero.tem", name: "Hero" });

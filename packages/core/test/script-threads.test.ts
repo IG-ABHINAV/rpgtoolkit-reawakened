@@ -37,7 +37,10 @@ import {
   type ProgramRef,
   type ScriptError,
   type Wait,
+  type WaitResult,
+  type WaitView,
 } from "../src/index.ts";
+import { actorFromSource } from "../src/sprites/model.ts";
 import { createScriptServices } from "./script-test-services.ts";
 
 function ref(text: string): ProgramRef {
@@ -354,6 +357,103 @@ test("R-32: a blocking command freezes every other thread until it ends", () => 
   equal(state.vm.block, null);
 });
 
+test("#1167: a live blocking program owns the threads phase; an older background thread does not step first", () => {
+  const log: Log = { marks: [], continuations: [] };
+  const plugins = [makePlugin(log)];
+  const state = createGameState({ seed: 0 });
+  startThread(state.vm, { ref: ref("mark(2)\n"), kind: "board", owner: "world" }); // id 1, ready before the blocker
+  startProgram(state.vm, ref("sleep(5)\nmark(1)\nend()\n")); // id 2, the blocking program
+
+  runTicks(state, plugins, 1);
+  equal(state.vm.block?.kind, "sleep"); // the blocking program parked
+  deepEqual(log.marks, []); // the older board thread took no step
+
+  runTicks(state, plugins, 4);
+  deepEqual(log.marks, []); // ticks 1-4: the world stays frozen
+
+  runTicks(state, plugins, 1); // tick 5: the sleep wakes, the blocker resumes and ends
+  deepEqual(log.marks, [
+    [5, 1],
+    [5, 2],
+  ]); // control returns: the blocker ran first in the phase it ended in, then the board thread
+  equal(state.vm.block, null);
+});
+
+test("#1167: a newer background thread does not step while the blocking program is live either", () => {
+  const { state, log, plugins } = setup("sleep(5)\nmark(1)\nend()\n"); // blocker id 1
+  startThread(state.vm, { ref: ref("mark(2)\n"), kind: "board", owner: "world" }); // id 2
+
+  runTicks(state, plugins, 1);
+  equal(state.vm.block?.kind, "sleep");
+  deepEqual(log.marks, []);
+
+  runTicks(state, plugins, 5);
+  deepEqual(log.marks, [
+    [5, 1],
+    [5, 2],
+  ]);
+});
+
+test("#1167: a nested function call inside the blocking program keeps the blocking ownership", () => {
+  const log: Log = { marks: [], continuations: [] };
+  const plugins = [makePlugin(log)];
+  const state = createGameState({ seed: 0 });
+  startThread(state.vm, { ref: ref("mark(2)\n"), kind: "board", owner: "world" }); // id 1
+  startProgram(state.vm, ref("helper()\nsleep(5)\nmark(3)\nend()\nfunction helper() {\n  mark(1)\n}\n")); // id 2
+
+  runTicks(state, plugins, 1);
+  deepEqual(log.marks, [[0, 1]]); // the nested call ran inside the blocking program
+  equal(state.vm.block?.kind, "sleep");
+
+  runTicks(state, plugins, 5);
+  deepEqual(log.marks, [
+    [0, 1],
+    [5, 3], // the blocking program finished inside the phase...
+    [5, 2], // ...and only then did the background thread take its turn
+  ]);
+});
+
+test("#1167: resumption from a wait runs the blocking thread before older background threads", () => {
+  const log: Log = { marks: [], continuations: [] };
+  const plugins = [makePlugin(log)];
+  const state = createGameState({ seed: 0 });
+  startThread(state.vm, { ref: ref("mark(2)\n"), kind: "board", owner: "world" }); // id 1
+  startProgram(state.vm, ref("sleep(2)\nmark(1)\nend()\n")); // id 2
+
+  runTicks(state, plugins, 3); // tick 2: the sleep wakes and the threads phase runs the blocker first
+  deepEqual(log.marks, [
+    [2, 1],
+    [2, 2],
+  ]);
+});
+
+test("#1167: a blocking thread parked in a non-global wait does not hold up the world", () => {
+  const log: Log = { marks: [], continuations: [] };
+  const hold: BuiltinSpec = {
+    name: "hold",
+    aliases: [],
+    params: [param("ticks")],
+    call: (view, args) => ({
+      value: null,
+      wait: { kind: "test.hold", global: false, until: view.clock.tick() + Number(args[0]!.value) } as unknown as Wait,
+    }),
+  };
+  const holdPoll = (view: WaitView, wait: Wait): WaitResult | null =>
+    view.tick >= (wait as Wait & { until: number }).until ? { value: null, ok: true } : null;
+  const plugins = [makePlugin(log), { id: "test.hold", version: "1.0.0", commands: [hold] } as PluginDefinition];
+  const poll = createWaitPoll([...WAIT_KIND_RESOLVERS, { kind: "test.hold", poll: holdPoll }]);
+  const state = createGameState({ seed: 0 });
+  startThread(state.vm, { ref: ref("mark(2)\n"), kind: "board", owner: "world" }); // id 1
+  startProgram(state.vm, ref("hold(2)\nmark(1)\nend()\n")); // id 2
+  const services = createScriptServices(state, plugins);
+
+  for (let tick = 0; tick < 3; tick += 1) advanceScriptTick(state, services, undefined, poll);
+  deepEqual(log.marks, [
+    [0, 2], // the board thread ran in tick 0 while the blocker held a non-global wait
+    [2, 1], // the blocker resumed in tick 2 and was not blocked behind the board thread
+  ]);
+});
+
 test("a request waits globally; its reply runs the continuation with the reply prepended", () => {
   const { state, log, plugins } = setup("r = ask()\nmark(2)\nend()\n");
   startThread(state.vm, { ref: ref("mark(3)\n"), kind: "board", owner: "script" });
@@ -449,6 +549,44 @@ test("multiRun collects several moves into one movement wait; the block lifts wh
   ]);
 });
 
+test("standalone scheduler waits for a live sprite's queued movement (#1313)", () => {
+  const { state, log, plugins } = setup("mark(1)\nend()\n");
+  const player = actorFromSource({ id: "hero", kind: "player", source: "hero.tem", x: 48, y: 64, layer: 1 }, null, 0, null);
+  player.queue.moves.push({ source: "direction", target: { x: 80, y: 64 }, facing: "E" });
+  state.sprites.players = [player];
+  const thread = state.vm.threads[0]!;
+  thread.wait = { kind: "sprite.movement", actor: player.id, global: true };
+  thread.status = "waiting";
+  const services = createScriptServices(state, plugins);
+  advanceScriptTick(state, services);
+  deepEqual(log.marks, []);
+  equal(thread.status, "waiting");
+  player.queue.moves.length = 0;
+  advanceScriptTick(state, services);
+  deepEqual(log.marks.map((mark) => mark[1]), [1]);
+});
+
+test("a multiRun live wait keeps a completed actor's milestone while another actor moves (#1317)", () => {
+  const { state, log, plugins } = setup("mark(1)\nend()\n");
+  const done = { ...actorFromSource({ id: "done", kind: "item", source: "done.itm", x: 64, y: 64, layer: 1 }, null, 0, 0), queue: { moves: [], waypoint: null } };
+  const moving = actorFromSource({ id: "moving", kind: "item", source: "moving.itm", x: 64, y: 96, layer: 1 }, null, 1, 1);
+  moving.queue.moves.push({ source: "direction", target: { x: 96, y: 96 }, facing: "E" });
+  state.sprites.items = [done, moving];
+  const thread = state.vm.threads[0]!;
+  thread.wait = { kind: "movement", global: true, moves: [{ sprite: "done", until: 0, actual: true }, { sprite: "moving", until: 0, actual: true }] };
+  thread.status = "waiting";
+  const services = createScriptServices(state, plugins);
+  advanceScriptTick(state, services);
+  equal(thread.status, "waiting");
+  if (thread.wait?.kind !== "movement") throw new Error("expected the live movement wait");
+  deepEqual(thread.wait.moves.map((move) => move.sprite), ["moving"], "the completed actor's milestone survives the other actor's movement");
+  const saved = snapshot(state);
+  equal(snapshot(restoreGameState(saved)), saved, "a partially completed live collection remains saveable");
+  state.sprites.items = state.sprites.items.map((item) => item.id === "moving" ? { ...item, queue: { moves: [], waypoint: null } } : item);
+  advanceScriptTick(state, services);
+  deepEqual(log.marks.map((mark) => mark[1]), [1]);
+});
+
 test("multiRun with no moves does not wait, and a lone move waits for its own end", () => {
   const empty = setup("multirun()\nmultirun()\nmark(1)\nend()\n");
   runTicks(empty.state, empty.plugins, 1);
@@ -481,9 +619,10 @@ test("budget: exactly the budget of VM steps per thread per tick, resumed next t
   const services = createScriptServices(state);
 
   runThreadsPhase(state.vm, services, 20);
-  deepEqual(state.vm.threads.map((thread) => thread.frames[0]!.ip), [20, 20]);
+  // R-32 (#1167): a live blocking thread owns the phase; the background thread waits for it to finish.
+  deepEqual(state.vm.threads.map((thread) => thread.frames[0]!.ip), [20, 0]);
   runThreadsPhase(state.vm, services, 20);
-  deepEqual(state.vm.threads.map((thread) => thread.frames[0]!.ip), [40, 40]);
+  deepEqual(state.vm.threads.map((thread) => thread.frames[0]!.ip), [40, 0]);
 
   equal(errorOf(() => runThreadsPhase(state.vm, services, 0)).code, "vm.bad-budget");
   equal(errorOf(() => runThreadsPhase(state.vm, services, 1.5)).code, "vm.bad-budget");
@@ -535,11 +674,32 @@ test("input key wait accepts the next key buffered after the thread parks", () =
   advanceScriptTick(state, services);
   const wait = state.vm.threads[0]?.wait;
   if (wait?.kind !== "input.key") throw new Error("expected the thread to park on a key wait");
-  equal(wait.parkSeq, undefined);
+  equal(wait.parkSeq, state.input.nextSeq);
   applyInputEvent(state.input, { kind: "key", name: "A", code: "KeyA", char: "a", down: true });
   advanceScriptTick(state, services);
   equal(state.vm.globals.pressed, "A");
   equal(state.vm.threads[0]?.status, "finished");
+});
+test("advanceScriptTick shares a host-key wait's backlog discard before any thread can get", () => {
+  const { state, plugins } = setup("pressed = wait()\nafter = get()\nend()\n");
+  applyInputEvent(state.input, { kind: "key", name: "A", code: "KeyA", char: "a", down: true });
+  applyInputEvent(state.input, { kind: "key", name: "B", code: "KeyB", char: "b", down: true });
+  const services = createScriptServices(state, plugins);
+  advanceScriptTick(state, services);
+  const waiting = state.vm.threads[0];
+  if (waiting?.wait?.kind !== "input.key") throw new Error("expected wait() to park");
+  equal(waiting.wait.parkSeq, state.input.nextSeq);
+  deepEqual(state.input.keys.map((key) => key.name), ["A", "B"], "pre-park backlog remains until the wait resolves");
+  // Simulate a legacy/manual wait without a persisted floor; the scheduler must backfill before polling.
+  delete waiting.wait.parkSeq;
+  startThread(state.vm, { ref: ref("other = get()\nend()\n"), kind: "persistent", owner: "script" });
+
+  waiting.wait.key = "C";
+  advanceScriptTick(state, services);
+  equal(state.vm.globals.pressed, "C", "the host-provided key wakes the waiter");
+  equal(state.vm.globals.after, "", "the resumed thread cannot get pre-park keys");
+  equal(state.vm.globals.other, "", "the shared backlog is cleared before another thread can get");
+  deepEqual(state.input.keys, [], "advanceScriptTick prunes the shared queue");
 });
 
 test("snapshot and replay: a mid-sleep and a mid-request restore with identical per-tick hashes", () => {

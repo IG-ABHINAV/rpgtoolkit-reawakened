@@ -1,16 +1,16 @@
 import type { EnginePhaseRegistration, EngineResetRegistration } from "../engine/engine.ts";
+import { IR_VERSION } from "../script/program.ts";
+import { scriptOwnsInput, startThread } from "../script/state.ts";
 import { enqueueDirectionMove } from "../sprites/movement.ts";
 import type { Facing } from "../sprites/model.ts";
 import { enqueuePathMove } from "../sprites/runtime.ts";
 import type { GameState } from "../save/state.ts";
-import { createInputSection, processGamepadEvents, takeInputActions, type InputConfig } from "./input.ts";
+import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { killSurface, resetScriptScreen } from "../raster/surfaces.ts";
+import { applySemanticActionEdge, createInputSection, heldPointerGoal, processGamepadEvents, registeredActionNames, takeInputActions, type InputConfig } from "./input.ts";
+import { selectPointerActivationTarget } from "../triggers/runtime.ts";
+import { positionAt } from "../world/camera.ts";
 
-const FACING_BY_ACTION: Record<string, Facing> = {
-  up: "N",
-  down: "S",
-  left: "W",
-  right: "E",
-};
 const FACING_BY_VECTOR: Record<string, Facing> = {
   "0,-1": "N",
   "1,-1": "NE",
@@ -25,8 +25,30 @@ const FACING_BY_VECTOR: Record<string, Facing> = {
 export type InputPhaseOptions = {
   readonly rank?: number;
   readonly pixelMovement?: number;
-  readonly pixelStep?: number;
+  /** Replaces the engine-owned menu-key entry; tests use it to observe the key without opening a screen. */
+  readonly openMenu?: (state: GameState) => boolean;
+  /** Script-facing action corresponding to the configured keyboard menu key. */
+  readonly menuKey?: { readonly action: string; readonly code: string };
 };
+
+/**
+ * The menu key's entry (E-80, docs/spec/engine/plugins-and-battle.md#e-80-stock-menu): start an ordinary blocking
+ * thread whose whole program is `mainmenu()`, so the menu opened by the key is a normal script frame that saves,
+ * restores and is pre-empted like any other. It refuses while anything else owns the screen: an open menu, a battle,
+ * a boot that has not reached free roam, another blocking thread, no board, or no live party member.
+ */
+export function openMainMenu(state: GameState): boolean {
+  const boot = state.engine.boot;
+  if (boot !== undefined && boot.stage !== "running") return false;
+  if (state.menu.screens.length > 0 || state.battle !== null) return false;
+  if (state.vm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished")) return false;
+  if (state.world.board == null) return false;
+  if (!state.actors.actors.some((actor) => actor.kind === "party" && state.party.members.includes(actor.id) && actor.stats.hp > 0)) return false;
+  resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+  resetScriptScreen(state.surfaces);
+  startThread(state.vm, { ref: { kind: "inline", text: "mainmenu()", ir: IR_VERSION }, kind: "blocking", owner: "script" });
+  return true;
+}
 
 function selectedPlayer(state: GameState): string | null {
   if (state.input.playerId !== null) return state.input.playerId;
@@ -37,6 +59,11 @@ function selectedPlayer(state: GameState): string | null {
 function canAcceptDirection(state: GameState, id: string): boolean {
   const actor = state.sprites.players.find((value) => value.id === id);
   return actor !== undefined && actor.visible && actor.movement.active === null && actor.queue.moves.length === 0 && actor.queue.waypoint === null && actor.state !== "moving";
+}
+
+function canPreemptDirection(state: GameState, id: string): boolean {
+  const actor = state.sprites.players.find((value) => value.id === id);
+  return actor !== undefined && actor.visible && actor.movement.active === null && actor.state !== "frozen";
 }
 
 function heldFacing(state: GameState): Facing | null {
@@ -50,25 +77,56 @@ function heldFacing(state: GameState): Facing | null {
   return FACING_BY_VECTOR[`${x},${y}`] ?? null;
 }
 
+/** Resolve pointer releases at their current display geometry boundary, or in the ordinary input phase. */
+export function routePointerUpActivations(state: GameState): void {
+  const pointerUps = state.input.pendingPointerUps;
+  // Plane eligibility was checked at capture; these are world points and the camera may since have moved.
+  state.input.pendingPointerUps = [];
+  for (const point of pointerUps) {
+    if (scriptOwnsInput(state.vm) || state.input.pointerMovementSuppressed) continue;
+    const target = selectPointerActivationTarget(state, point);
+    if (target === null) continue;
+    applySemanticActionEdge(state.input, "confirm", true, "pointer.canvas", undefined, target);
+    applySemanticActionEdge(state.input, "confirm", false, "pointer.canvas");
+    state.input.pendingClicks = state.input.pendingClicks.filter((click) => click.gestureId !== point.gestureId);
+  }
+}
+
 /** Apply input-owned action edges during AD-26's input phase. */
 export function runInputPhase(state: GameState, options: InputPhaseOptions = {}): void {
   processGamepadEvents(state.input);
+  routePointerUpActivations(state);
+  const currentKeySequences = new Set(state.input.pendingKeySequences);
+  const currentKeys = state.input.keys.filter((key) => currentKeySequences.has(key.seq));
   const { actions, clicks } = takeInputActions(state.input);
   const id = selectedPlayer(state);
   const board = state.world.board ?? null;
+  // A running program or any global wait owns script input until it finishes. Keys and clicks are still recorded
+  // (the key queue and the pointer state keep receiving them), but none of them turns into movement
+  // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement, #reawakened-click-movement-freeze).
+  let directionBlocked = scriptOwnsInput(state.vm);
+  const configured = options.menuKey;
+  const configuredMenuPress = configured !== undefined && currentKeys.some((key) => key.code === configured.code && key.action === configured.action);
+  if (!directionBlocked && state.battle === null && (actions.includes("menu") || configuredMenuPress)) {
+    // A menu opened by this very press owns input from now on, so a direction pressed on the same tick queues no step
+    // (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement: a blocking script freezes movement).
+    if ((options.openMenu ?? openMainMenu)(state)) directionBlocked = true;
+  }
   if (id === null) return;
-  if (actions.some((action) => FACING_BY_ACTION[action] !== undefined) && canAcceptDirection(state, id)) {
+  // E-133: a held direction replaces a queued route only between steps; an active step is never interrupted.
+  if (!directionBlocked && state.input.focused && canPreemptDirection(state, id)) {
     const facing = heldFacing(state);
-    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
+    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, state.world.movement.walking ?? options.pixelMovement ?? 0, true, true);
   }
-  // Held-direction continuous movement: while a direction key stays held and the player becomes
-  // idle again, queue the next step at the normal cadence (docs/spec/engine/display-input-audio.md#reawakened-held-direction-movement).
-  if (state.input.focused && canAcceptDirection(state, id)) {
-    const facing = heldFacing(state);
-    if (facing !== null) enqueueDirectionMove(state.sprites, id, facing, options.pixelMovement ?? 0, options.pixelStep ?? 8);
+  if (board === null || directionBlocked) return;
+  // Clicks made during a block never reach here as paths; a button still held when the block ends is polled below.
+  for (const click of clicks) {
+    if (state.input.pointerMovementSuppressed) continue;
+    enqueuePathMove(state.sprites, board, id, click, state.input.pathMode, true, true);
   }
-  if (board === null) return;
-  for (const click of clicks) enqueuePathMove(state.sprites, board, id, click, state.input.pathMode, true);
+  // A held left button keeps walking towards the cursor whenever the player has no route (3.1 polls it every idle frame).
+  const held = clicks.length === 0 && canAcceptDirection(state, id) ? heldPointerGoal(state.input, positionAt(state.camera, 1)) : null;
+  if (held !== null) enqueuePathMove(state.sprites, board, id, held, state.input.pathMode, true, true);
 }
 
 /** Register the input owner without changing the engine's fixed phase order. */
@@ -76,6 +134,7 @@ export function inputPhaseRegistration(options: InputPhaseOptions = {}): EngineP
   return {
     phase: "input",
     rank: options.rank ?? 0,
+    ...(options.pixelMovement === undefined ? {} : { pixelMovement: options.pixelMovement }),
     run: (state) => runInputPhase(state, options),
   };
 }

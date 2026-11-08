@@ -11,7 +11,7 @@ This is a behaviour and file-format specification of **RPG Toolkit 3.1** (the ed
 | [formats/](formats/README.md) | Every current game file format, byte by byte: conventions, main file, board, character, item, enemy, animation, tiles (tilesets, isometric, single tiles, animated tiles, tile bitmaps), battle data, saved game, RPGCode programs, project layout, PAK and standalone EXE |
 | [formats/legacy/](formats/legacy/README.md) | Legacy files: Toolkit 1-2 text formats, older 3.0 binary versions, how to detect them, and how the original programs converted them |
 | [engine/main-loop-and-startup.md](engine/main-loop-and-startup.md) | Command line, start-up, the frame loop, timing, drawing order, shutdown |
-| [engine/movement-and-collision.md](engine/movement-and-collision.md) | Positions, speed, sprite states, collision, activation of programs and items, board links, path-finding |
+| [engine/movement-and-collision.md](engine/movement-and-collision.md) | Positions, speed, sprite states, collision, activation of programs and items, board links, path-finding, and Reawakened's [once-per-program player movement takeover](engine/movement-and-collision.md#reawakened-program-movement-takeover) |
 | [engine/display-input-audio.md](engine/display-input-audio.md) | Window modes, transparency, input mapping, music and sound, video, fonts |
 | [engine/rpgcode-language.md](engine/rpgcode-language.md) | The scripting language: syntax, semantics, execution, threads, objects, virtual variables, quirks |
 | [engine/rpgcode-functions.md](engine/rpgcode-functions.md) | All 282 built-in commands with signatures |
@@ -21,6 +21,7 @@ This is a behaviour and file-format specification of **RPG Toolkit 3.1** (the ed
 | [engine/accessibility.md](engine/accessibility.md) | The Reawakened accessibility contract: WCAG 2.2 AA for engine chrome, focus, contrast, target size, motion, the accessibility tree, projection of script-drawn content, the custom-UI insertion point, the port tiers and the harness report (A11Y-1 to A11Y-17) |
 | [engine/rpgcode-tooling.md](engine/rpgcode-tooling.md) | The tooling contract: language server and debug adapter, one diagnostic model, the linter rules, formatting, the spec API, the index schema, the CI job, the debug view and `tkr script` with its exit codes |
 | [engine/runners.md](engine/runners.md) | The runner contract: what a runner must do, what it may decide, the draw-list and audio obligations, the desktop applications, install and the library, load modes, prefetch, offline, mobile, build shape and the conformance kit |
+| [engine/host-capabilities-and-viewports.md](engine/host-capabilities-and-viewports.md) | Host capability records, three-plane display geometry, responsive viewport APIs and the two-tier touch-control presentation policy |
 | [engine/parity-checklist.md](engine/parity-checklist.md) | What "plays legacy games" requires, area by area: the reference the headless golden tests hold the engine to |
 | [tools/](tools/README.md) | Python readers and writers for every format, a renderer, and the example-game builder |
 | [examples/](examples/) | A small complete game in every format, with annotated byte listings and renders, built from original placeholder art |

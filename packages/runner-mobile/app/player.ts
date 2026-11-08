@@ -1,4 +1,4 @@
-/**
+/*
  * The mobile player page (entry 9.12): the **same** live page as the desktop shell, run against the mobile host.
  *
  * The wrapper adds no renderer, input path or asset source of its own; on a device the host is Capacitor's `Filesystem`,
@@ -6,8 +6,10 @@
  */
 
 import { interactivePackage, type InputRecord } from "@tk-reawakened/runner-web";
-import { pointerEventToLogical } from "@tk-reawakened/runner-web/pointer";
-import { createLiveSession, fitCanvas, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { createFallbackTouchControls, isFallbackTouchControlTarget, shouldSuppressGameplayKey } from "@tk-reawakened/runner-web/touch-controls";
+import { attachPointerInput } from "@tk-reawakened/runner-web/pointer";
+import { createLiveSession, type LiveSession } from "@tk-reawakened/runner-web/live-session";
+import { createObservedHostGeometry, observeHostState, reapplyObservedGeometryBeforePointer, reconcileObservedGeometryAfterAdvance, reconcileObservedHostFeaturesAfterAdvance, stampPendingInputs, type HostViewport, type PendingInput } from "@tk-reawakened/runner-web/host-state";
 import { createMobileHost, type MobileFilesystem } from "../src/storage.ts";
 
 type LiveReport = {
@@ -18,6 +20,12 @@ type LiveReport = {
   readonly player: { readonly x: number; readonly y: number } | null;
   readonly moved?: boolean;
   readonly save?: { readonly path: string; readonly written: boolean; readonly blobPresent: boolean };
+  readonly render?: {
+    readonly drawn: number;
+    readonly deferred: number;
+    readonly deferredByKind: Readonly<Record<string, number>>;
+    readonly diagnostics: readonly string[];
+  };
   readonly error?: string;
 };
 
@@ -90,130 +98,263 @@ async function start(): Promise<void> {
   const host = createMobileHost({ filesystem, readPackage: () => readPackage(filesystem) });
   const canvas = document.querySelector<HTMLCanvasElement>("#screen");
   const status = document.querySelector<HTMLElement>("#live-status");
-  if (canvas === null || status === null) throw new Error("mobile player page is missing its canvas or status element");
-
+  const viewport = document.querySelector<HTMLElement>("#viewport");
+  if (canvas === null || status === null || viewport === null) throw new Error("mobile player page is missing its viewport, canvas, or status element");
+  const hostViewport: HostViewport = { canvas, viewport };
   const opened = await host.openPackage();
   if (opened === null) throw new Error("no package was available");
   const descriptor = await readDescriptor(filesystem, opened.name);
   const pkg = await interactivePackage(opened.name, new Uint8Array(opened.bytes), descriptor);
-
   const listed = (await (await fetch("/apps/bundled.json")).json()) as { readonly files: readonly string[] };
   const bundled = new Map<string, Uint8Array>();
   for (const name of listed.files) {
     const response = await fetch(`/${name}`);
     if (response.ok) bundled.set(name, new Uint8Array(await response.arrayBuffer()));
   }
-
   const gl = canvas.getContext("webgl2", { premultipliedAlpha: false, antialias: false, alpha: false, preserveDrawingBuffer: true });
   if (gl === null) throw new Error("no WebGL2 context for the visible player");
 
-  const session = createLiveSession({
-    interactive: true,
-    mainFile: pkg.main,
-    gameIdentity: pkg.gameIdentity,
-    files: pkg.files,
-    bundled,
-    gl,
-    blobs: {
-      read: (area, gameId, path) => host.readBlob(area, gameId, path),
-      write: (area, gameId, path, bytes) => host.writeBlob(area, gameId, path, bytes),
-      list: (area, gameId) => host.listBlobs(area, gameId),
-    },
-  });
-  const view = session.viewSize();
-  const fit = (): void => {
-    fitCanvas(canvas, view.width, view.height, { width: window.innerWidth, height: Math.max(80, window.innerHeight - 80) });
+  let stopped = false;
+  let generation = 0;
+  let activeSession: LiveSession | null = null;
+  let disposeRun: (() => void) | null = null;
+  const pagehide = (): void => {
+    if (stopped) return;
+    stopped = true;
+    generation += 1;
+    const cleanup = disposeRun;
+    disposeRun = null;
+    const session = activeSession;
+    activeSession = null;
+    if (cleanup !== null) cleanup();
+    else session?.close();
   };
-  fit();
-  window.addEventListener("resize", fit);
-  run(session, canvas, status, host);
+  window.addEventListener("pagehide", pagehide, { once: true });
+
+  const restart = (sessionGeneration: number, session: LiveSession): void => {
+    if (stopped || sessionGeneration !== generation || activeSession !== session) return;
+    generation += 1;
+    const cleanup = disposeRun;
+    disposeRun = null;
+    activeSession = null;
+    if (cleanup !== null) cleanup();
+    else session.close();
+    setReport({ tick: 0, stateHash: "", drawHash: "", board: null, player: null });
+    status.textContent = "restarting…";
+    void launch();
+  };
+
+  const launch = async (): Promise<void> => {
+    if (stopped) return;
+    const sessionGeneration = ++generation;
+    let created: LiveSession | null = null;
+    let quitBeforeReady = false;
+    try {
+      const session = await createLiveSession({
+        interactive: true,
+        mainFile: pkg.main,
+        gameIdentity: pkg.gameIdentity,
+        files: pkg.files,
+        bundled,
+        gl,
+        hostViewport,
+        blobs: {
+          read: (area, gameId, path) => host.readBlob(area, gameId, path),
+          write: (area, gameId, path, bytes) => host.writeBlob(area, gameId, path, bytes),
+          list: (area, gameId) => host.listBlobs(area, gameId),
+        },
+        onQuit: () => {
+          if (stopped || sessionGeneration !== generation) return;
+          if (created === null) {
+            quitBeforeReady = true;
+            return;
+          }
+          restart(sessionGeneration, created);
+        },
+      });
+      created = session;
+      if (stopped || sessionGeneration !== generation) {
+        session.close();
+        return;
+      }
+      activeSession = session;
+      if (quitBeforeReady) {
+        restart(sessionGeneration, session);
+        return;
+      }
+      disposeRun = run(session, canvas, status, host, () => !stopped && sessionGeneration === generation && activeSession === session, hostViewport);
+    } catch (error) {
+      if (!stopped && sessionGeneration === generation) fail(String(error));
+    }
+  };
+
+  void launch();
 }
 
-async function run(
+function run(
   session: LiveSession,
   canvas: HTMLCanvasElement,
   status: HTMLElement,
   host: ReturnType<typeof createMobileHost>,
-): Promise<void> {
+  isCurrent: () => boolean,
+  hostViewport: HostViewport,
+): () => void {
   const stepMs = 1000 / 60;
   let previous = performance.now();
   let accumulator = 0;
-  let pending: InputRecord[] = [];
+  let pending: PendingInput[] = [];
+    const fallbackControlKeys = new Set<string>();
+      let fallbackActionSequence = 0;
   let disposed = false;
+  let frameId: number | null = null;
   let startPlayer = session.playerPosition();
   let moved = false;
+  let saveBlobPresent = false;
+  let saveWritten = false;
 
   const gameId = session.gameId;
   const savePath = "slot-1.json";
   const saveBytes = (): Uint8Array => new TextEncoder().encode(JSON.stringify({ gameId, tick: session.tick() }));
-  const saveBlobPresent = await host.readBlob("saves", gameId, savePath) !== null;
-
   const onKeyDown = (event: KeyboardEvent): void => {
+    if (shouldSuppressGameplayKey(event.code, event.repeat, true, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) } });
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: true, ...(event.repeat ? { repeat: true } : {}) }, pointerGeometry: null });
   };
   const onKeyUp = (event: KeyboardEvent): void => {
-    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false } });
+    if (shouldSuppressGameplayKey(event.code, event.repeat, false, isFallbackTouchControlTarget(event.target), fallbackControlKeys)) return;
+    pending.push({ tick: session.tick(), event: { kind: "key", name: event.key.toUpperCase(), code: event.code, char: event.key.length === 1 ? event.key : null, down: false }, pointerGeometry: null });
   };
   const focus = (state: "lost" | "gained"): void => {
-    pending.push({ tick: session.tick(), event: { kind: "focus", state } });
+    pending.push({ tick: session.tick(), event: { kind: "focus", state }, pointerGeometry: null });
   };
-  const onBlur = (): void => focus("lost");
+  const onBlur = (): void => {
+      fallbackControlKeys.clear();
+      focus("lost");
+    };
   const onFocus = (): void => focus("gained");
   const onVisibility = (): void => focus(document.hidden ? "lost" : "gained");
   const viewSize = session.viewSize();
-  const onPointer = (event: PointerEvent): void => {
-    const { x, y } = pointerEventToLogical(event, canvas, viewSize);
-    pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons: event.buttons } });
+  const observedGeometry = createObservedHostGeometry(session.displayGeometry());
+  const hostObserver = observeHostState(hostViewport, viewSize, (event) => {
+    observedGeometry.observe(event);
+    pending.push({ tick: null, event, pointerGeometry: null });
+  }, session.hostState ?? undefined);
+  session.setHostRestoreSnapshotProvider(() => {
+    const snapshot = hostObserver.snapshotForRestore(pending);
+    for (const event of snapshot.observations) observedGeometry.observe(event);
+    return snapshot;
+  });
+  const stage = hostViewport.viewport;
+  const dispatchFallbackAction = (action: "up" | "down" | "left" | "right" | "confirm" | "cancel", down: boolean, modalId: number | null = null): number => {
+    let event: InputRecord["event"];
+    if (modalId === null) {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId: null };
+    } else if (action === "confirm" || action === "cancel") {
+      event = { kind: "action", action, down, source: "runner.fallback", modalId };
+    } else {
+      throw new Error("only confirm or cancel may target a modal");
+    }
+    pending.push({ tick: null, event, pointerGeometry: null });
+    fallbackActionSequence += 1;
+    return fallbackActionSequence;
   };
+  const touchControls = createFallbackTouchControls(stage, observedGeometry.current, dispatchFallbackAction);
+  const stopPointerInput = attachPointerInput(
+    stage,
+    viewSize,
+    observedGeometry.current,
+    ({ x, y }, buttons) => {
+      const geometry = observedGeometry.current();
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer", x, y, buttons }, pointerGeometry: geometry });
+    },
+    () => {
+      reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+      pending.push({ tick: session.tick(), event: { kind: "pointer.cancel" }, pointerGeometry: null });
+    },
+    ({ x, y }) => session.engine.runnerControlPointerPreemption(x, y),
+    dispatchFallbackAction,
+    () => session.engine.surfaceCacheEpoch(),
+  );
+  const onContextMenu = (event: MouseEvent): void => event.preventDefault();
 
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);
-  canvas.addEventListener("pointerdown", onPointer);
-  canvas.addEventListener("pointermove", onPointer);
-  canvas.addEventListener("pointerup", onPointer);
-  canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+  canvas.addEventListener("contextmenu", onContextMenu);
 
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
+    hostObserver.dispose();
+    if (frameId !== null) window.cancelAnimationFrame(frameId);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onBlur);
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisibility);
-    canvas.removeEventListener("pointerdown", onPointer);
-    canvas.removeEventListener("pointermove", onPointer);
-    canvas.removeEventListener("pointerup", onPointer);
+    stopPointerInput();
+    canvas.removeEventListener("contextmenu", onContextMenu);
+    touchControls.close();
     session.close();
   };
-  window.addEventListener("pagehide", dispose, { once: true });
 
   const draw = (now: number): void => {
-    if (disposed) return;
+    frameId = null;
+    if (disposed || !isCurrent()) return;
+    hostObserver.poll();
+    touchControls.update(session.engine.hostFeatures().touch && !session.engine.customTouchControlsDeclared());
     accumulator += Math.max(0, now - previous);
     previous = now;
     const ticks = Math.floor(accumulator / stepMs);
     accumulator -= ticks * stepMs;
-    const inputs = pending;
+    const geometryNeedsTick = reapplyObservedGeometryBeforePointer(session.displayGeometry(), observedGeometry, pending);
+    if (ticks === 0 && geometryNeedsTick) {
+      frameId = window.requestAnimationFrame(draw);
+      return;
+    }
+    const inputs = stampPendingInputs(pending, session.tick());
+    const submittedActionSequence = fallbackActionSequence;
     pending = [];
+    const tickBeforeAdvance = session.tick();
     void session.advance(ticks, inputs).then(async () => {
-      if (disposed) return;
+      if (disposed || !isCurrent()) return;
+      if (session.tick() !== tickBeforeAdvance) touchControls.acknowledgeSubmittedBatch(submittedActionSequence);
+      reconcileObservedHostFeaturesAfterAdvance(session.engine.hostFeatures(), hostObserver, pending);
+      const restoredGeometryNeedsTick = reconcileObservedGeometryAfterAdvance(session.displayGeometry(), observedGeometry, pending, session.tick());
+      if (restoredGeometryNeedsTick) {
+        frameId = window.requestAnimationFrame(draw);
+        return;
+      }
       const frame = session.draw(accumulator / stepMs);
       const player = session.playerPosition();
       const board = session.boardKey();
-      if (!moved && startPlayer !== null && player !== null && (player.x !== startPlayer.x || player.y !== startPlayer.y)) {
-        moved = true;
-      }
+      if (!moved && startPlayer !== null && player !== null && (player.x !== startPlayer.x || player.y !== startPlayer.y)) moved = true;
       if (startPlayer === null) startPlayer = player;
-
-      // Prove the save path works on this host.
-      const written = await host.writeBlob("saves", gameId, savePath, saveBytes());
+      let written = saveWritten;
+      if (!saveWritten) {
+        written = await host.writeBlob("saves", gameId, savePath, saveBytes());
+        if (disposed || !isCurrent()) return;
+        saveWritten = written;
+      }
       const saveLabel = `${saveBlobPresent ? "host blob present; " : ""}${written ? "written" : "write failed"}`;
-      setReport({ tick: session.tick(), stateHash: session.stateHash(), drawHash: frame.drawHash, board, player, moved, save: { path: savePath, written, blobPresent: saveBlobPresent } });
+      setReport({
+        tick: session.tick(),
+        stateHash: session.stateHash(),
+        drawHash: frame.drawHash,
+        board,
+        player,
+        moved,
+        save: { path: savePath, written, blobPresent: saveBlobPresent },
+        render: {
+          drawn: frame.render.drawn,
+          deferred: frame.render.deferred,
+          deferredByKind: frame.render.deferredByKind,
+          diagnostics: frame.render.diagnostics,
+        },
+      });
       status.textContent = [
         `tick ${session.tick()}`,
         `state ${session.stateHash()}`,
@@ -222,14 +363,27 @@ async function run(
         player === null ? "player: unavailable" : `player ${player.x}, ${player.y}`,
         moved ? "moved: yes" : "moved: no",
         `save ${savePath}: ${saveLabel}`,
+        ...(session.audioError() === null ? [] : [`audio: ${session.audioError()}`]),
         "Move: arrows or WASD; tap/click to walk.",
       ].join("\n");
-      requestAnimationFrame(draw);
+      if (!disposed && isCurrent()) frameId = window.requestAnimationFrame(draw);
     }).catch((error: unknown) => {
+      if (disposed || !isCurrent()) return;
       setReport({ tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error) });
       status.textContent = `player: ${String(error)}`;
       dispose();
     });
   };
-  requestAnimationFrame(draw);
+
+  void host.readBlob("saves", gameId, savePath).then((bytes) => {
+    if (disposed || !isCurrent()) return;
+    saveBlobPresent = bytes !== null;
+    frameId = window.requestAnimationFrame(draw);
+  }).catch((error: unknown) => {
+    if (disposed || !isCurrent()) return;
+    setReport({ tick: session.tick(), stateHash: session.stateHash(), drawHash: "", board: session.boardKey(), player: session.playerPosition(), error: String(error) });
+    status.textContent = `player: ${String(error)}`;
+    dispose();
+  });
+  return dispose;
 }

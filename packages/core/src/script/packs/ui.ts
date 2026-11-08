@@ -10,6 +10,7 @@ import type { CommandEffect, CommandResult, CommandView, PluginDefinition } from
 import type { UiSection } from "../../save/sections/ui.ts";
 import { createUiSection } from "../../save/sections/ui.ts";
 import type { SurfacesSection } from "../../save/sections/surfaces.ts";
+import { findObject, isDictionary } from "../objects.ts";
 import { toNumberValue, toStringValue } from "../values.ts";
 import { layoutText } from "../../render/text.ts";
 
@@ -70,6 +71,9 @@ function uiCommand(
 function plainDoc(summary: string, behaviour: string, waits: BuiltinDoc["waits"] = { kind: "never", summary: "Completes in the current script turn." }): BuiltinDoc {
   return { summary, behaviour, groups: ["message-window-text-fonts-30"], waits };
 }
+function reawakenedDoc(summary: string, behaviour: string): BuiltinDoc {
+  return { ...plainDoc(summary, behaviour), groups: [DIALOGUE, REAWAKENED_ADDITIONS] };
+}
 
 /**
  * The optional canvas argument of `text` and `pixelText` (E-56): absent or the screen handle 0 keeps the screen text layer;
@@ -88,6 +92,7 @@ const textParam: ParamSpec = { name: "text", optional: false, byRef: false, vari
 const NO_ARGS: readonly ParamSpec[] = [];
 const DIALOGUE = "message-window-text-fonts-30";
 const CURSOR_GROUP = "mouse-buttons-cursor-maps-11";
+const REAWAKENED_ADDITIONS = "reawakened-additions-not-part-of-the-282-legacy-catalogue";
 const DEFAULT_ARROW = "media/cursors/tkr-arrow.png";
 const DEFAULT_HAND = "media/cursors/tkr-hand.png";
 
@@ -106,6 +111,23 @@ function output(args: readonly Arg[], index: number, value: number): readonly (r
 function uiEffect(name: string, args: readonly PlainData[]): CommandEffect {
   return { kind: "state-write", section: "ui", args: [...args] };
 }
+function dictionary(view: CommandView, value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || !("handle" in value) || typeof value.handle !== "number" || view.state === undefined) return null;
+  const record = findObject(view.state.vm, value.handle);
+  return record !== undefined && isDictionary(record) ? record.members : null;
+}
+
+function itemOptions(view: CommandView, value: unknown): Record<string, unknown> | null {
+  if (value === undefined || value === null || value === 0) return {};
+  return dictionary(view, value);
+}
+
+function surfaceEffect(view: CommandView, args: readonly PlainData[]): CommandEffect {
+  return { kind: "state-write", section: "ui", args: [view.thread ?? -1, ...args] };
+}
+function surfaceSelectionKey(owner: number, id: string): string {
+  return `${owner}:${id}`;
+}
 
 export const UI_COMMANDS: readonly BuiltinSpec[] = [
   uiCommand("createCursorMap", [{ name: "ret", optional: true, byRef: true, variadic: false }], cursorDoc("Create a cursor map.", "Creates an empty cursor map and returns its integer handle, also writing the optional reference; points are added in order and the call does not wait."), (view, args) => {
@@ -121,7 +143,7 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
   uiCommand("cursorMapRun", [
     { name: "map", optional: false, byRef: false, variadic: false },
     { name: "ret", optional: true, byRef: true, variadic: false },
-  ], { summary: "Run a cursor map.", behaviour: "Shows the hand at the selected map point and waits for a key or mouse selection. Technically, arrow keys move through points, number keys select a zero-based point, Enter/Return/Space confirms, mouse presses choose the nearest point, and the returned index is zero-based.", groups: [CURSOR_GROUP], waits: { kind: "until-input", summary: "Yields until a cursor-map point is selected." }, see: ["docs/spec/engine/rpgcode-functions.md#e-60"] }, (_view, args) => {
+  ], { summary: "Run a cursor map and wait for a point to be chosen.", behaviour: "Blocks while showing the hand at the selected point. Selection starts at the first point; Up/Left and Down/Right navigate with wrapping, and Enter/Return/Space confirms. Escape does not cancel, the runner reads no mouse input, and the result is the selected zero-based index.", groups: [CURSOR_GROUP], waits: { kind: "until-input", summary: "Yields until a cursor-map point is selected." }, see: ["docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner"] }, (_view, args) => {
     const map = Math.trunc(number(args, 0));
     const refs = args[1]?.ref === null || args[1]?.ref === undefined ? [] : [args[1].ref];
     return { value: null, effects: [uiEffect("cursormaprun", [map])], wait: { kind: "input.key", global: true, key: null, cursorMap: map, cursorSelection: 0, resumeRefs: refs } };
@@ -187,9 +209,85 @@ export const UI_COMMANDS: readonly BuiltinSpec[] = [
   uiCommand("getTextWidth", [{ name: "text", optional: false, byRef: false, variadic: false }, { name: "ret", optional: true, byRef: true, variadic: false }], plainDoc("Measure text width in pixels.", "Measures the spliced string using the active FontRef metrics, writes the optional result reference and does not wait."), (view, args) => { const ui = (view.state?.ui as UiSection | undefined); const ref = ui?.font ?? { asset: DEFAULT_FONT as never, size: 8, bold: false, italic: false }; const value = spliceVariables(text(args, 0), view); const result = layoutText(value, ref).width; return { value: result, out: byRef(args, 1, result), effects: [effect([value, result], "pure")] }; }),
   uiCommand("getTextHeight", [{ name: "text", optional: false, byRef: false, variadic: false }, { name: "ret", optional: true, byRef: true, variadic: false }], plainDoc("Measure text height in pixels.", "Measures the spliced string using the active FontRef line height, writes the optional result reference and does not wait."), (view, args) => { const ui = (view.state?.ui as UiSection | undefined); const ref = ui?.font ?? { asset: DEFAULT_FONT as never, size: 8, bold: false, italic: false }; const value = spliceVariables(text(args, 0), view); const result = layoutText(value, ref).height; return { value: result, out: byRef(args, 1, result), effects: [effect([value, result], "pure")] }; }),
   uiCommand("print", [textParam], plainDoc("Print one line below the previous text.", "Draws the spliced text at the UI cursor, then advances the cursor by one active-font line; the call does not wait."), (view, args) => ({ value: null, effects: [effect([spliceVariables(text(args, 0), view)], "draw-audio-cue")] })),
-  uiCommand("text", [{ name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, textParam, { name: "canvas", optional: true, byRef: false, variadic: false }], plainDoc("Draw text in square cells.", "Truncates 1-based cell coordinates and maps them to `((x - 1) × fontSize, (y - 1) × fontSize)`; newlines advance one cell row, glyphs are clipped and the call does not wait. With a canvas handle the glyphs are drawn into that canvas's pixels (and so are redrawn by clearing the canvas), not onto the screen's text layer; an unknown canvas raises `surface.unknown`."), (view, args) => ({ value: null, effects: [effect([Math.trunc(number(args, 0)), Math.trunc(number(args, 1)), spliceVariables(text(args, 2), view), ...canvasTarget(view, args, 3, "text")])] })),
+  uiCommand("text", [{ name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, textParam, { name: "canvas", optional: true, byRef: false, variadic: false }], plainDoc("Draw text in square cells.", "Keeps a fractional 1-based cell coordinate, scales it by the font size and truncates the resulting pixel origin toward zero, so it maps to `(trunc((x - 1) × fontSize), trunc((y - 1) × fontSize))`; newlines advance one cell row, glyphs are clipped and the call does not wait. With a canvas handle the glyphs are drawn into that canvas's pixels (and so are redrawn by clearing the canvas), not onto the screen's text layer; an unknown canvas raises `surface.unknown`."), (view, args) => ({ value: null, effects: [effect([number(args, 0), number(args, 1), spliceVariables(text(args, 2), view), ...canvasTarget(view, args, 3, "text")])] })),
   uiCommand("pixelText", [{ name: "x", optional: false, byRef: false, variadic: false }, { name: "y", optional: false, byRef: false, variadic: false }, textParam, { name: "canvas", optional: true, byRef: false, variadic: false }], plainDoc("Draw text at pixel coordinates.", "Uses the supplied logical-pixel origin, the active FontRef metrics and clipping; the call does not wait. With a canvas handle the glyphs are drawn into that canvas's pixels (and so are redrawn by clearing the canvas), not onto the screen's text layer; an unknown canvas raises `surface.unknown`."), (view, args) => ({ value: null, effects: [effect([Math.trunc(number(args, 0)), Math.trunc(number(args, 1)), spliceVariables(text(args, 2), view), ...canvasTarget(view, args, 3, "pixelText")], "draw-audio-cue")] })),
   uiCommand("staticText", [{ name: "args", optional: true, byRef: false, variadic: true }], { summary: "Obsolete.", behaviour: "Raises the catchable obsolete-command error and skips the statement.", groups: [DIALOGUE], tags: ["obsolete"], waits: { kind: "never", summary: "Does not wait." } }, () => { throw new ScriptError("builtin.obsolete", '"statictext" is obsolete: the statement is skipped'); }),
+  uiCommand("declareCustomTouchControls", NO_ARGS, reawakenedDoc("Explicitly declare usable game-owned touch controls.", "Sets a persistent game-state declaration used by hosts to suppress runner fallback controls. Capability queries and ordinary accessibility surfaces do not set it."), () => ({ value: null, effects: [effect()] })),
+  uiCommand("uiBegin", [
+    { name: "id", optional: false, byRef: false, variadic: false },
+    { name: "role", optional: false, byRef: false, variadic: false },
+    { name: "x", optional: false, byRef: false, variadic: false },
+    { name: "y", optional: false, byRef: false, variadic: false },
+    { name: "w", optional: false, byRef: false, variadic: false },
+    { name: "h", optional: false, byRef: false, variadic: false },
+  ], reawakenedDoc("Declare a script-drawn surface so the engine navigates and describes it.", "Opens a per-thread surface with logical-pixel bounds; returns 1 when accepted and 0 when malformed. Close it with uiEnd()."), (view, args) => {
+    const owner = view.thread ?? -1;
+    const id = text(args, 0);
+    const role = text(args, 1);
+    const x = number(args, 2); const y = number(args, 3);
+    const w = number(args, 4); const h = number(args, 5);
+    const valid = view.thread !== undefined && owner >= 0 && id !== "" &&
+      (role === "menu" || role === "list" || role === "dialog" || role === "surface") &&
+      [x, y, w, h].every(Number.isSafeInteger) && w > 0 && h > 0;
+    const argsData = [id, role, x, y, w, h, valid ? 1 : 0] as PlainData[];
+    return { value: valid ? 1 : 0, effects: [surfaceEffect(view, argsData)] };
+  }),
+  uiCommand("uiItem", [
+    { name: "label", optional: false, byRef: false, variadic: false },
+    { name: "options", optional: true, byRef: false, variadic: false },
+  ], reawakenedDoc("Append one item to the open surface.", "Adds one navigable item to the calling thread's open surface. Optional dictionary fields are id, value, enabled, role, bounds and explicit semantic action."), (view, args) => {
+    const optionsValue = args[1]?.value;
+    const options = itemOptions(view, optionsValue);
+    const bounds = options?.bounds === undefined ? null : dictionary(view, options.bounds);
+    const boundsData = bounds === null ? null : {
+      x: typeof bounds.x === "number" ? bounds.x : 0,
+      y: typeof bounds.y === "number" ? bounds.y : 0,
+      w: typeof bounds.w === "number" ? bounds.w : 0,
+      h: typeof bounds.h === "number" ? bounds.h : 0,
+    };
+    const action = options?.action;
+    const actionValid = action === undefined || (typeof action === "string" && /^(confirm|cancel|game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*)$/.test(action));
+    const allowedOptions: Record<string, true> = { id: true, value: true, enabled: true, role: true, bounds: true, action: true };
+    const optionsValid = options !== null && Object.keys(options).every((key) => allowedOptions[key] === true);
+    const enabledValid = options?.enabled === undefined || typeof options.enabled === "number" || options.enabled === "0" || options.enabled === "1";
+    const boundsValid = options?.bounds === undefined || (
+      bounds !== null && boundsData !== null &&
+      [boundsData.x, boundsData.y, boundsData.w, boundsData.h].every(Number.isSafeInteger) &&
+      boundsData.w > 0 && boundsData.h > 0
+    );
+    const argsData = [
+      text(args, 0),
+      options?.id === undefined ? null : options.id as PlainData,
+      options?.value === undefined ? null : options.value as PlainData,
+      options?.enabled === undefined ? 1 : (options.enabled === 0 || options.enabled === "0" ? 0 : 1),
+      options?.role === undefined ? null : options.role as PlainData,
+      action === undefined ? null : action as PlainData,
+      boundsData,
+      optionsValid && enabledValid && boundsValid && actionValid ? 1 : 0,
+    ] as PlainData[];
+    return { value: null, effects: [surfaceEffect(view, argsData)] };
+  }),
+  uiCommand("uiEnd", NO_ARGS, reawakenedDoc("Close the open surface and publish it for this frame.", "Closes the calling thread's open surface and publishes its ordered items for navigation, accessibility and pointer hit-testing."), (view) => ({ value: null, effects: [surfaceEffect(view, [])] })),
+  uiCommand("uiSelection", [{ name: "ret", optional: true, byRef: true, variadic: false }], reawakenedDoc("Read the focused item index of the open surface.", "Returns the 0-based focus index, or −1 when the calling thread has no focusable surface; writes the optional reference."), (view, args) => {
+    const owner = view.thread ?? -1;
+    const selected = (view.state?.ui.actionSurfaces ?? []).find((surface) => surface.owner === owner)?.selection ?? -1;
+    return { value: selected, out: output(args, 0, selected), effects: [effect([], "pure")] };
+  }),
+  uiCommand("uiFocus", [{ name: "index", optional: false, byRef: false, variadic: false }], reawakenedDoc("Move the cursor to an item of the open surface.", "Sets focus to an enabled item by its 0-based index; invalid and disabled indexes are ignored."), (view, args) => {
+    const index = number(args, 0);
+    return { value: null, effects: Number.isSafeInteger(index) ? [surfaceEffect(view, [index])] : [effect([], "pure")] };
+  }),
+  uiCommand("uiActivated", [{ name: "ret", optional: true, byRef: true, variadic: false }], reawakenedDoc("Did the focused item get confirmed on this frame?", "Returns the 0-based activated item index for this frame, or −1 otherwise, and writes the optional reference."), (view, args) => {
+    const owner = view.thread ?? -1;
+    const claim = view.state?.ui.surfaceActivated;
+    const index = claim !== null && claim !== undefined && claim.owner === owner ? claim.index : -1;
+    return { value: index, out: output(args, 0, index), effects: [surfaceEffect(view, [owner])] };
+  }),
+  uiCommand("uiCancelled", NO_ARGS, reawakenedDoc("Did `cancel` arrive on this frame for the open surface?", "Returns 1 when cancel was claimed for this author surface on this frame, otherwise 0."), (view) => {
+    const owner = view.thread ?? -1;
+    const claimed = view.state?.ui.surfaceCancelled === true && view.state.ui.surfaceCancelledOwner === owner;
+    return { value: claimed ? 1 : 0, effects: claimed ? [surfaceEffect(view, [owner])] : [effect([], "pure")] };
+  }),
   uiCommand("prompt", [{ name: "question", optional: false, byRef: false, variadic: false }, { name: "ret", optional: true, byRef: true, variadic: false }], { summary: "Ask the player for text.", behaviour: "Shows a modal prompt and yields until the UI supplies a typed value; the value is returned and written to the optional reference.", groups: [DIALOGUE], waits: { kind: "until-input", summary: "Yields until the prompt is answered." } }, (view, args) => ({ value: null, effects: [effect([spliceVariables(text(args, 0), view)])], wait: { kind: "render.msgbox", global: true, id: "prompt", payload: [spliceVariables(text(args, 0), view)], resumeRefs: args[1]?.ref === null || args[1]?.ref === undefined ? [] : [args[1].ref] } })),
   uiCommand("msgBox", [{ name: "text", optional: false, byRef: false, variadic: false }, { name: "title", optional: true, byRef: false, variadic: false }, { name: "style", optional: true, byRef: false, variadic: false }, { name: "textColor", optional: true, byRef: false, variadic: false }, { name: "backColor", optional: true, byRef: false, variadic: false }, { name: "bitmap", optional: true, byRef: false, variadic: false }], { summary: "Ask a question with buttons.", behaviour: "Shows a centred wrapped panel, merges the title as its first body line, then yields until the first OK or Yes/No button is selected; it returns 1, 6 or 7.", groups: [DIALOGUE], waits: { kind: "until-input", summary: "Yields until a button is selected." } }, (_view, args) => { const style = Math.trunc(number(args, 2)); if (style !== 0 && style !== 1) throw new ScriptError("builtin.bad-arg", "msgbox: style must be 0 (OK) or 1 (Yes/No)"); return { value: 0, effects: [effect(values(args))], wait: { kind: "render.msgbox", global: true, id: "msgbox", payload: values(args), resumeRefs: [] } }; }),
 ];
@@ -202,11 +300,13 @@ export const UI_PLUGIN: PluginDefinition = {
 };
 
 export function applyUiEffect(
-  state: { ui: UiSection; surfaces?: SurfacesSection },
+  state: { ui: UiSection; surfaces?: SurfacesSection; engine?: { claims?: number[] }; time?: { tick: number } },
   name: string,
   args: readonly PlainData[],
   /** Resolve a `font(name)` argument against the assets the project ships, when the caller has them. */
   resolveFont?: (name: string) => AssetKey | null,
+  /** Report malformed author UI without raising into the script. */
+  reportSurfaceError?: (owner: number, message: string) => void,
 ): void {
   const ui = state.ui;
   if (ui.message === undefined) Object.assign(ui, createUiSection());
@@ -222,6 +322,136 @@ export function applyUiEffect(
     if (state.surfaces !== undefined) ui.backgroundSurface = colourSurface(state.surfaces, background);
   };
   switch (name.toLowerCase()) {
+    case "declarecustomtouchcontrols":
+      ui.customTouchControlsDeclared = true;
+      return;
+    case "uibegin": {
+      const owner = numberArg(first);
+      if (numberArg(args[7]) !== 1) {
+        reportSurfaceError?.(owner, "uiBegin rejected a malformed author surface");
+        return;
+      }
+      const id = stringArg(args[1]); const role = stringArg(args[2]);
+      const bounds = { x: numberArg(args[3]), y: numberArg(args[4]), w: numberArg(args[5]), h: numberArg(args[6]) };
+      const accepted = owner >= 0 && id !== "" &&
+        (role === "menu" || role === "list" || role === "dialog" || role === "surface") &&
+        Object.values(bounds).every(Number.isSafeInteger) && bounds.w > 0 && bounds.h > 0;
+      if (!accepted) {
+        reportSurfaceError?.(owner, "uiBegin rejected a malformed author surface");
+        return;
+      }
+      ui.surfaceBuilders = [
+        ...ui.surfaceBuilders.filter((builder) => builder.owner !== owner),
+        { owner, id, role, bounds, items: [], invalid: false, openedTick: state.time?.tick ?? 0 },
+      ];
+      return;
+    }
+    case "uiitem": {
+      const owner = numberArg(first);
+      const builderIndex = ui.surfaceBuilders.findIndex((builder) => builder.owner === owner);
+      if (builderIndex < 0) return;
+      const builder = ui.surfaceBuilders[builderIndex]!;
+      const label = stringArg(args[1]);
+      const idValue = args[2];
+      const value = args[3];
+      const enabledValue = args[4];
+      const roleValue = args[5];
+      const actionValue = args[6];
+      const boundsValue = args[7];
+      const accepted = numberArg(args[8]) === 1;
+      const itemId = typeof idValue === "string" ? idValue : `item-${builder.items.length}`;
+      const role = typeof roleValue === "string" ? roleValue : builder.role === "list" ? "listitem" : builder.role === "surface" ? "button" : "menuitem";
+      const allowedRole = role === "menuitem" || role === "button" || role === "listitem" || role === "text";
+      const enabled = numberArg(enabledValue) !== 0;
+      const boundsRecord = typeof boundsValue === "object" && boundsValue !== null && !Array.isArray(boundsValue) ? boundsValue as Record<string, PlainData> : null;
+      const explicitBounds = boundsRecord === null ? null : {
+        x: typeof boundsRecord.x === "number" ? boundsRecord.x : NaN,
+        y: typeof boundsRecord.y === "number" ? boundsRecord.y : NaN,
+        w: typeof boundsRecord.w === "number" ? boundsRecord.w : NaN,
+        h: typeof boundsRecord.h === "number" ? boundsRecord.h : NaN,
+      };
+      const validBounds = explicitBounds === null || (
+        Object.values(explicitBounds).every(Number.isSafeInteger) &&
+        explicitBounds.w > 0 && explicitBounds.h > 0 &&
+        explicitBounds.x >= builder.bounds.x && explicitBounds.y >= builder.bounds.y &&
+        explicitBounds.x + explicitBounds.w <= builder.bounds.x + builder.bounds.w &&
+        explicitBounds.y + explicitBounds.h <= builder.bounds.y + builder.bounds.h
+      );
+      const validAction = actionValue === null || (typeof actionValue === "string" && /^(confirm|cancel|game\.[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*)$/.test(actionValue));
+      if (builder.items.length >= 256 || label === "" || (typeof idValue !== "string" && idValue !== null) ||
+          (typeof idValue === "string" && idValue === "") ||
+          (typeof value !== "string" && value !== null) || !allowedRole || !validBounds || !validAction ||
+          (typeof actionValue !== "string" && actionValue !== null) || !accepted ||
+          builder.items.some((item) => item.id === itemId)) {
+        ui.surfaceBuilders[builderIndex] = { ...builder, invalid: true };
+        return;
+      }
+      const bounds = explicitBounds ?? { x: builder.bounds.x, y: builder.bounds.y, w: 0, h: 0 };
+      ui.surfaceBuilders[builderIndex] = {
+        ...builder,
+        items: [...builder.items, { id: itemId, label, value: typeof value === "string" ? value : null, enabled, role, bounds, ...(typeof actionValue === "string" ? { action: actionValue } : {}) }],
+      };
+      return;
+    }
+    case "uiend": {
+      const owner = numberArg(first);
+      const builder = ui.surfaceBuilders.find((candidate) => candidate.owner === owner);
+      ui.surfaceBuilders = ui.surfaceBuilders.filter((candidate) => candidate.owner !== owner);
+      if (builder === undefined) return;
+      if (builder.invalid || builder.items.length === 0) {
+        reportSurfaceError?.(owner, "uiEnd rejected a malformed or empty author surface");
+        return;
+      }
+      const count = builder.items.length;
+      const items = builder.items.map((item, index) => {
+        if (item.bounds.h > 0) return item;
+        const top = Math.floor(index * builder.bounds.h / count);
+        const bottom = Math.floor((index + 1) * builder.bounds.h / count);
+        return { ...item, bounds: { x: builder.bounds.x, y: builder.bounds.y + top, w: builder.bounds.w, h: bottom - top } };
+      });
+      const selectionKey = surfaceSelectionKey(owner, builder.id);
+      let selection = ui.surfaceSelection[selectionKey] ?? 0;
+      if (selection < 0 || selection >= items.length || items[selection]?.enabled !== true) selection = items.findIndex((item) => item.enabled);
+      if (selection < 0) selection = -1;
+      ui.surfaceSelection[selectionKey] = selection;
+      const surface = { id: builder.id, owner, role: builder.role, bounds: builder.bounds, items, selection, publishedTick: state.time?.tick ?? 0 };
+      ui.actionSurfaces = [...ui.actionSurfaces.filter((candidate) => candidate.owner !== owner), surface];
+      return;
+    }
+    case "uifocus": {
+      const owner = numberArg(first); const index = Math.trunc(numberArg(args[1]));
+      ui.actionSurfaces = ui.actionSurfaces.map((surface) => {
+        const item = surface.items[index];
+        if (surface.owner !== owner || item === undefined || !item.enabled) return surface;
+        ui.surfaceSelection[surfaceSelectionKey(owner, surface.id)] = index;
+        return { ...surface, selection: index };
+      });
+      return;
+    }
+    case "uiactivated": {
+      const owner = numberArg(first);
+      const claim = ui.surfaceActivated;
+      if (claim?.owner === owner) {
+        if (typeof claim.inputSeq === "number" && state.engine !== undefined) {
+          const claims = state.engine.claims ??= [];
+          if (!claims.includes(claim.inputSeq)) claims.push(claim.inputSeq);
+        }
+        ui.surfaceActivated = null;
+      }
+      return;
+    }
+    case "uicancelled": {
+      const owner = numberArg(first);
+      if (ui.surfaceCancelledOwner !== owner) return;
+      if (typeof ui.surfaceCancelledSeq === "number" && state.engine !== undefined) {
+        const claims = state.engine.claims ??= [];
+        if (!claims.includes(ui.surfaceCancelledSeq)) claims.push(ui.surfaceCancelledSeq);
+      }
+      ui.surfaceCancelled = false;
+      ui.surfaceCancelledSeq = null;
+      ui.surfaceCancelledOwner = null;
+      return;
+    }
     case "dialogue":
     case "mwin":
     case "show":
@@ -249,8 +479,11 @@ export function applyUiEffect(
     case "text": {
       // A canvas target (fourth argument) is drawn into that canvas by the engine, never onto the screen text layer.
       if (numberArg(args[3]) !== 0) return;
-      const x = (numberArg(args[0]) - 1) * ui.font.size;
-      const y = (numberArg(args[1]) - 1) * ui.font.size;
+      // E-56 (docs/spec/engine/rpgcode-functions.md#reawakened-text-cell-size): the cell
+      // coordinate keeps its fraction, is scaled, and only the pixel origin is truncated
+      // toward zero, so ((x - 1) × size) is floored as a pixel value, not a cell.
+      const x = Math.trunc((numberArg(args[0]) - 1) * ui.font.size);
+      const y = Math.trunc((numberArg(args[1]) - 1) * ui.font.size);
       ui.draws = [...ui.draws, { x, y, cell: true, text: stringArg(args[2]), font: ui.font, rgb: ui.color, underline: ui.underline }];
       ui.cursorX = x; ui.cursorY = y;
       return;
@@ -266,8 +499,8 @@ export function applyUiEffect(
       ui.cursorY += ui.font.size;
       return;
     }
-    case "prompt": ui.modal = { kind: "prompt", text: stringArg(first), title: "", style: 0, textColor: ui.color, background: ui.message.background, graphic: "", selected: 0, result: null }; return;
-    case "msgbox": ui.modal = { kind: "msgbox", text: stringArg(args[0]), title: stringArg(args[1]), style: numberArg(args[2]) === 1 ? 1 : 0, textColor: typeof args[3] === "number" ? dosPaletteEntry(numberArg(args[3])) : ui.color, background: typeof args[4] === "number" ? dosPaletteEntry(numberArg(args[4])) : ui.message.background, graphic: stringArg(args[5]), selected: 0, result: null }; return;
+    case "prompt": ui.modal = { modalId: ui.nextModalId++, kind: "prompt", text: stringArg(first), title: "", style: 0, textColor: ui.color, background: ui.message.background, graphic: "", selected: 0, result: null }; return;
+    case "msgbox": ui.modal = { modalId: ui.nextModalId++, kind: "msgbox", text: stringArg(args[0]), title: stringArg(args[1]), style: numberArg(args[2]) === 1 ? 1 : 0, textColor: typeof args[3] === "number" ? dosPaletteEntry(numberArg(args[3])) : ui.color, background: typeof args[4] === "number" ? dosPaletteEntry(numberArg(args[4])) : ui.message.background, graphic: stringArg(args[5]), selected: 0, result: null }; return;
     case "createcursormap": {
       const id = Math.trunc(numberArg(first));
       const maps = ui.cursorMaps ?? [];

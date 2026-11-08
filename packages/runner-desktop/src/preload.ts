@@ -13,6 +13,8 @@ export type DesktopHost = {
   listBlobs(area: "saves" | "files", gameId: string): Promise<string[]>;
   /** Hand a measurement report to the main process, which writes it where `--report` names. */
   report(value: unknown): Promise<boolean>;
+  /** Close the desktop player through Electron's ordered application teardown. */
+  quit(): Promise<boolean>;
 };
 
 contextBridge.exposeInMainWorld("desktop", {
@@ -21,4 +23,5 @@ contextBridge.exposeInMainWorld("desktop", {
   writeBlob: (area, gameId, path, bytes) => ipcRenderer.invoke("desktop:blob.write", area, gameId, path, bytes),
   listBlobs: (area, gameId) => ipcRenderer.invoke("desktop:blob.list", area, gameId),
   report: (value) => ipcRenderer.invoke("desktop:report", value),
+  quit: () => ipcRenderer.invoke("desktop:quit"),
 } satisfies DesktopHost);

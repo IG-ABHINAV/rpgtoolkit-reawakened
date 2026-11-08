@@ -4,10 +4,11 @@
 //
 // It builds the demo package when `--package` is absent (so `pnpm desktop:run` works after `pnpm fixtures:fetch` and
 // `pnpm desktop:build`), and passes every flag through to the Electron main process in `runner-desktop`, which knows
-// `--serve <dir>`, `--package <file.tpk>`, `--page <path>`, `--report <file>`, `--quit-after` and `--devtools`.
+// `--serve <dir>`, `--package <file.tpk>`, `--page <path>`, `--report <file>` and `--devtools`.
 //
-// It is the same launch `tools/desktop/measure.mjs` performs, minus the report file and the `--quit-after`, so the
-// window stays open.
+// It is the same launch `tools/desktop/measure.mjs` performs, minus the report file, so the window stays open. Closing
+// that window quits the player (on every platform); this script then exits with it, so the game leaves no process
+// behind.
 
 import { execFileSync, spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";

@@ -35,15 +35,26 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
       };
     },
     drawList(_alpha?: number): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
       return null;
     },
+    picturePixels(): SurfacePixels | null { return null; },
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },
     recoveryStatus() { return "none"; },
     setBreakpoints(_breakpoints: readonly Breakpoint[]): void {},
+    registeredActionNames() { return []; },
+    registerGameAction() { return true; },
+    setPointerMovementSuppressed() {},
+    reportUnknownAction() {},
+    customTouchControlsDeclared() { return false; },
+    hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
+    hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+    surfaceCacheEpoch() { return 0; },
+    accessibilityTree() { return []; },
+    runnerControlPointerPreemption() { return null; },
   };
 
   const run: Run = {
@@ -76,6 +87,27 @@ test("runLog partitions ticks into windows and passes maxTicks = n", () => {
   equal(calls[2]!.ticks, 1);
   equal(calls[2]!.maxTicks, 3);
   deepEqual(calls[2]!.inputs, [run.log[2]]);
+});
+
+test("runLog translates historical v1 gamepad buttons before active dispatch", () => {
+  const base = createTestEngine();
+  let received: readonly InputRecord[] = [];
+  const engine: Engine = {
+    ...base,
+    advance(ticks, inputs, maxTicks) {
+      received = inputs;
+      return base.advance(ticks, inputs, maxTicks);
+    },
+  };
+  const run: Run = {
+    schema: 1,
+    ticks: 1,
+    log: [{ tick: 0, event: { ...GAMEPAD, buttons: 8 } }],
+  };
+  runLog(engine, run, 1, createNullAudio());
+  const event = received[0]!.event;
+  equal(event.kind, "gamepad");
+  if (event.kind === "gamepad") equal(event.buttons, 1 << 15);
 });
 
 test("runLog returns records on empty log", () => {
@@ -124,15 +156,26 @@ test("runLog throws naming call and cause for engine violations", () => {
       return modifyReport(base);
     },
     drawList(): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(): SurfacePixels | null {
       return null;
     },
+    picturePixels(): SurfacePixels | null { return null; },
     setBreakpoints(): void {},
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },
     recoveryStatus() { return "none"; },
+    registeredActionNames() { return []; },
+    registerGameAction() { return true; },
+    setPointerMovementSuppressed() {},
+    reportUnknownAction() {},
+    customTouchControlsDeclared() { return false; },
+    hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
+    hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+    surfaceCacheEpoch() { return 0; },
+    accessibilityTree() { return []; },
+    runnerControlPointerPreemption() { return null; },
   });
   const failureCases: readonly {
     name: string;
@@ -269,15 +312,26 @@ test("runLog accepts non-empty requests and diagnostics and hands them to the ob
       };
     },
     drawList(): DrawList {
-      return { tick: 0, width: 320, height: 240, commands: [] };
+      return { tick: 0, width: 320, height: 240, commands: [], marginCommands: [] };
     },
     surfacePixels(): SurfacePixels | null {
       return null;
     },
+    picturePixels(): SurfacePixels | null { return null; },
     setBreakpoints(): void {},
     recoveryCandidate() { return null; },
     resumeRecovery() { return false; },
     recoveryStatus() { return "none"; },
+    registeredActionNames() { return []; },
+    registerGameAction() { return true; },
+    setPointerMovementSuppressed() {},
+    reportUnknownAction() {},
+      customTouchControlsDeclared() { return false; },
+      hostFeatures() { return { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null }; },
+      hostDisplayGeometry() { return { content: { width: 320, height: 240 }, game: { x: 0, y: 0, width: 320, height: 240 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } }; },
+      surfaceCacheEpoch() { return 0; },
+      accessibilityTree() { return []; },
+      runnerControlPointerPreemption() { return null; },
     };
   };
   const seen: { call: number; tickAfter: number; requests: number; diagnostics: unknown }[] = [];

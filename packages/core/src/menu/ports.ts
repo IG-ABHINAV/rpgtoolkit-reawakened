@@ -5,7 +5,7 @@ import { addActor, removeActor, type ActorCreateInput } from "../actors/model.ts
 import { assetKey } from "../formats/resolver/resolver.ts";
 import { ScriptError } from "../script/errors.ts";
 import {
-  readonlySection,
+  readonlyCopy,
   validateActionFields,
   validateMenuSection,
   validatePartySection,
@@ -17,8 +17,35 @@ import {
   type PartySection,
   type StateIssue,
 } from "./model.ts";
-import { applyInventoryAction, type InventoryAction as InventoryActionType, type InventoryEvent, type InventoryRuntime } from "./inventory.ts";
-export type { InventoryAction } from "./inventory.ts";
+import {
+  applyInventoryAction,
+  commitItemAction,
+  itemActionHooks,
+  missingItemActionAssets,
+  preflightItemAction,
+  type InventoryAction as InventoryActionType,
+  type InventoryEvent,
+  type InventoryRuntime,
+  type ItemActionAsset,
+  type ItemActionHooks,
+  type ItemActionPhase,
+  type ItemActionPreflight,
+  type ItemActionRequest,
+  type ItemActionResult,
+  type ItemActionSelection,
+} from "./inventory.ts";
+export type {
+  InventoryAction,
+  ItemActionAsset,
+  ItemActionHook,
+  InventoryRuntime,
+  ItemActionHooks,
+  ItemActionPhase,
+  ItemActionPreflight,
+  ItemActionRequest,
+  ItemActionResult,
+  ItemActionSelection,
+} from "./inventory.ts";
 export type PartyAction =
   | { readonly type: "roster"; readonly members: readonly number[]; readonly selected: number | null }
   | { readonly type: "steps"; readonly value: number }
@@ -36,7 +63,16 @@ export type SectionOwnerPort<S, A> = {
 };
 export type MenuOwnerPorts = {
   readonly party: SectionOwnerPort<PartySection, PartyAction>;
-  readonly inventory: SectionOwnerPort<InventorySection, InventoryActionType>;
+  readonly inventory: SectionOwnerPort<InventorySection, InventoryActionType> & {
+    /** Pure validation; captures the exact actor, stack and displaced-tuple identities for a resumable caller. */
+    preflightItemAction(request: ItemActionRequest): ItemActionPreflight;
+    /** Commit one boundary of a composed item action (see `commitItemAction`). */
+    commitItemAction(request: ItemActionRequest, selection: ItemActionSelection, phase: ItemActionPhase): ItemActionResult;
+    /** Definitions the action still needs from the host, in canonical order (see `missingItemActionAssets`). */
+    missingItemActionAssets(request: ItemActionRequest): readonly ItemActionAsset[];
+    /** The non-empty item programs the action runs and the plain item data each receives. */
+    itemActionHooks(request: ItemActionRequest, selection: ItemActionSelection): ItemActionHooks;
+  };
   readonly menu: SectionOwnerPort<MenuSection, MenuAction> & {
     updateCurrent(input: { readonly actorId: number | null; readonly selection: number }): MenuStateResult;
   };
@@ -103,6 +139,7 @@ export function createMenuOwnerPorts(
   const commitParty = (next: PartySection, destroyActorId?: number): MenuStateResult => {
     const previous = state.party;
     const same = previous.selected === next.selected && previous.steps === next.steps &&
+      previous.stepRemainder === next.stepRemainder &&
       previous.members.length === next.members.length &&
       previous.members.every((actorId, index) => actorId === next.members[index]);
     if (same) {
@@ -138,7 +175,7 @@ export function createMenuOwnerPorts(
       },
     },
     party: {
-      read: () => readonlySection(state.party),
+      read: () => readonlyCopy(state.party),
       apply(action: unknown): MenuStateResult {
         const record = actionRecord(action);
         if (record === null) return rejected({ path: "party.action", message: "expected an action object" });
@@ -221,15 +258,27 @@ export function createMenuOwnerPorts(
       },
     },
     inventory: {
-      read: () => readonlySection(state.inventory),
+      read: () => readonlyCopy(state.inventory),
       apply(action: unknown): MenuStateResult {
         const outcome = applyInventoryAction(state, action, inventoryRuntime);
         for (const event of outcome.events) onInventoryEvent?.(event);
         return outcome.result;
       },
+      preflightItemAction(request) {
+        return preflightItemAction({ inventory: state.inventory, actors: state.actors, party: state.party }, request, inventoryRuntime);
+      },
+      commitItemAction(request, selection, phase) {
+        return commitItemAction(state, request, selection, phase, inventoryRuntime, onInventoryEvent);
+      },
+      missingItemActionAssets(request) {
+        return missingItemActionAssets(state, request, inventoryRuntime);
+      },
+      itemActionHooks(_request, selection) {
+        return itemActionHooks(state, selection, inventoryRuntime);
+      },
     },
     menu: {
-      read: () => readonlySection(state.menu),
+      read: () => readonlyCopy(state.menu),
       apply(action: unknown): MenuStateResult {
         const record = actionRecord(action);
         if (record === null) return rejected({ path: "menu.action", message: "expected an action object" });
@@ -326,7 +375,10 @@ export function applyMenuStateEffect(ports: MenuOwnerPorts, effect: EffectRecord
     if (result.error !== null) throw new ScriptError("menu.state-invalid", `${result.error.path}: ${result.error.message}`);
     return;
   }
-  if (effect.name !== "state" && effect.name !== "menu.state" && !(section === "inventory" && effect.kind === "state-write")) return;
+  // A section-owning command that posts one plain action (`inn`, `menugraphic`, an internal menu or stack action) reaches
+  // the same router as a script `state` effect; the section decides which actions it accepts.
+  if (effect.name !== "state" && effect.name !== "menu.state" &&
+      !((section === "inventory" || section === "menu") && effect.kind === "state-write")) return;
   if (section !== "party" && section !== "inventory" && section !== "menu") {
     throw new ScriptError("menu.state-invalid", "menu.action: expected a party, inventory or menu section");
   }

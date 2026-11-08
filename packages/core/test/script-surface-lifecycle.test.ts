@@ -1,21 +1,26 @@
 // Lifecycle of the RPGCode screen surface and message window (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle, GitHub #1045).
 import { test } from "node:test";
-import { deepEqual, equal, ok } from "node:assert/strict";
+import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextEncoder } from "node:util";
 import {
+  advanceScriptTick,
+  applyInputEvent,
   assetKey,
   createAssetIndex,
   createEmptyBoard,
   createEmptyCharacter,
   createEmptyMainFile,
   createEngine,
+  createGameState,
   IR_VERSION,
   PACKAGE_ROOT,
   restoreGameState,
+  runWaitsPhase,
   snapshot,
+  startProgram,
   triggersPhaseRegistration,
   writeBoard,
   writeCharacter,
@@ -25,6 +30,7 @@ import {
   type Engine,
   type GameState,
 } from "../src/index.ts";
+import { createScriptServices } from "./script-test-services.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const font = new Uint8Array(readFileSync(join(here, "..", "..", "..", "media", "fonts", "tkr-8x8.fnt")));
@@ -36,16 +42,19 @@ function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly
   return result.value;
 }
 
+type TestKey = string | { readonly name: string; readonly code: string; readonly char: string | null };
+
 type Game = {
   readonly engine: Engine;
   state(): GameState;
-  advance(ticks: number, keys?: readonly string[]): void;
+  advance(ticks: number, keys?: readonly TestKey[]): void;
 };
 
 function boot(
   program: string,
   extra: Readonly<Record<string, Uint8Array>> = {},
   phaseRegistrations: NonNullable<Parameters<typeof createEngine>[0]["phaseRegistrations"]> = [],
+  inputConfig: NonNullable<Parameters<typeof createEngine>[0]["input"]> = {},
 ): Game {
   const empty = createEmptyBoard();
   const files = new Map<string, Uint8Array>();
@@ -69,10 +78,11 @@ function boot(
     width: SIZE,
     height: SIZE,
     maxTicks: 1000,
+    input: inputConfig,
     bundled: new Map([[assetKey("media/fonts/tkr-8x8.fnt"), font]]),
     phaseRegistrations: [{ phase: "audio", run: (state) => { latest = state; } }, ...phaseRegistrations],
   });
-  let replies: { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: null; readonly down: boolean } }[] = [];
+  let replies: { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } | { readonly kind: "key"; readonly name: string; readonly code: string; readonly char: string | null; readonly down: boolean } }[] = [];
   const game: Game = {
     engine,
     state() {
@@ -82,10 +92,13 @@ function boot(
     advance(ticks, keys = []) {
       for (let remaining = ticks; remaining > 0;) {
         const tick = latest?.time.tick ?? 0;
-        const inputs = keys.length === 0 ? [] : keys.flatMap((name, index) => [
-          { tick: tick + index * 2, event: { kind: "key" as const, name, code: name, char: null, down: true } },
-          { tick: tick + index * 2 + 1, event: { kind: "key" as const, name, code: name, char: null, down: false } },
-        ]);
+        const inputs = keys.length === 0 ? [] : keys.flatMap((key, index) => {
+          const { name, code, char } = typeof key === "string" ? { name: key, code: key, char: null } : key;
+          return [
+            { tick: tick + index * 2, event: { kind: "key" as const, name, code, char, down: true } },
+            { tick: tick + index * 2 + 1, event: { kind: "key" as const, name, code, char, down: false } },
+          ];
+        });
         keys = [];
         const report = engine.advance(1, [...replies, ...inputs] as never);
         remaining -= 1;
@@ -119,6 +132,186 @@ test("outermost program end hides the message window and stops composing the scr
   equal(state.ui.message.text, "hello", "message-window text is kept in state");
   equal(state.ui.message.visible, false, "message window is hidden");
   equal(state.ui.draws.length, 1, "screen text draw is kept in state");
+});
+
+test("a cursor-map hand is drawn only while the blocking runner executes (#1178, docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner)", () => {
+  const game = boot(
+    "map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\nend()",
+  );
+  const activeList = game.engine.drawList();
+  ok(activeList.commands.some((command) => command.kind === "blit" && "asset" in command.source && command.source.asset === assetKey("media/cursors/tkr-hand.png")));
+  const active = game.state();
+  ok(active.vm.threads.some((thread) => thread.wait?.kind === "input.key" && thread.wait.cursorMap === active.ui.activeCursorMap));
+
+  game.advance(1, ["ENTER"]);
+  const freeRoamList = game.engine.drawList();
+  const finished = sync(game);
+  equal(finished.vm.globals.selected, 0, "Enter chooses the first cursor-map point");
+  ok(finished.ui.activeCursorMap !== undefined, "the map can remain active after its runner returns");
+  ok(
+    !freeRoamList.commands.some((command) => command.kind === "blit" && "asset" in command.source && command.source.asset === assetKey("media/cursors/tkr-hand.png")),
+    "the stale active map does not draw its hand outside the runner",
+  );
+});
+
+test("cursor-map runner return retains its points while the same program continues (#1178, docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner)", () => {
+  const game = boot(
+    "map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\ncontinued = 1\nthreadSleep(getThreadId(), 0)\nend()",
+  );
+  const active = game.state();
+  const mapId = active.ui.activeCursorMap;
+  ok(mapId !== undefined, "the runner has an active map");
+  const cursorThread = active.vm.threads.find((thread) => thread.wait?.kind === "input.key" && thread.wait.cursorMap === mapId);
+  ok(cursorThread !== undefined, "the program is blocked in this map's runner");
+
+  game.advance(1, ["ENTER"]);
+  const resumedList = game.engine.drawList();
+  const resumed = sync(game);
+  equal(resumed.vm.globals.selected, 0, "Enter selects the first point");
+  equal(resumed.vm.globals.continued, 1, "the same program executes after cursorMapRun returns");
+  equal(resumed.ui.activeCursorMap, mapId, "the active-map handle remains in UI state");
+  deepEqual(
+    resumed.ui.cursorMaps?.find((map) => map.id === mapId)?.points,
+    [{ x: 20, y: 20 }, { x: 40, y: 40 }],
+    "the map's authored points are retained after its runner returns",
+  );
+  const continuedThread = resumed.vm.threads.find((thread) => thread.id === cursorThread.id);
+  ok(continuedThread?.wait?.kind === "sleep", "the same thread reaches its following indefinite sleep");
+  ok(
+    !resumedList.commands.some((command) => command.kind === "blit" && "asset" in command.source && command.source.asset === assetKey("media/cursors/tkr-hand.png")),
+    "the retained map's hand is hidden when its runner is no longer executing",
+  );
+});
+
+test("cursor-map navigation accepts browser-shaped arrow key names through the engine", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\nend()");
+  game.advance(1, [{ name: "ARROWLEFT", code: "ArrowLeft", char: null }]);
+  const waitingThread = game.state().vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(waitingThread?.wait?.kind === "input.key", "cursor-map runner remains parked after navigation");
+  equal(waitingThread.wait.cursorSelection, 1, "ArrowLeft wraps from the first point to the second");
+});
+
+test("cursor-map key press moves selection once across engine waits phases (#1187, docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner)", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\nend()");
+  const right = { name: "ARROWRIGHT", code: "ArrowRight", char: null };
+
+  game.advance(1, [right]);
+  game.advance(3);
+  const first = game.state();
+  const firstWaiter = first.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(firstWaiter?.wait?.kind === "input.key", "navigation leaves the runner blocked");
+  equal(firstWaiter.wait.cursorSelection, 1, "one queued press moves to the second point only once");
+  equal(first.input.keys.length, 0, "the navigation key is consumed");
+
+  game.advance(1, [right]);
+  game.advance(3);
+  const second = game.state();
+  const secondWaiter = second.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(secondWaiter?.wait?.kind === "input.key", "a second navigation press also leaves the runner blocked");
+  equal(secondWaiter.wait.cursorSelection, 0, "a distinct press advances once and wraps to the first point");
+  equal(second.input.keys.length, 0, "the second navigation key is consumed");
+});
+
+test("runWaitsPhase refuses to resolve an input key without a claim callback", () => {
+  const game = boot("wait()\nend()");
+  const state = game.state();
+  applyInputEvent(state.input, { kind: "key", name: "Z", code: "KeyZ", char: "z", down: true });
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  throws(
+    () => runWaitsPhase(state.vm, view),
+    /claim callback for input claims/,
+    "the public waits-phase helper must not resolve a key wait while dropping its queue claim",
+  );
+  equal(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"), true, "the key wait stays parked");
+  equal(state.input.keys.length, 1, "the unclaimed key stays available");
+});
+
+test("runWaitsPhase permits an idle cursor-map wait without a claim callback", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\nselected = cursorMapRun(map)\nend()");
+  const state = game.state();
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  runWaitsPhase(state.vm, view);
+  const waitingThread = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(waitingThread?.wait?.kind === "input.key", "an idle runner remains parked");
+  equal(waitingThread.wait.cursorSelection, 0, "an idle poll leaves selection at the first point");
+});
+
+test("runWaitsPhase accepts a custom claim-free cursor-map poll without a claim callback", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\nselected = cursorMapRun(map)\nend()");
+  const state = game.state();
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  runWaitsPhase(state.vm, view, () => ({ value: 0, ok: true }));
+  equal(state.vm.threads.some((thread) => thread.wait?.kind === "input.key"), false, "the claim-free result resolves the wait");
+});
+
+test("runWaitsPhase requires a claim callback for cursor-map navigation (#1187, docs/spec/engine/rpgcode-functions.md#reawakened-cursor-map-runner)", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\nend()");
+  const state = game.state();
+  applyInputEvent(state.input, { kind: "key", name: "ARROWRIGHT", code: "ArrowRight", char: null, down: true });
+  const view = { tick: state.time.tick, events: state.events, input: state.input, ui: state.ui, claims: [] };
+
+  throws(
+    () => runWaitsPhase(state.vm, view),
+    /claim callback/,
+    "the public wait-phase helper must not silently drop cursor-map claims",
+  );
+  const waitingThread = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(waitingThread?.wait?.kind === "input.key");
+  equal(waitingThread.wait.cursorSelection, 0, "failed API use leaves the selected point unchanged");
+  equal(state.input.keys.length, 1, "failed API use leaves the queued key available");
+});
+
+test("standalone scheduler consumes cursor-map keys in order and preserves unrelated keys for Get (#1187)", () => {
+  const state = createGameState({ seed: 1 });
+  const services = createScriptServices(state);
+  startProgram(state.vm, {
+    kind: "inline",
+    ir: "1",
+    text: "wait(selected)\nanswer = Get()\nend()",
+  });
+  advanceScriptTick(state, services);
+  const thread = state.vm.threads.find((entry) => entry.wait?.kind === "input.key");
+  ok(thread?.wait?.kind === "input.key", "Wait provides the standalone input wait");
+  thread.wait.parkSeq = state.input.nextSeq;
+  thread.wait.cursorMap = 1;
+  thread.wait.cursorSelection = 0;
+  state.ui.cursorMaps = [{ id: 1, points: [{ x: 20, y: 20 }, { x: 40, y: 40 }], selected: 0 }];
+  state.ui.activeCursorMap = 1;
+  applyInputEvent(state.input, { kind: "key", name: "Z", code: "KeyZ", char: "z", down: true });
+  applyInputEvent(state.input, { kind: "key", name: "ARROWRIGHT", code: "ArrowRight", char: null, down: true });
+  applyInputEvent(state.input, { kind: "key", name: "ENTER", code: "Enter", char: null, down: true });
+
+  advanceScriptTick(state, services);
+  const waitingThread = state.vm.threads.find((thread) => thread.wait?.kind === "input.key");
+  ok(waitingThread?.wait?.kind === "input.key", "navigation leaves the standalone wait parked");
+  equal(waitingThread.wait.cursorSelection, 1, "the queued arrow advances once");
+  deepEqual(state.input.keys.map((key) => key.name), ["Z", "ENTER"], "only the arrow record is consumed");
+
+  advanceScriptTick(state, services);
+  equal(state.vm.globals.selected, 1, "the following Enter chooses the already-selected second point");
+  equal(state.vm.globals.answer, "Z", "the unrelated key remains queued for the next Get");
+});
+
+test("cursor-map selection accepts the browser's literal Space key through the engine", () => {
+  const game = boot("map = createCursorMap()\ncursorMapAdd(20, 20, map)\nselected = cursorMapRun(map)\nend()");
+  game.advance(1, [{ name: " ", code: "Space", char: " " }]);
+  equal(game.state().vm.threads.some((thread) => thread.wait?.kind === "input.key"), false, "literal Space resolves the cursor-map wait");
+  equal(game.state().vm.globals.selected, 0, "Space chooses the first point");
+});
+
+test("interactive input bindings deliver host-shaped Space to a cursor-map runner", () => {
+  const game = boot(
+    "map = createCursorMap()\ncursorMapAdd(20, 20, map)\ncursorMapAdd(40, 40, map)\nselected = cursorMapRun(map)\nend()",
+    {},
+    [],
+    { bindings: { keys: { Enter: "ENTER", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", KeyW: "up", KeyS: "down", KeyA: "left", KeyD: "right", Space: " " } } },
+  );
+  game.advance(1, [{ name: " ", code: "Space", char: " " }]);
+  equal(game.state().vm.threads.some((thread) => thread.wait?.kind === "input.key"), false, "the configured host Space key resolves the cursor-map wait");
+  equal(game.state().vm.globals.selected, 0, "mapped Space chooses the first point");
 });
 
 test("nested program end does not hide the message window while the outermost program runs", () => {
@@ -160,21 +353,53 @@ test("send and board load reset neither the message window nor the script surfac
   equal(state.ui.message.text, "send test", "message text is unchanged by board load");
 });
 
-test("a thread starting and ending while the outermost program runs neither hides nor resets the message window", () => {
-  // `thread` takes inline code, not a file name. The thread runs in the first tick's slack after the
-  // main program's step budget is spent, and ends there while the main program still waits for a key.
-  const game = boot('msg = "bg"\nmwin("main")\ndummy = thread("mwin(msg)", 0)\ni = 0\nwhile (i < 2500) { i = i + 1 }\nwait()\nmwin("after")');
+test("a persistent thread spawned by the start-up program neither runs before it is eligible nor resets the message window", () => {
+  // Persistence decides lifetime, not eligibility: a persistent thread created by the start-up program
+  // receives no slice during the start-up program (whether waiting or not), not during a board-enter
+  // program either — only at the first normal scheduler pass after the game loop starts.
+  const game = boot('msg = "bg"\nmwin("main")\ndummy = thread("mwin(msg)", 1)\ni = 0\nwhile (i < 2500) { i = i + 1 }\nwait()\nmwin("after")');
   const list = game.engine.drawList();
   const state = sync(game);
-  ok(state.vm.threads.every((thread) => thread.kind === "blocking" || thread.status === "finished"), "the thread has ended");
-  equal(state.ui.message.text, "main\nbg", "thread start did not reset the text, and the thread's line was added");
-  equal(state.ui.message.visible, true, "thread end did not hide the window");
-  ok(hasText(list, "main") && hasText(list, "bg"), "both lines are composed while the outermost program waits");
+  deepEqual(
+    state.vm.threads.map((thread) => [thread.kind, thread.status]),
+    [["blocking", "waiting"], ["persistent", "ready"]],
+    "the persistent thread was created but received no slice while the start-up program is live",
+  );
+  equal(state.ui.message.text, "main", "the thread did not draw while the program is live");
+  equal(state.ui.message.visible, true, "the open message window stays composed while the program waits");
+  ok(hasText(list, "main") && !hasText(list, "bg"), "only the program's line is composed while it waits");
+
+  game.advance(1, ["ENTER"]);
+  const entered = sync(game);
+  equal(entered.ui.message.visible, false, "the outermost program's end hides it");
+  equal(entered.ui.message.text, "main\nafter", "the program's own lines are stored");
+
+  game.advance(2); // the first normal scheduler pass after the game loop starts
+  const ended = sync(game);
+  equal(ended.ui.message.text, "main\nafter\nbg", "the persistent thread's line was added from its first slice, without hiding or resetting anything");
+});
+
+test("a board thread started by an enter program neither runs before it ends nor resets the message window", () => {
+  // Same shape, but the blocking program is an enter program on a real board: the board thread is
+  // ordinary gameplay, and under the R-32 live blocking thread rule (#1167) it takes no step while
+  // the program runs or waits; it first runs in the phase after the program ends.
+  const enter = 'msg = "bg"\nmwin("main")\ndummy = thread("mwin(msg)", 0)\ni = 0\nwhile (i < 2500) { i = i + 1 }\nwait()\nmwin("after")';
+  const game = boot("end()", { "prg/enter.prg": encoder.encode(enter) });
+  const list = game.engine.drawList();
+  const state = sync(game);
+  deepEqual(
+    state.vm.threads.map((thread) => [thread.kind, thread.status]),
+    [["blocking", "finished"], ["blocking", "waiting"], ["board", "ready"]], // the start-up program finished; the enter program waits; the board thread took no step
+    "the board thread was started but took no step while the enter program is live",
+  );
+  equal(state.ui.message.text, "main", "the thread did not draw while the program is live");
+  equal(state.ui.message.visible, true, "the open message window stays composed while the program waits");
+  ok(hasText(list, "main") && !hasText(list, "bg"), "only the program's line is composed while it waits");
 
   game.advance(1, ["ENTER"]);
   const ended = sync(game);
   equal(ended.ui.message.visible, false, "the outermost program's end hides it");
-  equal(ended.ui.message.text, "main\nbg\nafter", "the stored text is kept");
+  equal(ended.ui.message.text, "main\nafter\nbg", "the thread's line was added after the program ended, without hiding or resetting anything");
 });
 
 test("the next outermost program start resets the stored message text and the script text layer", () => {

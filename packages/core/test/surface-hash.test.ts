@@ -20,6 +20,19 @@ function withSurfaceBytes(b64: string): GameState {
   };
   return state;
 }
+test("pre-1047 projection retains its fixed counter and screen-surface vectors", () => {
+  // A deliberately small fixed state, independent of createGameState defaults and the current projection.
+  const state = {
+    engine: { nextRequestId: 8, pending: [] },
+    vm: { stepCounters: { turns: 3 }, threads: [] },
+    audio: { settings: { volume: 12 }, voices: [] },
+    surfaces: { entries: { "0": { pixels: "screen" }, "-1": { pixels: "script" } } },
+  } as unknown as GameState;
+  equal(hashWithRequestCounter(state), "90a6b9c5d3e5a4bf");
+  state.engine = { ...state.engine, nextRequestId: 19 };
+  equal(hashWithRequestCounter(state), "c13f2ab2b5bbec97");
+});
+
 test("request counters are hash-neutral while outstanding request IDs remain state", () => {
   const completedA = createGameState({ seed: 31 });
   const completedB = createGameState({ seed: 31 });
@@ -35,6 +48,15 @@ test("request counters are hash-neutral while outstanding request IDs remain sta
   waitingB.engine = { ...waitingB.engine, pending: [{ reqId: 5, key: "prg/a.prg", kind: "program" }] };
   equal(waitingA.engine.nextRequestId, waitingB.engine.nextRequestId);
   ok(hashGameState(waitingA) !== hashGameState(waitingB), "simultaneous pending requests with different IDs are distinguishable");
+});
+
+test("acquired asset visibility remains hash-significant independently of request history", () => {
+  const cold = createGameState({ seed: 31 });
+  const warm = createGameState({ seed: 31 });
+  cold.engine = { ...cold.engine, nextRequestId: 8 };
+  warm.engine = { ...warm.engine, cacheKeys: ["bitmap/red.png"], nextRequestId: 19 };
+  ok(hashGameState(cold) !== hashGameState(warm), "different future acquisition timing is semantic state");
+  equal(hashGameState(warm), referenceHashProjection(warm));
 });
 
 test("game-state hash matches the reference projection after prefix, suffix and non-finite edits", () => {

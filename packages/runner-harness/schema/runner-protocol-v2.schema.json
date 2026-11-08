@@ -1,0 +1,1692 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tk-reawakened.dev/schema/runner-protocol-v2.schema.json",
+  "title": "TK Reawakened runner boundary protocol v2",
+  "description": "The records that cross the runner boundary, in the JSON projection a non-TypeScript runner sees. Every record has exactly the keys for its kind and an absent value is null, never an omitted key (AD-14). Uint8Array leaves travel as base64 strings; a runner validates what it sends and what it receives against this schema and replays the vector kit (tools/fixtures/runner-protocol/) to prove it behaves. The audio messages and events are NOT restated here: they are packages/synth/schema/audio-protocol-v1.schema.json. V2 DrawList records require both ordered command planes.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/drawList"
+    },
+    {
+      "$ref": "#/$defs/inputRecord"
+    },
+    {
+      "$ref": "#/$defs/request"
+    }
+  ],
+  "$defs": {
+    "assetKey": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A canonical asset key from the shared resolver, never a logical path (AD-5)."
+    },
+    "bytes": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "description": "A Uint8Array leaf in its JSON projection. A runner decodes it before use; the core never sees the string form.",
+      "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+    },
+    "tint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "r",
+        "g",
+        "b"
+      ],
+      "properties": {
+        "r": {
+          "type": "integer"
+        },
+        "g": {
+          "type": "integer"
+        },
+        "b": {
+          "type": "integer"
+        }
+      }
+    },
+    "rgb": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "r",
+        "g",
+        "b"
+      ],
+      "properties": {
+        "r": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "g": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "b": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "w": {
+          "type": "integer"
+        },
+        "h": {
+          "type": "integer"
+        }
+      }
+    },
+    "texRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset",
+        "tile"
+      ],
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/assetKey"
+        },
+        "tile": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "surfaceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface",
+        "rev"
+      ],
+      "properties": {
+        "surface": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rev": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "blitSource": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/texRef"
+        },
+        {
+          "$ref": "#/$defs/surfaceRef"
+        }
+      ]
+    },
+    "fontRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset",
+        "size",
+        "bold",
+        "italic"
+      ],
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/assetKey"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "glyphAdvance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "glyph",
+        "advance"
+      ],
+      "properties": {
+        "glyph": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "advance": {
+          "type": "integer"
+        }
+      }
+    },
+    "blit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source",
+        "src",
+        "dst",
+        "key",
+        "tint",
+        "alpha",
+        "blend",
+        "iso2d"
+      ],
+      "properties": {
+        "kind": {
+          "const": "blit"
+        },
+        "source": {
+          "$ref": "#/$defs/blitSource"
+        },
+        "src": {
+          "$ref": "#/$defs/rect"
+        },
+        "dst": {
+          "$ref": "#/$defs/rect"
+        },
+        "key": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/rgb"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tint": {
+          "$ref": "#/$defs/tint"
+        },
+        "alpha": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "blend": {
+          "enum": [
+            "normal",
+            "additive",
+            "translucent"
+          ]
+        },
+        "iso2d": {
+          "type": "boolean"
+        }
+      }
+    },
+    "fill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "rgb"
+      ],
+      "properties": {
+        "kind": {
+          "const": "fill"
+        },
+        "rgb": {
+          "$ref": "#/$defs/rgb"
+        }
+      }
+    },
+    "line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "rgb"
+      ],
+      "properties": {
+        "kind": {
+          "const": "line"
+        },
+        "x1": {
+          "type": "integer"
+        },
+        "y1": {
+          "type": "integer"
+        },
+        "x2": {
+          "type": "integer"
+        },
+        "y2": {
+          "type": "integer"
+        },
+        "rgb": {
+          "$ref": "#/$defs/rgb"
+        }
+      }
+    },
+    "rectCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "rect",
+        "rgb",
+        "filled"
+      ],
+      "properties": {
+        "kind": {
+          "const": "rect"
+        },
+        "rect": {
+          "$ref": "#/$defs/rect"
+        },
+        "rgb": {
+          "$ref": "#/$defs/rgb"
+        },
+        "filled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ellipse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "rect",
+        "rgb",
+        "filled"
+      ],
+      "properties": {
+        "kind": {
+          "const": "ellipse"
+        },
+        "rect": {
+          "$ref": "#/$defs/rect"
+        },
+        "rgb": {
+          "$ref": "#/$defs/rgb"
+        },
+        "filled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "x",
+        "y",
+        "text",
+        "font",
+        "rgb",
+        "advances"
+      ],
+      "properties": {
+        "kind": {
+          "const": "text"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "font": {
+          "$ref": "#/$defs/fontRef"
+        },
+        "rgb": {
+          "$ref": "#/$defs/rgb"
+        },
+        "advances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/glyphAdvance"
+          }
+        }
+      }
+    },
+    "pushTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scratch"
+      ],
+      "properties": {
+        "kind": {
+          "const": "pushTarget"
+        },
+        "scratch": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "popTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "const": "popTarget"
+        }
+      }
+    },
+    "drawCommand": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/blit"
+        },
+        {
+          "$ref": "#/$defs/fill"
+        },
+        {
+          "$ref": "#/$defs/line"
+        },
+        {
+          "$ref": "#/$defs/rectCommand"
+        },
+        {
+          "$ref": "#/$defs/ellipse"
+        },
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "$ref": "#/$defs/pushTarget"
+        },
+        {
+          "$ref": "#/$defs/popTarget"
+        }
+      ]
+    },
+    "drawList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tick",
+        "width",
+        "height",
+        "commands",
+        "marginCommands"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/drawCommand"
+          }
+        },
+        "marginCommands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/drawCommand"
+          }
+        }
+      }
+    },
+    "plainData": {
+      "description": "PortData's JSON half: null, boolean, finite number, string, an array of PlainData or a string-keyed record of PlainData (AD-7). A Uint8Array leaf nested inside PortData is untagged in this projection — a byte leaf and a string look alike — so the extension's own contract is what says where one appears; the dedicated `bytes` fields above are the tagged form.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/plainData"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/plainData"
+          }
+        }
+      ]
+    },
+    "blobKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "area",
+        "path"
+      ],
+      "properties": {
+        "area": {
+          "enum": [
+            "saves",
+            "files"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "inputEvent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/keyInput"
+        },
+        {
+          "$ref": "#/$defs/pointerInput"
+        },
+        {
+          "$ref": "#/$defs/pointerCancelInput"
+        },
+        {
+          "$ref": "#/$defs/gamepadInput"
+        },
+        {
+          "$ref": "#/$defs/focusInput"
+        },
+        {
+          "$ref": "#/$defs/hostFeaturesInput"
+        },
+        {
+          "$ref": "#/$defs/hostDisplayInput"
+        },
+        {
+          "$ref": "#/$defs/assetReply"
+        },
+        {
+          "$ref": "#/$defs/blobLoaded"
+        },
+        {
+          "$ref": "#/$defs/blobSaved"
+        },
+        {
+          "$ref": "#/$defs/blobListed"
+        },
+        {
+          "$ref": "#/$defs/extensionResult"
+        },
+        {
+          "$ref": "#/$defs/audioEnded"
+        },
+        {
+          "$ref": "#/$defs/videoEnded"
+        },
+        {
+          "$ref": "#/$defs/hostGamepadsInput"
+        },
+        {
+          "$ref": "#/$defs/actionInput"
+        }
+      ]
+    },
+    "keyInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "code",
+        "char",
+        "down"
+      ],
+      "properties": {
+        "kind": {
+          "const": "key"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string"
+        },
+        "char": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "down": {
+          "type": "boolean"
+        },
+        "repeat": {
+          "type": "boolean"
+        }
+      },
+      "description": "`repeat` is the one optional key in the boundary: host auto-repeat is not a new press edge (E-110)."
+    },
+    "pointerInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "x",
+        "y",
+        "buttons"
+      ],
+      "properties": {
+        "kind": {
+          "const": "pointer"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "buttons": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "pointerCancelInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "const": "pointer.cancel"
+        }
+      }
+    },
+    "gamepadInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "device",
+        "connected",
+        "axes",
+        "buttons"
+      ],
+      "properties": {
+        "kind": {
+          "const": "gamepad"
+        },
+        "device": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "connected": {
+          "type": "boolean"
+        },
+        "axes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "type": "integer",
+              "minimum": -1000,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "integer",
+              "minimum": -1000,
+              "maximum": 1000
+            }
+          }
+        },
+        "buttons": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 131071
+        }
+      }
+    },
+    "focusInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "state"
+      ],
+      "properties": {
+        "kind": {
+          "const": "focus"
+        },
+        "state": {
+          "enum": [
+            "lost",
+            "gained"
+          ]
+        }
+      }
+    },
+    "hostFeaturesInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "features"
+      ],
+      "properties": {
+        "kind": {
+          "const": "host.features"
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "touch",
+            "pointer",
+            "keyboard",
+            "gamepad",
+            "haptics",
+            "orientation"
+          ],
+          "properties": {
+            "touch": {
+              "type": "boolean"
+            },
+            "pointer": {
+              "enum": [
+                "fine",
+                "coarse",
+                "none"
+              ]
+            },
+            "keyboard": {
+              "type": "boolean"
+            },
+            "gamepad": {
+              "type": "boolean"
+            },
+            "haptics": {
+              "type": "boolean"
+            },
+            "orientation": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "landscape",
+                    "portrait"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "hostDisplayInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "geometry"
+      ],
+      "properties": {
+        "kind": {
+          "const": "host.display"
+        },
+        "geometry": {
+          "description": "The game rectangle must also fit within content: x + width <= content.width and y + height <= content.height. Validate these cross-field constraints in addition to this schema (docs/spec/engine/host-capabilities-and-viewports.md#state-and-input-records).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "content",
+            "game",
+            "safeArea"
+          ],
+          "properties": {
+            "content": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "width",
+                "height"
+              ],
+              "properties": {
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              }
+            },
+            "game": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              }
+            },
+            "safeArea": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "top",
+                "right",
+                "bottom",
+                "left"
+              ],
+              "properties": {
+                "top": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "right": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "bottom": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "left": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "assetReply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "bytes"
+      ],
+      "properties": {
+        "kind": {
+          "const": "asset"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bytes": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/bytes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "blobLoaded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "bytes"
+      ],
+      "properties": {
+        "kind": {
+          "const": "blob.loaded"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bytes": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/bytes"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "blobSaved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "ok"
+      ],
+      "properties": {
+        "kind": {
+          "const": "blob.saved"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      }
+    },
+    "blobListed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "names"
+      ],
+      "properties": {
+        "kind": {
+          "const": "blob.listed"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "extensionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "result"
+      ],
+      "properties": {
+        "kind": {
+          "const": "extension.result"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "result": {
+          "$ref": "#/$defs/plainData"
+        }
+      }
+    },
+    "audioEnded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "cueId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "audio.ended"
+        },
+        "cueId": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "videoEnded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "video.ended"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "inputRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tick",
+        "event"
+      ],
+      "properties": {
+        "tick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event": {
+          "$ref": "#/$defs/inputEvent"
+        }
+      }
+    },
+    "request": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/assetRequest"
+        },
+        {
+          "$ref": "#/$defs/loadBlobRequest"
+        },
+        {
+          "$ref": "#/$defs/saveBlobRequest"
+        },
+        {
+          "$ref": "#/$defs/listBlobsRequest"
+        },
+        {
+          "$ref": "#/$defs/extensionCallRequest"
+        },
+        {
+          "$ref": "#/$defs/quitRequest"
+        },
+        {
+          "$ref": "#/$defs/openUrlRequest"
+        },
+        {
+          "$ref": "#/$defs/playVideoRequest"
+        },
+        {
+          "$ref": "#/$defs/prefetchRequest"
+        }
+      ]
+    },
+    "assetRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "key"
+      ],
+      "properties": {
+        "kind": {
+          "const": "asset"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "key": {
+          "$ref": "#/$defs/assetKey"
+        }
+      }
+    },
+    "loadBlobRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "blob"
+      ],
+      "properties": {
+        "kind": {
+          "const": "loadBlob"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blob": {
+          "$ref": "#/$defs/blobKey"
+        }
+      }
+    },
+    "saveBlobRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "blob",
+        "bytes"
+      ],
+      "properties": {
+        "kind": {
+          "const": "saveBlob"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blob": {
+          "$ref": "#/$defs/blobKey"
+        },
+        "bytes": {
+          "$ref": "#/$defs/bytes"
+        }
+      }
+    },
+    "listBlobsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "area"
+      ],
+      "properties": {
+        "kind": {
+          "const": "listBlobs"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "area": {
+          "enum": [
+            "saves",
+            "files"
+          ]
+        }
+      }
+    },
+    "extensionCallRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "name",
+        "args"
+      ],
+      "properties": {
+        "kind": {
+          "const": "extension.call"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/plainData"
+          }
+        }
+      }
+    },
+    "quitRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId"
+      ],
+      "properties": {
+        "kind": {
+          "const": "quit"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "openUrlRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "url"
+      ],
+      "properties": {
+        "kind": {
+          "const": "openUrl"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https:"
+        }
+      }
+    },
+    "playVideoRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "key",
+        "presentation"
+      ],
+      "properties": {
+        "kind": {
+          "const": "playVideo"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "key": {
+          "$ref": "#/$defs/assetKey"
+        },
+        "presentation": {
+          "enum": [
+            "full",
+            "small"
+          ]
+        }
+      }
+    },
+    "prefetchHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tier",
+        "key"
+      ],
+      "properties": {
+        "tier": {
+          "enum": [
+            "now",
+            "next",
+            "always"
+          ]
+        },
+        "key": {
+          "$ref": "#/$defs/assetKey"
+        }
+      }
+    },
+    "prefetchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reqId",
+        "hints"
+      ],
+      "properties": {
+        "kind": {
+          "const": "prefetch"
+        },
+        "reqId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/prefetchHint"
+          }
+        }
+      }
+    },
+    "actionInput": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "action",
+            "down",
+            "source",
+            "modalId"
+          ],
+          "properties": {
+            "kind": {
+              "const": "action"
+            },
+            "action": {
+              "type": "string",
+              "minLength": 1
+            },
+            "down": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modalId": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "action",
+            "down",
+            "source",
+            "modalId"
+          ],
+          "properties": {
+            "kind": {
+              "const": "action"
+            },
+            "action": {
+              "enum": [
+                "confirm",
+                "cancel"
+              ]
+            },
+            "down": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modalId": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      ]
+    },
+    "hostGamepadIndex0": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 0
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
+    "hostGamepadIndex1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 1
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
+    "hostGamepadIndex2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 2
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
+    "hostGamepadIndex3": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "const": 3
+        },
+        "axes": {},
+        "buttons": {}
+      },
+      "required": [
+        "device"
+      ]
+    },
+    "hostGamepadsInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "devices"
+      ],
+      "properties": {
+        "kind": {
+          "const": "host.gamepads"
+        },
+        "devices": {
+          "type": "array",
+          "oneOf": [
+            {
+              "minItems": 0,
+              "maxItems": 0
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                }
+              ]
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                }
+              ]
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                }
+              ]
+            },
+            {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            },
+            {
+              "minItems": 4,
+              "maxItems": 4,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/hostGamepadIndex0"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex1"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex2"
+                },
+                {
+                  "$ref": "#/$defs/hostGamepadIndex3"
+                }
+              ]
+            }
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "device",
+              "axes",
+              "buttons"
+            ],
+            "properties": {
+              "device": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "axes": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "minimum": -1000,
+                    "maximum": 1000
+                  },
+                  "y": {
+                    "type": "integer",
+                    "minimum": -1000,
+                    "maximum": 1000
+                  }
+                }
+              },
+              "buttons": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 131071
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

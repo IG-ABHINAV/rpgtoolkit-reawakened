@@ -106,3 +106,25 @@ and it would need a workflow change, which this account cannot push. It is not c
 
 Store submission, signing, icons, splash screens and per-platform chrome; and any fork of the renderer, input path or
 asset source.
+
+## Gap record (2026-11-03, corrected 2026-11-03 review; open work, no status change)
+
+The wrapper and its mobile storage host are merged (PR #1006 `436c78d6`, #1028
+`9954e783`; tap/hold probe PR #1141 `3b121ad3`), and the "two failed emulator
+attempts" predate the required `mobile` CI job: since the emulator-runner step
+landed, the `mobile` job builds the real APK and drives it on an API 33
+emulator (`pixel_2`, x86_64) every required run and uploads the four-image
+proof artifact `mobile-android-api33-proof` — verified among the artifacts of
+main's merged CI run 41618490317. So the emulator itself is no longer the
+obstacle. What remains for acceptance, precisely:
+state-hash-on-device is missing (the proof captures images, and no tick-120
+state hash is computed on the device against the `demo` `board` frame of
+`golden/regression/closing.json` — the video's `stateHash` values are proofs
+of the wrapper, not the baseline check); the proof's `save.blobPresent` is a
+synthetic host-blob probe (the page states `save.blobPresent means the host
+blob exists; the page does not restore game state`), not a restored game
+state; and the person's confirmation of the run is missing (the evidence is
+machine-captured, not witnessed). Blocked on: extending the proof to compute
+the on-device tick-120 state hash, restoring a saved game through the real
+save path, and a person's confirmation — a device run plus one owner
+sign-off, not another implementation effort.

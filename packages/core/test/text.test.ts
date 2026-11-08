@@ -39,14 +39,15 @@ test("bitmap text layout is stable across sizes and wraps at words", () => {
 
 test("text emission uses FontRef metrics and 1-based square cells one font size wide", () => {
   const ref = { asset: key, size: 8, bold: false, italic: false } as const;
-  // Cell (1, 1) is the top-left cell; a fractional coordinate truncates toward zero first.
+  // Cell (1, 1) is the top-left cell; a fractional coordinate keeps its fraction and
+  // only the scaled pixel origin is truncated toward zero.
   deepEqual(emitCellText("A", 1, 1, { r: 7, g: 8, b: 9 }, ref), [{
     kind: "text", x: 0, y: 0, text: "A", font: ref, rgb: { r: 7, g: 8, b: 9 },
     advances: [{ glyph: 65, advance: 8 }],
   }]);
-  const truncated = emitCellText("A", 2.9, -0.5, { r: 7, g: 8, b: 9 }, ref);
-  equal(truncated[0]?.kind === "text" ? truncated[0].x : null, 8);
-  equal(truncated[0]?.kind === "text" ? truncated[0].y : null, -8);
+  const fractional = emitCellText("A", 2.9, -0.5, { r: 7, g: 8, b: 9 }, ref);
+  equal(fractional[0]?.kind === "text" ? fractional[0].x : null, 15, "trunc((2.9 − 1) × 8) = 15");
+  equal(fractional[0]?.kind === "text" ? fractional[0].y : null, -12, "trunc((−0.5 − 1) × 8) = −12");
   // The cell follows the current font size, not a fixed 8x16 size.
   const ref16 = { ...ref, size: 16 } as const;
   const large = emitCellText("A", 2, 3, { r: 1, g: 2, b: 3 }, ref16);
@@ -58,12 +59,27 @@ test("text emission uses FontRef metrics and 1-based square cells one font size 
   deepEqual(emitText("A", 0, 0, { r: 1, g: 2, b: 3 }, ref, { underline: true }).map((command) => command.kind), ["text", "line"]);
 });
 
+test("a cell origin is scaled first and floored as a pixel, not truncated as a cell", () => {
+  const ref18 = { asset: key, size: 18, bold: false, italic: false } as const;
+  // The two 3.1 sample games author the title menu at y = 10.5 with fontSize(18):
+  // truncating the cell first would give 162; scaling first gives 171.
+  const menu = emitCellText("New Game", 17, 10.5, { r: 1, g: 2, b: 3 }, ref18);
+  equal(menu[0]?.kind === "text" ? menu[0].x : null, 288);
+  equal(menu[0]?.kind === "text" ? menu[0].y : null, 171);
+  // A scaled value that is still fractional is truncated toward zero afterwards.
+  const ref7 = { ...ref18, size: 7 } as const;
+  const scaled = emitCellText("A", 1.5, 0.5, { r: 1, g: 2, b: 3 }, ref7);
+  equal(scaled[0]?.kind === "text" ? scaled[0].x : null, 3, "trunc((1.5 − 1) × 7) = 3");
+  equal(scaled[0]?.kind === "text" ? scaled[0].y : null, -3, "trunc((0.5 − 1) × 7) = −3 toward zero");
+});
+
 test("bitmap text replay is a deterministic pixel vector", () => {
   const ref = { asset: key, size: 8, bold: false, italic: false } as const;
   const result = rasterize({
     tick: 0,
     width: 12,
     height: 16,
+    marginCommands: [],
     commands: emitText("A", 1, 2, { r: 10, g: 20, b: 30 }, ref),
   }, new Map([[key, testFont()]]));
   equal(result.error, null);

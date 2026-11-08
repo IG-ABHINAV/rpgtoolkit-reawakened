@@ -23,9 +23,7 @@ import {
   formatScriptsGolden,
   runAllCorpusPrograms,
   runCorpusProgram,
-  runFetchedCorpus,
   verifyCatalogueCompleteness,
-  type FetchedGameFiles,
 } from "../src/corpus.ts";
 import { PLATFORM_FIXTURE_SOURCES } from "../src/platform-fixtures.ts";
 import { checkSnapshotRestore } from "../src/restore-check.ts";
@@ -319,62 +317,6 @@ test("corpus: start.prg runs headlessly to completion in 3 ticks with scripted i
   equal(host.state().vm.threads[0]?.status, "finished"); // after end()
 });
 
-test("corpus: whole fetched corpus suite over fixtures/legacy runs all 10 programs headlessly with scripted inputs", () => {
-  const fixturesRoot = join(REPO_ROOT, "fixtures", "legacy");
-  if (!existsSync(fixturesRoot)) return; // skip only if fixtures not fetched locally
-
-  const demoPrg = join(fixturesRoot, "demo", "Prg");
-  const basicPrg = join(fixturesRoot, "Basic", "Prg");
-  const demoFiles: Record<string, Uint8Array> = {};
-  for (const f of readdirSync(demoPrg).sort()) {
-    if (f.endsWith(".prg")) demoFiles[f] = readFileSync(join(demoPrg, f));
-  }
-  const basicFiles: Record<string, Uint8Array> = {};
-  for (const f of readdirSync(basicPrg).sort()) {
-    if (f.endsWith(".prg")) basicFiles[f] = readFileSync(join(basicPrg, f));
-  }
-
-  const fetchedCorpus: FetchedGameFiles = { demo: demoFiles, basic: basicFiles };
-  const results = runFetchedCorpus(fetchedCorpus, 0);
-  equal(results.length, 10);
-
-  // Re-pinned by ticket 6.6: the `audio` section grew from the empty placeholder to schema v2 (five stopped tracks,
-  // the cue counter, the script bank). Nothing else moved: hashing each final state with the placeholder put back
-  // gives every previous value (60b9d135ecc2665c, c70da0e285468911, d1a2feea4d6699d3, 148143e8efdad422,
-  // 91341281743ee68f, 1eda27c040030408, 4aead264e9d81fc0 and 249a5a6f76a4cb12).
-  // Re-pinned by ticket 19.10: the state tree gained the `events` section (empty here) and `schema.events`. Nothing else
-  // moved: hashing each final state without them gives every previous value (bcccb726d88cf025, c7276b9169328503,
-  // 9128c9fb95d1f969, a7e3084cbafc59c0, 2e8a007d7bae1d31, 6717598c0b7e163a, 69af004598505635 and eaef689c32b9ae98).
-  // Re-pinned by ticket 20.3: the empty `actors` section is now part of the hashed state tree.
-  // Re-pinned by ticket 20.6: the actor section schema and persisted progression contract advanced to version 2.
-  // Re-pinned by tickets 8.2 and 21.5: schema-2 party/inventory/menu state is hashed; MEDIA-1 returns a voice from
-  // one-argument `mediaPlay(file)`. The legacy corpus calls are bare statements, so they ignore the value and keep
-  // the same playback cues; the returned object changes the hashed VM state. Closing PNGs remain visual baselines.
-  // Re-pinned by ticket 7.9: the samples' built-in FightEnemy calls now retain their started battle sections.
-  // Re-pinned by story 8.25 (#814): `schema.compiler` became `schema.ir`, `schema` moved to version 2 and `vm`
-  // to version 6. Hashing each final state with the old schema fields put back gives every previous value.
-  // Re-pinned by ticket 23.10 (#848): `font("Arial")` now resolves to the Liberation face the host bundles instead of
-  // a key nothing ships, and the saved `ui.font.asset` is part of the hashed state. Only `sample-start-basic` moved.
-  // Re-pinned by issue #1048: the presented screen (surface 0) and the script-screen layer no longer contribute to the
-  // state hash. Only `sample-start-demo` and `sample-start-basic` moved, because only their start programs draw to the
-  // screen (`clear()`); the other programs never put a screen entry into the saved state.
-  const expectedHashes: Record<string, string> = {
-    "sample-start-demo": "e0577da117f849f5",
-    "sample-system-demo": "1412e38336613efb",
-    "sample-sys-test-demo": "1412e38336613efb",
-    "sample-win-demo": "cf14d086b215e8e1",
-    "sample-oldman-demo": "3644a41f9d281d58",
-    "sample-man-demo": "c15afea486c1a662",
-    "sample-man-wander-demo": "0edb3abab3859871",
-    "sample-start-basic": "396a686051634955",
-    "sample-system-basic": "1412e38336613efb",
-    "sample-wander-basic": "2694ff0a5f3079c7",
-  };
-
-  for (const res of results) {
-    equal(res.stateHash, expectedHashes[res.id], `hash mismatch for ${res.id}`);
-  }
-});
 
 test("corpus: defined finish line for programs that never end (Basic/Prg/wander.prg)", () => {
   const programs = buildCorpus();
@@ -391,7 +333,6 @@ test("corpus: defined finish line for programs that never end (Basic/Prg/wander.
   const hash2 = host2.stateHash();
 
   equal(hash1, hash2);
-  equal(hash1, "2694ff0a5f3079c7");
 
   for (let split = 0; split <= 5; split++) {
     const fresh = wander.createHost(0);

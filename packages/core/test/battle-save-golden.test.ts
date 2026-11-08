@@ -3,12 +3,19 @@
 // (since #744) the `engine` section's run-scoped `nextBattleId` counter the mid-battle
 // start advances. The mid-battle section is produced by the real battle owner (`start`,
 // `setCharge`, `addCharge`) over pre-created actors: it isolates the saved section, not a full engine start.
-// Fixtures: fixtures/save/battle-v2-{out,mid}.json. Regenerate deliberately by
-// writing `build()` output to the files; the schema-v1 migration fixture `battle-v1.json` is untouched.
+// Fixtures: fixtures/save/battle-v2-{out,mid}.json. Regenerate deliberately with BATTLE_SAVE_GOLDEN_RECORD=1 node --test packages/core/test/battle-save-golden.test.ts.
+// The schema-v1 migration fixture `battle-v1.json` and party-schema-2 migration fixture `party-v2.json` stay untouched.
+// #1231 regenerated both fixtures once: the party section moved to schema 3 (it gained the saved
+// `stepRemainder`), so `schema.party` is 3 and `party.stepRemainder` is 0; no other key changed.
 // #744 regenerated `battle-v2-mid.json` once, for the added `engine.nextBattleId: 2`; no section
 // schema version moved and no other key changed.
+// #585 regenerated both fixtures once: the input section moved to schema 3 (the pointer record gained downs, ups, downX,
+// downY and button), so `schema.input` is 3 and `input.version`/`input.pointer` changed; no other key moved.
+// #1410 adds input schema 8's registered-action, control-index and held-source state; #1576 advances input to schema 9 for modal-scoped action claims.
+// #1352 adds UI schema 5's author-margin command list and surface/declaration fields; UI schema 8 includes claim cancellation and deterministic saved modal identities.
+// No actors, battle values, or other sections changed.
 import { deepEqual, equal, ok } from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -51,8 +58,15 @@ function nextBattleIdOf(root: Record<string, unknown>): unknown {
 }
 
 test("save golden: out-of-battle and mid-battle saves differ only under `battle` and the engine run counter", () => {
-  const out = golden("battle-v2-out.json", build(false));
-  const mid = golden("battle-v2-mid.json", build(true));
+  const outValue = build(false);
+  const midValue = build(true);
+  if (process.env["BATTLE_SAVE_GOLDEN_RECORD"] === "1") {
+    writeFileSync(join(dir, "battle-v2-out.json"), outValue);
+    writeFileSync(join(dir, "battle-v2-mid.json"), midValue);
+    return;
+  }
+  const out = golden("battle-v2-out.json", outValue);
+  const mid = golden("battle-v2-mid.json", midValue);
   equal(build(false), out);
   equal(build(true), mid);
 

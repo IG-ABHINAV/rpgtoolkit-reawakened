@@ -9,6 +9,7 @@ import { test } from "node:test";
 import { TextDecoder, TextEncoder } from "node:util";
 import {
   assetKey,
+  canon,
   createAssetIndex,
   createEmptyBoard,
   createEmptyMainFile,
@@ -16,9 +17,11 @@ import {
   createGameState,
   fileProgramRef,
   IR_VERSION,
+  SCHEMA_VERSIONS,
   startProgram,
   restoreRecoveryCandidate,
   snapshotRecoveryCandidate,
+  snapshotGameSave,
   startThread,
   restoreGameState,
   writeBoard,
@@ -114,7 +117,7 @@ function run(game: Game, loadBytes: Uint8Array | null): { saved: Uint8Array | nu
 }
 
 type Json = {
-  schema: { ir: string; schema?: number } | null;
+  schema: { ir: string; schema?: number; engine?: number } | null;
   audio: unknown;
   vm: {
     threads: { frames: { program: { ir: string } }[] }[];
@@ -284,6 +287,17 @@ test("a save from a newer schema version is refused before malformed audio", () 
   equal((loader.state()!.vm.globals as Record<string, unknown>).after, 9);
 });
 
+test("a save from a newer engine section is refused whole, like every other section", () => {
+  const loader = boot(LOADER);
+  const bytes = tamper(capturedSave(), (json) => {
+    if (json.schema === null) throw new Error("the saved game has no schema object");
+    json.schema.engine = SCHEMA_VERSIONS.engine + 1;
+  });
+  const { codes } = run(loader, bytes);
+  ok(codes.includes("restore.shape"), `diagnostics: ${JSON.stringify(codes)}`);
+  equal((loader.state()!.vm.globals as Record<string, unknown>).after, 9, "nothing from the newer save was applied");
+});
+
 test("a position-free object program from an older instruction version loads", () => {
   const bytes = tamper(capturedObjectSave(), (json) => {
     const object = json.vm.objects.find((entry) => entry.program !== null);
@@ -303,6 +317,24 @@ function recoveryCandidateState(): GameState {
   startProgram(state.vm, { kind: "inline", text: "value = 1\nend()\n", ir: IR_VERSION });
   return state;
 }
+
+test("recovery candidate retains the exact canonical save projection and manifest", () => {
+  const state = recoveryCandidateState();
+  state.vm.globals["nan"] = NaN;
+  state.vm.globals["positive"] = Infinity;
+  state.vm.globals["negative"] = -Infinity;
+  state.vm.globals["text"] = "escaped\n\u00e9🚀";
+  const manifest = {
+    version: 1 as const,
+    board: { key: "boards/start.brd", hash: "0123456789abcdef" },
+    boardDependencies: [{ key: "tiles/a.tst", hash: "fedcba9876543210" }],
+    entryProgram: null,
+    programs: [],
+    listenerAnchors: [],
+  };
+  const expected = canon({ ...JSON.parse(snapshotGameSave(state)), recoveryAssets: manifest });
+  equal(snapshotRecoveryCandidate(state, manifest), expected);
+});
 
 test("a recovery candidate refuses any instruction-version difference, even an older one", () => {
   const state = recoveryCandidateState();

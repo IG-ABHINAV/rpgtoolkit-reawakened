@@ -21,7 +21,7 @@ import {
 } from "../src/index.ts";
 
 type VectorFixture = { readonly id: string; readonly type: string; readonly layer: number; readonly closed: boolean; readonly points: readonly [number, number][]; readonly attributes?: number; readonly toLayer?: number };
-type BoardFixture = { readonly w: number; readonly h: number; readonly layers: number; readonly pixelMovement: number; readonly pixelStep?: number; readonly gameSpeed: number; readonly pfMode: number; readonly vectors: readonly VectorFixture[]; readonly items?: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string }[] };
+type BoardFixture = { readonly w: number; readonly h: number; readonly layers: number; readonly pixelMovement: number; readonly gameSpeed: number; readonly pfMode: number; readonly vectors: readonly VectorFixture[]; readonly items?: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string }[] };
 type Case = {
   readonly name: string;
   readonly setup: { readonly board: string; readonly boards: Record<string, BoardFixture>; readonly players: readonly { readonly id: string; readonly x: number; readonly y: number; readonly layer: number; readonly speed: number; readonly facing: string; readonly controlled?: boolean }[] };

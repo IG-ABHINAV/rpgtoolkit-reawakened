@@ -90,13 +90,21 @@ export type ValidatedRecovery = {
 /** What a validator returns for one candidate; it throws to refuse the bytes. */
 export type RecoveryValidation = {
   readonly tick: number;
+  /** The current ledger-version hash; used for new promotions. */
   readonly ledgerHash: string;
+  /**
+   * Exact hashes from explicitly supported older ledger envelopes. These are
+   * accepted only when matching an existing generation's metadata; promotion
+   * always writes `ledgerHash`.
+   */
+  readonly compatibleLedgerHashes?: readonly string[];
 };
 
 /**
  * Validate one candidate's stored bytes. The callback owns game identity,
  * version, integrity, completeness and ledger consistency; it must not mutate
- * live game state. It returns the candidate's tick and ledger hash, or throws.
+ * live game state. For legacy checkpoint support it may also return hashes
+ * recomputed from explicitly supported older ledger versions.
  */
 export type RecoveryValidate = (bytes: Uint8Array) => RecoveryValidation;
 
@@ -295,10 +303,16 @@ function nextGeneration(generations: readonly number[]): number {
 
 function validateBytes(validate: RecoveryValidate, bytes: Uint8Array, label: string): RecoveryValidation {
   const result: unknown = validate(bytes);
-  if (!isRecord(result) || !isTick(result.tick) || typeof result.ledgerHash !== "string" || result.ledgerHash.length === 0) {
+  const compatible = isRecord(result) ? result.compatibleLedgerHashes : undefined;
+  if (!isRecord(result) || !isTick(result.tick) || typeof result.ledgerHash !== "string" || result.ledgerHash.length === 0 ||
+      compatible !== undefined && (!Array.isArray(compatible) || compatible.some((hash) => typeof hash !== "string" || hash.length === 0))) {
     throw new RecoveryStoreError("recovery.validate", `${label} validation must return a non-negative tick and a non-empty ledger hash`);
   }
-  return { tick: result.tick, ledgerHash: result.ledgerHash };
+  return {
+    tick: result.tick,
+    ledgerHash: result.ledgerHash,
+    ...(compatible === undefined ? {} : { compatibleLedgerHashes: compatible as string[] }),
+  };
 }
 
 function readPointer(store: RecoveryStorage, gameId: string): LoadOutcome<RecoveryPointer> {
@@ -325,8 +339,9 @@ function loadGeneration(store: RecoveryStorage, gameId: string, generation: numb
     // A refused, malformed or throwing validation makes this generation unusable.
     return { status: "invalid" };
   }
-  if (validation.tick !== meta.tick || validation.ledgerHash !== meta.ledgerHash) return { status: "invalid" };
-  return { status: "valid", value: { generation, tick: validation.tick, ledgerHash: validation.ledgerHash, bytes: candidate.bytes } };
+  const ledgerMatches = validation.ledgerHash === meta.ledgerHash || validation.compatibleLedgerHashes?.includes(meta.ledgerHash) === true;
+  if (validation.tick !== meta.tick || !ledgerMatches) return { status: "invalid" };
+  return { status: "valid", value: { generation, tick: validation.tick, ledgerHash: meta.ledgerHash, bytes: candidate.bytes } };
 }
 
 function repairPointer(store: RecoveryStorage, gameId: string, recovery: ValidatedRecovery): void {

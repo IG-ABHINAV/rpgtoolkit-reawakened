@@ -23,6 +23,29 @@ function errorOf(run: () => unknown): { code: string; message: string } {
   }
   throw new Error("expected the call to throw");
 }
+test("inline package startups give their lambdas distinct stable identities", () => {
+  const text = "f = (x) => x\n";
+  const alpha = compileProgram({ kind: "inline", text, ir: "1", owner: "alpha" });
+  const beta = compileProgram({ kind: "inline", text, ir: "1", owner: "beta" });
+  deepEqual(Object.keys(alpha.functions), ["<package:alpha>#lambda_1"]);
+  deepEqual(Object.keys(beta.functions), ["<package:beta>#lambda_1"]);
+});
+test("all documented compile-time constants tokenize case-insensitively as their numeric values", () => {
+  const constants: Readonly<Record<string, number>> = {
+    tkMV_PAUSE_THREAD: 1, tkMV_CLEAR_QUEUE: 2, tkMV_PATHFIND: 4,
+    tkMV_WAYPOINT_PATH: 8, tkMV_WAYPOINT_LINK: 16,
+    tkVT_SOLID: 1, tkVT_UNDER: 2, tkVT_STAIRS: 8, tkVT_WAYPOINT: 16,
+    tkVT_BKGIMAGE: 1, tkVT_ALL_LAYERS_BELOW: 2, tkVT_FRAME_INTERSECT: 4,
+    tkPRG_STEP: 0, tkPRG_KEYPRESS: 1, tkPRG_REPEAT: 2, tkPRG_STOPS_MOVEMENT: 4,
+    tkDIR_E: 1, tkDIR_SE: 2, tkDIR_S: 3, tkDIR_SW: 4,
+    tkDIR_W: 5, tkDIR_NW: 6, tkDIR_N: 7, tkDIR_NE: 8,
+  };
+  for (const [name, value] of Object.entries(constants)) {
+    deepEqual(tokenize(name), [{ kind: "number", value, line: 1 }, { kind: "eof", line: 1 }], name);
+  }
+  deepEqual(tokenize('"tkMV_WAYPOINT_LINK"'), [{ kind: "string", value: "tkMV_WAYPOINT_LINK", line: 1 }, { kind: "eof", line: 1 }]);
+});
+
 
 test("tokenizes case-folded identifiers with sigils stripped", () => {
   deepEqual(tokenize('Count! = 2 ; name$ = "hi"\nend'), [

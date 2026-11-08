@@ -30,7 +30,7 @@ export function truetypePangramPng(): Uint8Array {
   const commands = emitText(PANGRAM, 4, 4, { r: 255, g: 255, b: 255 }, ref, { font });
   const assets = new Map([[fontAsset, font]]);
 
-  const result = rasterize({ tick: 0, width, height, commands }, assets);
+  const result = rasterize({ tick: 0, width, height, commands, marginCommands: [] }, assets);
   if (result.error !== null) throw new Error(`Rasterize failed: ${result.error}`);
   return encodeRgbaPng({ w: width, h: height, rgba: result.rgba });
 }

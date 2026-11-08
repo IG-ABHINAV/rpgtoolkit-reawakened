@@ -54,7 +54,7 @@ tracker_id = "#928"
 type = "story"
 title = "Tracer bullet: a sample game boots and presents a frame in a headless browser from the same core build"
 description = "Creates `packages/runner-web` with its `src/index.ts` public entry and a declared `./app` subpath for the player page (the D-11 AD-22 amendment), its root `tsconfig.json` project reference and its `tools/no-skips` group and CI `unit` matrix row; bundles `core` and `runner-harness` for the browser from the same `tsc -b` output the headless lane uses (esbuild, one IIFE per entry point per D-8), adds a static asset server that serves a fetched game folder or a package, wires the input path, presents the composed frame through the reference rasteriser, and adds the Playwright lane as a required `gate` dependency that runs `pnpm fixtures:fetch` first and registers its own browser group."
-verify = "One Playwright run boots `demo` from the served fixture folder in headless Chromium and reports, at tick 120, state hash `91172695de52cfd6` and draw hash `9a40be8a0b5ca816` — the current values committed in golden/regression/closing.json for that game and tick — while presenting the frame; the same run reports the browser probes the rulings need (VP9 in WebM with Opus decodable, and no WebAssembly instantiation on the shipped default path); the lane is a required `gate` dependency and fails on a clean runner; and every browser test reports its own duration under one second or says why."
+verify = "One Playwright run boots `demo` from the served fixture folder in headless Chromium and reports the tick-120 state and draw hashes committed in golden/regression/closing.json for that game and tick while presenting the frame; the same run reports the browser probes the rulings need (VP9 in WebM with Opus decodable, and no WebAssembly instantiation on the shipped default path); the lane is a required `gate` dependency and fails on a clean runner; and every browser test reports its own duration under one second or says why."
 covers = ["CAP-12"]
 after = [2]
 hitl = false
@@ -110,7 +110,7 @@ tracker_id = "#932"
 type = "story"
 title = "Packaging: the make-package tool and loading a distribution package in the web runner"
 description = "Adds a `pnpm make-package` tool over the landed distribution-package writer (`writeDistributionPackage`, entry 2.12) that turns a folder into the project's single-file package **and its sibling install descriptor** (`<package>.tpk.json` holding `{ schema, file, sha256, size, gameId, title, version }` per D-1, so the library can register a game without parsing the archive), bounds the package with the spec's L1 to L26 limits, and gives the web runner a package asset source so a game boots from one file with no folder access; the tool emits **no executable**, keeps `manifest.json` at exactly `schema`, `main` and `index`, and the editor's T-70 button stays epic editor-assets-p0's and calls the same writer later."
-verify = "A written package reloads through `loadPackage` to identical file bytes and a manifest with exactly `schema`, `main` and `index`; the descriptor beside it names that package's file name, SHA-256 and byte size, and a tampered package fails a descriptor check; two exports of one asset tree produce byte-identical package bytes; and the web runner boots the package in headless Chromium to `demo`'s current tick-120 state hash `91172695de52cfd6` with no folder access."
+verify = "A written package reloads through `loadPackage` to identical file bytes and a manifest with exactly `schema`, `main` and `index`; the descriptor beside it names that package's file name, SHA-256 and byte size, and a tampered package fails a descriptor check; two exports of one asset tree produce byte-identical package bytes; and the web runner boots the package in headless Chromium to `demo`'s tick-120 state hash in golden/regression/closing.json with no folder access."
 covers = ["CAP-12"]
 after = [3]
 hitl = false
@@ -137,7 +137,7 @@ tracker_status = "done"
 type = "story"
 title = "Load modes, storage tiers and the offline service worker"
 description = "Implements the two load modes with a measured threshold rather than a guessed one — whole-package below it, behind a progress screen, streaming above it driven by the entry 8 plan — with memory, then Cache Storage or OPFS, then network decode-ahead in a worker, save blobs stored under the AD-17 keys the engine's save path produces (entry 8.9), `navigator.storage.persist()` with a streaming fallback on quota errors, the last-frame stall presentation with a spinner only after about 300 ms, and a service worker for the player that updates on next launch and never mid-session."
-verify = "A second launch serves the game from cache with the network blocked and boots to `demo`'s current tick-120 closing-baseline state hash `91172695de52cfd6`, a save written before that reload restores under the same `GameId` key, every blocking stall in a streaming run is on an asset outside the plan and none on a hinted one, and a quota failure is reported as a state with the streaming fallback taken rather than a silent stop."
+verify = "A second launch serves the game from cache with the network blocked and boots to `demo`'s tick-120 state hash in golden/regression/closing.json, a save written before that reload restores under the same `GameId` key, every blocking stall in a streaming run is on an asset outside the plan and none on a hinted one, and a quota failure is reported as a state with the streaming fallback taken rather than a silent stop."
 covers = ["CAP-12"]
 after = [3, 7, 8, "8.9"]
 hitl = false
@@ -162,6 +162,7 @@ references = ["spec - _bmad-output/initiative-rpgtoolkit-reawakened/spec-rpgtool
 [[entry]]
 id = 10
 tracker_id = "#936"
+notes = ["Gap recorded 2026-11-03 (read-only audit, evidence-based): the player application itself is unbuilt — Electron launch resolution (--game/deep link, player.json, baked default, library), the baked-package export and the editor-exclusion are not implemented, so acceptance rests on no merged work yet. Remaining evidence: three-OS cold-start acceptance in CI covering all four launch paths, the four measurements (WebGL2, D-7 blend bound, audio length, package from disk), one PWA-vs-player frame-equality check, and the explicit done-checkpoint record of a person accepting ADR 0013 (the ADR is already marked Accepted 2026-10-31 citing the owner's D-1 ruling; the signature line is what is missing). Not a device or review blocker: it is implementation that would satisfy the verify."]
 type = "story"
 title = "Player application: the ruled Electron shell, launch resolution, library and default game"
 description = "Builds the **player** application on `runner-desktop` (entry 11) rather than settling a shell choice: **Electron 45.2.1**, player-only and carrying no editor code or chrome, serving its pages over the `app://` scheme entry 11 registers and registering no service worker because a desktop application is already offline. It resolves the game it opens in the ruled order — an explicit `--game` argument or a deep link, then `player.json` beside the executable or in the OS configuration directory when installed, then an embedded default project baked in at export, then the installed-game library — with no per-game stub and no file association, because the single-project case is configuration, not packaging, and handing someone \"the player plus my game\" is a pre-configured build or a config file. It adds the **library** (a versioned registry in the application-data directory holding each installed package's identity, path on disk and per-game settings, outside the AD-17 save blobs, where installing means registering a package) with the default-game setting, so a cold start opens the configured or baked game and otherwise shows the library and says why. It writes **ADR 0013** — the shell, the `app://` requirement, the resolution order, and one `guardrail-exception: G6 ADR-0013` inventory that names **both** desktop binaries from the same Electron version, the player's artefact read here and the editor's when epic `desktop-shell` first builds it — and measures the **exported player** with its baked default, plus the PWA, on Chromium and on macOS, Windows and Linux in CI, adding no WKWebView, WebView2 or WebKitGTK leg unless a system-webview application is ever shipped. The editor application is epic `desktop-shell`'s; this entry neither builds nor measures it. **The shell choice is closed:** Tauri stays the recorded fallback and its flip conditions are the escape route, not a comparison to be re-run, and a later divergence needs its own ADR superseding 0013."
@@ -180,7 +181,7 @@ tracker_id = "#940"
 type = "story"
 title = "runner-mobile: the Capacitor wrapper on a device or emulator"
 description = "Wraps the web build in runner-mobile with Capacitor 8.5.3 and the mobile asset and storage sources it needs, proving a sample game runs on a real device or emulator; store submission, signing, icons, splash screens and per-platform chrome are out of scope."
-verify = "The Capacitor build runs `demo` to the board on a device or emulator with a person confirming it, and the tick-120 state hash on the device is `91172695de52cfd6`, the current headless baseline."
+verify = "The Capacitor build runs `demo` to the board on a device or emulator with a person confirming it, and the tick-120 state hash on the device matches the demo board baseline in `golden/regression/closing.json`."
 covers = ["CAP-12"]
 after = [3, 5]
 hitl = true
@@ -190,6 +191,7 @@ references = ["spec - _bmad-output/initiative-rpgtoolkit-reawakened/spec-rpgtool
 [[entry]]
 id = 13
 tracker_id = "#942"
+notes = ["Open with the gap recorded 2026-11-03 (audit): not started — no sweep plan paper exists for this epic and the ledger's `after` correctly keeps it blocked on 9.10 (implementation) and 9.12 (device acceptance). Cleanup list must come from the twelve landed plans when the sweep starts; nothing to accept today."]
 type = "story"
 title = "Refactor sweep"
 description = "Land the cleanups deferred during this epic from the twelve preceding plans and their review findings, taking cleanup only: no scope pushed out of another entry and no behaviour change, with the goldens untouched."
@@ -202,6 +204,7 @@ risk = "low"
 [[entry]]
 id = 14
 tracker_id = "#944"
+notes = ["Open with the gap recorded 2026-11-03 (audit): not started — the one-command browser+desktop closing run does not exist yet (the browser `closing` lane and `desktop:measure` are separate tools today), and the entry is correctly blocked on 9.13. Tile-decoder prerequisite 16.8 is done, so no other prerequisite is missing."]
 type = "story"
 title = "Closing suite: the sample games in browser and desktop, the packaged file, and the CAP-12 signal"
 description = "Closes the epic with one end-to-end run that plays every game in golden/closing/plan.json in the browser (all eight, each to the outcome the plan records, so the six TK2 games exercise entry 16.8's decoder registration) and on desktop, loads a packaged single-file game in both, and replays one recorded input log under Node and headless Chromium, reporting the CAP-12 success check against the same core build the headless runner uses."
@@ -215,15 +218,16 @@ references = ["spec - _bmad-output/initiative-rpgtoolkit-reawakened/spec-rpgtool
 [[entry]]
 id = 15
 tracker_id = "#1013"
+tracker_status = "done"
 type = "story"
 title = "Document how to run the desktop player"
 description = "Writes the missing runnable recipe for the landed desktop player (entry 11): a user-facing page under docs/ that says in plain terms what the desktop player is, what it needs, and the exact build-and-launch commands with the expected output of each — honest about the fact that the board is currently measured off-screen and there is no interactive play loop yet (web-runner-packaging entry 16 / #1018), and that mobile/Android is out of scope — plus the developer-facing fragment in CONTRIBUTING.md for building and running the player locally and pointing it at a package or a sample. Documents real behaviour only; it changes no docs/spec/ semantics."
-verify = "The original clean-worktree transcript remains historical evidence: before E-02, `pnpm desktop:measure` printed error null, tick 120, the previous state hash, drawHash `9a40be8a0b5ca816` and frame worst 0. That earlier state hash is retained as observed and superseded by the current demo closing expectation `91172695de52cfd6` (draw unchanged). No post-E-02 desktop run is claimed; the docs make no claim that interactive play or a visible board has passed."
+verify = "The original clean-worktree transcript remains historical evidence: before E-02, `pnpm desktop:measure` printed error null, tick 120, stateHash `bff947dce3a11b4f`, drawHash `9a40be8a0b5ca816` and frame worst 0 (PR #1014). Those observations are not the current baseline; see golden/regression/closing.json for current demo values. No post-E-02 desktop run is claimed by this entry."
 covers = ["CAP-12"]
 after = [11]
 hitl = false
 risk = "low"
-references = ["code - packages/runner-desktop (entry 11, ADR 0013)", "tool - tools/desktop/measure.mjs and tools/desktop/build.mjs", "spec - docs/spec/engine/runners.md#desktop-shell (unchanged by this entry)", "epic - web-runner-packaging entry 16 / #1018 (the live interactive player page)"]
+references = ["merged documentation and CI - PR #1014 (c5d65a49)", "code - packages/runner-desktop (entry 11, ADR 0013)", "tool - tools/desktop/measure.mjs and tools/desktop/build.mjs", "spec - docs/spec/engine/runners.md#desktop-shell (unchanged by this entry)", "epic - web-runner-packaging entry 16 / #1018 (the live interactive player page)"]
 
 [[entry]]
 id = 16
@@ -281,7 +285,7 @@ hitl = false
 risk = "high"
 refine = true
 references = ["issue - #1049", "proposed fix - PR #1042 (ee3db47e)", "merged fix - PR #1155 (adbc5e93)", "code - packages/runner-desktop/src/main.ts"]
-notes = ["Merged: PR #1155 (adbc5e93) gives every player page a strict Content-Security-Policy and makes the test enumerate all eight player pages. Issue #1049 is closed."]
+notes = ["Merged: PR #1155 (adbc5e93) gives every player page a strict Content-Security-Policy and makes the test enumerate all eight player pages. Issue #1049 is closed. The evidence asserts policy text but does not probe that a disallowed script is blocked. Mobile CSP gap #1156 is closed by PR #1159 (b215d1bd)."]
 
 [[entry]]
 id = 20
@@ -297,7 +301,7 @@ hitl = true
 risk = "medium"
 refine = true
 references = ["issue - #1050", "merged fix - PR #1085 (81503cf8)", "spec - docs/spec/engine/runners.md"]
-notes = ["Merged: PR #1085 (81503cf8) fits desktop game frames to the viewport. Issue #1050 is closed."]
+notes = ["Merged: PR #1085 (81503cf8) fits desktop game frames to the viewport per the approved ruling in docs/spec/engine/runners.md. Issue #1050 is closed. State neutrality rests on the design separation; the PR does not claim a paired state-hash test."]
 
 [[entry]]
 id = 21
@@ -308,30 +312,30 @@ title = "Live player page slices: shared player page, mobile wrapper and descrip
 description = "Lands the first slices of the live interactive player page: a shared player page used by web, desktop and mobile, the mobile Capacitor wrapper and its host services, descriptor identity, viewport fix and desktop input proof."
 verify = "The shared player page boots in the mobile wrapper and desktop shell; descriptor identity and the viewport fix are under test; the desktop input probe proves one-tile tap and axis-clean hold."
 covers = ["CAP-12"]
-after = [3, 11, 12]
+after = [3, 11]
 hitl = false
 risk = "high"
-references = ["merged - PR #1006 (436c78d6)", "merged - PR #1028 (9954e783)", "commit - aca8aea8", "follow-up - #1018 (residual gaps still open)"]
-notes = ["Merged via aca8aea8 (PR #1006 436c78d6 and PR #1028 9954e783). Residual live-player gaps remain tracked by #1018."]
+references = ["merged - PR #1006 (436c78d6)", "merged - PR #1028 (9954e783)", "desktop tap/hold probe - PR #1141 (3b121ad3)", "follow-up - #1018 (residual gaps still open)"]
+notes = ["The shared player page, mobile wrapper and descriptor/viewport slices landed in PR #1006 (436c78d6) and PR #1028 (9954e783); do not attribute direct-main commit aca8aea8 to either PR. PR #1141 (3b121ad3) supplies the one-tile tap / axis-clean hold probe. These slices landed independently of mobile device acceptance; residual live-player gaps remain tracked by #1018."]
 
 [[entry]]
 id = 22
 tracker_id = "#1042"
 tracker_status = "done"
 type = "bug"
-title = "Player defects: audio dropouts, Electron CSP hygiene and menu cell layout"
-description = "Fixes live-player audio buffer underruns, adds strict Content-Security-Policy to desktop and browser pages and updates the Electron console-message listener, and corrects menu cell text layout so each newline occupies one cell row."
+title = "Player buffer, Electron CSP hygiene and menu cell layout"
+description = "Adjusts the live-player audio buffer after inferred underrun symptoms, adds strict Content-Security-Policy to desktop and browser pages and updates the Electron console-message listener, and corrects menu cell text layout so each newline occupies one cell row. The underlying live-player audio issue remains tracked by #1043."
 verify = "The browser buffer-size assertion passes at the shipped value and fails when perturbed; removing the CSP meta tag fails the CSP test; the menu layout test fails when cell-row assignment is broken."
 covers = ["CAP-12"]
 after = [5, 11]
 hitl = false
 risk = "medium"
-references = ["issue - #1042", "merged fix - ee3db47e", "code - packages/runner-web/src/audio-sink.ts", "code - packages/runner-desktop/src/main.ts"]
-notes = ["Merged: commit ee3db47e. The larger AudioWorklet migration is tracked by #1044."]
+references = ["PR - #1042 (ee3db47e)", "open audio issue - #1043", "superseding AudioWorklet migration - PR #1165 (0ddb39b9)", "code - packages/runner-web/src/audio-sink.ts", "code - packages/runner-desktop/src/main.ts"]
+notes = ["Merged: PR #1042 (ee3db47e) changes the buffer size based on an inferred underrun cause and fixes CSP/menu issues. #1043 remains open; the AudioWorklet migration in PR #1165 (0ddb39b9) supersedes the buffer workaround."]
 
 [[entry]]
 id = 23
-tracker_id = "#1036"
+tracker_id = "#664"
 tracker_status = "done"
 type = "chore"
 title = "CI change classifier: each job judges its own applicability"
@@ -341,27 +345,25 @@ covers = ["CAP-12", "CAP-13"]
 after = [1]
 hitl = false
 risk = "medium"
-references = ["issue - #1036", "merged - PR #1036 (350738c9)", "adr - docs/adr/0016-ci-classified-steps.md"]
-notes = ["Merged: PR #1036 (350738c9)."]
+references = ["issue - #664", "merged - PR #1036 (350738c9)", "adr - docs/adr/0016-ci-classified-steps.md"]
+notes = ["Merged: PR #1036 (350738c9) fixes issue #664, which is closed."]
 
 [[entry]]
 id = 24
-tracker_id = "#1014"
 tracker_status = "done"
 type = "story"
-title = "Document how to run the desktop player and add the desktop CI lane"
-description = "Writes the runnable recipe for the desktop player (docs/playing-the-desktop-player.md and CONTRIBUTING.md) and adds the desktop CI job that exercises the player build and measurement harness."
-verify = "The desktop CI lane builds and measures the player; the docs page gives exact commands and honest output without claiming post-E-02 visible interactive play."
+title = "Add the desktop player CI measurement lane"
+description = "Adds the desktop CI job that exercises the player build and measurement harness; the runnable recipe and CONTRIBUTING.md instructions belong to entry 15 / issue #1013."
+verify = "The desktop CI lane builds and measures the player."
 covers = ["CAP-12"]
 after = [11]
 hitl = false
 risk = "low"
-references = ["issue - #1014", "merged - PR #1014 (c5d65a49)", "code - tools/desktop/measure.mjs", "code - .github/workflows/ci.yml"]
-notes = ["Merged: PR #1014 (c5d65a49)."]
+references = ["source issue - #1013 (documenting the desktop player, entry 15)", "merged CI implementation - PR #1014 (c5d65a49)", "code - tools/desktop/measure.mjs", "code - .github/workflows/ci.yml"]
+notes = ["PR #1014 (c5d65a49) merged and delivered the desktop CI measurement-lane portion of issue #1013. No separate issue exists for this split CI-only ledger entry."]
 
 [[entry]]
 id = 25
-tracker_id = "#1030"
 tracker_status = "done"
 type = "chore"
 title = "Move desktop macOS CI runner to macos-15"
@@ -371,8 +373,8 @@ covers = ["CAP-12"]
 after = [24]
 hitl = false
 risk = "low"
-references = ["issue - #1030", "merged - PR #1030 (a0e65fc6)", "code - .github/workflows/ci.yml"]
-notes = ["Merged: PR #1030 (a0e65fc6)."]
+references = ["merged - PR #1030 (a0e65fc6)", "code - .github/workflows/ci.yml"]
+notes = ["Merged: PR #1030 (a0e65fc6) moves the desktop macOS job to macos-15; no separate issue."]
 
 [[entry]]
 id = 26
@@ -386,8 +388,8 @@ covers = ["CAP-12"]
 after = [2]
 hitl = false
 risk = "medium"
-references = ["issue - #1066", "merged - PR #1066 (28732627)", "merged follow-up - PR #1116 (624e7d01)", "code - tools/fixtures/runner-protocol/"]
-notes = ["Merged: PR #1066 (28732627) and follow-up PR #1116 (624e7d01). Issue #1066 is closed."]
+references = ["issue - #1066", "merged - PR #1108 (28732627) fixes #1066", "merged follow-up - PR #1116 (624e7d01)", "code - tools/fixtures/runner-protocol/"]
+notes = ["Merged: PR #1108 (28732627) fixes #1066 and follow-up PR #1116 (624e7d01). Issue #1066 is closed."]
 
 [[entry]]
 id = 27
@@ -402,7 +404,7 @@ after = [9]
 hitl = false
 risk = "medium"
 references = ["issue - #1065", "merged - PR #1095 (55561f19)", "code - packages/runner-web/src/asset-cache.ts"]
-notes = ["Merged: PR #1095 (55561f19). Issue #1065 is closed."]
+notes = ["Merged: PR #1095 (55561f19). Issue #1065 is closed. The PR's perturbation evidence is unit-level."]
 
 [[entry]]
 id = 28
@@ -417,7 +419,7 @@ after = [24]
 hitl = false
 risk = "medium"
 references = ["issue - #1076", "merged fix - PR #1149 (efe6f7ee)", "code - tools/desktop/measure.mjs"]
-notes = ["Merged: PR #1149 (efe6f7ee). Issue #1076 is closed."]
+notes = ["Merged: PR #1149 (efe6f7ee) hardens the desktop measurement harness; issue #1076 is closed. The underlying root cause of the timeout/hang remains undiagnosed."]
 
 [[entry]]
 id = 29
@@ -451,15 +453,14 @@ notes = ["Merged: PR #1144 (4eb1c9f8) also fixes #1142. Issue #1081 is closed."]
 
 [[entry]]
 id = 31
-tracker_id = "#1154"
 tracker_status = "done"
 type = "chore"
 title = "Correct retired demo closing hashes quoted as current"
 description = "Updates docs/playing-the-desktop-player.md and CHANGELOG.md to stop quoting the pre-#1048 demo closing hashes as the current baseline, pointing to golden/regression/closing.json as the source of truth."
 verify = "The docs page points desktop:measure at the committed closing baseline and marks the old macOS report as a historical artefact; no golden is changed."
 covers = ["CAP-12"]
-after = [15, 41]
+after = [15, "4.41"]
 hitl = false
 risk = "low"
-references = ["issue - #1154", "merged - PR #1154 (503ea161)", "doc - docs/playing-the-desktop-player.md"]
-notes = ["Merged: PR #1154 (503ea161). Issue #1154 is closed."]
+references = ["merged docs correction - PR #1154 (503ea161)", "unrelated issue closed by that PR's mistaken reference - #1146", "independent stale-draw fix - PR #1153 (9e497a33)", "doc - docs/playing-the-desktop-player.md"]
+notes = ["PR #1154 (503ea161) delivered this docs correction and referenced #1146 in error; it has no established separate issue. #1146's distinct stale-draw behavior was fixed independently by PR #1153 before #1154 closed it.", "The closing-baseline re-record was delivered by board-rendering entry 4.41 / #1048 (PR #1131, d3838a7e); this cross-epic prerequisite is entry 4.41."]

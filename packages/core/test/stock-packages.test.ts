@@ -23,7 +23,7 @@ import {
 } from "../src/index.ts";
 import { pluginManifestFor, resolveManifestPlugins } from "../src/engine/boot.ts";
 import type { BuiltinSpec } from "../src/script/builtins.ts";
-import type { AssetIndex, Engine, EngineInit, GameState, PackageCatalogueEntry } from "../src/index.ts";
+import type { AssetIndex, Engine, EngineInit, GameState, InputRecord, PackageCatalogueEntry } from "../src/index.ts";
 
 type Files = Map<string, Uint8Array>;
 type StockManifest = {
@@ -117,9 +117,10 @@ function startDoubles(): Started {
   };
 }
 
-function run(engine: Engine, files: Files, doubles: Started): { readonly diagnostics: readonly { readonly code: string; readonly message: string }[] } {
-  let replies = [] as { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } }[];
+function run(engine: Engine, files: Files, doubles: Started, closeMenu = false): { readonly diagnostics: readonly { readonly code: string; readonly message: string }[]; readonly openedMenu: boolean } {
+  let replies: InputRecord[] = [];
   const diagnostics: { readonly code: string; readonly message: string }[] = [];
+  let openedMenu = false;
   for (let guard = 0; guard < 100; guard += 1) {
     const report = engine.advance(20, replies);
     replies = [];
@@ -130,12 +131,17 @@ function run(engine: Engine, files: Files, doubles: Started): { readonly diagnos
         : []);
       continue;
     }
-    if (doubles.state().vm.globals.ended === 1) return { diagnostics };
+    if (closeMenu && !openedMenu && doubles.state().menu.screens.length > 0 &&
+        doubles.state().vm.threads.some((thread) => thread.wait?.kind === "input.key")) {
+      openedMenu = true;
+      replies.push({ tick: report.tickAfter, event: { kind: "key", name: "ESC", code: "Escape", char: null, down: true } });
+    }
+    if (doubles.state().vm.globals.ended === 1) return { diagnostics, openedMenu };
   }
   throw new Error("the headless host did not settle");
 }
 
-test("stock packages load through the .gam list and keep the no-plugin behavior", () => {
+test("stock packages load together and the real menu opens and closes", () => {
   const catalogue = packageCatalogue();
   const resolved = resolveManifestPlugins(
     catalogue.map((entry) => ({
@@ -150,7 +156,7 @@ test("stock packages load through the .gam list and keep the no-plugin behavior"
   equal(resolved.diagnostics.length, 0);
   deepEqual(resolved.plugins.map((plugin) => plugin.package), [
     { name: "stock_battle", version: "1.0.0", namespace: "stock_battle", requests: ["asset"] },
-    { name: "stock_menu", version: "1.0.0", namespace: "stock_menu", requests: [] },
+    { name: "stock_menu", version: "1.0.0", namespace: "stock_menu", requests: ["asset", "listBlobs", "loadBlob", "saveBlob", "quit"] },
     { name: "stock_rpg", version: "1.0.0", namespace: "stock_rpg", requests: [] },
   ]);
   const game = authoredGame();
@@ -168,9 +174,11 @@ test("stock packages load through the .gam list and keep the no-plugin behavior"
     packageCatalogue: catalogue,
     ...doubles.options,
   });
-  const result = run(engine, game.files, doubles);
+  const result = run(engine, game.files, doubles, true);
   equal(result.diagnostics.some((diagnostic) => diagnostic.code === "plugin.unresolved"), false);
   equal(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("package.startup-")), false);
+  equal(result.openedMenu, true, "the stock menu provider entered and waited for input");
+  equal(result.diagnostics.some((diagnostic) => diagnostic.code === "callable.arity"), false);
   equal(doubles.state().vm.globals.ended, 1);
 });
 

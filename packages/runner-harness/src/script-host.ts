@@ -6,7 +6,7 @@
  * logic and no world. `advance` runs one whole `advanceScriptTick` per
  * requested tick (clamped by `maxTicks` exactly as the test double is) and
  * reports the state hash; `drawList` is `{ tick, 320×240, commands: [] }`,
- * `surfacePixels` and `recoveryCandidate()` are `null`: this script-only host
+ * `surfacePixels`, `picturePixels` and `recoveryCandidate()` are `null`: this script-only host
  * has no world state to capture as a canonical game save. The report's
  * `consumed`/`requests`/`audioCues` are empty; `loading` is false and `paused`
  * is null. `diagnostics` carries the located runtime failures the VM collected
@@ -37,7 +37,11 @@ import {
   startProgram,
   STEP_BUDGET,
   verifyRestoredHandles,
+  uiAccessibilityTree,
   type Breakpoint,
+  applyInputEvent,
+  registerGameAction as registerInputGameAction,
+  registeredActionNames as readRegisteredActionNames,
   type Diagnostic,
   type DrawList,
   type Engine,
@@ -61,6 +65,7 @@ import {
 import { TK2_COMPAT_PLUGIN } from "@tk-reawakened/plugin-tk2-compat";
 import type { AssetKey } from "@tk-reawakened/core";
 import { resolvePluginManifest } from "./script-plugin-resolver.ts";
+type RegisteredAction = Parameters<Engine["registerGameAction"]>[0];
 type HostResolution = {
   readonly plugins: readonly ResolvedPlugin[];
   readonly diagnostics: readonly Diagnostic[];
@@ -240,6 +245,12 @@ function createHost(
   let pendingDiagnostics = [...initialDiagnostics];
   let effectIndex = gameState.vm.effects.length;
   const requests: RunnerRequest[] = [];
+  const reportedUnknownActions = new Set<string>();
+  const reportUnknownAction = (action: string): void => {
+    if (readRegisteredActionNames(gameState.input).has(action) || reportedUnknownActions.has(action)) return;
+    reportedUnknownActions.add(action);
+    pendingDiagnostics.push({ code: "input.unknown-action", file: "", line: 0, message: `input names unregistered action "${action}"` });
+  };
 
   return {
     advance(ticks: number, inputs: readonly InputRecord[] = [], maxTicks?: number): TickReport {
@@ -249,6 +260,12 @@ function createHost(
       for (let index = 0; index < actualTicks; index++) {
         while (inputIndex < inputs.length) {
           const record = inputs[inputIndex]!;
+          if (record.event.kind === "action") {
+            applyInputEvent(gameState.input, record.event, reportUnknownAction);
+            consumed.push(record);
+            inputIndex++;
+            continue;
+          }
           if (record.event.kind === "key" && record.event.down) {
             let matched = false;
             for (const thread of gameState.vm.threads) {
@@ -285,11 +302,50 @@ function createHost(
       };
     },
 
+    registeredActionNames() {
+      return [...readRegisteredActionNames(gameState.input)];
+    },
+    registerGameAction(action: RegisteredAction) {
+      return registerInputGameAction(gameState.input, action);
+    },
+    setPointerMovementSuppressed(suppressed: boolean) {
+      gameState.input.pointerMovementSuppressed = suppressed;
+    },
+    reportUnknownAction,
+    customTouchControlsDeclared() {
+      return gameState.ui.customTouchControlsDeclared === true;
+    },
+    hostFeatures() {
+      return { ...gameState.features };
+    },
+    hostDisplayGeometry() {
+      const { content, game, safeArea } = gameState.display.geometry;
+      return {
+        content: { ...content },
+        game: { ...game },
+        safeArea: { ...safeArea },
+      };
+    },
+    surfaceCacheEpoch() {
+      return 0;
+    },
+    accessibilityTree() {
+      return uiAccessibilityTree(gameState.ui);
+    },
+    runnerControlPointerPreemption(x: number, y: number): number | "author" | null {
+      if (gameState.ui.modal != null) return gameState.ui.modal.modalId;
+      return (gameState.ui.actionSurfaces ?? []).some((surface) =>
+        surface.items.some((item) => item.enabled && x >= item.bounds.x && y >= item.bounds.y &&
+          x < item.bounds.x + item.bounds.w && y < item.bounds.y + item.bounds.h)) ? "author" : null;
+    },
     drawList(_alpha?: number): DrawList {
-      return { tick: gameState.time.tick, width: 320, height: 240, commands: [] };
+      return { tick: gameState.time.tick, width: 320, height: 240, commands: [], marginCommands: [] };
     },
 
     surfacePixels(_id: SurfaceId, _rev: number): SurfacePixels | null {
+      return null;
+    },
+    picturePixels(): SurfacePixels | null {
       return null;
     },
 

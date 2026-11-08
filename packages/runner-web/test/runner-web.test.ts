@@ -1,7 +1,8 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
-import { assetKey } from "@tk-reawakened/core";
+import { applyInputEvent, assetKey, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, createInputSection, createSpriteRuntime, PACKAGE_ROOT, writeBoard, writeCharacter, writeMainFile, type Engine } from "@tk-reawakened/core";
 import { fetchBundled, fetchBundledFiles, fetchGame, liveTextureProvider, textureProvider, toFiles } from "../src/index.ts";
+import { INTERACTIVE_INPUT_BINDINGS } from "../src/input-bindings.ts";
 
 // `runner-web`'s transport helpers and its decode adapter are the shipped code a Node unit test reaches without a
 // browser; the drawing itself is entry 4's lane under Playwright.
@@ -31,6 +32,96 @@ function bmp(left: readonly number[], right: readonly number[]): Uint8Array {
   view.setUint32(34, 8, true);
   bytes.set([left[2]!, left[1]!, left[0]!, right[2]!, right[1]!, right[0]!], 54);
   return bytes;
+}
+
+function unwrap<T>(result: { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: { readonly message: string } }): T {
+  if (!result.ok) throw new Error(result.error.message);
+  return result.value;
+}
+
+function twoPageGif(): Uint8Array {
+  return new Uint8Array([
+    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x81, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0a, 0x14, 0x1e, 0xc8, 0x00, 0x00, 0xff, 0xff, 0xff,
+    0x21, 0xff, 0x0b, 0x4e, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2e, 0x30,
+    0x03, 0x01, 0x00, 0x00, 0x00,
+    0x21, 0xf9, 0x04, 0x00, 0x0f, 0x00, 0x00, 0x00,
+    0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+    0x02, 0x02, 0x4c, 0x01, 0x00,
+    0x21, 0xf9, 0x04, 0x00, 0x0f, 0x00, 0x00, 0x00,
+    0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+    0x02, 0x02, 0x54, 0x01, 0x00,
+    0x3b,
+  ]);
+}
+
+function gifSpriteGame(): { readonly engine: Engine; readonly files: Map<string, Uint8Array> } {
+  const emptyBoard = createEmptyBoard();
+  const emptyCharacter = createEmptyCharacter();
+  const files = new Map<string, Uint8Array>();
+  const paths = ["main.gam", "Boards/start.brd", "Chrs/hero.tem", "Misc/hero.gif"];
+  files.set(assetKey("main.gam"), unwrap(writeMainFile({
+    ...createEmptyMainFile(),
+    major: 2,
+    minor: 9,
+    projectPath: "",
+    startupPrg: "",
+    initBoard: "start.brd",
+    initChar: "hero.tem",
+  })));
+  files.set(assetKey("boards/start.brd"), unwrap(writeBoard({
+    ...emptyBoard,
+    sizeX: 10,
+    sizeY: 10,
+    sizeL: 1,
+    tileMatrix: Array(100).fill(0),
+    tileRuns: [{ lutIndex: 0, count: 100, marker: true }],
+    layerTitles: ["", ""],
+    properties: { ...emptyBoard.properties, start: { x: 64, y: 64, layer: 1 } },
+  })));
+  files.set(assetKey("chrs/hero.tem"), unwrap(writeCharacter({
+    ...emptyCharacter,
+    minor: 7,
+    name: "Hero",
+    movementAnimations: ["hero.gif", "", "", "", "", "", "", ""],
+    idleAnimations: Array(8).fill(""),
+    battleStances: Array(6).fill(""),
+    idleTime: 0,
+    speed: 0.05,
+  })));
+  files.set(assetKey("misc/hero.gif"), twoPageGif());
+  const spriteRuntime = createSpriteRuntime();
+  const engine = createEngine({
+    seed: 17,
+    assetIndex: createAssetIndex(paths),
+    assetRoot: PACKAGE_ROOT,
+    mainFile: "main.gam",
+    gameIdentity: "runner-web-gif-page-test",
+    startup: {
+      presence: { hasPlayer: () => spriteRuntime.hasPlayer() },
+      savedGame: { load: () => ({ kind: "missing" }), restored: () => false },
+    },
+    width: 320,
+    height: 240,
+    maxTicks: 600,
+    spriteRuntime,
+    include: { shading: true, images: true, sprites: true },
+  });
+  let remaining = 3;
+  let replies: { readonly tick: number; readonly event: { readonly kind: "asset"; readonly reqId: number; readonly bytes: Uint8Array | null } }[] = [];
+  for (let guard = 0; guard < 1000; guard += 1) {
+    const report = engine.advance(remaining, replies as never);
+    replies = [];
+    remaining -= report.ticksRun;
+    for (const request of report.requests) {
+      if (request.kind === "asset") {
+        replies.push({ tick: report.tickAfter, event: { kind: "asset", reqId: request.reqId, bytes: files.get(request.key) ?? null } });
+      }
+    }
+    if (report.loading) continue;
+    if (remaining <= 0 || report.ticksRun === 0) break;
+  }
+  return { engine, files };
 }
 
 test("toFiles keys bytes by their path inside the game and keeps the last duplicate", () => {
@@ -134,4 +225,52 @@ test("liveTextureProvider does not lock in null before bytes arrive, and prefers
   const ready = { w: 1, h: 1, rgba: new Uint8Array([9, 8, 7, 255]) };
   prepared.set(assetKey("Tiles/ready.bmp"), ready);
   equal(provide(assetKey("Tiles/ready.bmp")), ready);
+});
+
+test("liveTextureProvider takes a composed tile bitmap from the core's picture pixels (#1269)", () => {
+  // The host cannot compose a `.tbm`; its bytes decode to null, so the provider must ask the core. A picture the core
+  // has not composed yet is not cached as missing, because the first frame that names it may precede composition.
+  const arrived = new Map<string, Uint8Array>();
+  const pictures = new Map<string, { w: number; h: number; rgba: Uint8Array }>();
+  const picture = assetKey("Bitmap/hero_frame.tbm");
+  arrived.set(picture, new Uint8Array([1, 2, 3]));
+  const provide = liveTextureProvider(
+    (asset) => arrived.get(asset) ?? null,
+    undefined,
+    (asset) => pictures.get(asset) ?? null,
+  );
+  equal(provide(picture), null, "the host cannot decode the bitmap and the core has not composed it yet");
+  const composed = { w: 1, h: 1, rgba: new Uint8Array([220, 30, 30, 255]) };
+  pictures.set(picture, composed);
+  equal(provide(picture), composed, "the core's composed pixels are used");
+});
+
+test("liveTextureProvider resolves a real engine GIF page from core pixels without package bytes", () => {
+  const { engine, files } = gifSpriteGame();
+  const drawList = engine.drawList(0, { shading: true, images: true, sprites: true });
+  const command = drawList.commands.find((item) =>
+    item.kind === "blit" && "asset" in item.source && item.source.asset.startsWith("\u0000rpgtoolkit-gif-page/"));
+  ok(command !== undefined, "the engine draw list contains its generated GIF page asset");
+  if (command === undefined || command.kind !== "blit" || !("asset" in command.source)) {
+    throw new Error("the generated GIF frame is an asset blit");
+  }
+  const page = command.source.asset;
+  equal(files.has(page), false, "the generated page key is not a package file");
+  const enginePixels = engine.picturePixels(page);
+  ok(enginePixels !== null, "the engine provides the generated GIF page pixels");
+  if (enginePixels === null) throw new Error("the engine supplied GIF page pixels");
+  const provide = liveTextureProvider(
+    (asset) => files.get(asset) ?? null,
+    undefined,
+    (asset) => engine.picturePixels(asset),
+  );
+  const resolved = provide(page);
+  ok(resolved !== null, "the live runner resolves the page without package bytes");
+  deepEqual(Array.from(resolved?.rgba.slice(0, 4) ?? []), Array.from(enginePixels.rgba.slice(0, 4)));
+});
+
+test("interactive bindings route the browser Space event into the key queue", () => {
+  const input = createInputSection({ bindings: INTERACTIVE_INPUT_BINDINGS });
+  applyInputEvent(input, { kind: "key", name: " ", code: "Space", char: " ", down: true });
+  deepEqual(input.keys.map((key) => [key.name, key.code, key.action]), [[" ", "Space", " "]]);
 });

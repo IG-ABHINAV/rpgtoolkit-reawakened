@@ -9,7 +9,7 @@
 // (docs/spec/engine/audio-media.md#audio-save-load) and the two runs would then diverge by contract.
 // The last test is the reset half of that lifecycle: `reset()` during a live battle clears the battle and the script
 // that was fighting it.
-import { deepEqual, equal, ok } from "node:assert/strict";
+import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -30,6 +30,7 @@ import {
   type GameState,
   type InputRecord,
   type PackageCatalogueEntry,
+  type TickReport,
 } from "../src/index.ts";
 import { bootUiRig, gameFiles, SCREEN_HEIGHT, SCREEN_WIDTH, type UiRig } from "./battle-ui-rig.ts";
 
@@ -314,6 +315,54 @@ test("two brand-new engines loading the same mid-battle save run the same state 
   deepEqual(first.hashes, second.hashes);
   ok(first.hashes.length >= 30);
   deepEqual(first.diagnostics, []);
+});
+
+test("the battle rig counts simulated ticks, not asset-loading advances", () => {
+  const rig = bootUiRig(RIG);
+  const engine = rig.engine as { advance: Engine["advance"] };
+  const advance = engine.advance.bind(engine);
+  const reports: TickReport[] = [];
+  engine.advance = (ticks, inputs, ...rest) => {
+    const report = advance(ticks, inputs, ...rest);
+    reports.push(report);
+    return report;
+  };
+  rig.tick(1);
+  ok(reports.some((report) => report.ticksRun === 0 && report.requests.some((request) => request.kind === "asset")), "the real engine stalled for an asset");
+  equal(reports.reduce((sum, report) => sum + report.ticksRun, 0), 1, "one tick actually ran after the host answered");
+});
+
+test("the battle rig completes a partially run engine batch", () => {
+  const rig = bootUiRig(RIG);
+  const engine = rig.engine as { advance: Engine["advance"] };
+  const advance = engine.advance.bind(engine);
+  const reports: { requested: number; ran: number }[] = [];
+  engine.advance = (ticks, inputs, ...rest) => {
+    const report = advance(ticks, inputs, ...rest);
+    reports.push({ requested: ticks, ran: report.ticksRun });
+    return report;
+  };
+  let partial = false;
+  for (let attempt = 0; attempt < 20 && !partial; attempt += 1) {
+    const start = reports.length;
+    rig.tick(8);
+    const batch = reports.slice(start);
+    equal(batch.reduce((sum, report) => sum + report.ran, 0), 8, "each call runs all eight requested ticks");
+    partial = batch.some((report) => report.ran > 0 && report.ran < report.requested);
+  }
+  ok(partial, "the real engine reported a positive partial batch");
+});
+
+test("the battle rig fails on an endless asset request cycle", () => {
+  const rig = bootUiRig(RIG);
+  const engine = rig.engine as { advance: Engine["advance"] };
+  const stalled = engine.advance(1, []);
+  equal(stalled.ticksRun, 0);
+  ok(stalled.requests.some((request) => request.kind === "asset"));
+  let attempts = 0;
+  engine.advance = () => { attempts += 1; return stalled; };
+  throws(() => rig.tick(1), /battle UI rig could not advance after repeated asset replies/);
+  ok(attempts <= 1025, "the request cycle is bounded");
 });
 
 // docs/spec/engine/battle.md#bat-13: `reset()` closes an active battle. The stock battle loop, its screen, the pinned

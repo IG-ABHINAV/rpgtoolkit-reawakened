@@ -1,13 +1,37 @@
 import { actorEmitterKey, actorId, getActor, type ActorId, type ActorsSection } from "./model.ts";
 import type { ActorRuleResult, ActorTransition } from "./rules.ts";
-import { queueNativeEvent, registerEmitter } from "../events/emitter.ts";
+import { forgetNativeDetail, queueNativeEvent, registerEmitter } from "../events/emitter.ts";
 import type { EventsSection } from "../events/model.ts";
 import { createHostObject } from "../script/objects.ts";
 import type { VmState } from "../script/state.ts";
 import type { ObjectRecord } from "../script/state.ts";
 
-/** The callback shape used by the actor owner to publish committed transitions. */
-export type ActorEventSink = (result: ActorRuleResult) => void;
+/** A private staging window over the shared event queue; `discard` removes everything queued since it opened. */
+export type ActorEventStage = { readonly discard: () => void };
+/**
+ * The callback shape used by the actor owner to publish committed transitions. `stage` opens a staging window
+ * for an operation whose hooks may queue events before its owners commit (the composed item-action boundary).
+ */
+export type ActorEventSink = ((result: ActorRuleResult) => void) & { readonly stage?: () => ActorEventStage };
+
+/**
+ * Open a staging window: events queued from now on stay in emission order, and `discard` retires the ones this
+ * window queued (queue entries, their event objects, native details and any emitter first registered inside it).
+ * Committing is simply not discarding, so successful hook events precede the transitions published after them.
+ */
+export function stageActorEvents(vm: VmState, events: EventsSection): ActorEventStage {
+  const queued = events.queue.length;
+  const objects = vm.objects.length;
+  return {
+    discard() {
+      for (const entry of events.queue.splice(queued)) forgetNativeDetail(events, entry.event);
+      const retired = new Set(vm.objects.splice(objects).map((record) => record.handle));
+      const emitters = events.emitters;
+      if (emitters === undefined) return;
+      for (const key of Object.keys(emitters)) if (retired.has(emitters[key]!)) delete emitters[key];
+    },
+  };
+}
 /** Register the actor's one script object and emitter under `actor:<id>`. */
 export function registerActorObject(
   vm: VmState,
@@ -69,5 +93,9 @@ export function queueActorTransitions(vm: VmState, events: EventsSection, actors
 /** Build the actor-owner publisher used by script services and host aliases. */
 export function createActorEventSink(vm: VmState, events: EventsSection, actors: ActorsSection): ActorEventSink {
   registerActorObjects(vm, events, actors);
-  return (result) => queueActorTransitions(vm, events, actors, result);
+  const sink: ActorEventSink = Object.assign(
+    (result: ActorRuleResult): void => queueActorTransitions(vm, events, actors, result),
+    { stage: () => stageActorEvents(vm, events) },
+  );
+  return sink;
 }

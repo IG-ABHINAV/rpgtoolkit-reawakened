@@ -175,7 +175,7 @@ function object(handle: number, className: string, members: Record<string, Value
 /** A migrated, validated candidate with every ledger-bearing section populated. */
 function fixture(): GameState {
   const state = createGameState({ seed: 7 });
-  state.world = { board: board() };
+  state.world = { ...state.world, board: board() };
 
   addActor(state.actors, { kind: "party", source: "Characters/hero.chr", name: "Hero" });
   addActor(state.actors, { kind: "enemy", source: "Characters/slime.chr", name: "Slime" });
@@ -272,7 +272,7 @@ function fixture(): GameState {
   state.events.listeners = [{ id: 1, emitter: "object:5", type: "hit", once: false, callable: callable("dead") }];
   state.events.dispatch = { emitter: "object:5", event: 5, order: [1], index: 0, thread: null };
   state.events.emitters = { [boardEmitterKey(BOARD_KEY)]: 5, "object:9": 9 };
-  state.engine = { nextBattleId: 4 } as typeof state.engine;
+  state.engine = { ...state.engine, nextBattleId: 4 };
   return state;
 }
 
@@ -319,7 +319,7 @@ test("the v1 projection maps exactly the accepted fields and keeps their order",
   const state = fixture();
   const ledger = projected(state);
 
-  deepEqual(ledger.party, { members: [1], selected: 1, steps: 12 });
+  deepEqual(ledger.party, { members: [1], selected: 1, steps: 12, stepRemainder: 0 });
   equal(ledger.actors.nextId, 4);
   equal(ledger.actors.actors.length, 3);
   deepEqual(ledger.actors.actors.map((actor) => actor.kind), ["party", "enemy", "npc"]);
@@ -437,10 +437,10 @@ test("the ledger hash is the tagged envelope hash and not hashGameState", () => 
   const state = fixture();
   const ledger = projectGameLedger(state);
   equal(GAME_LEDGER_DOMAIN, "tkr.game-ledger");
-  equal(GAME_LEDGER_VERSION, 2);
+  equal(GAME_LEDGER_VERSION, 4);
   equal(
     hashGameLedger(ledger),
-    hashState({ domain: "tkr.game-ledger", version: 2, ledger } as never),
+    hashState({ domain: "tkr.game-ledger", version: 4, ledger } as never),
   );
   differs(hashGameLedger(ledger), hashGameState(state));
   const minimal = minimalLedger();
@@ -449,16 +449,16 @@ test("the ledger hash is the tagged envelope hash and not hashGameState", () => 
   // the domain, version and ledger are all covered.
   equal(
     MINIMAL_LEDGER_HASH,
-    fnv1a64(canon({ domain: "tkr.game-ledger", version: 2, ledger: minimal } as never)),
+    fnv1a64(canon({ domain: "tkr.game-ledger", version: 4, ledger: minimal } as never)),
   );
   // A different domain or version hashes differently even for the same ledger.
-  differs(hashState({ domain: "tkr.game-ledger", version: 3, ledger } as never), hashGameLedger(ledger));
+  differs(hashState({ domain: "tkr.game-ledger", version: 2, ledger } as never), hashGameLedger(ledger));
 });
 
 /** The smallest whole v1 ledger, used to pin the envelope vector. */
 function minimalLedger(): GameLedgerV1 {
   return {
-    party: { members: [], selected: null, steps: 0 },
+    party: { members: [], selected: null, steps: 0, stepRemainder: 0 },
     actors: { nextId: 1, actors: [] },
     inventory: { nextId: 1, items: [], equipment: [], gold: 0 },
     script: {
@@ -467,7 +467,7 @@ function minimalLedger(): GameLedgerV1 {
       persistentGraph: { objects: [], cells: { state: "absent" }, defOwners: { state: "absent" } },
       emitters: {},
     },
-    world: { board: { state: "absent" } },
+    world: { movement: { walking: 0, pushing: 0 }, board: { state: "absent" } },
     sprites: { players: [], items: [], selectedPlayer: null, nextItemHandle: 0, randomEncounter: { state: "absent" } },
     triggers: { boardKey: null, fired: {}, repeat: {}, suppressed: [], deactivated: [], deactivateAt: null },
     rng: { s0: 1, s1: 2, s2: 3, s3: 4 },
@@ -475,7 +475,7 @@ function minimalLedger(): GameLedgerV1 {
   };
 }
 
-const MINIMAL_LEDGER_HASH = "139cd5bf7a38dbab";
+const MINIMAL_LEDGER_HASH = "1c0294691eabdcac";
 
 test("each excluded continuation and metadata field changes the full save but not the ledger", () => {
   const baseline = ledgerHash();
@@ -496,7 +496,7 @@ test("each excluded continuation and metadata field changes the full save but no
     ["menu screens", (state) => { state.menu.screens.push({ screen: "items", actorId: null, selection: 2 }); }],
     ["menu graphic", (state) => { state.menu.graphic = "UI/menu.img"; }],
     ["battle", (state) => { state.battle = { ...state.battle, phase: "active" } as typeof state.battle; }],
-    ["engine next battle", (state) => { state.engine = { nextBattleId: 8 } as typeof state.engine; }],
+    ["engine next battle", (state) => { state.engine = { ...state.engine, nextBattleId: 8 }; }],
     ["surface", (state) => { state.surfaces = { shots: [{ rev: 1 }] } as never; }],
     ["sprite state", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, state: "moving" }; }],
     ["sprite queue", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, queue: { moves: [{ source: "keyboard", target: { x: 1, y: 1 }, facing: "E" }], waypoint: null } }; }],
@@ -507,7 +507,7 @@ test("each excluded continuation and metadata field changes the full save but no
     ["sprite animation clock", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, visual: { ...state.sprites.items[0]!.visual, frame: 3, frameTicks: 4, idleTicks: 5, stanceHeld: true, stanceComplete: true } }; }],
     ["program-scope tile edit", (state) => {
       const board0 = state.world.board!;
-      state.world = { board: { ...board0, runtime: { ...board0.runtime!, tileEdits: [...board0.runtime!.tileEdits, { index: 2, tile: tile("Tiles/lava.tle", 0), previous: null, scope: "program", owner: 1 }] } } };
+      state.world = { ...state.world, board: { ...board0, runtime: { ...board0.runtime!, tileEdits: [...board0.runtime!.tileEdits, { index: 2, tile: tile("Tiles/lava.tle", 0), previous: null, scope: "program", owner: 1 }] } } };
     }],
     ["section version", (state) => { state.party.version = 99; }],
     ["input", (state) => { state.input = { ...state.input, held: ["E"] } as never; }],
@@ -526,6 +526,9 @@ test("each ledger-bearing field changes the projection hash independently", () =
   const baseline = ledgerHash();
   const changes: Array<[string, (state: GameState) => void]> = [
     ["party steps", (state) => { state.party.steps += 1; }],
+    ["party step remainder", (state) => { state.party.stepRemainder += 1; }],
+    ["runtime walking setting", (state) => { state.world.movement.walking = 1; }],
+    ["runtime pushing setting", (state) => { state.world.movement.pushing = 1; }],
     ["party members", (state) => { addActor(state.actors, { kind: "party", source: "Characters/two.chr" }); state.party.members.push(4); }],
     ["actor hp", (state) => { state.actors.actors[0]!.stats.hp = 43; }],
     ["actor statuses", (state) => { state.actors.actors[0]!.statuses.poison = 3; }],
@@ -549,21 +552,21 @@ test("each ledger-bearing field changes the projection hash independently", () =
     ["object handle", (state) => { state.vm.globals.party = { kind: "object", handle: 6, className: "" }; }],
     ["def owners", (state) => { state.vm.defOwners!.loot = { kind: "inline", text: "function loot(a)\nendFunction\n", ir: "1" }; }],
     ["emitters", (state) => { state.events.emitters = { [boardEmitterKey(BOARD_KEY)]: 5, battle: 5 }; }],
-    ["board key", (state) => { state.world = { board: { ...state.world.board!, key: assetKey("other.brd") } }; state.triggers.boardKey = "other.brd"; state.sprites.randomEncounter = { boardKey: "other.brd", tile: { x: 1, y: 2 }, tiles: 5 }; }],
-    ["board size", (state) => { state.world = { board: { ...state.world.board!, sizeX: 9 } }; }],
-    ["board ambient", (state) => { state.world = { board: { ...state.world.board!, ambient: { r: 11, g: 20, b: 30 } } }; }],
-    ["board vector point", (state) => { const board0 = state.world.board!; state.world = { board: { ...board0, vectors: [{ ...board0.vectors![0]!, points: [{ x: 9, y: 9 }] }] } }; }],
-    ["board program layer", (state) => { const board0 = state.world.board!; state.world = { board: { ...board0, programs: [{ ...board0.programs![0]!, layer: 2 }] } }; }],
+    ["board key", (state) => { state.world = { ...state.world, board: { ...state.world.board!, key: assetKey("other.brd") } }; state.triggers.boardKey = "other.brd"; state.sprites.randomEncounter = { boardKey: "other.brd", tile: { x: 1, y: 2 }, tiles: 5 }; }],
+    ["board size", (state) => { state.world = { ...state.world, board: { ...state.world.board!, sizeX: 9 } }; }],
+    ["board ambient", (state) => { state.world = { ...state.world, board: { ...state.world.board!, ambient: { r: 11, g: 20, b: 30 } } }; }],
+    ["board vector point", (state) => { const board0 = state.world.board!; state.world = { ...state.world, board: { ...board0, vectors: [{ ...board0.vectors![0]!, points: [{ x: 9, y: 9 }] }] } }; }],
+    ["board program layer", (state) => { const board0 = state.world.board!; state.world = { ...state.world, board: { ...board0, programs: [{ ...board0.programs![0]!, layer: 2 }] } }; }],
     ["authored slot default", (state) => {
       const board0 = state.world.board!;
       const rawItems = board0.rawItems!.map((item) => item.slot === 1 ? { ...item, x: 65 } : item);
-      state.world = { board: { ...board0, rawItems, items: rawItems.filter((item) => item.itemFile !== "") } };
+      state.world = { ...state.world, board: { ...board0, rawItems, items: rawItems.filter((item) => item.itemFile !== "") } };
     }],
     ["board tile edit", (state) => {
       const board0 = state.world.board!;
-      state.world = { board: { ...board0, runtime: { ...board0.runtime!, tileEdits: [...board0.runtime!.tileEdits, { index: 3, tile: tile("Tiles/sand.tle", 0), previous: null, scope: "board" }] } } };
+      state.world = { ...state.world, board: { ...board0, runtime: { ...board0.runtime!, tileEdits: [...board0.runtime!.tileEdits, { index: 3, tile: tile("Tiles/sand.tle", 0), previous: null, scope: "board" }] } } };
     }],
-    ["tile types", (state) => { const board0 = state.world.board!; state.world = { board: { ...board0, runtime: { ...board0.runtime!, tileTypes: ["NORMAL", "LAVA"] } } }; }],
+    ["tile types", (state) => { const board0 = state.world.board!; state.world = { ...state.world, board: { ...board0, runtime: { ...board0.runtime!, tileTypes: ["NORMAL", "LAVA"] } } }; }],
     ["sprite x", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, x: 201 }; }],
     ["sprite facing", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, facing: "N" }; }],
     ["sprite visible", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, visible: false }; }],
@@ -639,7 +642,7 @@ test("the board authored slots stay separate from live sprite placement", () => 
   // A compact `items` view that disagrees with `rawItems` is refused.
   const mismatched = fixture();
   const board0 = mismatched.world.board!;
-  mismatched.world = { board: { ...board0, items: board0.items!.map((item) => item.slot === 1 ? { ...item, x: 200 } : item) } };
+  mismatched.world = { ...mismatched.world, board: { ...board0, items: board0.items!.map((item) => item.slot === 1 ? { ...item, x: 200 } : item) } };
   deepEqual(failure(() => projected(mismatched)), { code: "ledger.board", path: "world.board.items[0]" });
 
   // A sprite naming a slot that holds another item is refused.
@@ -649,7 +652,7 @@ test("the board authored slots stay separate from live sprite placement", () => 
 
   // An item sprite with no board to name is refused.
   const noBoard = fixture();
-  noBoard.world = {};
+  noBoard.world = { movement: noBoard.world.movement };
   deepEqual(failure(() => projected(noBoard)), { code: "ledger.board", path: "sprites.items[0].sourceSlot" });
 
 });
@@ -767,7 +770,7 @@ test("an altered readback changes the projected hash exactly when it bears progr
 
 test("optional and nullable source fields keep their three-way presence", () => {
   const absent = fixture();
-  absent.world = {};
+  absent.world = { movement: absent.world.movement };
   absent.sprites.players = [];
   absent.sprites.items = [];
   absent.sprites.selectedPlayer = null;
@@ -782,7 +785,7 @@ test("optional and nullable source fields keep their three-way presence", () => 
   assertNoUndefined(absentLedger);
 
   const explicitNull = fixture();
-  explicitNull.world = { board: null };
+  explicitNull.world = { ...explicitNull.world, board: null };
   explicitNull.sprites.players = [];
   explicitNull.sprites.items = [];
   explicitNull.sprites.selectedPlayer = null;
@@ -895,7 +898,7 @@ test("file program references and animated durable tiles project whole", () => {
     tint: { r: 1, g: 2, b: 3 },
     animation: { ticksPerFrame: 4, frames: [tile("Tiles/water.tle", 1), tile("Tiles/water.tle", 2)] },
   };
-  state.world = {
+  state.world = { ...state.world,
     board: {
       ...board0,
       runtime: {
@@ -957,11 +960,11 @@ test("malformed ledger-only fields are refused with a located path", () => {
     ["actor stat type", (state) => { state.actors.actors[0]!.stats.hp = "many" as never; }, "ledger.shape", "actors.actors[0].stats.hp"],
     ["compact item count", (state) => {
       const board0 = state.world.board!;
-      state.world = { board: { ...board0, items: board0.items!.slice(1) } };
+      state.world = { ...state.world, board: { ...board0, items: board0.items!.slice(1) } };
     }, "ledger.board", "world.board.items"],
     ["tile edit scope", (state) => {
       const board0 = state.world.board!;
-      state.world = { board: { ...board0, runtime: { ...board0.runtime!, tileEdits: [{ index: 0, tile: null, previous: null, scope: "global" as never }] } } };
+      state.world = { ...state.world, board: { ...board0, runtime: { ...board0.runtime!, tileEdits: [{ index: 0, tile: null, previous: null, scope: "global" as never }] } } };
     }, "ledger.shape", "world.board.runtime.tileEdits[0].scope"],
     ["sprite slot range", (state) => { state.sprites.items[0] = { ...state.sprites.items[0]!, sourceSlot: 9 }; }, "ledger.board", "sprites.items[0].sourceSlot"],
     ["dictionary with program", (state) => {
@@ -1005,7 +1008,7 @@ test("program-scope tile edits and their expiry never reach the ledger", () => {
   const board0 = state.world.board!;
   const programTile = tile("Tiles/water.tle", 1);
   const durableTile = tile("Tiles/sand.tle", 3);
-  state.world = {
+  state.world = { ...state.world,
     board: {
       ...board0,
       runtime: {
@@ -1062,7 +1065,7 @@ test("saved encounter and trigger board names may lag the current board", () => 
   // Neither name is a relationship to the current board, so a candidate with no
   // board at all keeps them as saved progress.
   const boardless = fixture();
-  boardless.world = {};
+  boardless.world = { movement: boardless.world.movement };
   boardless.sprites.players = [];
   boardless.sprites.items = [];
   boardless.sprites.selectedPlayer = null;

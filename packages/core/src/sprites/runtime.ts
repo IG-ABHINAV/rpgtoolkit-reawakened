@@ -1,11 +1,12 @@
 import type { ActorId } from "../actors/model.ts";
 import type { ProgramRef } from "../script/program.ts";
-import { endItemThreads, findThread, startThread, type VmState } from "../script/state.ts";
+import { endItemThreads, findThread, startThread, type Thread, type VmState } from "../script/state.ts";
 import type { CameraPoint, CameraTarget } from "../ports/camera.ts";
 import type { PlayerPresencePort } from "../ports/startup.ts";
-import type { SpriteDraw } from "../render/compose.ts";
+import type { SpriteDraw, SpriteFrame } from "../render/compose.ts";
 import type { Character } from "../formats/actor/model.ts";
 import type { WorldBoard } from "../world/model.ts";
+import { coordLayout, tileToPixel, type CoordLayout } from "../world/coords.ts";
 import {
   actorFromSource,
   actorLinkForSource,
@@ -30,6 +31,8 @@ export type SpriteRuntimeOptions = {
   readonly programRef?: SpriteThreadResolver | null;
 };
 
+export type ItemThreadCleanup = (thread: Thread) => void;
+
 export type SpriteEffect = {
   readonly name: "createplayer" | "placeplayer" | "removeitem" | "showitem" | "hideitem";
   readonly args: readonly (string | number)[];
@@ -39,8 +42,9 @@ function clonePoint(point: SpritePoint): SpritePoint {
   return { x: point.x, y: point.y };
 }
 
-function itemKey(actor: SpriteActor): string {
-  return actor.handle === null ? actor.id : `item:${actor.source}`;
+export function itemKey(actor: SpriteActor): string {
+  if (actor.handle === null) return actor.id;
+  return `item:${actor.id === actor.source ? actor.source : actor.id}`;
 }
 
 function startsItemThread(actor: SpriteActor, vm: VmState | undefined, resolver: SpriteThreadResolver | null | undefined): number | null {
@@ -51,9 +55,15 @@ function startsItemThread(actor: SpriteActor, vm: VmState | undefined, resolver:
   return thread.id;
 }
 
-function stopItemThread(actor: SpriteActor, vm: VmState | undefined): void {
+function stopItemThread(actor: SpriteActor, vm: VmState | undefined, cleanup?: ItemThreadCleanup): void {
   if (vm === undefined) return;
-  endItemThreads(vm, itemKey(actor));
+  const source = itemKey(actor);
+  if (cleanup !== undefined) {
+    for (const thread of [...vm.threads]) {
+      if (thread.kind === "item" && thread.source === source) cleanup(thread);
+    }
+  }
+  endItemThreads(vm, source);
 }
 
 function withItemThread(actor: SpriteActor, thread: number | null): SpriteActor {
@@ -113,11 +123,19 @@ export function createInitialPlayer(
 }
 
 /** Place the selected player without changing its queue or actor identity. */
-export function placeSelectedPlayer(section: SpritesSection, x: number, y: number, layer: number, unit: "pixel" | "tile" = "pixel"): boolean {
+export function placeSelectedPlayer(
+  section: SpritesSection,
+  x: number,
+  y: number,
+  layer: number,
+  unit: "pixel" | "tile" = "pixel",
+  layout: CoordLayout = "2d",
+  sizeX = 0,
+): boolean {
   const index = section.players.findIndex((player) => player.id === section.selectedPlayer);
   if (index < 0) return false;
   const player = section.players[index]!;
-  const point = unit === "pixel" ? { x, y } : { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 };
+  const point = unit === "pixel" ? { x, y } : tileToPixel(layout, sizeX, x, y);
   section.players = section.players.map((actor, current) => current === index
     ? { ...actor, x: point.x, y: point.y, layer, prev: null, state: "waiting", queue: { moves: [], waypoint: null } }
     : actor);
@@ -125,11 +143,11 @@ export function placeSelectedPlayer(section: SpritesSection, x: number, y: numbe
 }
 
 /** Change item visibility and own its multitask thread lifecycle. */
-export function setItemVisible(section: SpritesSection, id: string | number, visible: boolean, vm?: VmState, resolver?: SpriteThreadResolver | null): boolean {
+export function setItemVisible(section: SpritesSection, id: string | number, visible: boolean, vm?: VmState, resolver?: SpriteThreadResolver | null, cleanup?: ItemThreadCleanup): boolean {
   const index = itemById(section, id);
   const item = section.items[index];
   if (item === undefined || item.visible === visible) return item !== undefined;
-  if (!visible) stopItemThread(item, vm);
+  if (!visible) stopItemThread(item, vm, cleanup);
   const replacement = updateItem(section, index, (value) => ({ ...value, visible, state: visible ? "waiting" : "hidden", multitaskThread: null }));
   if (visible && replacement !== null) {
     const thread = startsItemThread(replacement, vm, resolver);
@@ -139,8 +157,8 @@ export function setItemVisible(section: SpritesSection, id: string | number, vis
 }
 
 /** Remove an item from the board while retaining its compact handle for save/draw determinism. */
-export function removeItem(section: SpritesSection, id: string | number, vm?: VmState): boolean {
-  return setItemVisible(section, id, false, vm, null);
+export function removeItem(section: SpritesSection, id: string | number, vm?: VmState, cleanup?: ItemThreadCleanup): boolean {
+  return setItemVisible(section, id, false, vm, null, cleanup);
 }
 
 /** Select a player by stable id; no roster data is copied into the sprites section. */
@@ -220,12 +238,13 @@ export function enqueuePathMove(
   goal: SpritePoint,
   mode: PathMode = 1,
   clear = true,
+  pointer = false,
 ): PathResult | null {
   const actor = actorFor(section, id);
   if (actor === null) return null;
   const result = findPath(board, section, actor, goal, mode);
   if (result.points.length === 0) return result;
-  const moves = result.points.map((point): SpriteMove => ({ source: "path", target: clonePoint(point), facing: null, pathMode: mode }));
+  const moves = result.points.map((point): SpriteMove => ({ source: "path", target: clonePoint(point), facing: null, pathMode: mode, ...(pointer ? { pointer: true as const } : {}) }));
   const playerIndex = section.players.findIndex((value) => value.id === id);
   const itemIndex = section.items.findIndex((value) => value.id === id);
   const update = (value: SpriteActor): SpriteActor => ({
@@ -260,7 +279,16 @@ export function setWaypoint(section: SpritesSection, id: string, points: readonl
   return true;
 }
 
-function drawFor(actor: SpriteActor, drawId: number): SpriteDraw {
+/**
+ * The decoded frame of a sprite's selected animation (E-21/E-54): the asset and tile the compositor draws,
+ * or null while the animation's frames are still being fetched. A frame source is supplied by the engine,
+ * which owns asset loading and caching; `spriteDraws` stays pure state-to-draw conversion.
+ */
+export type SpriteFrameSource = (file: string, frame: number) => SpriteFrame | null;
+
+function drawFor(actor: SpriteActor, drawId: number, frameSource?: SpriteFrameSource): SpriteDraw {
+  const file = actor.visual.file;
+  const frame = file === null || file === undefined ? null : (frameSource?.(file, actor.visual.frame) ?? null);
   const draw: SpriteDraw = {
     id: actor.id,
     key: actor.kind,
@@ -269,31 +297,35 @@ function drawFor(actor: SpriteActor, drawId: number): SpriteDraw {
     y: actor.y,
     drawId,
     phase: actor.visual.frame,
-    ...(actor.visual.file === null || actor.visual.file === undefined ? {} : { frame: { file: actor.visual.file } }),
+    ...(file === null || file === undefined ? {} : { frame: frame ?? { file } }),
     collisionBase: actor.collisionBase.points,
   };
   return actor.prev === null ? draw : { ...draw, prev: actor.prev };
 }
 
 /** Build SpriteDraw data in stable player-before-item category order. */
-export function spriteDraws(section: SpritesSection): SpriteDraw[] {
+export function spriteDraws(section: SpritesSection, frameSource?: SpriteFrameSource): SpriteDraw[] {
   const playerCount = section.players.length;
-  const players = section.players.map((actor) => drawFor(actor, actor.index));
-  const items = section.items.filter((item) => item.visible).map((actor) => drawFor(actor, playerCount + actor.index));
+  const players = section.players.map((actor) => drawFor(actor, actor.index, frameSource));
+  const items = section.items.filter((item) => item.visible).map((actor) => drawFor(actor, playerCount + actor.index, frameSource));
   return [...players, ...items];
 }
 
 export type SpriteRuntime = CameraTarget & PlayerPresencePort & {
   readonly section: SpritesSection;
   readonly vm: VmState | undefined;
+  /** Attach the runtime to the engine-owned sections; reset replaces both references. */
+  bindState(section: SpritesSection, vm: VmState | undefined, resolver?: SpriteThreadResolver | null, board?: WorldBoard | null): void;
   hydrate(input: SpriteHydrationInput): SpritesSection;
   /** Prepare without mutation; a throwing commit must be reversible by rollback. */
   prepareRecovery(board: WorldBoard, sprites: SpritesSection): { commit(): void; rollback(): void };
   createPlayer(board: WorldBoard | null, source: SpriteActorSource): SpriteActor;
-  placePlayer(x: number, y: number, layer: number, unit?: "pixel" | "tile"): boolean;
+  placePlayer(x: number, y: number, layer: number, unit?: "pixel" | "tile", layout?: CoordLayout, sizeX?: number): boolean;
   showItem(id: string | number): boolean;
   hideItem(id: string | number): boolean;
   removeItem(id: string | number): boolean;
+  /** Bind engine-owned cleanup for menu frames before an item thread is stopped. */
+  bindItemThreadCleanup?(cleanup: ItemThreadCleanup): void;
   selectPlayer(id: string): boolean;
   selectActor(actorId: ActorId | null): boolean;
   changePlayerGraphics(actorId: ActorId, file: string, character: Character): boolean;
@@ -304,13 +336,21 @@ export type SpriteRuntime = CameraTarget & PlayerPresencePort & {
 
 /** Create the section owner and its camera/start-up ports. */
 export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteRuntime {
-  const section = options.section ?? createSpritesSection();
-  const vm = options.vm;
-  const resolver = options.programRef;
+  let section = options.section ?? createSpritesSection();
+  let vm = options.vm;
+  let resolver = options.programRef;
+  let itemThreadCleanup: ItemThreadCleanup | undefined;
   let board: WorldBoard | null = null;
   const runtime: SpriteRuntime = {
-    section,
-    vm,
+    get section() { return section; },
+    get vm() { return vm; },
+    bindState(nextSection, nextVm, nextResolver, nextBoard = null) {
+      section = nextSection;
+      vm = nextVm;
+      if (nextResolver !== undefined) resolver = nextResolver;
+      board = nextBoard;
+    },
+    bindItemThreadCleanup(cleanup) { itemThreadCleanup = cleanup; },
     hydrate(input) {
       board = input.board;
       return hydrateSprites(input, section);
@@ -336,10 +376,17 @@ export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteR
       board = currentBoard;
       return createInitialPlayer(section, currentBoard, source);
     },
-    placePlayer(x, y, layer, unit = "pixel") { return placeSelectedPlayer(section, x, y, layer, unit); },
+    placePlayer(
+      x,
+      y,
+      layer,
+      unit = "pixel",
+      layout = board === null ? "2d" : coordLayout(board.coordType),
+      sizeX = board?.sizeX ?? 0,
+    ) { return placeSelectedPlayer(section, x, y, layer, unit, layout, sizeX); },
     showItem(id) { return setItemVisible(section, id, true, vm, resolver); },
-    hideItem(id) { return setItemVisible(section, id, false, vm, resolver); },
-    removeItem(id) { return removeItem(section, id, vm); },
+    hideItem(id) { return setItemVisible(section, id, false, vm, resolver, itemThreadCleanup); },
+    removeItem(id) { return removeItem(section, id, vm, itemThreadCleanup); },
     selectPlayer(id) { return selectPlayer(section, id); },
     selectActor(actorId) { return selectActor(section, actorId); },
     changePlayerGraphics(actorId, file, character) { return board === null ? false : changePlayerGraphics(section, board, actorId, file, character); },
@@ -361,8 +408,11 @@ export function createSpriteRuntime(options: SpriteRuntimeOptions = {}): SpriteR
         return true;
       }
       if (effect.name === "placeplayer") {
-        const [x, y, layer, unit] = effect.args;
-        return typeof x === "number" && typeof y === "number" && typeof layer === "number" && runtime.placePlayer(x, y, layer, unit === "tile" ? "tile" : "pixel");
+        const [x, y, layer, unit, coordType, sizeX] = effect.args;
+        const layout = typeof coordType === "number" ? coordLayout(coordType) : board === null ? "2d" : coordLayout(board.coordType);
+        const tileCount = typeof sizeX === "number" ? sizeX : board?.sizeX ?? 0;
+        return typeof x === "number" && typeof y === "number" && typeof layer === "number"
+          && runtime.placePlayer(x, y, layer, unit === "tile" ? "tile" : "pixel", layout, tileCount);
       }
       if (effect.name === "showitem") return effect.args[0] !== undefined && runtime.showItem(effect.args[0]);
       if (effect.name === "hideitem") return effect.args[0] !== undefined && runtime.hideItem(effect.args[0]);

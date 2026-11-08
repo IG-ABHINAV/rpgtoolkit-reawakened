@@ -15,6 +15,17 @@ import { foldAscii } from "./values.ts";
 
 export { foldAscii };
 
+/** Compile-time constants from docs/spec/engine/rpgcode-language.md#e-87. */
+const CONSTANTS: Readonly<Record<string, number>> = {
+  tkmv_pause_thread: 1, tkmv_clear_queue: 2, tkmv_pathfind: 4,
+  tkmv_waypoint_path: 8, tkmv_waypoint_link: 16,
+  tkvt_solid: 1, tkvt_under: 2, tkvt_stairs: 8, tkvt_waypoint: 16,
+  tkvt_bkgimage: 1, tkvt_all_layers_below: 2, tkvt_frame_intersect: 4,
+  tkprg_step: 0, tkprg_keypress: 1, tkprg_repeat: 2, tkprg_stops_movement: 4,
+  tkdir_e: 1, tkdir_se: 2, tkdir_s: 3, tkdir_sw: 4,
+  tkdir_w: 5, tkdir_nw: 6, tkdir_n: 7, tkdir_ne: 8,
+};
+
 /**
  * One lexical token. `end` terminates a statement; `eof` ends the source.
  *
@@ -375,6 +386,8 @@ function run(text: string): Token[] {
         tokens.push({ kind: "number", value: name === "true" ? 1 : 0, line, col: start - lineStart + 1, endCol: end - lineStart });
       } else if (name === "null") {
         tokens.push({ kind: "number", value: 0, line, col: start - lineStart + 1, endCol: end - lineStart });
+      } else if (Object.hasOwn(CONSTANTS, name)) {
+        tokens.push({ kind: "number", value: CONSTANTS[name]!, line, col: start - lineStart + 1, endCol: end - lineStart });
       } else if (name === "and" || name === "or") {
         tokens.push({ kind: "op", text: name, line, col: start - lineStart + 1, endCol: end - lineStart });
       } else if (name === "_" && restIsBlank(text, end, length)) {

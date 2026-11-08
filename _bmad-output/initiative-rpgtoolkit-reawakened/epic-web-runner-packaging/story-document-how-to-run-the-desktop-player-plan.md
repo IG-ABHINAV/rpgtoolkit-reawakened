@@ -35,12 +35,12 @@ Run from `origin/main` (`d4e2d29f`) with no build cache: `pnpm install --frozen-
 --out fixtures/packages/demo.tpk --title Demo`, `pnpm desktop:build`, `pnpm desktop:measure`.
 
 Observed results (macOS arm64, pre-E-02): `pnpm desktop:measure` printed `"error": null`, `"tick": 120`,
-the previous state hash (current demo closing-baseline state is `91172695de52cfd6`), draw hash `9a40be8a0b5ca816`,
+state hash `bff947dce3a11b4f`, draw hash `9a40be8a0b5ca816`,
 `"frame": { "worst": 0 }`. A manual `electron packages/runner-desktop/dist --serve . --package … --page …`
-left a window open with its title set to the previous state hash (no post-E-02 launch is recorded), no
+left a window open with its title set to `bff947dce3a11b4f` (no post-E-02 launch is recorded), no
 load/preload/renderer error, and the board drawn off-screen (no canvas is attached to the document in
 `app/player.ts`).
-**Historical measurement note:** These macOS results and the visible-window title were recorded before E-02. The previously recorded state hash is retained as historical and is superseded by the current demo closing baseline `91172695de52cfd6` (draw remains `9a40be8a0b5ca816`). This plan records no post-E-02 desktop measurement or launch.
+**Historical measurement note:** These macOS results and the visible-window title were recorded before E-02. The later E-02 baseline was `91172695de52cfd6` / `9a40be8a0b5ca816`; both values are now historical. See `golden/regression/closing.json` for the current demo closing baseline. This plan records no post-E-02 desktop measurement or launch.
 
 
 

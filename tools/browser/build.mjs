@@ -23,6 +23,7 @@ const entries = [
   { in: join(root, "packages/runner-web/app/video.ts"), out: "video.js" },
   { in: join(root, "packages/runner-web/app/storage.ts"), out: "storage.js" },
   { in: join(root, "packages/runner-web/src/decode-worker.ts"), out: "decode-worker.js" },
+  { in: join(root, "packages/runner-web/src/audio-worklet.ts"), out: "audio-worklet.js" },
   { in: join(root, "packages/runner-web/app/decode.ts"), out: "decode.js" },
   { in: join(root, "packages/runner-web/app/worker-probe.ts"), out: "worker-probe.js" },
 ];
@@ -45,7 +46,7 @@ for (const entry of entries) {
 
 // The browser page needs the same bundled-asset manifest the desktop build produces, so both runners can resolve
 // shared fonts and cursors from the `apps/` static tree without fetching the whole package manifest on boot.
-const folders = ["media/fonts", "media/cursors", "media/soundfonts"];
+const folders = ["media/fonts", "media/cursors", "media/soundfonts", "stock/stock_menu", "stock/stock_battle", "stock/stock_rpg"];
 const bundled = folders.flatMap((folder) =>
   readdirSync(join(root, folder), { withFileTypes: true })
     .filter((entry) => entry.isFile())
@@ -60,6 +61,7 @@ const shellFiles = [
   "packages/runner-web/app/index.html",
   "apps/player.js",
   "apps/decode-worker.js",
+  "apps/audio-worklet.js",
   "apps/bundled.json",
   "golden/closing/plan.json",
 ];
@@ -86,6 +88,7 @@ const precache = {
     "/packages/runner-web/app/index.html",
     "/apps/player.js",
     "/apps/decode-worker.js",
+    "/apps/audio-worklet.js",
     "/apps/bundled.json",
     "/apps/precache.json",
     "/golden/closing/plan.json",

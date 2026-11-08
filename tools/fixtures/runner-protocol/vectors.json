@@ -4,7 +4,7 @@
   "note": "Records are the JSON projection of the runner boundary: Uint8Array leaves are base64 strings, every key of a kind is present, and an absent value is null (AD-14). Validate against packages/runner-harness/schema/runner-protocol-v1.schema.json; audio messages are the separate audio-protocol kit.",
   "counts": {
     "draw": 12,
-    "input": 15,
+    "input": 21,
     "request": 13
   },
   "vectors": [
@@ -312,6 +312,17 @@
       }
     },
     {
+      "id": "input-pointer-cancel",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 12,
+        "event": {
+          "kind": "pointer.cancel"
+        }
+      }
+    },
+    {
       "id": "input-gamepad",
       "family": "input",
       "valid": true,
@@ -338,6 +349,54 @@
         "event": {
           "kind": "focus",
           "state": "lost"
+        }
+      }
+    },
+    {
+      "id": "input-host-features",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 12,
+        "event": {
+          "kind": "host.features",
+          "features": {
+            "touch": true,
+            "pointer": "coarse",
+            "keyboard": false,
+            "gamepad": false,
+            "haptics": false,
+            "orientation": null
+          }
+        }
+      }
+    },
+    {
+      "id": "input-host-display",
+      "family": "input",
+      "valid": true,
+      "record": {
+        "tick": 12,
+        "event": {
+          "kind": "host.display",
+          "geometry": {
+            "content": {
+              "width": 800,
+              "height": 480
+            },
+            "game": {
+              "x": 80,
+              "y": 0,
+              "width": 640,
+              "height": 480
+            },
+            "safeArea": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          }
         }
       }
     },
@@ -704,6 +763,69 @@
           "name": "ENTER",
           "code": "Enter",
           "char": null
+        }
+      }
+    },
+    {
+      "id": "refuse-incomplete-host-features",
+      "family": "input",
+      "valid": false,
+      "why": "host updates carry all normalized feature keys",
+      "record": {
+        "tick": 12,
+        "event": {
+          "kind": "host.features",
+          "features": {
+            "touch": true
+          }
+        }
+      }
+    },
+    {
+      "id": "refuse-incomplete-host-display",
+      "family": "input",
+      "valid": false,
+      "why": "host geometry carries all three rectangles",
+      "record": {
+        "tick": 12,
+        "event": {
+          "kind": "host.display",
+          "geometry": {
+            "content": {
+              "width": 800,
+              "height": 480
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "refuse-zero-host-content",
+      "family": "input",
+      "valid": false,
+      "why": "display dimensions must be positive",
+      "record": {
+        "tick": 12,
+        "event": {
+          "kind": "host.display",
+          "geometry": {
+            "content": {
+              "width": 0,
+              "height": 480
+            },
+            "game": {
+              "x": 0,
+              "y": 0,
+              "width": 1,
+              "height": 1
+            },
+            "safeArea": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          }
         }
       }
     },

@@ -1,3 +1,6 @@
+import { createSafeAreaProbe, readHostFeatures, waitForHostDisplay, type HostRestoreSnapshot, type HostStateSnapshot, type HostViewport } from "./host-state.ts";
+import { fitCanvas } from "./viewport.ts";
+export { fitCanvas } from "./viewport.ts";
 import {
   assetKey,
   BinaryReader,
@@ -7,8 +10,15 @@ import {
   createSpriteRuntime,
   deriveGameId,
   derivePackageIdentity,
+  fileProgramRef,
+  placeplayerPixel,
+  resolveProgram,
   DEFAULT_FONT_ASSET,
   hashDrawList,
+  inputPhaseRegistration,
+  inputResetRegistration,
+  movementPhaseRegistration,
+  triggerPhaseRegistration,
   PACKAGE_ROOT,
   readMainFile,
   writeMainFile,
@@ -16,19 +26,38 @@ import {
   type DrawList,
   type Engine,
   type GameState,
+  type HostDisplayGeometry,
+  type HostFeatures,
   type InputRecord,
   type RunnerRequest,
   type SurfaceId,
 } from "@tk-reawakened/core";
-import { inputPhaseRegistration, inputResetRegistration, movementPhaseRegistration } from "@tk-reawakened/core";
-import { parseClosingPlan, type ClosingFiles } from "@tk-reawakened/runner-harness";
+import { catalogueEntry, parseClosingPlan, parsePackageManifest, type ClosingFiles } from "@tk-reawakened/runner-harness";
 import { createWebgl2Renderer, type RenderStats } from "@tk-reawakened/render-webgl2";
 import { BUNDLED_BANK, CuePlayer, describePatchGap } from "@tk-reawakened/synth";
-import { connectSinkToGraph, PcmSink, type ScheduledPlay } from "./audio-sink.ts";
+import { connectSinkToGraph, defaultWorkletUrl, PcmSink, type ScheduledPlay } from "./audio-sink.ts";
 import { fontProvider, liveTextureProvider } from "./index.ts";
 import type { DecodeAhead } from "./decode-types.ts";
 import type { PackageSource } from "./package-source.ts";
 import { createSessionAssets, packageOrigin, type AssetLoadState } from "./session-assets.ts";
+import { dispatchRequests } from "./dispatch-requests.ts";
+import { interactiveMenuBinding } from "./input-bindings.ts";
+
+/** Resolve the shipped package manifests before boot; core never reads package files (G2). */
+function bundledPackageCatalogue(bundled: ReadonlyMap<AssetKey, Uint8Array>) {
+  const decoder = new TextDecoder();
+  const entries = [];
+  for (const [key, bytes] of bundled) {
+    if (!/^stock\/[^/]+\/manifest\.json$/.test(key)) continue;
+    const parsed = parsePackageManifest(decoder.decode(bytes), key);
+    if (!parsed.ok) throw new Error(parsed.message);
+    const folder = key.slice(0, key.lastIndexOf("/") + 1);
+    const source = bundled.get(assetKey(folder + parsed.manifest.program.replaceAll("\\", "/")));
+    if (source === undefined) throw new Error(`${key}: missing startup program ${parsed.manifest.program}`);
+    entries.push(catalogueEntry(parsed.manifest, decoder.decode(source)));
+  }
+  return entries;
+}
 
 export type LiveBlobHost = {
   read(area: "saves" | "files", gameId: string, path: string): Promise<Uint8Array | null>;
@@ -38,10 +67,13 @@ export type LiveBlobHost = {
 export type LiveSession = {
   readonly engine: Engine;
   readonly gameId: string;
-  readonly close: () => void;
+  readonly close: () => Promise<void>;
   readonly tick: () => number;
   readonly stateHash: () => string;
   readonly viewSize: () => { readonly width: number; readonly height: number };
+  readonly hostState: HostStateSnapshot | null;
+  /** Current measured Plane 2 content, Plane 1 presentation rectangle, and physical safe-area insets. */
+  readonly displayGeometry: () => HostDisplayGeometry;
   readonly draw: (alpha: number) => { readonly drawHash: string; readonly commands: number; readonly render: RenderStats };
   readonly playerPosition: () => { readonly x: number; readonly y: number } | null;
   /** The board the session is on, or `null` before board entry — the signal a host needs to tell "booting" from "playing". */
@@ -54,7 +86,12 @@ export type LiveSession = {
     readonly open: readonly { readonly id: number; readonly track: string; readonly asset: AssetKey }[];
   };
   readonly cuesSettled: () => Promise<void>;
+  /** The located diagnostics the engine has reported so far, capped like the effect audit. */
+  readonly diagnostics: () => readonly { code: string; file: string; line: number; message: string }[];
+  /** Persistent host audio initialization failure, if one occurred. */
+  readonly audioError: () => string | null;
   readonly advance: (ticks: number, inputs?: readonly InputRecord[]) => Promise<void>;
+  readonly setHostRestoreSnapshotProvider: (provider: (() => HostRestoreSnapshot) | null) => void;
 };
 type LiveSessionBase = {
   readonly bundled: ClosingFiles;
@@ -70,6 +107,9 @@ type LiveSessionBase = {
   readonly decode?: (outputRateHz: number) => DecodeAhead | null;
   /** Called whenever `loadState()` changes, so a page can show a spinner without polling the session. */
   readonly onLoadChange?: () => void;
+  /** Browser host surface measured before the engine is created; omitted by deterministic closing sessions. */
+  readonly hostViewport?: HostViewport;
+  readonly onQuit?: () => void;
 };
 export type LiveSessionOptions = LiveSessionBase & (
   /** An interactive session over a validated package source: assets arrive on demand through the tiered source. */
@@ -96,25 +136,6 @@ function mainResolution(bytes: Uint8Array, path: AssetKey): { readonly width: nu
   return main.resX > 0 && main.resY > 0 ? { width: main.resX, height: main.resY } : { width: 640, height: 480 };
 }
 
-/**
- * Present the logical frame centred in the space it has, never overflowing (AD-33's pixel-perfect letterbox).
- * Use the largest integer scale that fits when possible; otherwise fall back to the exact fractional fit so a
- * 640x480 (or larger) frame stays fully visible on a portrait phone whose CSS viewport is narrower than the frame.
- */
-export function fitCanvas(
-  canvas: HTMLCanvasElement,
-  width: number,
-  height: number,
-  available: { readonly width: number; readonly height: number },
-): number {
-  const ratio = Math.min(available.width / width, available.height / height);
-  const scale = ratio >= 1 ? Math.floor(ratio) : ratio;
-  canvas.width = width;
-  canvas.height = height;
-  canvas.style.width = `${width * scale}px`;
-  canvas.style.height = `${height * scale}px`;
-  return scale;
-}
 
 /** Keep presentation in sync with a content area's size (docs/spec/engine/runners.md#draw-list). */
 export function observeViewport(
@@ -133,7 +154,7 @@ export function observeViewport(
 }
 
 /** Persistent engine and host request pump shared by browser and desktop players. */
-export function createLiveSession(options: LiveSessionOptions): LiveSession {
+export async function createLiveSession(options: LiveSessionOptions): Promise<LiveSession> {
   const interactive = options.interactive === true;
   const plan = interactive ? null : parseClosingPlan(options.planText);
   const game = plan?.games.find((entry) => entry.name === (!interactive ? options.gameName : ""));
@@ -170,6 +191,8 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
   const mainBytes = source !== null ? source.peek(source.main) ?? undefined : files.get(assetKey(mainFile));
   if (mainBytes === undefined) throw new Error(`runner-web: main file ${mainFile} is absent`);
   if (source !== null && !synthesised) files.set(assetKey(mainFile), mainBytes);
+  const mainInput = readMainFile(new BinaryReader(mainBytes, assetKey(mainFile)));
+  const interactiveInput = interactiveMenuBinding(mainInput.ok ? mainInput.value.menuKey : 0);
   const gameId = deriveGameId(mainBytes, gameIdentity);
   if (source !== null && gameId !== source.gameId) throw new Error(`runner-web: the package source's GameId ${source.gameId} is not the session's ${gameId}`);
   const clock = options.clock ?? ((): number => performance.now());
@@ -186,10 +209,16 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
   let hasPlayer = false;
   let cameraPosition: { x: number; y: number } | null = null;
   let latest: GameState | null = null;
+  const triggerProgramLoader = { index, root: PACKAGE_ROOT, read: (key: AssetKey) => files.get(key) };
   const phaseRegistrations = interactive
     ? [
-      inputPhaseRegistration({ pixelStep: 8 }),
-      movementPhaseRegistration(),
+      inputPhaseRegistration({ menuKey: interactiveInput.menuKey, pixelMovement: mainInput.ok ? mainInput.value.pixelMovement : 0 }),
+      movementPhaseRegistration({ pixelMovement: mainInput.ok ? mainInput.value.pixelMovement : 0 }),
+      triggerPhaseRegistration({
+        programRef: (name) => resolveProgram(triggerProgramLoader, name) === undefined
+          ? null
+          : fileProgramRef(triggerProgramLoader, name),
+      }),
       { phase: "audio" as const, rank: 0, run: (state: GameState) => { latest = state; } },
     ]
     : [{ phase: "audio" as const, run: (state: GameState) => { latest = state; } }];
@@ -198,6 +227,22 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
   const viewport = interactive
     ? mainResolution(mainBytes, assetKey(mainFile))
     : { width: plan?.width ?? 640, height: plan?.height ?? 480 };
+  const hostFeatures = options.hostViewport === undefined ? null : readHostFeatures();
+  let displayGeometry: HostDisplayGeometry = {
+    content: { width: viewport.width, height: viewport.height },
+    game: { x: 0, y: 0, width: viewport.width, height: viewport.height },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  if (options.hostViewport !== undefined) {
+    const safeArea = createSafeAreaProbe();
+    try {
+      displayGeometry = await waitForHostDisplay(options.hostViewport, viewport, safeArea.read());
+    } finally {
+      safeArea.dispose();
+    }
+  }
+  const initialGeometry = displayGeometry;
+  const initialFeatures: HostFeatures = hostFeatures ?? { touch: false, pointer: "none", keyboard: false, gamepad: false, haptics: false, orientation: null };
   const engine = createEngine({
     seed: plan?.seed ?? 0,
     assetIndex: index,
@@ -210,8 +255,11 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
     },
     width: viewport.width,
     height: viewport.height,
+    features: initialFeatures,
+    displayGeometry: initialGeometry,
     maxTicks: plan?.maxTicks ?? Number.MAX_SAFE_INTEGER,
     include: { shading: true, images: true, sprites: true },
+    packageCatalogue: bundledPackageCatalogue(bundled),
     bundled,
     cameraTarget: {
       getPlayerPosition: () => {
@@ -224,7 +272,7 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
       getEntityPosition: () => null,
     },
     ...(interactive ? {
-      input: { bindings: { keys: { Enter: "ENTER", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", KeyW: "up", KeyS: "down", KeyA: "left", KeyD: "right" } } },
+      input: { bindings: interactiveInput.bindings },
       resetRegistrations: [inputResetRegistration()],
     } : {}),
     ...(spriteRuntime === undefined ? {} : { spriteRuntime }),
@@ -235,8 +283,8 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
         applier(effect) {
           if (effect.name === "createplayer") hasPlayer = true;
           if (effect.name === "placeplayer") {
-            const [x, y, , unit] = effect.args as [number, number, number, string];
-            cameraPosition = unit === "tile" ? { x: (x - 1) * 32 + 16, y: (y - 1) * 32 + 31 } : { x, y };
+            const [x, y, , unit, coordType, sizeX] = effect.args as [number, number, number, string, number, number];
+            cameraPosition = placeplayerPixel(x, y, unit, coordType, sizeX);
           }
         },
       },
@@ -244,13 +292,23 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
       { section: "audio", applier: () => undefined },
     ],
   });
-  const renderer = createWebgl2Renderer(options.gl, { mode: "letterbox", scale: 1 });
+  const renderer = createWebgl2Renderer(options.gl);
 
-  const textures = liveTextureProvider((key) => assets.peek(key), decode === null ? undefined : (key) => decode.image(key));
+  const textures = liveTextureProvider(
+    (key) => assets.peek(key) ?? bundled.get(key) ?? null,
+    decode === null ? undefined : (key) => decode.image(key),
+    // A composed tile bitmap is the core's picture, not something the host can decode from bytes (#1269).
+    (key) => engine.picturePixels(key),
+  );
   const fonts = fontProvider(options.bundled);
+  let renderedSurfaceEpoch = engine.surfaceCacheEpoch();
   let currentTick = 0;
   let currentStateHash = "";
+  const sessionDiagnostics: { code: string; file: string; line: number; message: string }[] = [];
+  let audioError: string | null = null;
   let closed = false;
+  let closePromise: Promise<void> | null = null;
+  let quitNotified = false;
   let cueChain: Promise<void> = Promise.resolve();
   let processing: Promise<void> = Promise.resolve();
 
@@ -265,30 +323,50 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
       if (event.kind === "ready") queueMicrotask(() => player.ready(event.voice, event.lengthTicks));
       else if (event.kind === "ended") player.ended(event.voice);
       else if (event.kind === "error") {
+        if (event.code === "audio.decoder-unavailable") {
+          audioError = event.detail;
+          sessionDiagnostics.push({ code: event.code, file: "", line: 0, message: event.detail });
+        }
         if (event.voice !== null) queueMicrotask(() => player.failed(event.voice!));
         else console.warn(`audio: ${event.code}: ${event.detail}`); // a bank failure belongs to no voice
       } else if (event.kind === "bank.substitution") console.warn(describePatchGap(event)); // playback continues; not game state
     },
   });
+  const graph = await connectSinkToGraph(audioContext, sink, { workletUrl: defaultWorkletUrl() });
   player = new CuePlayer({
-    send: (message) => sink.handle(message),
+    send: (message) => graph.send(message),
     readAsset: (key) => assets.peek(key) ?? bundled.get(key) ?? null,
     bankLayers: { player: null, runner: null, bundled: bundled.has(assetKey(BUNDLED_BANK.id)) ? BUNDLED_BANK : null },
     onEnded: (cueId) => audioEvents.push({ tick: currentTick, event: { kind: "audio.ended", cueId } }),
   });
-  const graph = connectSinkToGraph(audioContext, sink);
   if (audioContext.state !== "running") player.lock();
-  audioContext.addEventListener("statechange", () => {
+  const onAudioStateChange = (): void => {
     if (audioContext.state === "running") player.unlock(currentTick);
-  });
+  };
+  audioContext.addEventListener("statechange", onAudioStateChange);
   const unlockAudio = (): void => {
     void audioContext.resume().then(() => { if (audioContext.state === "running") player.unlock(currentTick); });
   };
-  window.addEventListener("pointerdown", unlockAudio);
+  window.addEventListener("pointerdown", unlockAudio, true);
   window.addEventListener("keydown", unlockAudio);
+
+  function close(): Promise<void> {
+    if (closePromise !== null) return closePromise;
+    closed = true;
+    assets.close();
+    decode?.close();
+    window.removeEventListener("pointerdown", unlockAudio, true);
+    window.removeEventListener("keydown", unlockAudio);
+    audioContext.removeEventListener("statechange", onAudioStateChange);
+    graph.disconnect();
+    renderer.dispose();
+    closePromise = audioContext.state === "closed" ? Promise.resolve() : audioContext.close();
+    return closePromise;
+  }
 
 
   const hostReply = async (request: RunnerRequest, tick: number): Promise<InputRecord | null> => {
+    if (closed) return null;
     switch (request.kind) {
       case "asset": return { tick, event: { kind: "asset", reqId: request.reqId, bytes: await assets.request(request.key) } };
       case "playVideo": return { tick, event: { kind: "video.ended", reqId: request.reqId } };
@@ -313,10 +391,15 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
       }
       case "extension.call": return { tick, event: { kind: "extension.result", reqId: request.reqId, result: null } };
       case "prefetch": assets.hint(request.hints); return null;
-      case "quit": case "openUrl": return null;
+      case "quit":
+        await close();
+        quitNotified = true;
+        return null;
+      case "openUrl": return null;
     }
   };
 
+  let hostRestoreSnapshotProvider: (() => HostRestoreSnapshot) | null = null;
   const pump = async (initialTicks: number, initialInputs: readonly InputRecord[]): Promise<void> => {
     let ticks = initialTicks;
     let inputs = [...initialInputs];
@@ -333,6 +416,10 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
       inputs = [];
       currentTick = report.tickAfter;
       currentStateHash = report.stateHash;
+      for (const diagnostic of report.diagnostics) {
+        sessionDiagnostics.push({ code: diagnostic.code, file: diagnostic.file, line: diagnostic.line, message: diagnostic.message });
+      }
+      if (sessionDiagnostics.length > 256) sessionDiagnostics.splice(0, sessionDiagnostics.length - 256);
       // Cues are handed to the player on their own chain, in report order, once the assets they name are cached (the
       // player and the sink read assets synchronously). The simulation never waits on this chain, and a stall in the
       // chain cannot reorder cues, because each report's cues run only after the previous report's.
@@ -345,22 +432,43 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
         player.reach(reachedTick);
         player.advance(cues);
       });
-      // Asset requests go out together (the engine is blocked on all of them); everything else is answered in order.
-      const started = report.requests.map((request) => (request.kind === "asset" ? hostReply(request, report.tickAfter) : undefined));
-      for (const answer of started) answer?.catch(() => undefined);
-      const replies: InputRecord[] = [];
-      for (const [position, request] of report.requests.entries()) {
-        const reply = await (started[position] ?? hostReply(request, report.tickAfter));
-        if (reply !== null) replies.push(reply);
+      // Complete pre-quit writes without letting unrelated pending requests (notably assets) delay closure
+      // (docs/spec/engine/runners.md#quit-request-order). Requests after quit are intentionally not dispatched.
+      const quitIndex = report.requests.findIndex((request) => request.kind === "quit");
+      if (quitIndex >= 0) {
+        const writesBeforeQuit = report.requests.slice(0, quitIndex).filter((request) => request.kind === "saveBlob");
+        await dispatchRequests(writesBeforeQuit, report.tickAfter, hostReply);
+        await hostReply(report.requests[quitIndex]!, report.tickAfter);
+        if (quitNotified) {
+          quitNotified = false;
+          options.onQuit?.();
+        }
+        return;
       }
-      if (report.loading || replies.length > 0) { inputs = replies; continue; }
+      // Prefetch hints go out before blocking asset requests so a hint for the same key starts its origin read first
+      // and the later blocking request joins it. Asset requests still go out together (the engine is blocked on all
+      // of them); replies are awaited in report order so input records stay in the order the engine expects.
+      const replies = await dispatchRequests(report.requests, report.tickAfter, hostReply);
+      if (closed) return;
+      inputs = [];
+      for (const reply of replies) {
+        if (reply.event.kind === "blob.loaded" && hostRestoreSnapshotProvider !== null) {
+          const snapshot = hostRestoreSnapshotProvider();
+          // Inputs observed while the reply was pending predate its timeline boundary.
+          for (const event of snapshot.pending) inputs.push({ tick: reply.tick, event });
+          inputs.push(reply);
+          for (const event of snapshot.observations) inputs.push({ tick: reply.tick, event });
+        } else inputs.push(reply);
+      }
+      if (report.loading || replies.length > 0) continue;
       if (ticks > 0 && report.ticksRun > 0) continue;
       return;
     }
     if (!closed) throw new Error("runner-web: live engine request loop did not settle");
   };
   const queue = (ticks: number, inputs: readonly InputRecord[] = []): Promise<void> => {
-    processing = processing.then(() => pump(ticks, inputs));
+    const queuedInputs = [...inputs];
+    processing = processing.then(() => pump(ticks, queuedInputs));
     return processing;
   };
   void queue(0);
@@ -368,21 +476,17 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
     loadState: () => assets.state(),
     audioState: () => ({ scheduled: [...sink.scheduled], open: sink.open }),
     cuesSettled: () => cueChain,
+    diagnostics: () => [...sessionDiagnostics],
+    audioError: () => audioError,
     engine,
     gameId,
-    close() {
-      closed = true;
-      assets.close();
-      decode?.close();
-      window.removeEventListener("pointerdown", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
-      graph.disconnect();
-      void audioContext.close();
-      renderer.dispose();
-    },
+    close,
     tick: () => currentTick,
     stateHash: () => currentStateHash,
+    setHostRestoreSnapshotProvider(provider) { hostRestoreSnapshotProvider = provider; },
     viewSize: () => ({ width: viewport.width, height: viewport.height }),
+    hostState: hostFeatures === null ? null : { features: hostFeatures, geometry: initialGeometry },
+    displayGeometry: () => engine.hostDisplayGeometry(),
     boardKey: () => latest?.world.board?.key ?? null,
     playerPosition: () => {
       const actor = latest?.sprites.players.find((player) => player.id === latest?.sprites.selectedPlayer)
@@ -392,8 +496,14 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
     },
     async advance(ticks, inputs = []) { await queue(ticks, inputs); },
     draw(alpha) {
+      const surfaceEpoch = engine.surfaceCacheEpoch();
+      if (surfaceEpoch !== renderedSurfaceEpoch) {
+        renderer.flush();
+        renderedSurfaceEpoch = surfaceEpoch;
+      }
       const list: DrawList = engine.drawList(alpha, { shading: true, images: true, sprites: true });
-      const render = renderer.render(list, {
+      const geometry = engine.hostDisplayGeometry();
+      const render = renderer.render(list, geometry, {
         textures,
         surfaces: (id: SurfaceId, rev: number) => {
           const pixels = engine.surfacePixels(id, rev);
@@ -402,7 +512,7 @@ export function createLiveSession(options: LiveSessionOptions): LiveSession {
         fonts: (asset: AssetKey) => fonts.get(asset),
         ...(fonts.get(DEFAULT_FONT_ASSET) === undefined ? {} : { fallbackFont: fonts.get(DEFAULT_FONT_ASSET) }),
       });
-      return { drawHash: hashDrawList(list), commands: list.commands.length, render };
+      return { drawHash: hashDrawList(list), commands: list.commands.length + list.marginCommands.length, render };
     },
   };
 }

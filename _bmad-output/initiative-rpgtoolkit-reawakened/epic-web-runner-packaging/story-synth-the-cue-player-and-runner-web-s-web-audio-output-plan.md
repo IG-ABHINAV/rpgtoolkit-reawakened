@@ -89,3 +89,11 @@ and the coverage `gate`.
 
 The SoundFont path and bank cache (entry 6), video and the `video` wait (entry 6/entry 7), prefetch tiers (entry 9), the desktop and
 mobile wrappers' audio devices (entry 11, entry 12).
+
+## Close-out record
+
+Merged in PR #989 (merge commit `ce6d105b7`, 2026-10-31). Verified in the
+committed browser lane: `tools/browser/tests/audio.spec.ts` asserts analyser
+non-silent energy, the fixture's own duration, locked-then-unlocked join and
+the 15-tick drop. Ledger entry reconciled to closed issue #930 in the
+2026-11-03 ticket audit.

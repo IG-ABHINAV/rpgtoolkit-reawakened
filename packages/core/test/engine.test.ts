@@ -1,7 +1,9 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { TextEncoder } from "node:util";
 import { test } from "node:test";
-import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
+import { addActor, applyEmitterOp, assetKey, IR_VERSION, createAssetIndex, createEmptyBoard, createEmptyCharacter, createEmptyMainFile, createEngine, decodeSurfaceBytes, ENGINE_DEFAULT_MANIFEST, ENGINE_PHASES, ENGINE_PLUGIN_TABLE, encodeSurfaceBytes, hashGameState, PACKAGE_ROOT, rasterizePresentation, readSurfacePixels, TILE_BITMAP_MAGIC, writeBoard, writeCharacter, writeMainFile, writeTileBitmap, writeTileset, type Board, type CommandView, type DrawCommand, type EffectRecord, type Engine, type EnginePhaseRegistration, type GameState, type PackageCatalogueEntry, type PluginDefinition, type RasterSurfaces, type ResolvedPlugin, type SurfaceId } from "../src/index.ts";
+import { applyUiEffect } from "../src/script/packs/ui.ts";
+import { resetUiForProgramStart } from "../src/save/sections/ui.ts";
 import { resolveManifestPlugins } from "../src/engine/boot.ts";
 import { ensureScriptScreen, SCRIPT_SCREEN } from "../src/raster/surfaces.ts";
 
@@ -49,7 +51,12 @@ test("engine queues non-asset inputs while loading and respects consuming ticks"
   equal(afterFailure.consumed[0]?.event.kind, "key");
 });
 
-function loadedEngine(registrations: Parameters<typeof createEngine>[0]["phaseRegistrations"] = []) {
+function loadedEngine(
+  registrations: Parameters<typeof createEngine>[0]["phaseRegistrations"] = [],
+  input?: Parameters<typeof createEngine>[0]["input"],
+  displayGeometry?: Parameters<typeof createEngine>[0]["displayGeometry"],
+  program?: string,
+) {
   const board = createEmptyBoard();
   const encoded = writeBoard(board);
   if (!encoded.ok) throw new Error(encoded.error.message);
@@ -62,14 +69,721 @@ function loadedEngine(registrations: Parameters<typeof createEngine>[0]["phaseRe
     height: 32,
     maxTicks: 60,
     phaseRegistrations: registrations,
+    ...(input === undefined ? {} : { input }),
+    ...(displayGeometry === undefined ? {} : { displayGeometry }),
+    ...(program === undefined ? {} : { program }),
   });
   const first = engine.advance(0, []);
   const request = first.requests[0];
-  if (request?.kind !== "asset") throw new Error("expected board asset request");
+  if (request?.kind !== "asset") throw new Error("expected test board asset request");
   const loaded = engine.advance(0, [{ tick: 0, event: { kind: "asset", reqId: request.reqId, bytes: encoded.value } }]);
   if (loaded.loading) throw new Error("expected authored board to load");
   return engine;
 }
+
+test("pointer cancellation before a focus-loss tick cannot activate a button slot", () => {
+  const capture = captureState();
+  const button = { id: "primary", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true };
+  const engine = loadedEngine([capture.registration], { buttons: [button] });
+
+  const interrupted = engine.advance(0, [
+    { tick: 0, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 0, event: { kind: "pointer.cancel" } },
+    { tick: 0, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(interrupted.ticksRun, 0);
+
+  engine.advance(0, [
+    { tick: 0, event: { kind: "focus", state: "gained" } },
+    { tick: 0, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+  ]);
+  engine.advance(1, []);
+  const cancelled = capture.state();
+  if (cancelled === undefined) throw new Error("expected captured game state");
+  equal(cancelled.input.pointer.buttons & 1, 0);
+  equal(cancelled.input.pressedButtonSlot, null);
+  equal(cancelled.input.pendingActions.includes("confirm"), false);
+  equal(cancelled.input.keys.some((key) => key.action === "slot:primary"), false);
+
+  const realDown = engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  equal(realDown.ticksRun, 1);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const activated = capture.state();
+  if (activated === undefined) throw new Error("expected captured game state");
+  equal(activated.input.keys.filter((key) => key.action === "slot:primary").length, 1);
+  equal(activated.input.pendingActions.filter((action) => action === "confirm").length, 1);
+});
+
+test("ordinary pointer down and up activates an enabled button slot once", () => {
+  const capture = captureState();
+  const button = { id: "primary", x: 0, y: 0, w: 10, h: 10, action: "confirm", enabled: true };
+  const engine = loadedEngine([capture.registration], { buttons: [button] });
+  engine.advance(1, [{ tick: 0, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.input.keys.filter((key) => key.action === "slot:primary").length, 1);
+  equal(state.input.pendingActions.filter((action) => action === "confirm").length, 1);
+});
+test("same-tick gamepad confirm transitions activate the published author surface", () => {
+  const capture = captureState();
+  const surface: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "touch", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Confirm", "confirm", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surface]);
+  engine.advance(1, []);
+  const result = engine.advance(1, [
+    { tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } },
+    { tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 } },
+  ]);
+  equal(result.ticksRun, 1);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated?.itemId, "confirm", "the down edge is routed before the same-tick up edge");
+  equal(state.input.actions.confirm, false, "the short gamepad tap is released by the end of the input batch");
+});
+test("an active engine modal owns confirm before an underlying author surface", () => {
+  const capture = captureState();
+  const surface: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "touch", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Confirm", "confirm", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+      state.ui.modal = {
+        modalId: state.ui.nextModalId++,
+        kind: "msgbox",
+        text: "Modal",
+        title: "",
+        style: 0,
+        textColor: { r: 255, g: 255, b: 255 },
+        background: { r: 0, g: 0, b: 0 },
+        graphic: "",
+        selected: 0,
+        result: null,
+      };
+    },
+  };
+  const engine = loadedEngine([capture.registration, surface]);
+  engine.advance(1, []);
+  engine.advance(1, [
+    { tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } },
+  ]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated, null);
+});
+test("author surface margin hit-testing uses safe whole cells", () => {
+  const capture = captureState();
+  const surface: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "touch", "surface", -4, 0, 4, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Go", "go", null, 1, null, "confirm", null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const geometry = {
+    content: { width: 64, height: 32 },
+    game: { x: 16, y: 0, width: 32, height: 32 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const engine = loadedEngine([capture.registration, surface], undefined, geometry);
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: -2, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: -2, y: 5, buttons: 0 } }]);
+  const activated = capture.state();
+  if (activated === undefined) throw new Error("expected captured game state");
+  equal(activated.ui.surfaceActivated?.index, 0);
+  equal(activated.input.pendingActions.filter((action) => action === "confirm").length, 1);
+
+  const clippedCapture = captureState();
+  const clipped = loadedEngine([clippedCapture.registration, surface], undefined, {
+    ...geometry,
+    safeArea: { ...geometry.safeArea, left: 14 },
+  });
+  clipped.advance(1, []);
+  clipped.advance(1, [{ tick: 1, event: { kind: "pointer", x: -2, y: 5, buttons: 1 } }]);
+  clipped.advance(1, [{ tick: 2, event: { kind: "pointer", x: -3, y: 5, buttons: 0 } }]);
+  const refused = clippedCapture.state();
+  if (refused === undefined) throw new Error("expected captured game state");
+  equal(refused.ui.surfaceActivated, null);
+  equal(refused.input.pendingActions.filter((action) => action === "confirm").length, 0);
+});
+test("screen vector primitives crossing Plane 1 enter margin commands and render at their physical margin pixels", () => {
+  const capture = captureState();
+  const geometry = {
+    content: { width: 34, height: 32 },
+    game: { x: 1, y: 0, width: 32, height: 32 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const engine = loadedEngine([capture.registration], undefined, geometry, [
+    "drawline(-2, 1, 2, 1)",
+    "drawrect(-1, 4, 3, 7)",
+    "setpixel(32, 0)",
+    "fillrect(31, 8, 33, 10)",
+    "drawcircle(1, 14, 2)",
+    "fillcircle(1, 20, 2)",
+    "threadSleep(getThreadId(), 60)",
+  ].join("\n"));
+  engine.advance(1, []);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  deepEqual(state.ui.authorMarginCommands.map((command) => command.kind), ["line", "rect", "line", "rect", "line", "rect"]);
+  const stateHashBeforeDraw = hashGameState(state);
+  const drawList = engine.drawList();
+  equal(drawList.marginCommands.length, 1, "the authored vector run lowers to one bounded AD-3 pixel blit");
+  if (drawList.marginCommands[0]?.kind !== "blit") throw new Error("expected lowered margin snapshot");
+  deepEqual(engine.drawList(), drawList, "repeating a draw-list build produces the same synthetic source identity and pixels");
+  equal(hashGameState(state), stateHashBeforeDraw, "render-only lowering does not mutate hashed simulation state");
+  const surfaces = new Map() as RasterSurfaces;
+  surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+  const rendered = rasterizePresentation(drawList, geometry, new Map(), surfaces);
+  equal(rendered.error, null);
+  const alphaAt = (x: number, y: number): number => rendered.rgba[(y * rendered.width + x) * 4 + 3]!;
+  equal(alphaAt(0, 1), 255); // drawline, logical x=-1
+  equal(alphaAt(0, 5), 255); // drawrect, logical x=-1
+  equal(alphaAt(33, 0), 255); // setpixel, logical x=32
+  equal(alphaAt(33, 9), 255); // fillrect, logical x=32
+  equal(alphaAt(0, 14), 255); // drawcircle, logical x=-1
+  equal(alphaAt(0, 13), 0, "radius-2 outline does not extend diagonally into the margin");
+  equal(alphaAt(1, 13), 255, "the screen circle's same row is unchanged");
+  equal(alphaAt(0, 19), 0, "radius-2 fill does not create a margin seam");
+  equal(alphaAt(0, 20), 255); // fillcircle, logical x=-1
+  const source = drawList.marginCommands[0];
+  if (source?.kind !== "blit" || !("surface" in source.source)) throw new Error("expected generated surface reference");
+  const resizedGeometry = { ...geometry, content: { width: 35, height: 32 } };
+  engine.advance(1, [{ tick: 1, event: { kind: "host.display", geometry: resizedGeometry } }]);
+  const resizedList = engine.drawList();
+  const resizedSource = resizedList.marginCommands[0];
+  if (resizedSource?.kind !== "blit" || !("surface" in resizedSource.source)) throw new Error("expected resized generated surface reference");
+  equal(resizedSource.source.surface, source.source.surface);
+  equal(resizedSource.source.rev === source.source.rev, false, "different generated pixels receive a different revision");
+  equal(engine.surfacePixels(source.source.surface, source.source.rev), null, "an asynchronous lookup of the stale list fails closed, never resolves to newer pixels");
+  if (engine.surfacePixels(resizedSource.source.surface, resizedSource.source.rev) === null) throw new Error("expected current generated pixels");
+});
+
+test("screen-target canvas blits retain source pixels for Plane 3 rendering and respect safe-area clipping", () => {
+  const geometry = {
+    content: { width: 36, height: 32 },
+    game: { x: 2, y: 0, width: 32, height: 32 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const engine = loadedEngine([], undefined, geometry, [
+    "createcanvas(2, 1, c)",
+    "setpixel(0, 0, c)",
+    "setpixel(1, 0, c)",
+    "drawcanvas(c, -1, 0)",
+    "drawcanvastransparent(c, -1, 2, 255, 255, 255)",
+    "canvasdrawpart(c, -1, 4, 1, 0, 1, 1)",
+    "clear(c)",
+    "killcanvas(c)",
+    "threadSleep(getThreadId(), 60)",
+  ].join("\n"));
+  engine.advance(1, []);
+  const drawList = engine.drawList();
+  equal(drawList.marginCommands.length, 1);
+  const lowered = drawList.marginCommands[0];
+  if (lowered?.kind !== "blit" || !("surface" in lowered.source)) throw new Error("expected a lowered surface snapshot blit");
+  const surfaces = new Map() as RasterSurfaces;
+  surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+  const raster = rasterizePresentation(drawList, geometry, new Map(), surfaces);
+  equal(raster.error, null);
+  const alphaAt = (x: number, y: number): number => raster.rgba[(y * raster.width + x) * 4 + 3]!;
+  equal(alphaAt(1, 0), 255, "the blit crossing the left edge is visible in the margin");
+  equal(alphaAt(2, 0), 255, "the in-game part is rendered by the legacy screen layer");
+  equal(alphaAt(1, 4), 255, "a source-cropped canvas blit is visible in the margin");
+
+  const interior = loadedEngine([], undefined, geometry, [
+    "createcanvas(2, 1, c)",
+    "setpixel(0, 0, c)",
+    "drawcanvas(c, 0, 0)",
+    "threadSleep(getThreadId(), 60)",
+  ].join("\n"));
+  interior.advance(1, []);
+  equal(interior.drawList().marginCommands.length, 0);
+
+  const clippedGeometry = { ...geometry, safeArea: { ...geometry.safeArea, left: 2 } };
+  const clipped = loadedEngine([], undefined, clippedGeometry, [
+    "createcanvas(2, 1, c)",
+    "setpixel(0, 0, c)",
+    "drawcanvas(c, -1, 0)",
+    "threadSleep(getThreadId(), 60)",
+  ].join("\n"));
+  clipped.advance(1, []);
+  const clippedSurfaces = new Map() as RasterSurfaces;
+  clippedSurfaces.get = (surface: SurfaceId, revision: number = 0) => clipped.surfacePixels(surface, revision) ?? undefined;
+  const clippedRaster = rasterizePresentation(clipped.drawList(), clippedGeometry, new Map(), clippedSurfaces);
+  equal(clippedRaster.error, null);
+  equal(clippedRaster.rgba[(0 * clippedGeometry.content.width + 1) * 4 + 3], 0, "safe-area clipping suppresses the margin blit");
+});
+test("refresh requests images referenced only by retained margin blits", () => {
+  const board = writeBoard(createEmptyBoard());
+  if (!board.ok) throw new Error(board.error.message);
+  const image = assetKey("bitmaps/retained.bmp");
+  const tileBitmap = assetKey("bitmaps/retained.tbm");
+  const command: DrawCommand = {
+    kind: "blit",
+    source: { asset: image, tile: null },
+    src: { x: 0, y: 0, w: 1, h: 1 },
+    dst: { x: -1, y: 0, w: 1, h: 1 },
+    key: null,
+    tint: { r: 0, g: 0, b: 0 },
+    alpha: 255,
+    blend: "normal",
+    iso2d: false,
+  };
+  const registration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      if (state.time.tick === 0) state.ui.authorMarginCommands.push(command, {
+        ...command,
+        source: { asset: tileBitmap, tile: 1 },
+        dst: { x: -2, y: 0, w: 1, h: 1 },
+      });
+    },
+  };
+  const engine = loadedEngine([registration], undefined, undefined, "threadSleep(getThreadId(), 60)");
+  const refreshed = engine.advance(1, []);
+  if (!refreshed.requests.some((request) => request.kind === "asset" && request.key === image)) throw new Error("retained margin image dependency was not requested");
+  if (!refreshed.requests.some((request) => request.kind === "asset" && request.key === tileBitmap)) throw new Error("retained margin tile-bitmap dependency was not requested");
+});
+
+test("author surfaces remain live through the next input frame then expire with unfinished builders", () => {
+  const capture = captureState();
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      if (state.time.tick !== 0) return;
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+      applyUiEffect(state, "uiBegin", [7, "unfinished", "menu", 0, 0, 16, 16, 1]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surfaceRegistration]);
+  engine.advance(1, []);
+  const published = capture.state();
+  if (published === undefined) throw new Error("expected captured game state");
+  equal(published.ui.actionSurfaces.length, 1);
+  equal(published.ui.surfaceBuilders.length, 0);
+
+  engine.advance(1, [
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+  ]);
+  const activated = capture.state();
+  if (activated === undefined) throw new Error("expected captured game state");
+  equal(activated.ui.surfaceActivated?.index, 0);
+  equal(activated.ui.actionSurfaces.length, 0);
+  equal(activated.ui.surfaceBuilders.length, 0);
+
+  engine.advance(1, [
+    { tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+  ]);
+  equal(activated.ui.surfaceActivated, null);
+});
+
+
+test("unknown author actions remain inert with one diagnostic", () => {
+  const capture = captureState();
+  const program = [
+    'uiBegin("combat", "surface", 0, 0, 16, 16)',
+    'uiItem("Fire", { id: "fire", action: "game.missing" })',
+    'uiItem("Ice", { id: "ice", action: "game.missing" })',
+    "uiEnd()",
+    "end()",
+    "",
+  ].join("\n");
+  const engine = loadedEngine([capture.registration], undefined, undefined, program);
+  const published = engine.advance(1, []);
+  equal(published.diagnostics.filter((diagnostic) => diagnostic.code === "input.unknown-action").length, 1);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.input.pendingActions.includes("game.missing"), false);
+  equal(state.input.keys.some((key) => key.action === "game.missing"), false);
+});
+
+test("invalid author item actions drop the surface with one A11Y refusal", () => {
+  const program = [
+    'uiBegin("broken", "surface", 0, 0, 16, 16)',
+    'uiItem("Broken", { id: "broken", action: "not-an-action" })',
+    "uiEnd()",
+    "end()",
+    "",
+  ].join("\n");
+  const engine = loadedEngine([], undefined, undefined, program);
+  const report = engine.advance(1, []);
+  equal(report.diagnostics.filter((diagnostic) => diagnostic.code === "a11y.surface").length, 1);
+  equal(engine.accessibilityTree().length, 0);
+});
+
+test("Engine touch-control query requires the explicit declaration command", () => {
+  const registration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      if (state.time.tick === 0) {
+        applyUiEffect(state, "uiBegin", [7, "title", "menu", 0, 0, 16, 16, 1]);
+        applyUiEffect(state, "uiItem", [7, "Play", "play", null, 1, null, null, null, 1]);
+        applyUiEffect(state, "uiEnd", [7]);
+      } else {
+        applyUiEffect(state, "declareCustomTouchControls", []);
+      }
+    },
+  };
+  const engine = loadedEngine([registration]);
+  equal(engine.customTouchControlsDeclared(), false);
+  engine.advance(1, []);
+  equal(engine.customTouchControlsDeclared(), false);
+  engine.advance(1, []);
+  equal(engine.customTouchControlsDeclared(), true);
+});
+
+test("pointer preemption query is read-only and follows modal and author UI priority", () => {
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Author target", "author-target", null, 1, null, null, null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([surfaceRegistration]);
+  engine.advance(1, []);
+  const before = JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() });
+  equal(engine.runnerControlPointerPreemption(5, 5), "author");
+  equal(engine.runnerControlPointerPreemption(17, 17), null);
+  equal(JSON.stringify({ draw: engine.drawList(), tree: engine.accessibilityTree() }), before, "preflight does not mutate or hash simulation state");
+
+  const modal = programEngine('msgbox("Modal")\nend()', []);
+  modal.advance(1, []);
+  equal(modal.runnerControlPointerPreemption(300, 200), 1, "an active modal preempts a fallback target regardless of the point");
+});
+test("fallback modal actions are claimed only by their captured modal after earlier same-tick key input", () => {
+  const engine = programEngine('first = msgbox("Modal A")\nsecond = msgbox("Modal B")\nend()', []);
+  engine.advance(1, []);
+  equal(engine.runnerControlPointerPreemption(300, 200), 1);
+  engine.advance(1, [
+    { tick: 1, event: { kind: "key", name: "ENTER", code: "Enter", char: null, down: true } },
+    { tick: 1, event: { kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: 1 } },
+    { tick: 1, event: { kind: "action", action: "confirm", down: false, source: "runner.fallback", modalId: 1 } },
+  ]);
+  equal(engine.runnerControlPointerPreemption(300, 200), 2);
+  engine.advance(1, []);
+  equal(engine.runnerControlPointerPreemption(300, 200), 2, "stale A confirmation cannot dismiss B");
+});
+
+
+test("default Enter and Escape claims prevent Get from reading the same key", () => {
+  for (const key of ["Enter", "Escape"] as const) {
+    const capture = captureState();
+    const condition = key === "Enter" ? "if (uiActivated() >= 0) { answer = Get() }" : "if (uiCancelled() == 1) { answer = Get() }";
+    const engine = programEngine([
+      'uiBegin("title", "menu", 0, 0, 16, 16)',
+      'uiItem("Play")',
+      'uiEnd()',
+      'sleep(1)',
+      condition,
+      'end()',
+    ].join("\n"), [capture.registration]);
+    engine.advance(1, []);
+    engine.advance(1, [{ tick: 1, event: { kind: "key", name: key, code: key, char: null, down: true } }]);
+    const state = capture.state();
+    if (state === undefined) throw new Error("expected captured game state");
+    const action = key === "Enter" ? "confirm" : "cancel";
+    const sequence = state.engine.claims?.[0];
+    if (sequence === undefined) throw new Error(`expected ${action} claim sequence`);
+    equal(state.engine.claims?.includes(sequence), true, `${key} author claim must consume its key sequence`);
+    equal(state.vm.globals.answer, "", `Get must not read the ${key} sequence claimed by the author surface`);
+  }
+});
+test("semantic confirm claims the author surface key once across independent sources", () => {
+  const capture = captureState();
+  let input: { sequence: number | null; keys: number[]; held: boolean } | undefined;
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)', 'uiItem("Play")', "uiEnd()", "sleep(1)",
+    "activated = uiActivated()", "after = Get()", "end()",
+  ].join("\n"), [capture.registration, { phase: "input", run: (state) => {
+    input = { sequence: state.ui.surfaceActivated?.inputSeq ?? null,
+      keys: state.input.keys.filter((key) => key.name === "confirm").map((key) => key.seq),
+      held: state.input.actions.confirm === true };
+  } }]);
+  engine.advance(1, []);
+  engine.advance(1, [
+    { tick: 1, event: { kind: "action", action: "confirm", source: "touch:a", down: true, modalId: null } },
+    { tick: 1, event: { kind: "action", action: "confirm", source: "touch:b", down: true, modalId: null } },
+    { tick: 1, event: { kind: "action", action: "confirm", source: "touch:a", down: false, modalId: null } },
+  ]);
+  const state = capture.state();
+  if (state === undefined || input === undefined) throw new Error("expected captured input");
+  deepEqual(input.keys, [1], "only the aggregate press emits a compatibility key");
+  equal(state.vm.globals.activated, 0, "the script observes author activation");
+  equal(state.vm.globals.after, "", "Get cannot consume the author-claimed semantic key");
+  equal(input.sequence, 1, "the author activation carries that key's sequence");
+  equal(input.held, true, "the second source still owns confirm");
+  equal(state.engine.claims?.includes(1), true);
+  engine.advance(1, [{ tick: 2, event: { kind: "action", action: "confirm", source: "touch:b", down: false, modalId: null } }]);
+  equal(state.input.actions.confirm, false, "the last source releases the action");
+});
+
+test("gamepad confirm claims its author surface key while another source holds the action", () => {
+  const capture = captureState();
+  let input: { sequence: number | null; keys: number[]; held: boolean } | undefined;
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)', 'uiItem("Play")', "uiEnd()", "sleep(1)",
+    "activated = uiActivated()", "after = Get()", "end()",
+  ].join("\n"), [capture.registration, { phase: "input", run: (state) => {
+    input = { sequence: state.ui.surfaceActivated?.inputSeq ?? null,
+      keys: state.input.keys.filter((key) => key.name === "confirm").map((key) => key.seq),
+      held: state.input.actions.confirm === true };
+  } }]);
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 } }]);
+  const state = capture.state();
+  if (state === undefined || input === undefined) throw new Error("expected captured input");
+  deepEqual(input.keys, [1], "the physical press emits one compatibility key");
+  equal(state.vm.globals.after, "", "Get cannot consume the author-claimed gamepad key");
+  equal(state.vm.globals.activated, 0, "the script observes author activation");
+  equal(input.sequence, 1, "the author activation carries the gamepad key's sequence");
+  equal(state.engine.claims?.includes(1), true);
+  engine.advance(1, [{ tick: 2, event: { kind: "action", action: "confirm", source: "touch", down: true, modalId: null } }]);
+  equal(state.input.actions.confirm, true);
+  engine.advance(1, [{ tick: 3, event: { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 0 } }]);
+  equal(state.input.actions.confirm, true, "the semantic source keeps confirm held after pad release");
+  equal(state.input.keys.filter((key) => key.name === "confirm").length, 0, "the second source did not emit a new press");
+  engine.advance(1, [{ tick: 4, event: { kind: "action", action: "confirm", source: "touch", down: false, modalId: null } }]);
+  equal(state.input.actions.confirm, false, "the final source releases confirm");
+});
+
+test("an author tap flushed before blur survives until the resumed script reads uiActivated", () => {
+  const capture = captureState();
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)',
+    'uiItem("Play")',
+    'uiEnd()',
+    'sleep(1)',
+    'activated = uiActivated()',
+    'end()',
+  ].join("\n"), [capture.registration]);
+  engine.advance(1, []);
+  const blurred = engine.advance(1, [
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+    { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+    { tick: 1, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(blurred.ticksRun, 0);
+  const paused = capture.state();
+  if (paused === undefined) throw new Error("expected captured game state");
+  equal(paused.ui.surfaceActivated?.index, 0);
+  equal(paused.ui.surfaceResultsPending, true, "the paused activation has a persisted lifecycle marker");
+  equal(paused.input.pointer.buttons & 1, 0, "blur still releases the pointer hold");
+
+  engine.advance(0, [{ tick: 1, event: { kind: "focus", state: "gained" } }]);
+  engine.advance(1, []);
+  const resumed = capture.state();
+  if (resumed === undefined) throw new Error("expected resumed game state");
+  equal(resumed.vm.globals.activated, 0, "the resumed script reads the pre-blur activation");
+  equal(resumed.ui.surfaceActivated, null, "uiActivated consumes the one-shot result");
+});
+test("a pre-blur author cancellation survives until the resumed script reads uiCancelled", () => {
+  const capture = captureState();
+  const engine = programEngine([
+    'uiBegin("title", "menu", 0, 0, 16, 16)',
+    'uiItem("Play")',
+    'uiEnd()',
+    'sleep(1)',
+    'if (uiCancelled() == 1) { cancelled = 1 } else { cancelled = 0 }',
+    'end()',
+  ].join("\n"), [capture.registration]);
+  engine.advance(1, []);
+  const blurred = engine.advance(1, [
+    { tick: 1, event: { kind: "key", name: "ESCAPE", code: "Escape", char: null, down: true } },
+    { tick: 1, event: { kind: "focus", state: "lost" } },
+  ]);
+  equal(blurred.ticksRun, 0);
+  const paused = capture.state();
+  if (paused === undefined) throw new Error("expected captured game state");
+  equal(paused.ui.surfaceCancelled, true);
+
+  engine.advance(0, [{ tick: 1, event: { kind: "focus", state: "gained" } }]);
+  engine.advance(1, []);
+  const resumed = capture.state();
+  if (resumed === undefined) throw new Error("expected resumed game state");
+  equal(resumed.vm.globals.cancelled, 1, "the resumed script reads the pre-blur cancellation");
+  equal(resumed.ui.surfaceCancelled, false, "uiCancelled consumes the one-shot result");
+});
+test("debugger stepping and uninterrupted resume consume a pre-blur activation at the same thread boundary", () => {
+  const source = [
+    'uiBegin("title", "menu", 0, 0, 16, 16)',
+    'uiItem("Play")',
+    'uiEnd()',
+    'sleep(1)',
+    'activated = uiActivated()',
+    'end()',
+  ].join("\n");
+  const baselineCapture = captureState();
+  const baseline = programEngine(source, [baselineCapture.registration]);
+  const debugCapture = captureState();
+  const debugged = programEngine(source, [debugCapture.registration]);
+  for (const engine of [baseline, debugged]) {
+    engine.advance(1, []);
+    engine.advance(1, [
+      { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } },
+      { tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } },
+      { tick: 1, event: { kind: "focus", state: "lost" } },
+    ]);
+    engine.advance(0, [{ tick: 1, event: { kind: "focus", state: "gained" } }]);
+  }
+  const uninterrupted = baseline.advance(1, []);
+  debugged.setBreakpoints([{ file: "<inline>", line: 5 }]);
+  const stopped = debugged.advance(1, []);
+  equal(stopped.ticksRun, 0);
+  equal(stopped.paused?.line, 5);
+  const stoppedState = debugCapture.state();
+  if (stoppedState === undefined) throw new Error("expected captured debugger state");
+  equal(stoppedState.ui.surfaceResultsPending, true, "a breakpoint does not expire the pending result");
+  const stepped = debugged.advance(0, [], undefined, "step");
+  equal(stepped.paused?.thread, 1);
+  const afterStep = debugCapture.state();
+  if (afterStep === undefined) throw new Error("expected captured stepped state");
+  equal(afterStep.ui.surfaceResultsPending, true, "a partial step does not cross the thread-pass boundary");
+  equal(afterStep.vm.globals.activated, 0, "the stepped continuation consumes the activation");
+  const resumed = debugged.advance(0, [], undefined, "continue");
+  equal(resumed.paused, null);
+  const completed = debugCapture.state();
+  if (completed === undefined) throw new Error("expected completed debugger state");
+  equal(completed.ui.surfaceResultsPending, false, "the marker clears only when the open thread pass completes");
+  equal(resumed.stateHash, uninterrupted.stateHash, "debugger and uninterrupted execution produce the same final state");
+});
+
+
+
+test("author surface release dispatches its registered action once without click leakage", () => {
+  const capture = captureState();
+  const surfaceRegistration: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, "game.dash", null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surfaceRegistration]);
+  equal(engine.registerGameAction({
+    name: "game.dash",
+    label: "Dash",
+    icon: null,
+    group: null,
+    controls: [],
+    locked: false,
+    hidden: false,
+  }), true);
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated?.index, 0);
+  equal(state.ui.surfaceActivated?.inputSeq, state.input.keys.find((key) => key.action === "game.dash")?.seq);
+  equal(state.input.pendingActions.filter((action) => action === "game.dash").length, 1);
+  equal(state.input.keys.filter((key) => key.action === "game.dash").length, 1);
+  equal(state.input.pendingClicks.length, 0);
+  equal(state.input.pendingPointerUps.length, 0);
+});
+test("author pointer cancellation stays sticky and reset or modal release cannot strand movement suppression", () => {
+  for (const interruption of ["drag", "reset", "modal"] as const) {
+    const capture = captureState();
+    const surfaceRegistration: EnginePhaseRegistration = {
+      phase: "animation",
+      run: (state) => {
+        if (state.time.tick === 0 || interruption === "drag") {
+          applyUiEffect(state, "uiBegin", [7, "combat", "surface", 0, 0, 16, 16, 1]);
+          applyUiEffect(state, "uiItem", [7, "Dash", "dash", null, 1, null, "game.dash", null, 1]);
+          applyUiEffect(state, "uiEnd", [7]);
+        } else if (state.time.tick === 1 && interruption === "reset") {
+          resetUiForProgramStart(state.ui, () => {});
+        } else if (state.time.tick === 1 && interruption === "modal") {
+          state.ui.modal = { modalId: state.ui.nextModalId++, kind: "msgbox", text: "Notice", title: "", style: 0, textColor: { r: 255, g: 255, b: 255 }, background: { r: 0, g: 0, b: 0 }, graphic: "", selected: 0, result: null };
+        } else if (state.time.tick === 2 && interruption === "modal") {
+          state.ui.modal = null;
+        }
+      },
+    };
+    const engine = loadedEngine(
+      [capture.registration, surfaceRegistration],
+      { buttons: [{ id: "confirm", x: 20, y: 20, w: 8, h: 8, action: "confirm", enabled: true }] },
+    );
+    engine.advance(1, []);
+    engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+    if (interruption === "drag") {
+      engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 25, y: 25, buttons: 1 } }]);
+      const left = capture.state();
+      if (left === undefined) throw new Error("expected captured drag-out state");
+      equal(left.ui.surfacePointerClaim?.cancelled, true);
+      engine.advance(1, [{ tick: 3, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+      const returned = capture.state();
+      if (returned === undefined) throw new Error("expected captured drag-return state");
+      equal(returned.ui.surfacePointerClaim?.cancelled, true);
+      engine.advance(1, [{ tick: 4, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+    } else {
+      engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+    }
+    const releaseTick = interruption === "drag" ? 4 : 2;
+    const released = capture.state();
+    if (released === undefined) throw new Error("expected captured game state");
+    equal(released.input.pointerMovementSuppressed, false, `${interruption} release restores movement`);
+    equal(released.ui.surfacePointerClaim, null, `${interruption} release clears the held claim`);
+    equal(released.ui.surfaceActivated, null, `${interruption} cannot activate the interrupted surface`);
+    engine.advance(1, [{ tick: releaseTick + 1, event: { kind: "pointer", x: 21, y: 21, buttons: 1 } }]);
+    engine.advance(1, [{ tick: releaseTick + 2, event: { kind: "pointer", x: 21, y: 21, buttons: 0 } }]);
+    const clicked = capture.state();
+    if (clicked === undefined) throw new Error("expected captured gameplay click");
+    equal(clicked.input.keys.some((entry) => entry.action === "slot:confirm"), true, `${interruption} does not block the next gameplay click`);
+  }
+});
+
+
+test("overlapping author surfaces hit the topmost published item", () => {
+  const capture = captureState();
+  const surfaces: EnginePhaseRegistration = {
+    phase: "animation",
+    run: (state) => {
+      applyUiEffect(state, "uiBegin", [7, "lower", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [7, "Lower", "lower-item", null, 1, null, "game.lower", null, 1]);
+      applyUiEffect(state, "uiEnd", [7]);
+      applyUiEffect(state, "uiBegin", [8, "upper", "surface", 0, 0, 16, 16, 1]);
+      applyUiEffect(state, "uiItem", [8, "Upper", "upper-item", null, 1, null, "game.upper", null, 1]);
+      applyUiEffect(state, "uiEnd", [8]);
+    },
+  };
+  const engine = loadedEngine([capture.registration, surfaces]);
+  for (const name of ["game.lower", "game.upper"]) {
+    equal(engine.registerGameAction({
+      name,
+      label: name,
+      icon: null,
+      group: null,
+      controls: [],
+      locked: false,
+      hidden: false,
+    }), true);
+  }
+  engine.advance(1, []);
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 5, y: 5, buttons: 1 } }]);
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 5, y: 5, buttons: 0 } }]);
+  const state = capture.state();
+  if (state === undefined) throw new Error("expected captured game state");
+  equal(state.ui.surfaceActivated?.owner, 8);
+  deepEqual(state.input.pendingActions.filter((action) => action.startsWith("game.")), ["game.upper"]);
+});
 
 test("createEngine routes actor alias writes through package behaviour hooks", () => {
   const plugin: ResolvedPlugin = {
@@ -869,6 +1583,81 @@ test("image graphics command families apply exact decoded pixels", () => {
   deepEqual(pixelsAfter('setimagetransparent("pixel.bmp", 0, 0, 2, 1, 255, 0, 0, c)').slice(0, 8), new Uint8Array([0, 0, 0, 0, 0, 255, 0, 255]));
   deepEqual(pixelsAfter('setimagetranslucent("pixel.bmp", 0, 0, 2, 1, c)').slice(0, 8), new Uint8Array([128, 0, 0, 255, 0, 128, 0, 255]));
   deepEqual(pixelsAfter('setimageadditive("pixel.bmp", 0, 0, 2, 1, 50, c)').slice(0, 8), new Uint8Array([127, 0, 0, 255, 0, 127, 0, 255]));
+});
+
+test("screen-target image blits render crossing/exterior pixels and obey safe-area clipping", () => {
+  const texture = { w: 2, h: 1, rgba: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255]) };
+  const geometry = {
+    content: { width: 4, height: 2 },
+    game: { x: 1, y: 0, width: 2, height: 2 },
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const render = (x: number, safeLeft = 0, effect = "setimage", extraArgs = "", prefix = "") => {
+    const board = authoredBoard();
+    const engine = createEngine({
+      seed: 19,
+      assetIndex: createAssetIndex(["Boards/test.brd", "Bitmap/pixel.bmp"]),
+      assetRoot: PACKAGE_ROOT,
+      initialBoard: "test.brd",
+      width: 2,
+      height: 2,
+      maxTicks: 20,
+      displayGeometry: { ...geometry, safeArea: { ...geometry.safeArea, left: safeLeft } },
+      program: `${prefix}${effect}("pixel.bmp", ${x}, 0, 2, 1${extraArgs})\nthreadSleep(getThreadId(), 60)\n`,
+    });
+    let result = engine.advance(0, []);
+    let imageProvided = false;
+    for (let step = 0; step < 8; step += 1) {
+      const events = result.requests
+        .filter((request) => request.kind === "asset")
+        .map((request) => {
+          if (request.key === "bitmap/pixel.bmp") imageProvided = true;
+          return {
+            tick: result.tickAfter,
+            event: {
+              kind: "asset" as const,
+              reqId: request.reqId,
+              bytes: request.key === "boards/test.brd" ? board : authoredBmp(),
+            },
+          };
+        });
+      result = engine.advance(1, events);
+      if (imageProvided && result.requests.length === 0 && !result.loading) break;
+    }
+    const surfaces = new Map() as RasterSurfaces;
+    surfaces.get = (surface: SurfaceId, revision: number = 0) => engine.surfacePixels(surface, revision) ?? undefined;
+    const assets = new Map([[assetKey("bitmap/pixel.bmp"), texture]]);
+    const raster = rasterizePresentation(engine.drawList(), { ...geometry, safeArea: { ...geometry.safeArea, left: safeLeft } }, assets, surfaces);
+    equal(raster.error, null);
+    return { engine, raster };
+  };
+
+  const crossing = render(-1);
+  equal(crossing.engine.drawList().marginCommands.length, 1);
+  deepEqual([...crossing.raster.rgba.slice(0, 4)], [255, 0, 0, 255], "the exterior half of the image is rendered");
+  deepEqual([...crossing.raster.rgba.slice(4, 8)], [0, 255, 0, 255], "the interior half is rendered once");
+
+  const exterior = render(-2);
+  equal(exterior.engine.drawList().marginCommands.length, 1);
+  deepEqual([...exterior.raster.rgba.slice(0, 4)], [0, 255, 0, 255]);
+  equal(exterior.raster.rgba[(0 * 4 + 1) * 4], 0, "fully exterior image does not add red pixels to Plane 1");
+  equal(exterior.raster.rgba[(0 * 4 + 1) * 4 + 1], 0, "fully exterior image does not add green pixels to Plane 1");
+
+  const interior = render(0);
+  equal(interior.engine.drawList().marginCommands.length, 0);
+
+  const clipped = render(-1, 1);
+  equal(clipped.raster.rgba[3], 0, "safe-area clipping suppresses the crossing image's margin pixel");
+  deepEqual([...clipped.raster.rgba.slice(4, 8)], [0, 255, 0, 255]);
+  const translucent = render(-1, 0, "setimagetranslucent", "", "fillrect(-1, 0, 0, 1)\n");
+  const loweredTranslucent = translucent.engine.drawList().marginCommands[0];
+  if (loweredTranslucent?.kind !== "blit" || !("surface" in loweredTranslucent.source)) throw new Error("expected lowered translucent margin snapshot");
+  equal(loweredTranslucent.blend, "normal", "the exported Plane 3 command is ordinary AD-3");
+  deepEqual([...translucent.raster.rgba.slice(0, 4)], [255, 127, 127, 255]);
+  deepEqual([...translucent.raster.rgba.slice(4, 8)], [127, 255, 127, 255], "the in-game pixel retains its independent screen composition");
+  const additive = render(-1, 0, "setimageadditive", ", 50");
+  deepEqual([...additive.raster.rgba.slice(0, 4)], [127, 0, 0, 255]);
+  deepEqual([...additive.raster.rgba.slice(4, 8)], [0, 127, 0, 255], "additive author output is captured before the standard AD-3 blit");
 });
 
 test("board preview image pixels are applied after the image reply", () => {

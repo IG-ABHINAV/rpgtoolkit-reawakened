@@ -187,6 +187,12 @@ The first command mirrors story issues and their tracker IDs. The second creates
 5. **Golden files are a record, not a convenience.** A golden is committed output that the suite compares against (G5). `pnpm golden:record`, `pnpm closing:record`, `pnpm dump:record`, `pnpm dump:record:examples` and `pnpm fixtures:author` rewrite them; run one only on purpose, never in CI and never as a side effect, and explain every changed golden in the pull request. If a golden changes and you cannot say why the new output is correct, the code is wrong, not the golden.
 6. **Help text.** Command and help descriptions first say what the command does in plain terms for someone making a game, then describe it exactly (units, ticks, order, whether the script waits). See the working notes in [AGENTS.md](AGENTS.md).
 
+### Prove that evidence tests can fail
+
+A passing test is evidence only if it detects the behavior it claims to cover. For **each new evidence test**, name the claim and make a temporary, targeted change that removes or breaks that behavior; run that test and verify it fails for the claimed reason. Restore the change, rebuild any consumed generated or bundled code, and rerun the same test successfully. Record the mutation, commands and both outcomes in the pull request. A compile error, unrelated failure or stale build is not a successful negative proof. If a perturbation cannot be run, record the blocker and leave the evidence requirement unmet; do not claim the test proves that behavior or merge on that evidence.
+
+When a change compares old and new behavior, keep an explicit old-behavior reference independent of the new implementation and protect it from drifting with the new projection. Preserve any experiment that is the only proof as a committed, repeatable test or tool; a scratch diff or PR-body transcript alone is not durable evidence. Prefer a reachable real-path scenario to an impossible injected state, and state precisely what it does and does not prove.
+
 ## Work in a worktree
 
 Do each piece of work in its own git worktree (a second folder checked out from the same repository). Reason: several people or agents can then work at once without overwriting each other's files, and the checkout you cloned stays exactly as it was.
@@ -274,9 +280,19 @@ The recorded pre-E-02 launch titled its window with the previous state hash; thi
 pnpm desktop:run --package fixtures/packages/demo.tpk
 ```
 
-`pnpm desktop:run` builds the `demo` package when `--package` is absent and passes the player's other flags through unchanged — `--serve <dir>` is the directory pages and data are served from, `--package <file.tpk>` is the game to open, `--page <path>` is the player page, and `--report <file>` / `--quit-after` are for the measurement harness. On Linux a headless machine runs the measurement with `xvfb-run -a pnpm desktop:measure`.
+`pnpm desktop:run` builds the `demo` package when `--package` is absent and passes the player's other flags through unchanged — `--serve <dir>` is the directory pages and data are served from, `--package <file.tpk>` is the game to open, `--page <path>` is the player page, and `--report <file>` is for the measurement harness. Closing the window quits the player on every platform, including macOS, and the command exits with it. On Linux a headless machine runs the measurement with `xvfb-run -a pnpm desktop:measure`.
 
 Two things to expect on a fresh worktree: `pnpm install` can return before Electron's ~100 MB runtime has finished downloading in the background, so a first `desktop:measure` may fail with `ENOENT …/Electron` — wait and re-run; and the last recorded pre-E-02 launch drew the board off-screen. The live interactive loop and a post-E-02 visible desktop run remain unverified. The user-facing version of these steps is [docs/playing-the-desktop-player.md](docs/playing-the-desktop-player.md).
+
+### Run the Android proof
+
+The mobile proof drives the built Capacitor APK on a booted Android device or emulator. It uses Playwright's experimental [Android device and WebView API](https://playwright.dev/docs/api/class-android), rather than a manually forwarded debugging port. It still checks the rendered title and screenshots, trusted canvas touch, rotation, and host-blob presence after force-stop and relaunch; blob presence is not a claim that game state was restored.
+
+Build the debug APK as shown in the mobile job in `.github/workflows/ci.yml`: `pnpm mobile:build` prepares the web assets, then Capacitor sync and Gradle assemble the APK. Start an Android 16 (API 36) emulator and make sure `adb` can see it. Install the Playwright Android driver with `pnpm exec playwright install android`, then run `pnpm mobile:proof`. The Android API uses the default driver-install behavior; do not pass `omitDriverInstall`. With multiple devices, set `ANDROID_SERIAL` to the intended device. The proof resolves the serial through `adb`, uses that same device for Playwright and all later `adb` commands, records the actual Android version and ABI, and disconnects other enumerated devices.
+
+For a non-default ADB server, Playwright uses the same `ANDROID_ADB_SERVER_ADDRESS` and `ANDROID_ADB_SERVER_PORT` as `adb`. A TCP `ADB_SERVER_SOCKET` takes precedence; non-TCP sockets are not supported by Playwright's Android API and fail explicitly. `ADB_SERVER_PORT` alone does not select a server for `adb`.
+
+Attachment retains the three-minute startup deadline and records process and logcat observations in `artifacts/mobile-proof/`. A timed-out, uncancellable Playwright page attachment fails without starting another overlapping attach; ordinary connection failures can retry. Failure evidence and the screenshot deadline remain in effect.
 
 ### The loop while you work
 
@@ -292,25 +308,25 @@ Run `pnpm build` first because packages import each other's built output. Only `
 ## Open the pull request, review and merge
 
 1. Push your branch and open a pull request **against `tk-reawakened/rpgtoolkit-reawakened:main`**. Collaborators with write access can use `git push -u origin <branch>`; everyone else should use [a fork](#contribute-through-a-fork). Fill in [the template](.github/pull_request_template.md): the guard-rail checklist, the spec sections you implement, and any golden changes with the reason.
-2. **CI.** [.github/workflows/ci.yml](.github/workflows/ci.yml) runs these jobs on every pull request: `changes` (the change classifier, below), `checks` (typecheck, lint, licence, provenance, dependency graph, catalogue, command-docs, and tool self-tests), `unit` (a fifteen-shard matrix that fetches the sample games and runs each shard once under the no-skips guard with V8 coverage), `golden`, `script-dogfood`, `golden-bun`, `browser`, `desktop` (Linux, macOS and Windows), `mobile` (an Android emulator), and `gate`. `gate` fails unless every one of those jobs succeeded, merges the fifteen shard LCOV reports into `coverage/lcov.info`, and enforces the repository line and branch coverage thresholds.
-3. **Green before merge.** All checks, gated by `gate`, must pass. The repository ruleset requires the single `gate` check, which lists every job above in its `needs`, so any failed, skipped, or cancelled job blocks the merge. No job is ever skipped: see "What CI does for a prose-only change" below. Every change goes through a reviewed pull request; never push changes straight to `main`.
+2. **CI.** [.github/workflows/ci.yml](.github/workflows/ci.yml) runs these jobs on every pull request: `changes` (the change classifier, below), `checks` (typecheck, lint, licence, provenance, dependency graph, catalogue, command-docs, and tool self-tests), `unit` (a fifteen-shard matrix that fetches the sample games and runs each shard once under the no-skips guard with V8 coverage), `golden`, `script-dogfood`, `golden-bun`, `browser`, `desktop` (Linux, macOS and Windows), `mobile` (an Android emulator), and `gate`. The gate requires all of those jobs, merges the fifteen shard LCOV reports into `coverage/lcov.info`, and enforces the repository line and branch coverage thresholds.
+3. **Green before merge.** The repository ruleset requires the single `gate` check. A failed, skipped, or cancelled job listed in its `needs` blocks the merge. No job is ever skipped: see "What CI does for a prose-only change" below. Every change goes through a reviewed pull request; never push changes straight to `main`.
 4. **Independent review.** Someone other than the author reviews the diff. They read it against the checklist, run the commands that matter for the change, and check that any changed golden is explained. A reviewer who is an AI agent must not be the session that wrote the change.
 5. **Behind `main`?** If GitHub says the branch can merge cleanly and checks are green, do not rebase or force-push just to catch up. Merge `origin/main` into your branch only when there is a conflict or `main` changed something your change depends on. Pull requests are merged with a merge commit, which keeps history intact.
 6. **Done includes worktree cleanup.** Every worktree you created is removed (`git worktree remove`) or listed as preserved with a reason. Remove a worktree only after the work is pushed and has a destination: a merged pull request, or an open one named in the handoff. Dirty worktrees are preserved first (commit, push or archive). Unmerged branches are never deleted. The final report states each path and its outcome. Follow "Clean up after a merge" below.
 
 ### What CI does for a prose-only change
 
-Installing, building, replaying goldens and booting an Android emulator is wasted on a typo fix, so each of `golden`, `golden-bun`, `browser`, `desktop` (each operating system), `mobile` and `script-dogfood` judges for itself whether its work applies ([ADR 0016](docs/adr/0016-ci-classified-steps.md)). The `changes` job lists the files your pull request changed and gives one verdict. Every one of those jobs still runs and still reports success; they only skip their own *steps* when the verdict is "defer". `checks`, `unit` and `gate` always do all of their work, so licence, provenance and coverage always see your change. Because no job is skipped, the required `gate` check keeps its meaning and the repository ruleset is unchanged.
+Installing, building, replaying goldens and booting an Android emulator is wasted on a typo fix, so each of `golden`, `golden-bun`, `browser`, `desktop` (each operating system), `mobile` and `script-dogfood` judges for itself whether its work applies ([ADR 0016](docs/adr/0016-ci-classified-steps.md)). The `changes` job lists the files your pull request changed and gives one verdict. Every one of those jobs still runs and still reports success; they only skip their own *steps* when the verdict is "defer". `gate` always runs. For a documentation-only (inert) pull request, `checks` keeps only `provenance` (G7 still sees every diff) and `unit` defers entirely, so no tests run and no coverage is collected; `gate` then skips the LCOV merge and coverage threshold, because coverage cannot move when no code changed. Licence, audit and coverage still apply to any change that touches code. Because no job is skipped, the required `gate` check keeps its meaning and the repository ruleset is unchanged.
 
 The verdict is "defer" only when **every** changed path is one of these, each of which is read by people and by no CI lane:
 
 - a Markdown file in the repository root (`README.md`, `CONTRIBUTING.md`, ...);
-- `docs/guardrails.md`;
-- Markdown under `docs/adr/`;
+- any Markdown file under `docs/` except `docs/spec/` (the normative spec, which `golden` dump-checks);
+- the whole `_bmad/` tree (installed BMAD framework; consumed only by manual ticket tooling);
 - Markdown under `_bmad-output/` (plans and tickets);
 - issue forms under `.github/ISSUE_TEMPLATE/` (`.md`, `.yml`, `.yaml`).
 
-Anything else runs everything, including all of `packages/`, `tools/`, `stock/` and `golden/` (even a README there), all of `docs/spec/`, `.github/workflows/` and the pull request template, any other file in `docs/`, `package.json` and the lockfile, an empty diff, a path nobody has classified, and every push to `main`. The list is positive on purpose: a new kind of file runs everything until someone decides it is inert. A rename counts both its old and its new path.
+Anything else runs everything, including all of `packages/`, `tools/`, `stock/` and `golden/` (even a README there), all of `docs/spec/`, `.github/workflows/` and the pull request template, non-Markdown files under `docs/` or `_bmad-output/`, `package.json` and the lockfile, an empty diff, a path nobody has classified, and every push to `main`. The list is positive on purpose: a new kind of file runs everything until someone decides it is inert. A rename counts both its old and its new path.
 
 Open the job log to see which way it went. A job that defers prints one line, and its later steps show as skipped:
 

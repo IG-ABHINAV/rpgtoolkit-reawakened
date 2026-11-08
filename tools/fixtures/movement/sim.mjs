@@ -136,7 +136,8 @@ export class World {
     this.ev.push({ e: type, ...data });
   }
   moveSize() {
-    return (this.board.pixelMovement ?? 0) === 0 ? 32 : this.board.pixelStep ?? 8;
+    // E-23 (ruled 2026-11-04): 32 px in tile movement, 4 px in either pixel mode.
+    return (this.board.pixelMovement ?? 0) === 0 ? 32 : 4;
   }
   draw(n) {
     const value = this.rng[this.rngIndex];
@@ -505,6 +506,9 @@ export class World {
     const c = a.cur;
     const dx = c.tx - a.x;
     const dy = c.ty - a.y;
+    if ((this.board.pixelMovement ?? 0) > 0 && c.src === "dir" && Math.abs(dx) <= ADVANCE && Math.abs(dy) <= ADVANCE) {
+      return { nx: c.tx, ny: c.ty, reach: true };
+    }
     const dist = Math.floor(Math.sqrt(dx * dx + dy * dy));
     if (dist <= ADVANCE) return { nx: c.tx, ny: c.ty, reach: true };
     return { nx: a.x + Math.trunc((dx * ADVANCE) / dist), ny: a.y + Math.trunc((dy * ADVANCE) / dist), reach: false };
@@ -549,6 +553,9 @@ export class World {
     const finish = (blocked) => {
       a.cur = null;
       a.waitLeft = 0;
+      // A successful step reports that it completed (the party step count reads this event, see
+      // docs/spec/engine/movement-and-collision.md#reawakened-party-steps); a blocked step does not complete.
+      if (!blocked) this.emit("step-complete", { actor: a.id });
       if (a.queue.length === 0 && a.wp !== null && this.waypointFinished(a)) {
         a.wp = null;
         this.emit("waypoint-complete", { actor: a.id });
@@ -580,8 +587,10 @@ export class World {
         finish(true);
         return;
       }
+      // R-54 item 3: the slide turns the step, so the slid point becomes its target and the step ends
+      // on arriving there (one slide per step).
       this.applyMove(a, slid.x, slid.y, slid.facing);
-      this.afterAdvance(a, c, slid.x, slid.y, false, tpa, finish);
+      this.afterAdvance(a, c, slid.x, slid.y, true, tpa, finish);
       return;
     }
 
@@ -672,11 +681,11 @@ export class World {
       this.resolveCollision(a, blocker, tpa);
       return;
     }
-    this.resolveCollision(a, blocker, tpa);
+    this.resolveCollision(a, blocker, tpa, () => finish(true));
   }
 
   /** R-51 item 2: who loses, then the 120-tick freeze. */
-  resolveCollision(a, blocker, tpa) {
+  resolveCollision(a, blocker, tpa, finish) {
     const moving = (s) => s.state === "moving";
     let loser;
     if (moving(a) !== moving(blocker)) loser = moving(a) ? blocker : a; // a stationary sprite loses to a moving one
@@ -684,8 +693,12 @@ export class World {
     else if (tpa !== this.tpaFor(blocker)) loser = tpa < this.tpaFor(blocker) ? blocker : a; // the faster sprite wins
     else loser = this.drawId(a) > this.drawId(blocker) ? a : blocker; // the larger drawId loses
     const winner = loser === a ? blocker : a;
+    // Owner 2026-11-07: resolve priority first, then end the blocked direct step.
+    finish?.();
     if (loser.state !== "frozen") {
       loser.state = "frozen";
+      loser.cur = null;
+      loser.waitLeft = 0;
       loser.frozenUntil = this.tick + FREEZE_TICKS; // frozen on ticks F .. F + 119 whatever the iteration order
       this.emit("sprite-collision", { winner: winner.id, loser: loser.id });
     }
@@ -747,7 +760,8 @@ export class World {
     this.emit("send-swap", { board: op.board });
     const caller = op.caller ?? null;
     if (caller !== null && caller.kind === "board") this.emit("caller-killed", { thread: caller.id });
-    // send() takes one-based tile coordinates and a one-based layer (below 1 means layer 1).
+    // send() names a position in the destination board's coordinate mode: these scenes' boards are
+    // plain (no pixel-coordinate flag), so x/y are one-based tiles and the layer is one-based (below 1 means layer 1).
     this.switchBoard(op.board, (op.x - 1) * 32 + 16, (op.y - 1) * 32 + 31, Math.max(1, op.layer) - 1, caller);
     if (caller !== null && caller.kind !== "board") this.emit("caller-resume", { thread: caller.id });
   }

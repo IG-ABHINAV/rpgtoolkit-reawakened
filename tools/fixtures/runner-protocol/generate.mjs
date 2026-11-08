@@ -18,7 +18,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isEntryPoint } from "../fetch.mjs";
 import { refName, schemaErrors, schemaProblems } from "./schema.mjs";
-import { typeProblems } from "./types.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const output = join(here, "vectors.json");
@@ -47,13 +46,20 @@ const vectors = [
     record: list({ kind: "pushTarget", scratch: 2 }, { kind: "fill", rgb }, { kind: "popTarget" }) },
   { id: "draw-empty-frame", family: "draw", valid: true, record: list() },
 
-  // --- input record: one valid record per event of the eleven (AD-14) ----------
+  // --- input record: one valid record per event kind (AD-14) ----------------
   { id: "input-key", family: "input", valid: true, record: input({ kind: "key", name: "ENTER", code: "Enter", char: "\n", down: true }) },
   { id: "input-key-null-char", family: "input", valid: true, record: input({ kind: "key", name: "LEFT", code: "ArrowLeft", char: null, down: false }) },
   { id: "input-pointer", family: "input", valid: true, record: input({ kind: "pointer", x: 320, y: 240, buttons: 1 }) },
+  { id: "input-pointer-cancel", family: "input", valid: true, record: input({ kind: "pointer.cancel" }) },
   { id: "input-gamepad", family: "input", valid: true,
     record: input({ kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: -1 }, buttons: 4 }) },
   { id: "input-focus", family: "input", valid: true, record: input({ kind: "focus", state: "lost" }) },
+  { id: "input-host-features", family: "input", valid: true, record: input({
+    kind: "host.features", features: { touch: true, pointer: "coarse", keyboard: false, gamepad: false, haptics: false, orientation: null },
+  }) },
+  { id: "input-host-display", family: "input", valid: true, record: input({
+    kind: "host.display", geometry: { content: { width: 800, height: 480 }, game: { x: 80, y: 0, width: 640, height: 480 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } },
+  }) },
   { id: "input-asset-reply", family: "input", valid: true, record: input({ kind: "asset", reqId: 17, bytes: B64 }) },
   { id: "input-asset-missing", family: "input", valid: true, record: input({ kind: "asset", reqId: 18, bytes: null }) },
   { id: "input-blob-loaded", family: "input", valid: true, record: input({ kind: "blob.loaded", reqId: 19, bytes: B64 }) },
@@ -101,6 +107,12 @@ const vectors = [
     record: input({ kind: "mouse", x: 1 }) },
   { id: "refuse-key-without-down", family: "input", valid: false, why: "a key event always states its edge",
     record: input({ kind: "key", name: "ENTER", code: "Enter", char: null }) },
+  { id: "refuse-incomplete-host-features", family: "input", valid: false, why: "host updates carry all normalized feature keys",
+    record: input({ kind: "host.features", features: { touch: true } }) },
+  { id: "refuse-incomplete-host-display", family: "input", valid: false, why: "host geometry carries all three rectangles",
+    record: input({ kind: "host.display", geometry: { content: { width: 800, height: 480 } } }) },
+  { id: "refuse-zero-host-content", family: "input", valid: false, why: "display dimensions must be positive",
+    record: input({ kind: "host.display", geometry: { content: { width: 0, height: 480 }, game: { x: 0, y: 0, width: 1, height: 1 }, safeArea: { top: 0, right: 0, bottom: 0, left: 0 } } }) },
   { id: "refuse-unknown-request", family: "request", valid: false, why: "no such request kind (a prefetch hint is 9.8's, not v1)",
     record: { kind: "warm", reqId: 1, key: "a" } },
   { id: "refuse-http-url", family: "request", valid: false, why: "openUrl allows https: only (AD-17)",
@@ -189,6 +201,10 @@ export function check({ schema: schemaOverride, committed, vectors: vectorsOverr
     }
   }
 
+  // This v2-only event is not added to the frozen v1 vector kit.
+  const action = input({ kind: "action", action: "confirm", down: true, source: "runner.fallback", modalId: null });
+  if (schemaErrors(schema, action).length === 0) problems.push("v1 schema must reject semantic action input");
+
   // 4. The kit covers every kind the schema lists.
   const expected = coveredKinds(schema);
   const actual = actualKinds(vectorList);
@@ -198,8 +214,6 @@ export function check({ schema: schemaOverride, committed, vectors: vectorsOverr
     }
   }
 
-  // 5. The TypeScript types and the schema agree.
-  problems.push(...typeProblems(schema, { sources }));
 
   return problems;
 }

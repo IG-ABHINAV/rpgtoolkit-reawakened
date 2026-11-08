@@ -68,7 +68,7 @@ const REAL_PACK_COMMANDS: Record<string, true> = {
   playerlocation: true, itemlocation: true, playergetpath: true, itemgetpath: true, activeplayer: true,
   playerdirection: true, itemdirection: true, playerspeed: true, itemspeed: true, playerstance: true,
   itemstance: true, wander: true, wait: true, get: true, clearbuffer: true, setbutton: true,
-  checkbutton: true, clearbuttons: true, mousemove: true, mouseclick: true,
+  checkbutton: true, clearbuttons: true, mousemove: true, mouseclick: true, pixelmovement: true,
   hp: true, givehp: true, gethp: true, maxhp: true, getmaxhp: true, smp: true, givesmp: true,
   getsmp: true, maxsmp: true, getmaxsmp: true, fp: true, givefp: true, getfp: true, dp: true,
   getdp: true, applystatus: true, removestatus: true, giveexp: true,
@@ -138,8 +138,8 @@ function callArity(spec: BuiltinSpec): number {
 test("every catalogue stub name resolves to its own spec, folded to lower case", () => {
   const services = createScriptServices(createGameState({ seed: 0 }));
 
-  equal(COMMANDS.length, 36);
-  equal(new Set(COMMANDS.map((spec) => spec.name)).size, 36);
+  equal(COMMANDS.length, 34);
+  equal(new Set(COMMANDS.map((spec) => spec.name)).size, 34);
   for (const spec of COMMANDS) {
     equal(spec.name, spec.name.toLowerCase());
     const resolved = services.commands.get(spec.name);

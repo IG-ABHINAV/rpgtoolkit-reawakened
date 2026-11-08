@@ -131,6 +131,55 @@ test("equipment derives four bonuses from item data and applies stat deltas", ()
   throws(() => applyEquipment(state.section, state.actor.id, ["missing"], []));
   throws(() => applyEquipment(state.section, state.actor.id, ["bad"], [{ name: "bad", equipBonus: [1, 2, 3] }]));
 });
+
+test("preparing equipment leaves actor state unpublished until commit", () => {
+  const state = actor();
+  let hooks = 0;
+  const service = createActorService(state.section, () => ({
+    equipmentChanged: () => { hooks += 1; return {}; },
+  }));
+  const before = JSON.stringify(state.section);
+  const prepared = service.prepareEquipment(state.actor.id, ["blade"], [
+    { name: "blade", equipBonus: [5, 2, 3, 1] },
+  ]);
+  ok(prepared);
+  equal(hooks, 1);
+  equal(JSON.stringify(state.section), before);
+  equal(prepared.actor.stats.hp, 15);
+  const committed = service.commitPreparedEquipment(prepared);
+  ok(committed);
+  equal(hooks, 1);
+  equal(state.section.actors[0]!.stats.hp, 15);
+  const committedState = JSON.stringify(state.section);
+  const refusing = createActorService(state.section, () => ({
+    equipmentChanged: () => { throw new Error("refused"); },
+  }));
+  throws(() => refusing.prepareEquipment(state.actor.id, [], []));
+  equal(JSON.stringify(state.section), committedState);
+});
+test("equipment preparation isolates hook inputs and queues actor transitions only on commit", () => {
+  const state = actor({ stats: { hp: 0, maxHp: 10 } });
+  const events: unknown[] = [];
+  const service = createActorService(state.section, () => ({
+    equipmentChanged: (record) => {
+      record.stats.hp = 900;
+      return {};
+    },
+    revive: () => ({ hp: 4 }),
+  }), (result) => events.push(...result.transitions));
+  const before = JSON.stringify(state.section);
+  const prepared = service.prepareEquipment(state.actor.id, ["charm"], [
+    { name: "charm", equipBonus: [1, 0, 0, 0] },
+  ]);
+  ok(prepared);
+  equal(JSON.stringify(state.section), before);
+  deepEqual(events, []);
+  equal(prepared.actor.stats.hp, 4);
+  const committed = service.commitPreparedEquipment(prepared);
+  ok(committed);
+  equal(state.section.actors[0]!.stats.hp, 4);
+  deepEqual(events, [{ type: "revived", actorId: state.actor.id, cause: "script", source: null }]);
+});
 test("equipment hook patches are closed and preserve unique references", () => {
   const state = actor({ statuses: { poison: 1 } });
   throws(() => applyEquipment(state.section, state.actor.id, ["blade"], [{ name: "blade", equipBonus: [1, 1, 1, 1] }], {

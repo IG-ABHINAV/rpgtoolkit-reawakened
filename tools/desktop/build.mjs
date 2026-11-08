@@ -53,6 +53,16 @@ await build({
   target: "chrome120",
   logLevel: "warning",
 });
+// The AudioWorklet module the desktop player loads from `app://player/apps/audio-worklet.js`.
+await build({
+  entryPoints: [join(root, "packages/runner-web/src/audio-worklet.ts")],
+  outfile: join(root, "apps", "audio-worklet.js"),
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  target: "chrome120",
+  logLevel: "warning",
+});
 
 // The Electron app's own `package.json`, so `electron .` finds the main process.
 const manifest = {
@@ -66,7 +76,7 @@ const manifest = {
 const { writeFileSync } = await import("node:fs");
 writeFileSync(join(desktop, "dist", "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 const { readdirSync } = await import("node:fs");
-const folders = ["media/fonts", "media/cursors", "media/soundfonts"];
+const folders = ["media/fonts", "media/cursors", "media/soundfonts", "stock/stock_menu", "stock/stock_battle", "stock/stock_rpg"];
 const bundled = folders.flatMap((folder) =>
   readdirSync(join(root, folder), { withFileTypes: true })
     .filter((entry) => entry.isFile())

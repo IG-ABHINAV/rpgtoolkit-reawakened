@@ -8,6 +8,7 @@
  */
 
 import type { Bytes, PortData } from "./bytes.ts";
+import type { HostDisplayGeometry, NormalizedHostFeatures } from "./host.ts";
 
 /** A key press or release (E-110). */
 export type KeyInput = {
@@ -19,6 +20,9 @@ export type KeyInput = {
   /** Host auto-repeat is deliberately not a new press edge. */
   readonly repeat?: boolean;
 };
+
+/** Cancellation of the active pointer gesture, without a release edge (E-111). */
+export type PointerCancelInput = { readonly kind: "pointer.cancel" };
 
 /** A pointer event in logical integer pixels (E-111). */
 export type PointerInput = {
@@ -40,10 +44,32 @@ export type GamepadInput = {
   readonly buttons: number;
 };
 
+/** Complete live set of connected normalized devices used to reconcile a restored gamepad section. */
+export type HostGamepadsInput = {
+  readonly kind: "host.gamepads";
+  readonly devices: readonly {
+    readonly device: number;
+    readonly axes: { readonly x: number; readonly y: number };
+    readonly buttons: number;
+  }[];
+};
+
 /** The window gained or lost focus. */
 export type FocusInput = {
   readonly kind: "focus";
   readonly state: "lost" | "gained";
+};
+
+/** A complete host capability update, captured as deterministic input. */
+export type HostFeaturesInput = {
+  readonly kind: "host.features";
+  readonly features: NormalizedHostFeatures;
+};
+
+/** A complete measured display geometry update, captured as deterministic input. */
+export type HostDisplayInput = {
+  readonly kind: "host.display";
+  readonly geometry: HostDisplayGeometry;
 };
 
 /** The reply to an `asset` request: the bytes, or `null` when missing. */
@@ -93,12 +119,35 @@ export type VideoEnded = {
   readonly reqId: number;
 };
 
+/** A normalized semantic action edge, consumed on its stamped tick (ACT-4). */
+export type ActionInput =
+  | {
+      readonly kind: "action";
+      readonly action: string;
+      readonly down: boolean;
+      readonly source: string;
+      readonly modalId: null;
+    }
+  | {
+      readonly kind: "action";
+      readonly action: "confirm" | "cancel";
+      readonly down: boolean;
+      readonly source: string;
+      /** Non-null binds a modal-only action to the exact modal instance that received the press. */
+      readonly modalId: number;
+    };
+
 /** The one published input event union (AD-14). */
 export type InputEvent =
   | KeyInput
   | PointerInput
+  | PointerCancelInput
   | GamepadInput
+  | ActionInput
   | FocusInput
+  | HostFeaturesInput
+  | HostDisplayInput
+  | HostGamepadsInput
   | AssetReply
   | BlobLoaded
   | BlobSaved
@@ -112,3 +161,20 @@ export type InputRecord = {
   readonly tick: number;
   readonly event: InputEvent;
 };
+/** Historical runner protocol v1 event union; active v2 adds ActionInput and HostGamepadsInput. */
+export type InputEventV1 =
+  | KeyInput
+  | PointerInput
+  | PointerCancelInput
+  | GamepadInput
+  | FocusInput
+  | HostFeaturesInput
+  | HostDisplayInput
+  | AssetReply
+  | BlobLoaded
+  | BlobSaved
+  | BlobListed
+  | ExtensionResult
+  | AudioEnded
+  | VideoEnded;
+export type InputRecordV1 = { readonly tick: number; readonly event: InputEventV1 };

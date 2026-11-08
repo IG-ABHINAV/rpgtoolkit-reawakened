@@ -9,13 +9,14 @@ The desktop player is a small Electron window that opens a packaged game and run
 | What works | Limits |
 |---|---|
 | `pnpm desktop:run --package <your.tpk>` opens any packaged game that has its `.tpk.json` descriptor beside it. A macOS launch of a small authored package showed that package's own board on the canvas, with the status reporting a player position. | This is one observed package, not a claim that every game is playable. |
+| Closing the game window ends the game: the window, the player process and the `pnpm desktop:run` command all stop, including on macOS, where an application usually stays open after its last window closes. | — |
 | Keyboard movement works in the Electron window: `pnpm desktop:input` sends a trusted right-arrow key event to the running player and the reported position moves one 32-pixel step (`208, 191` → `240, 191` on the authored probe package). | Pointer input (click to walk) is wired but not yet proven the same way. |
 | The window shows the game at the resolution its own main file asks for — 640×480, 800×600, 1024×768 or a custom size. The whole frame fits and is centred on black. | The window starts at 960×720 and can be resized. The picture normally uses whole-number scaling; if 1× cannot fit, it shrinks fractionally to keep the whole frame visible. |
 | A board larger than the frame scrolls: the camera follows the player and clamps to the board's edges. A smaller board is centred. | — |
 | A save is written to the desktop host's own storage, under the package's canonical game key. | A save does **not** move between hosts yet: the browser and desktop keep separate stores, so a save made in one is not visible to the other. |
 | A rebuilt desktop measurement compares against the current committed baseline: `golden/regression/closing.json` expects demo tick-120 state `32e892e98b3d2a85`, draw `9c0e4d56e59619da` and 122 commands. | Those values are from the closing configuration, not an interactive session. |
 
-The mobile player is wrapped with Capacitor. The Android CI lane builds and launches the demo APK on an API 33 x86_64 emulator, clears app data in CI for a clean first launch, then drives title entry, a board tap, rotation and relaunch. The proof requires the initial host-blob probe to be absent and the first write to succeed, then confirms the blob is present after relaunch. It retains live page readings and four screenshots (title, tap, rotation and relaunch/save) as the `mobile-android-api33-proof` workflow artifact; the board-entry reading is retained in JSON. The tap reading records the trusted touch's canvas coordinate and the player's world position before and after input. This automated proof does not replace the human acceptance check for the mobile story.
+The mobile player is wrapped with Capacitor. The Android CI lane builds and launches the demo APK on an Android 16 (API 36) x86_64 emulator, clears app data in CI for a clean first launch, then drives title entry, a board tap, rotation and relaunch. The proof requires the initial host-blob probe to be absent and the first write to succeed, then confirms the blob is present after relaunch. It retains live page readings and four screenshots (title, tap, rotation and relaunch/save) as the `mobile-android-api36-proof` workflow artifact; the board-entry reading is retained in JSON. The tap reading records the trusted touch's canvas coordinate and the player's world position before and after input. This automated proof does not replace the human acceptance check for the mobile story.
 
 ## How the picture is sized
 
@@ -55,6 +56,8 @@ pnpm desktop:input --package fixtures/packages/demo.tpk
 pnpm desktop:run --package fixtures/packages/demo.tpk
 ```
 
+The rebuilt demo package names the stock menu and battle systems. Once the title screens have finished and the player is on the board, press **Enter** to open the menu and **Escape** to close it. Rebuild both the package and the player after updating: an older package made from the sample may not name the stock systems.
+
 `pnpm desktop:input` opens the player, sends real key events through Chromium's debugging protocol, and prints the player position before and after — it exits non-zero when the key did not move the player.
 
 `pnpm desktop:measure` emits machine-readable closing-suite and renderer evidence and closes its window. It compares the `demo` tick-120 result against the committed closing baseline in `golden/regression/closing.json`, which currently expects state `32e892e98b3d2a85`, draw `9c0e4d56e59619da` and 122 commands — it does not check hard-coded literals in this page. The committed macOS report `tools/desktop/measurements/macos.json` is a historical artefact of the date its `measuredAt` field records (2026-11-01); it was taken before the closing-baseline re-record for issue #1048, so it does not describe what a measurement reports on `main` today — its recorded hashes (`91172695de52cfd6` / `9a40be8a0b5ca816`, 128 commands) are superseded — a current measurement is judged against `closing.json`. Rebuild after source changes: the measurement runs the existing desktop build.
@@ -75,7 +78,7 @@ These are the current expected values committed in `golden/regression/closing.js
 
 A macOS launch showed the room on the attached canvas, with the title/menu text still overlaid. The status showed a player position. The browser interaction test, rather than that desktop observation, proves the right-arrow movement described above.
 
-`pnpm desktop:run` builds the `demo` package for you when you leave `--package` off, and passes the player's other flags through unchanged (`--serve <dir>`, `--page <path>`, `--devtools`, `--quit-after`, `--report <file>`).
+`pnpm desktop:run` builds the `demo` package for you when you leave `--package` off, and passes the player's other flags through unchanged (`--serve <dir>`, `--page <path>`, `--devtools`, `--report <file>`). Close the window to quit: the game does not keep running in the background, and the command you started exits with it.
 
 ## Operating-system notes
 

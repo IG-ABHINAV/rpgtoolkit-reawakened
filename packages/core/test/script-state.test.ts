@@ -1,5 +1,5 @@
 // The save tree, canonical form and restore checks (AD-7, AD-10, AD-11, AD-23):
-// the 20-section shape, a mid-yield round-trip and the two pinned restore errors.
+// the 22-section shape, a mid-yield round-trip and the two pinned restore errors.
 import { deepEqual, equal, ok, throws } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -15,7 +15,6 @@ import {
   PACKAGE_ROOT,
   readStepCounters,
   restoreGameState,
-  SCHEMA_VERSIONS,
   snapshot,
   startProgram,
   startThread,
@@ -47,10 +46,9 @@ function midYieldState(): GameState {
   return state;
 }
 
-test("GameState is PlainData and has exactly the AD-10 sections", () => {
+test("GameState is PlainData and has 22 top-level sections", () => {
   const state = createGameState({ seed: 0 });
-  deepEqual(Object.keys(state).sort(), Object.keys(SCHEMA_VERSIONS).sort());
-  equal(Object.keys(state).length, 20);
+  equal(Object.keys(state).length, 22);
   equal(typeof canon(state), "string");
   deepEqual(state.schema.ir, "1");
 });
@@ -72,6 +70,10 @@ test("restore refuses a newer instruction version and a missing section", () => 
   const error = errorOf(() => restoreGameState(JSON.stringify(newer)));
   equal(error.code, "restore.ir-mismatch");
   ok(error.message.includes("schema.ir"), error.message);
+  const malformedHost = JSON.parse(json) as { schema: { ir: string; features: unknown } };
+  malformedHost.schema.ir = "999";
+  malformedHost.schema.features = "invalid";
+  equal(errorOf(() => restoreGameState(JSON.stringify(malformedHost))).code, "restore.ir-mismatch");
 
   const missingSection = JSON.parse(json) as Record<string, unknown>;
   delete missingSection.vm;

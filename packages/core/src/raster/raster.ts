@@ -17,7 +17,10 @@ import type { AssetKey, ScratchId, SurfaceId } from "../ports/keys.ts";
 
 export type RasterAsset = DecodedTexture | LegacyFont | TrueTypeFont | Uint8Array;
 export type RasterAssets = ReadonlyMap<AssetKey, RasterAsset>;
-export type RasterSurfaces = ReadonlyMap<SurfaceId, DecodedTexture>;
+
+export type RasterSurfaces = ReadonlyMap<SurfaceId, DecodedTexture> & {
+  get(surface: SurfaceId, revision?: number): DecodedTexture | undefined;
+};
 export type RasterResult = {
   readonly width: number;
   readonly height: number;
@@ -57,7 +60,7 @@ function sourceTexture(
     const asset = assets.get(command.source.asset);
     return isTexture(asset) ? asset : null;
   }
-  return surfaces.get(command.source.surface) ?? null;
+  return surfaces.get(command.source.surface, command.source.rev) ?? null;
 }
 
 function drawPixel(target: TargetEntry, x: number, y: number, rgb: Rgb): void {
@@ -99,11 +102,14 @@ function sourceOffset(command: BlitCommand): number {
   return (command.source.tile - 1) * (command.source.asset.endsWith(".iso") ? 64 : 32);
 }
 
+type BlendTarget = "ad3" | "screen";
+
 function blend(
   target: TargetEntry,
   at: number,
   source: [number, number, number, number],
   command: BlitCommand,
+  blendTarget: BlendTarget,
 ): void {
   const [sr, sg, sb, sa] = source;
   const tint = command.tint;
@@ -112,6 +118,29 @@ function blend(
   const g = tintChannel(sg, tint.g, tinted);
   const b = tintChannel(sb, tint.b, tinted);
   const alpha = Math.max(0, Math.min(255, command.alpha));
+  if (blendTarget === "screen") {
+    const effective = Math.trunc(sa * alpha / 255);
+    const dr = target.rgba[at] ?? 0;
+    const dg = target.rgba[at + 1] ?? 0;
+    const db = target.rgba[at + 2] ?? 0;
+    if (command.blend === "additive") {
+      target.rgba[at] = Math.min(255, dr + Math.trunc(r * alpha / 255));
+      target.rgba[at + 1] = Math.min(255, dg + Math.trunc(g * alpha / 255));
+      target.rgba[at + 2] = Math.min(255, db + Math.trunc(b * alpha / 255));
+      target.rgba[at + 3] = 255;
+    } else if (effective >= 255) {
+      target.rgba[at] = r;
+      target.rgba[at + 1] = g;
+      target.rgba[at + 2] = b;
+      target.rgba[at + 3] = sa;
+    } else if (effective > 0) {
+      target.rgba[at] = Math.trunc((r * effective + dr * (255 - effective)) / 255);
+      target.rgba[at + 1] = Math.trunc((g * effective + dg * (255 - effective)) / 255);
+      target.rgba[at + 2] = Math.trunc((b * effective + db * (255 - effective)) / 255);
+      target.rgba[at + 3] = 255;
+    }
+    return;
+  }
   if (command.blend === "normal") {
     target.rgba[at] = r;
     target.rgba[at + 1] = g;
@@ -139,6 +168,7 @@ function drawBlit(
   command: BlitCommand,
   assets: RasterAssets,
   surfaces: RasterSurfaces,
+  blendTarget: BlendTarget,
 ): string | null {
   const texture = sourceTexture(command, assets, surfaces);
   if (!texture) return "missing decoded texture or surface";
@@ -165,11 +195,13 @@ function drawBlit(
       const sg = texture.rgba[si + 1] ?? 0;
       const sb = texture.rgba[si + 2] ?? 0;
       const sa = texture.rgba[si + 3] ?? 0;
-      if (sa === 0 || (command.key !== null && sr === command.key.r && sg === command.key.g && sb === command.key.b)) continue;
+      // The key is tested on the sampled pixels — a composed picture's pixels already include their cell shade — and
+      // the world tint is applied after it (docs/spec/engine/runners.md#blit-pipeline).
+      if ((sa === 0 && blendTarget === "ad3") || (command.key !== null && sr === command.key.r && sg === command.key.g && sb === command.key.b)) continue;
       const dx = command.dst.x + x;
       const dy = command.dst.y + y;
       if (dx < 0 || dy < 0 || dx >= target.width || dy >= target.height) continue;
-      blend(target, (dy * target.width + dx) * 4, [sr, sg, sb, sa], command);
+      blend(target, (dy * target.width + dx) * 4, [sr, sg, sb, sa], command, blendTarget);
     }
   }
   return null;
@@ -211,10 +243,11 @@ function result(root: TargetEntry, error: string | null): RasterResult {
 }
 
 /** Replay the AD-3 draw list into a fresh straight-RGBA target (AD-4). */
-export function rasterize(
+function rasterizeWithBlendTarget(
   list: DrawList,
   assets: RasterAssets,
-  surfaces: RasterSurfaces = new Map(),
+  surfaces: RasterSurfaces,
+  blendTarget: BlendTarget,
 ): RasterResult {
   if (!Number.isInteger(list.width) || !Number.isInteger(list.height) || list.width <= 0 || list.height <= 0) {
     return { width: list.width, height: list.height, rgba: new Uint8Array(), error: "invalid draw-list dimensions" };
@@ -236,7 +269,7 @@ export function rasterize(
         }
         break;
       case "blit":
-        error = drawBlit(targets[targets.length - 1]!, command, assets, surfaces);
+        error = drawBlit(targets[targets.length - 1]!, command, assets, surfaces, blendTarget);
         break;
       case "line":
         drawLine(targets[targets.length - 1]!, command.x1, command.y1, command.x2, command.y2, command.rgb);
@@ -278,4 +311,17 @@ export function rasterize(
   }
   if (targets.length !== 1) return result(root, "unclosed pushTarget");
   return result(root, null);
+}
+
+/** Replay strict AD-3 commands (both planes use the same blend arithmetic). */
+export function rasterize(list: DrawList, assets: RasterAssets, surfaces: RasterSurfaces = new Map()): RasterResult {
+  return rasterizeWithBlendTarget(list, assets, surfaces, "ad3");
+}
+
+/**
+ * Replay authored screen operations while lowering them to a captured pixel texture for an AD-3 blit.
+ * This is not a draw-list replay path: callers must replace its output with a normal AD-3 source blit.
+ */
+export function rasterizeAuthorMargin(list: DrawList, assets: RasterAssets, surfaces: RasterSurfaces): RasterResult {
+  return rasterizeWithBlendTarget(list, assets, surfaces, "screen");
 }

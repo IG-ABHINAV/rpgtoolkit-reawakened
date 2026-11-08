@@ -60,10 +60,21 @@ the identity starts a new save area.
 thread has parked on the host request. The save records that thread as resumed
 after a successful `Save`, so loading it continues the original script at its
 next instruction. `Load` validates the full save and the current package/source
-compatibility before replacing the live state; a missing or invalid save
-returns failure to the calling thread without replacing the current game.
-Successful restoration rebuilds package layers, hydrates saved actors and
-verifies restored VM handles before continuing the saved thread set.
+compatibility; a missing or invalid save returns failure to the calling thread
+without replacing the current game. The current implementation replaces live
+state, rebuilds package layers, hydrates saved actors and verifies VM handles
+before continuing the saved thread set.
+
+**Start-program Load exception (OWNER, 2026-11-02; [#1177](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177)).** The target follows 3.1:
+1. The game state is restored from the saved game.
+2. The player is placed as for `send`, disarming programs under the player at the arrival position.
+3. The message window's flag and text remain unchanged.
+4. Board music starts.
+5. The loaded board is drawn into the program surface via `boardRedraw()`, replacing what the program drew while leaving the message window intact.
+6. The calling thread receives success (`1`) from `Load()`. If the loaded board names an enter program (`enterPrg`), its call frame is pushed onto the calling thread to execute nested (without taking a new surface starting copy).
+7. Upon completion of the nested enter program (or immediately if none), the calling start program continues over the loaded board.
+8. When the start program ends, the main file's first board (`initBoard`) is skipped and the engine transitions to free roam on the loaded board.
+If `Load()` fails (missing or corrupted file), the calling program receives failure (`0`) and continues with the live state unchanged.
 
 **In-flight requests.** A game save is serialized only once every other host
 request it would capture has been answered: outstanding asset requests, deferred
@@ -71,8 +82,53 @@ image effects and other in-flight blob requests all settle first. A save
 therefore never records a thread parked on a request the host has not answered,
 which a restore would drop and strand.
 
+<a id="save-before-quit"></a>
+**Save before quit (OWNER; ruled 2026-11-02).** A game `Save` requested before `quitGame()` remains due: the core MUST serialize and publish that save, and the runner MUST persist it before the session closes. This applies when snapshot serialization is deferred by the in-flight request rule above; request-byte availability MUST NOT move it to the after-quit side of the boundary. A blob write requested after `quitGame()` MUST fail without a host-side write. The core settles that later request as failed before taking the earlier save snapshot, so the snapshot contains no unanswered request that restore would drop and strand. The runner MUST keep the session open until it has completed the request prefix through all writes before quit, and close only after the earlier save's host write has completed.
+
+**Item-action clarification (#589; TKR engineering rule).** A pending item-asset acquisition obeys this same in-flight request rule. A request-free saved item-action continuation may need to acquire its definitions again on a cold restore; an unanswered host request itself is never serialized. The [item-action contract](../engine/plugins-and-battle.md#epic-85-item-action-proposal) specifies request phases and distinguishes normal save continuation from interruption recovery.
+
+<a id="saved-asset-readiness"></a>
+**Shared asset readiness (#1340).** A save records which game assets the core
+had successfully acquired, so an unloaded animation and every other consumer
+resume with the same availability instead of inheriting the destination's cache.
+The saved engine section carries `cacheKeys`, a sorted, duplicate-free array of
+canonical asset keys. This is semantic continuation state and remains in the
+replay hash; asset bytes, decoded textures and prefetch-only facts are not saved
+by this field. The engine section is version 2; instruction positions are unchanged.
+
+Load first validates current program sources under the existing compatibility
+rules. It then replaces destination cache visibility with the saved set and
+reacquires absent saved-warm assets before running scripts or rebuilding frames.
+No simulation tick passes during that acquisition. Assets absent from the saved
+set remain cold until their ordinary consumers request them. This preserves
+shared consumers and lets resumed scripts cancel animations without fetching
+their previously cold pictures.
+
+This deliberately restores **all previously acquired assets**, even files the
+continuation never uses again. A missing or invalid unused asset does not fail
+Load or the game merely because restoration reads it: decoding and failure
+handling remain with the normal consumer if it later needs the file. Ordinary
+Load uses current installed image and animation content, not historical bytes
+or recovery-style fingerprints (owner choice, 2026-11-07). Exact continuation
+equivalence therefore assumes unchanged game data.
+
+Current installed program sources remain physically accessible to synchronous
+source resolution even when a newer source key was absent from the save.
+Consuming such a source records that key as acquired; Load alone does not.
+
+Older saves migrate with `cacheKeys: null`, meaning historical readiness is
+unknown. Their deterministic fallback retains only the boot-required main file,
+fonts, program sources and initial character, discarding other destination cache
+warmth. Already loaded animations retain their saved clocks; unloaded animations
+cannot recover historical timing information the old save never recorded.
+Malformed new manifests refuse the save before replacing live state or caches.
+
+References: [full-engine Save and Load](#reawakened-full-engine-save-and-load),
+[save compatibility](#save-compatibility-and-instruction-versions-owner-ruling),
+[determinism](../../guardrails.md#g3--determinism).
+
 <a id="state-hash-request-projection"></a>
-**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash, so a bookkeeping difference such as an additional settled boot-time asset request does not move golden baselines.
+**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash. Settled requests with the same acquired-key set therefore do not move golden baselines; acquiring an additional key changes semantic readiness (#1340), so its hash can change even after the request settles.
 
 <a id="state-hash-surface-projection"></a>
 **Surface hash projection — Approved ruling (owner: Jensen, 2026-11-02).**
@@ -82,8 +138,9 @@ Approved option C ruling (owner: Jensen, 2026-11-01), verbatim:
 Follow-up approved ruling (owner: Jensen, 2026-11-02), verbatim:
 > RPGCode script-owned canvases (cnvX) are application store, treated like global variables — they STAY in the state hash, and drawing to them legitimately changes it. Only the presented screen surface (the derived presentation cache) is excluded. Hash-significant: script variables/globals, cnvX canvases, game-loop globals needed to store coordinates. Hash-neutral: drawing to / reading / refreshing the presented screen surface and any host surfacePixels poll.
 
-A presented screen is a rebuildable picture, not game progress: its derived presentation cache is excluded
-from `hashGameState` and is rebuilt deterministically on restore before any script read.
+The approved exclusion and deterministic rebuild-before-read requirement above remain binding. How to rebuild a history-dependent presented image under the adopted program-surface model is unresolved; the current implementation's board-state recomposition below is not proof that the target image can be reconstructed without retained history.
+
+A program's **starting copy** is supplied by deterministic core composition without host capture ([engine/main-loop-and-startup.md#reawakened-starting-frame-capture](../engine/main-loop-and-startup.md#reawakened-starting-frame-capture), [ADR 0018](../../adr/0018-core-composed-program-starting-frame.md)). The owner adopted the 3.1 presentation model for now; the retention, save/restore, replay and hash treatment of the prior-frame history remain open. Existing exclusions below do not settle whether that history is reconstructible or requires stored data. Script reads into variables, `cnvX` canvases or screen slots remain hash-significant.
 
 **What leaves the hash:**
 - The presented frame (`surfaces.entries["0"]`), which is a derived presentation cache.
@@ -97,13 +154,13 @@ from `hashGameState` and is rebuilt deterministically on restore before any scri
 
 A `cnvX` draw that changes application store changes the hash; drawing to, reading or refreshing the presented screen does not. Host `surfacePixels` polls are also hash-neutral.
 
-**Restore recomputes the surface:** Both surface 0 and the script-screen layer are preserved in saved game data, so a restore preserves what the script drew. On restore, before any script can read it (and before any restored script thread executes a step), the engine deterministically recomputes the presented screen surface from the saved draw state (board, camera, layers, and render-now overlay).
+**Current implementation:** Both surface 0 and the script-screen layer are saved; on restore the engine recomputes surface 0 from board, camera, layers and render-now overlay before script execution. This can differ from a retained program/window image. The approved deterministic restore requirement remains; the target must preserve the correct observable history, with representation and any reconciliation of the ruling resolved explicitly before implementation.
 
 **Host-accessor purity (answering the open question on #1048):**
 Host `surfacePixels(id, rev)` is observationally read-only: presentation cadence must not change simulation state, `GameState`, surface revisions, state hashes, save data, or future diagnostics, regardless of host polling or cache-flush cadence.
 This purity is enforced by type and API design rather than convention:
 1. **Type signature:** `surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null` is typed as a pure query. It accepts no mutation closures, takes no write buffers or commands, and returns a read-only data record `{ w, h, rgba }` or `null`.
-2. **API separation:** Rebuilding the presented screen is strictly a core-owned deterministic operation, triggered only at the end of `advance`, immediately before a script screen read, and during a restore. The host `surfacePixels` API has no way to trigger or alter that composition by polling: it resolves the stored entry, returns it only for its exact `rev`, and returns `null` on a stale or unknown revision.
+2. **API separation:** Rebuilding the presented screen is core-owned and deterministic; host polling cannot trigger or alter it. Currently it is triggered at the end of `advance`, before a script screen read and during restore. Target timing and history retention require the design above. The host API resolves the stored entry only for its exact `rev`, otherwise returns `null`.
 3. **Buffer ownership:** The returned RGBA byte array is an owned detached copy (`new Uint8Array(entry.bitmap.data)`), so mutation of the returned buffer by the runner or host cannot mutate the engine's internal surface bitmaps.
 
 Script-visible screen refresh is a separate deterministic core operation; the complete contract and conformance cases are in [runners.md#surface-read-and-state-hash](../engine/runners.md#surface-read-and-state-hash).
@@ -188,11 +245,15 @@ its saved position cannot be honoured — while a newer one refuses the save. Th
 no `restore.restarted` diagnostic, and `restore.compiler-mismatch` retires with the
 old gate.
 
-The save shape is `schema` version 2 (`ir` replaces `compiler`) and `vm` version 6
-(`ProgramRef.ir` replaces `ProgramRef.compiler`). A version-1 `schema` migrates
-its `compiler` to `ir` and a version-5 `vm` migrates every saved program
-reference the same way; every committed save fixture from before the split
-exercises both.
+The save shape is `schema` version 2 (`ir` replaces `compiler`) and `vm` version 7
+(`ProgramRef.ir` replaces `ProgramRef.compiler`; version 7 adds the optional
+per-frame `itemActions` stack of pending item actions, see
+[the item-action contract](../engine/plugins-and-battle.md#epic-85-item-action-proposal)).
+A version-1 `schema` migrates its `compiler` to `ir`, a version-5 `vm` migrates every
+saved program reference the same way, and a version-6 `vm` migrates with no change
+beyond its version because the new field is absent until an action starts; every
+committed save fixture from before the split exercises the first two, and the
+`vm6-battle-*` fixtures exercise the last.
 
 Audio game saves add only the playback projection defined in
 [audio-media.md](../engine/audio-media.md#audio-save-load), not runtime audio
@@ -217,7 +278,8 @@ records its detailed classifications, evidence and unresolved engineering
 proofs. The 3.1 baseline is context, not a claim that every proposed field has
 been independently verified against the historical engine.
 
-The ledger includes party membership, selection and steps; all live actor
+The ledger includes party membership, selection, steps and the sub-tile step
+remainder; all live actor
 identities and game values, including stats, statuses and progression; inventory
 items, equipment assignments and gold; script globals and redirects; current
 board identity, placements, items, board edits and trigger progress; encounter
@@ -256,8 +318,17 @@ a domain-separated, versioned envelope containing the ledger. Compare hashes
 only for the same ledger domain, version and compatible game identity. This is
 a non-cryptographic progress comparison and accidental-change detector, not
 authentication, a security boundary, collision-proof equality, the existing
-runtime replay hash, or a checksum of the entire save. A version change requires
-an explicit migration and comparison policy.
+runtime replay hash, or a checksum of the entire save.
+
+The movement-settings addition advances the ledger envelope from version 3 to
+version 4. A recovery validator recomputes the current v4 hash and the recognized
+v3 hash (the same migrated projection with the newly added `world.movement`
+field omitted). It reports the v3 hash as explicitly compatible for selection of
+existing promoted checkpoints; the recovery store accepts only the recomputed
+current hash or one of those validator-approved compatibility hashes. A
+selected v3 checkpoint retains its stored v3 hash for pointer/metadata agreement.
+New promotions always persist the v4 hash, so re-promoting a v3 candidate
+migrates it. Other old or unknown ledger versions are not implicitly accepted.
 
 Implementation must validate field shapes, identities and cross-references,
 handle old saves and incompatible assets without silent progress loss, and
@@ -307,17 +378,25 @@ previous-version restore fixture, whenever the persisted actor shape changes.
 ### Reawakened canonical party, inventory and menu state
 
 The party, bag and open menu save as three owned sections of the same canonical
-game state, not as a second store. Schema version **2** replaces each section's
-version-1 empty placeholder. A version-1 section MUST be exactly `{}` and
-migrates to the fresh version-2 value below; other old or future versions and
-malformed current sections fail with `restore.shape` and an offending field
-path. Migration changes no actor, VM, RNG or time data.
+game state, not as a second store. Schema version **2** replaced each section's
+version-1 empty placeholder; the party section is now version **3**, because it
+gained the sub-tile movement remainder. A version-2 party migrates with its
+`steps` intact and `stepRemainder` set to zero. A version-1 section
+MUST be exactly `{}` and migrates to the fresh current value below; other old or
+future versions and malformed current sections fail with `restore.shape` and an
+offending field path. Migration changes no actor, VM, RNG or time data.
 
-| Section | Version-2 fields | Fresh value |
+| Section | Fields | Fresh value |
 | --- | --- | --- |
-| `party` | `version`, `members` (ordered, distinct actor ids; at most five), `selected` (member id or `null`), `steps` (non-negative safe integer) | `{ version: 2, members: [], selected: null, steps: 0 }` |
+| `party` | `version`, `members` (ordered, distinct actor ids; at most five), `selected` (member id or `null`), `steps` (non-negative safe integer), `stepRemainder` (integer 0–8191, in units of 1/256 board pixel) | `{ version: 3, members: [], selected: null, steps: 0, stepRemainder: 0 }` |
 | `inventory` | `version`, `nextId` (positive monotonic item identity), `items`, `equipment`, `gold` (non-negative safe integer) | `{ version: 2, nextId: 1, items: [], equipment: [], gold: 0 }` |
 | `menu` | `version`, `screens` (ordered navigation stack), `graphic` (asset reference or `null`) | `{ version: 2, screens: [], graphic: null }` |
+
+`steps` is whole tiles and `stepRemainder` the sub-tile part of the same
+distance; the rule that turns completed travel into them, and what never counts,
+is [the movement page's party-steps rule](../engine/movement-and-collision.md#reawakened-party-steps). The remainder is saved so that a
+save taken between two moves restores the exact accumulation, never a rounded
+tile count.
 
 An inventory item is exactly `{ id, source, handle, quantity }`: a positive
 safe integer identity below `nextId`, a non-empty item asset reference, its
@@ -354,8 +433,8 @@ preserve selection. Removing the selected member selects the member now at its
 former index, or the last remaining member if that index is past the end;
 removing the final member selects `null`. Reordering preserves selection by
 actor id.
-The party section stores membership, order, selection,
-and steps only; actor stats, progression, statuses, and equipment-derived
+The party section stores membership, order, selection, steps and the sub-tile
+remainder only; actor stats, progression, statuses, and equipment-derived
 state remain actor-owned. A roster operation validates its complete party and
 actor references before committing; failure changes neither owner. Snapshot and
 restore preserve the ordered ids and selected id, then restore the referenced

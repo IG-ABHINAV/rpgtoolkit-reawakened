@@ -8,15 +8,32 @@ import {
   createEngine,
   createGameState,
   createInputSection,
+  CATALOGUE_RESPONDERS_PLUGIN,
+  CATALOGUE_PLUGIN,
+  CORE_PLUGIN,
+  UI_PLUGIN,
+  createScriptServices as coreCreateScriptServices,
   hydrateSprites,
   inputPhaseRegistration,
   movementPhaseRegistration,
+  killThread,
+  findBlockingThread,
+  MOVEMENT_PLUGIN,
+  scriptOwnsInput,
+  runThreadsPhase,
+  runWaitsPhase,
+  startProgram,
+  startThread,
   PACKAGE_ROOT,
   writeBoard,
   type Engine,
   type GameState,
+  type PluginDefinition,
   type WorldBoard,
 } from "../src/index.ts";
+import { applySpriteEffect } from "../src/script/packs/movement.ts";
+import { setWaypoint } from "../src/sprites/runtime.ts";
+import { createScriptServices } from "./script-test-services.ts";
 
 function makeBoard(): WorldBoard {
   const empty = createEmptyBoard();
@@ -41,7 +58,7 @@ function key(code: "ArrowRight" | "ArrowLeft" | "ArrowDown", down: boolean, repe
 function makeState(allowDiagonals = false): GameState {
   const board = makeBoard();
   const state = createGameState({ seed: 1 });
-  state.world = { board };
+  state.world = { ...state.world, board };
   state.sprites = hydrateSprites({
     board,
     players: [{ id: "hero", kind: "player" as const, source: "hero.tem", x: 48, y: 63, layer: 1, facing: "S", controlled: true }],
@@ -53,7 +70,7 @@ function makeState(allowDiagonals = false): GameState {
   return state;
 }
 
-const runInputPhase = inputPhaseRegistration({ pixelMovement: 0, pixelStep: 8 }).run;
+const runInputPhase = inputPhaseRegistration({ pixelMovement: 0 }).run;
 const runMovement = movementPhaseRegistration().run;
 
 function tick(state: GameState, t: number, events: InputEv[] = []): void {
@@ -62,6 +79,213 @@ function tick(state: GameState, t: number, events: InputEv[] = []): void {
   runInputPhase(state);
   runMovement(state);
 }
+
+test("a nonblocking script route is replaced by a held direction at a step boundary", () => {
+  const state = makeState();
+  startThread(state.vm, {
+    ref: { kind: "inline", ir: "1", text: 'playerPath("hero", 0, 80, 63, 112, 63)\nend()' },
+    kind: "board", owner: "script",
+  });
+  runThreadsPhase(state.vm, createScriptServices(state, [MOVEMENT_PLUGIN]), 100);
+  const effect = state.vm.effects.find((entry) => entry.name === "playerpath" && entry.patch?.section === "sprites");
+  ok(effect, "the actual nonblocking script emits a movement effect");
+  equal(scriptOwnsInput(state.vm), false);
+  deepEqual(effect.args, ["hero", 0, 80, 63, 112, 63]);
+  equal(applySpriteEffect(state, effect.name, ["hero", 0, 80, 63, 112, 63]), true);
+  ok(state.sprites.players[0]!.queue.moves.length > 1, "the script queued a route");
+  tick(state, 0, [key("ArrowDown", true)]);
+  const player = state.sprites.players[0]!;
+  equal(player.movement.active?.facing, "S");
+  equal(player.queue.moves.length, 0, "remaining script path was removed");
+  equal(player.queue.waypoint, null);
+});
+
+test("a held direction clears a pending waypoint as well as queued moves", () => {
+  const state = makeState();
+  ok(setWaypoint(state.sprites, "hero", [{ x: 80, y: 63 }, { x: 112, y: 63 }], 1, false));
+  ok(state.sprites.players[0]!.queue.waypoint);
+  tick(state, 0, [key("ArrowDown", true)]);
+  equal(state.sprites.players[0]!.queue.waypoint, null);
+  equal(state.sprites.players[0]!.movement.active?.facing, "S");
+});
+
+test("a tap during an active route step is lost, but a held direction replaces it at the boundary", () => {
+  const state = makeState();
+  ok(applySpriteEffect(state, "playerpath", ["hero", 0, 80, 63, 112, 63, 144, 63]));
+  tick(state, 0);
+  const target = state.sprites.players[0]!.movement.active!.target;
+  tick(state, 1, [key("ArrowDown", true)]);
+  tick(state, 2, [key("ArrowDown", false)]);
+  deepEqual(state.sprites.players[0]!.movement.active!.target, target, "the tap did not interrupt the step");
+  for (let t = 3; t < 24; t += 1) tick(state, t);
+  equal(state.sprites.players[0]!.y, 63, "the completed tap is not buffered");
+  tick(state, 24, [key("ArrowDown", true)]);
+  const boundary = state.sprites.players[0]!.movement.active!.target.x;
+  ok(state.sprites.players[0]!.queue.moves.length > 0, "a later path step remains to preempt");
+  for (let t = 25; t < 100 && state.sprites.players[0]!.movement.active?.facing !== "S"; t += 1) tick(state, t);
+  const player = state.sprites.players[0]!;
+  equal(player.movement.active?.facing, "S");
+  equal(player.x, boundary, "the held key turns at the first boundary rather than after the route ends");
+  equal(player.queue.moves.length, 0);
+});
+
+for (const heldBeforeWait of [true, false]) {
+  test(`wait freezes movement when direction is ${heldBeforeWait ? "already held" : "pressed after parking"}`, () => {
+    const state = makeState();
+    const startX = state.sprites.players[0]!.x;
+    if (heldBeforeWait) applyInputEvent(state.input, key("ArrowRight", true));
+    const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()\nend()" });
+    runThreadsPhase(state.vm, createScriptServices(state), 100);
+    equal(thread.wait?.kind, "input.key", "the real wait() has parked");
+    if (!heldBeforeWait) applyInputEvent(state.input, key("ArrowRight", true));
+    for (let t = 0; t < 30; t += 1) tick(state, t);
+    equal(state.sprites.players[0]!.x, startX, "no movement while wait owns the queue");
+  });
+}
+
+for (const [label, text, waitKind] of [
+  ["prompt", 'prompt("Question", answer)', "render.msgbox"],
+  ["message box", 'msgbox("hello")', "render.msgbox"],
+] as const) {
+  test(`${label} blocks direction presses without consuming the key`, () => {
+    const state = makeState();
+    const thread = startProgram(state.vm, { kind: "inline", ir: "1", text });
+    runThreadsPhase(state.vm, createScriptServices(state, [CATALOGUE_RESPONDERS_PLUGIN]), 100);
+    equal(thread.wait?.kind, waitKind);
+    tick(state, 0, [key("ArrowRight", true)]);
+    equal(state.sprites.players[0]!.movement.active, null, "no direction movement starts");
+    equal(state.input.keys.at(-1)?.name, "right", "the script key queue receives the press");
+  });
+}
+
+test("a menu provider owns direction presses without moving the player", () => {
+  const state = makeState();
+  const menu: PluginDefinition = {
+    id: "test-menu", version: "1.0.0", commands: [],
+    menuProviders: {
+      main: () => ({ kind: "wait", state: {}, wait: { kind: "menu.screen", global: true, id: "test-menu", payload: [], resumeRefs: [] } }),
+    },
+  };
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "mainmenu()" });
+  const services = coreCreateScriptServices(state, [{ definition: CORE_PLUGIN }, { definition: UI_PLUGIN }, { definition: CATALOGUE_PLUGIN }, { definition: menu }]);
+  runThreadsPhase(state.vm, services, 100);
+  equal(thread.wait?.kind, "menu.screen", "the real menu provider is waiting");
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "menu navigation does not move the player");
+  equal(state.input.keys.at(-1)?.name, "right", "the menu receives the key");
+});
+
+test("a battle loop that sleeps between turns still owns input: no key walks the player, and the loop is no global wait", () => {
+  const state = makeState();
+  // The stock battle loop is an outermost program that sleeps between turns; it holds no global wait while it sleeps.
+  const loop = startProgram(state.vm, { kind: "inline", ir: "1", text: ":turn\nthreadSleep(getThreadId(), 5)\nbranch(:turn)\n" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(loop.status, "waiting");
+  equal(loop.wait?.kind, "sleep");
+  equal(findBlockingThread(state.vm), null, "no thread holds a global wait; only the outermost program's liveness freezes input");
+  tick(state, 0, [key("ArrowRight", true)]);
+  for (let t = 1; t < 60; t += 1) tick(state, t);
+  equal(state.sprites.players[0]!.x, 48, "the held key walked nothing during the battle loop");
+  equal(state.input.keys.at(-1)?.name, "right", "the key still reaches the key queue");
+
+  killThread(state.vm, loop.id);
+  tick(state, 60);
+  ok(state.sprites.players[0]!.movement.active !== null, "the key still held when the battle ends walks at once");
+});
+
+test("a script that fails with an uncaught error ends its program, so it never leaves input frozen", () => {
+  // Core has no script-error box wait: an uncaught error becomes a diagnostic and the thread finishes (see issue #1179).
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "noSuchCommand()\nafter = 1" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.status, "finished");
+  tick(state, 0, [key("ArrowRight", true)]);
+  ok(state.sprites.players[0]!.movement.active !== null, "with the failed program gone the key walks");
+});
+
+test("a tap during wait is lost for movement but remains in the key queue", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.wait?.kind, "input.key");
+  tick(state, 0, [key("ArrowRight", true)]);
+  tick(state, 1, [key("ArrowRight", false)]);
+  equal(state.sprites.players[0]!.queue.moves.length, 0, "a blocked press queues no step");
+  equal(state.sprites.players[0]!.movement.active, null, "a blocked tap starts no movement");
+  equal(state.input.keys.at(-1)?.name, "right", "the tap is still buffered for scripts");
+  killThread(state.vm, thread.id);
+  tick(state, 2);
+  equal(state.sprites.players[0]!.queue.moves.length, 0, "released tap is not replayed after the block");
+  equal(state.sprites.players[0]!.movement.active, null);
+});
+
+test("a key held through wait begins moving on the first idle phase after the block ends", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()" });
+  const services = createScriptServices(state);
+  runThreadsPhase(state.vm, services, 100);
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "the block prevents the initial press");
+  const claims: number[] = [];
+  runWaitsPhase(state.vm, { tick: 0, events: state.events, input: state.input, ui: state.ui, claims }, undefined, (seq) => {
+    if (seq !== undefined && !claims.includes(seq)) claims.push(seq);
+  });
+  runThreadsPhase(state.vm, services, 100);
+  equal(thread.status, "finished", "the new direction press ends the real wait");
+  runInputPhase(state);
+  equal(state.sprites.players[0]!.queue.moves.length, 1, "the held key queues a step immediately after the block");
+});
+
+test("a running program owns input even before its immediate Get executes", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "answer = Get()" });
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "input does not walk before Get");
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.status, "finished");
+  equal(state.vm.globals.answer, "right", "Get reads the buffered key");
+});
+
+test("a global wait in a non-blocking thread also freezes movement", () => {
+  const state = makeState();
+  const thread = startThread(state.vm, {
+    ref: { kind: "inline", ir: "1", text: "wait()" }, kind: "board", owner: "script",
+  });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  equal(thread.wait?.kind, "input.key");
+  tick(state, 0, [key("ArrowRight", true)]);
+  equal(state.sprites.players[0]!.movement.active, null, "the global wait owns the key queue regardless of thread kind");
+});
+
+test("a nested wait freezes movement and other script threads", () => {
+  const state = makeState();
+  const program = startProgram(state.vm, {
+    kind: "inline", ir: "1", text: "function nested() { wait() }\nnested()\n",
+  });
+  const background = startThread(state.vm, {
+    ref: { kind: "inline", ir: "1", text: "backgroundRan = 1" }, kind: "board", owner: "script",
+  });
+  const services = createScriptServices(state);
+  runThreadsPhase(state.vm, services, 100);
+  equal(program.wait?.kind, "input.key", "the nested call is parked");
+  equal(background.status, "ready", "the background thread did not run through the block");
+  tick(state, 0, [key("ArrowRight", true)]);
+  runThreadsPhase(state.vm, services, 100);
+  equal(state.sprites.players[0]!.movement.active, null, "nested wait prevents movement");
+  equal(state.vm.globals.backgroundran, undefined, "the background thread stays frozen");
+});
+
+test("a held gamepad direction resumes only after a blocking wait ends", () => {
+  const state = makeState();
+  const thread = startProgram(state.vm, { kind: "inline", ir: "1", text: "wait()" });
+  runThreadsPhase(state.vm, createScriptServices(state), 100);
+  tick(state, 0, [{ kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 15 }]);
+  equal(state.input.actions.right, true, "the gamepad continues to hold its action");
+  equal(state.sprites.players[0]!.movement.active, null, "the wait prevents a gamepad step");
+  killThread(state.vm, thread.id);
+  runInputPhase(state);
+  equal(state.sprites.players[0]!.queue.moves.length, 1, "the still-held gamepad direction resumes immediately");
+});
 
 test("holding a direction key moves the player continuously, not one tile", () => {
   const state = makeState();
@@ -75,6 +299,19 @@ test("holding a direction key moves the player continuously, not one tile", () =
   // At default speed (0.05 s) one 32 px tile takes 24 ticks. In 60 ticks a held key
   // should walk at least two full tiles (64 px). One tile would be the one-step bug.
   ok(endX - startX >= 64, `expected continuous movement over at least 64 px, moved ${endX - startX} px`);
+});
+
+test("a held direction preserves movement cadence across step boundaries", () => {
+  const state = makeState();
+  tick(state, 0, [key("ArrowRight", true)]);
+  for (let t = 1; t <= 21; t += 1) tick(state, t);
+  equal(state.sprites.players[0]!.x, 80, "the first step completes");
+  tick(state, 22);
+  equal(state.sprites.players[0]!.x, 80, "the next step observes the existing advance interval");
+  tick(state, 23);
+  equal(state.sprites.players[0]!.x, 80);
+  tick(state, 24);
+  equal(state.sprites.players[0]!.x, 84, "the next advance occurs at the normal cadence");
 });
 
 test("a single tapped direction key moves exactly one tile", () => {
@@ -242,7 +479,7 @@ test("a held key's host auto-repeat after the refocus does not resume the walk",
 test("a direction a gamepad holds survives a focus loss: no step while unfocused, walking resumes with focus", () => {
   const state = makeState();
   const start = state.sprites.players[0]!.x;
-  const padRight: InputEv = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 8 };
+  const padRight: InputEv = { kind: "gamepad", device: 0, connected: true, axes: { x: 0, y: 0 }, buttons: 1 << 15 };
 
   tick(state, 0, [padRight, key("ArrowRight", true)]);
   for (let t = 1; t < 21; t += 1) tick(state, t);
@@ -262,28 +499,34 @@ type ObservedEngine = {
   readonly engine: Engine;
   /** Whether the engine's own input state held Right at the input phase of each tick it ran. */
   readonly rightHeld: boolean[];
+  /** Latest state passed through the real input registration. */
+  readonly state: { current: GameState | null };
 };
 
 /** The real engine with Right bound and an observer in its input phase; its board is the empty authored one. */
-function observedEngine(): ObservedEngine {
+function observedEngine(width = 32, height = 32): ObservedEngine {
   const board = writeBoard(createEmptyBoard());
   if (!board.ok) throw new Error(board.error.message);
   const rightHeld: boolean[] = [];
+  const state: ObservedEngine["state"] = { current: null };
   const engine = createEngine({
     seed: 7,
     assetIndex: createAssetIndex(["Boards/test.brd"]),
     assetRoot: PACKAGE_ROOT,
     initialBoard: "test.brd",
-    width: 32,
-    height: 32,
+    width,
+    height,
     maxTicks: 60,
     input: { bindings: { keys: { ArrowRight: "right" } } },
-    phaseRegistrations: [{ phase: "input", rank: 1, run: (state) => { rightHeld.push(state.input.actions.right === true); } }],
+    phaseRegistrations: [{ phase: "input", rank: 1, run: (live) => {
+      state.current = live;
+      rightHeld.push(live.input.actions.right === true);
+    } }],
   });
   const request = engine.advance(0, []).requests[0];
   if (request?.kind !== "asset") throw new Error("expected the board request");
   if (engine.advance(0, [{ tick: 0, event: { kind: "asset", reqId: request.reqId, bytes: board.value } }]).loading) throw new Error("expected the board to load");
-  return { engine, rightHeld };
+  return { engine, rightHeld, state };
 }
 
 test("through the engine: a key pressed before the blur is released when focus returns", () => {
@@ -300,16 +543,23 @@ test("through the engine: a key pressed before the blur is released when focus r
   equal(rightHeld[rightHeld.length - 1], true);
 });
 
-test("through the engine: a key pressed in the blur's own frame is released too, and stays in the replay record", () => {
-  const { engine, rightHeld } = observedEngine();
+test("through the engine: a key after pointer input in the blur frame is released but stays queued", () => {
+  const { engine, rightHeld, state } = observedEngine();
   equal(engine.advance(2, []).ticksRun, 2);
 
-  // The host batches the key-down and the blur of one frame into one advance, in host order.
-  const blurred = engine.advance(2, [{ tick: 2, event: key("ArrowRight", true) }, { tick: 2, event: BLUR }]);
+  // Pointer hover, key-down and blur arrive in one frame; blur releases the held action without discarding the script key.
+  const blurred = engine.advance(2, [
+    { tick: 2, event: { kind: "pointer", x: 1, y: 1, buttons: 0 } },
+    { tick: 2, event: key("ArrowRight", true) },
+    { tick: 2, event: BLUR },
+  ]);
   equal(blurred.ticksRun, 0);
-  deepEqual(blurred.consumed.map((record) => record.event.kind), ["key", "focus"], "both records are consumed, in host order");
+  deepEqual(blurred.consumed.map((record) => record.event.kind), ["pointer", "key", "focus"], "the pre-blur prefix is consumed in order");
+  const blurState = state.current;
+  if (blurState === null) throw new Error("expected the input registration to expose engine state");
+  ok(blurState.input.keys.some((queued) => queued.name === "right"), "blur keeps the key available in the script queue");
   equal(engine.advance(3, [{ tick: 2, event: REFOCUS }]).ticksRun, 3);
-  deepEqual(rightHeld.slice(2), [false, false, false], "the key pressed just before the blur is not held after it");
+  deepEqual(rightHeld.slice(2), [false, false, false], "the key pressed after the pointer is no longer held");
 });
 
 test("through the engine: a key the host queued after the blur still waits for the resumed tick", () => {
@@ -321,4 +571,50 @@ test("through the engine: a key the host queued after the blur still waits for t
   deepEqual(blurred.consumed.map((record) => record.event.kind), ["focus"], "a record after the blur is not applied while unfocused");
   equal(engine.advance(2, [{ tick: 2, event: REFOCUS }]).ticksRun, 2);
   deepEqual(rightHeld.slice(2), [true, true], "it applies at the resumed tick, as before");
+});
+
+test("pointer events capture the simulation camera, including centering, scrolling and shake", () => {
+  const { engine, state } = observedEngine(640, 480);
+  engine.advance(1, []);
+  const live = state.current;
+  if (live === null) throw new Error("expected the engine state");
+
+  // A small board is centred 64 pixels below the viewport origin.
+  Object.assign(live.camera, { x: 0, y: -64, prevX: 0, prevY: -64, shake: null });
+  engine.advance(1, [{ tick: 1, event: { kind: "pointer", x: 250, y: 223, buttons: 1 } }]);
+  deepEqual(live.input.pendingClicks, [{ gestureId: 1, x: 250, y: 159 }]);
+
+  // A queued click keeps its original world position when the camera moves before release.
+  Object.assign(live.camera, { x: 80, y: 50, prevX: 20, prevY: 10, shake: { amplitude: 3, remainingTicks: 10, elapsedTicks: 1 } });
+  engine.advance(1, [{ tick: 2, event: { kind: "pointer", x: 100, y: 90, buttons: 0 } }]);
+  deepEqual(live.input.pendingClicks, [{ gestureId: 1, x: 250, y: 159 }]);
+  deepEqual(live.input.pendingPointerUps, [{ gestureId: 1, x: 183, y: 137 }], "release uses the current camera and shake, not the previous or interpolated camera");
+  deepEqual({ x: live.input.pointer.x, y: live.input.pointer.y }, { x: 100, y: 90 }, "script-visible pointer remains in viewport coordinates");
+});
+
+test("a logged pointer gesture replays identically across tick batchings with a nonzero camera", () => {
+  const batched = observedEngine(640, 480);
+  const split = observedEngine(640, 480);
+  for (const fixture of [batched, split]) {
+    fixture.engine.advance(1, []);
+    if (fixture.state.current === null) throw new Error("expected the engine state");
+    Object.assign(fixture.state.current.camera, { x: 0, y: -64, prevX: 0, prevY: -64, shake: null });
+  }
+  const records = [
+    { tick: 1, event: { kind: "pointer" as const, x: 250, y: 223, buttons: 1 } },
+    { tick: 2, event: { kind: "pointer" as const, x: 250, y: 223, buttons: 0 } },
+  ];
+  const oneBatch = batched.engine.advance(2, records);
+  const first = split.engine.advance(1, [records[0]!]);
+  const second = split.engine.advance(1, [records[1]!]);
+  deepEqual(oneBatch.consumed, records);
+  deepEqual([...first.consumed, ...second.consumed], records);
+  equal(oneBatch.stateHash, second.stateHash);
+  const a = batched.state.current;
+  const b = split.state.current;
+  if (a === null || b === null) throw new Error("expected both engine states");
+  deepEqual(a.input.pendingClicks, [{ gestureId: 1, x: 250, y: 159 }]);
+  deepEqual(a.input.pendingClicks, b.input.pendingClicks);
+  deepEqual(a.input.pendingPointerUps, b.input.pendingPointerUps);
+  equal(a.input.pendingPointerUps.length, 1, "the release is retained in replay");
 });

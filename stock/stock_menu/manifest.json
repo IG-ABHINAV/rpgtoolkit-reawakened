@@ -2,6 +2,6 @@
   "name": "stock_menu",
   "version": "1.0.0",
   "namespace": "stock_menu",
-  "requests": [],
+  "requests": ["asset", "listBlobs", "loadBlob", "saveBlob", "quit"],
   "program": "startup.prg"
 }
