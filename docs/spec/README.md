@@ -11,7 +11,7 @@ This is a behaviour and file-format specification of **RPG Toolkit 3.1** (the ed
 | [formats/](formats/README.md) | Every current game file format, byte by byte: conventions, main file, board, character, item, enemy, animation, tiles (tilesets, isometric, single tiles, animated tiles, tile bitmaps), battle data, saved game, RPGCode programs, project layout, PAK and standalone EXE |
 | [formats/legacy/](formats/legacy/README.md) | Legacy files: Toolkit 1-2 text formats, older 3.0 binary versions, how to detect them, and how the original programs converted them |
 | [engine/main-loop-and-startup.md](engine/main-loop-and-startup.md) | Command line, start-up, the frame loop, timing, drawing order, shutdown |
-| [engine/movement-and-collision.md](engine/movement-and-collision.md) | Positions, speed, sprite states, collision, activation of programs and items, board links, path-finding |
+| [engine/movement-and-collision.md](engine/movement-and-collision.md) | Positions, speed, sprite states, collision, activation of programs and items, board links, path-finding, and Reawakened's [once-per-program player movement takeover](engine/movement-and-collision.md#reawakened-program-movement-takeover) |
 | [engine/display-input-audio.md](engine/display-input-audio.md) | Window modes, transparency, input mapping, music and sound, video, fonts |
 | [engine/rpgcode-language.md](engine/rpgcode-language.md) | The scripting language: syntax, semantics, execution, threads, objects, virtual variables, quirks |
 | [engine/rpgcode-functions.md](engine/rpgcode-functions.md) | All 282 built-in commands with signatures |

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Spec decision only: a program's first player-movement instruction clears all inherited pending moves and continuing waypoints once; its later commands retain normal append/clear semantics. A non-stopping trigger that issues no movement leaves its route eligible for later regions. Runtime implementation, suppression-lifetime reconciliation and old-save migration remain tracked by #1643 ([ADR 0020](docs/adr/0020-program-movement-takeover.md)).
 - Save/Load preserves shared asset readiness, so unloaded animations and later consumers keep the same playback timing across cold and warm destination caches. Saved-warm files are restored before simulation resumes; cancelled cold pictures are not prefetched. Saves use current game assets and migrate older saves with a documented cold fallback (#1340).
 - The playable demo now includes the stock menu and battle packages, and web, desktop and mobile players load their bundled package providers before game startup. Inline startup functions from different packages no longer collide, and pre-existing saves with `<inline>#lambda_N` package startup closures migrate to owner-qualified identities on restore (#1672, #1673, #1676).
   The Epic 8 acceptance state hashes were re-recorded for the new identities; its draw hashes and events are unchanged.
