@@ -1,6 +1,6 @@
 # Creator engagement areas: legacy capability to future experience
 
-**Session:** 2026-11-07. **Status:** accepted product direction; proposed engagement map and paper flows. Not validated personas, a feature backlog, a selected shell, or evidence of implemented Reawakened functionality.
+**Session:** 2026-11-07. **Status:** accepted product direction; proposed engagement map and paper flows. Not validated personas, a feature backlog, a selected workbench composition, or evidence of implemented Reawakened functionality.
 
 ## Owner direction and what stays open
 
@@ -8,7 +8,7 @@ Jensen confirmed Sally's framing: **RPG Maker's clarity of purpose, VS Code's wo
 
 Jensen also selected choice between game-oriented navigation and files/folders, including showing both together. Familiarity with an engineering workspace is Jensen's reported experience, not evidence that all creators prefer an IDE.
 
-VSCodium/Code - OSS remains a candidate foundation. A custom shell remains a candidate. No shell, framework, native format, database layout, panel arrangement, extension API, or mandatory authoring sequence was selected. Specialist editors remain valuable; continuity between them is the design problem.
+VSCodium/Code - OSS-style workbench and a custom workbench remain candidates for comparison. The separate desktop-shell decision is already made: [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md) selects Electron for the desktop editor and player. No workbench composition, native format, database layout, panel arrangement, extension API, or mandatory authoring sequence was selected by this research. Specialist editors remain valuable; continuity between them is the design problem.
 
 Owner request: “take all the different scenarios and start mapping engagement areas. then see how that maps to the RPGToolkit as it is today vs where it can / should go. lets document those user flows and a prompt.”
 
@@ -144,7 +144,7 @@ Every SC ID occurs once in this table. Secondary areas are intentional crossings
 2. **Comparison versus documents:** do data editors open as individual documents, one collection, or both? Test a single effect and a bulk tuning task before choosing.
 3. **Testing placement:** contextual preview, dedicated test workspace, or both? Distinguish static explanation, simulated calculation, actual runner and ordinary game start.
 4. **Identity and revision:** what guarantees support rename, replacement, cross-document save and undo? Do not promise atomic project-wide operations because a mock has one Apply button.
-5. **Host fitness:** compare the same journeys in a Code-based distribution and a custom shell. Measure discoverability, preserved context, accessibility, visual editing, debugging, start/save/test time and maintenance cost. No winner selected by resemblance to a screenshot.
+5. **Host fitness:** compare the same journeys in a Code-based distribution and a custom workbench. Measure discoverability, preserved context, accessibility, visual editing, debugging, start/save/test time and maintenance cost. No workbench winner is selected by resemblance to a screenshot; Electron is already selected as the desktop shell.
 6. **Model boundaries:** existing legacy representations constrain compatibility, not future product vocabulary. New storage/override/plugin/layout needs require their own decisions rather than silently appearing in a mock.
 
 Recommended next prototype set (research order, not feature priority): F-09 effect-to-fight; F-04 shared artwork revision; F-01 discovery and startup; F-13 recipient handoff. Include an unfamiliar creator and an experienced code-first creator. Observe wrong turns and recovery, not just task time or preference. If a mock supports only a paper transition, label it; never report it as engine execution.

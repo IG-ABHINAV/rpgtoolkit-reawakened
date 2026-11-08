@@ -140,18 +140,18 @@ A paper walkthrough of a first-timer building a village with an inn, a talking p
 - **Owner observation:** reopened 3.1.0 was more capable than remembered, but cumbersome; settings and the project list were hard to discover behind cryptic buttons, and the board was visually busy.
 - **Requested next work:** map all scenarios to engagement areas, compare legacy Toolkit capability with possible future experience, document user flows and a reusable prompt, then end the party.
 - **Delivered research:** [engagement map](engagement-area-map.md), [expanded flows](engagement-user-flows.md), and [continuation prompt](engagement-design-prompt.md). These proposals do not supersede normative specs or establish implementation status.
-- **Still open:** Code - OSS/VSCodium distribution versus a custom shell; focused versus full editors; database/comparison layout; testing surface; document transactions; native-format additions; plugin-editor APIs. No host, architecture, roadmap, or feature priority selected.
+- **Still open:** a Code - OSS/VSCodium-style workbench versus a custom workbench; focused versus full editors; database/comparison layout; testing surface; document transactions; native-format additions; plugin-editor APIs. These UX discussions did not select a workbench composition, roadmap, or feature priority. Separately, [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md) has already selected Electron as the desktop shell for the editor and player.
 - **Evidence correction:** the additional Status Effect Editor screenshot supplied during this session closes that visual-coverage gap for the visible form only. Save/reopen and runtime semantics remain unverified by the capture.
 
 ## 9. UI implementation starting points — 2026-11-08
 
-**Status: initial candidates and design direction, not a selected stack or implementation claim.**
+**Status: initial workbench candidates and design direction, not a selected workbench composition or implementation claim.** Electron is already the selected desktop shell under [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md); this research does not reopen that decision.
 
 Jensen: “lets log these as initial places to start to build our UI. Also a settings system that is similar to vscode's might make the editors a little easier to port as well. using vscode's json schema design”
 
 ### Custom workbench candidate
 
-- **Electron** as the desktop host, **Monaco Editor** for code, and **Dock Spawn** as a candidate docking system. This is an option to evaluate against the engagement flows, not a decision to fork Code - OSS/VSCodium or a commitment to these dependencies.
+- **Electron** as the already-selected desktop host, with **Monaco Editor** for code and **Dock Spawn** as a candidate docking system. The workbench composition is an option to evaluate against the engagement flows, not a decision to fork Code - OSS/VSCodium or a commitment to Monaco or Dock Spawn.
 - Keep RPG Maker's approachable game-making experience, VS Code's workspace flexibility, and direct visual editing as the purpose. Choosing components does not settle the user experience.
 - Monaco supplies code editing, not VS Code's whole workbench or extension host. Project navigation, document lifecycle, commands, language tooling integration, and recovery still need deliberate integration.
 - Dock Spawn remains provisional: assess maintenance, licensing and dependencies under G6, keyboard/accessibility support, resizing, layout persistence, and moving editors without losing document, canvas, or selection state.

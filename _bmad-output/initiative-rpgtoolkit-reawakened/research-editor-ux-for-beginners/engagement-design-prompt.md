@@ -13,7 +13,7 @@ You are designing how creators find and move among related authoring work in TK 
 
 Treat these as companion research/design artifacts, not architecture, implementation claims, or feature commitments. Do not edit other files.
 
-The owner accepted this direction: **RPG Maker clarity of purpose + VS Code workspace flexibility + Figma-like direct visual editing; game maker first, not IDE setup first.** Game and Files navigation should be available separately or together. **VSCodium/Code-OSS is a candidate, not a selected host.** Preserve G2's shared `editor-ui` host boundary.
+The owner accepted this direction: **RPG Maker clarity of purpose + VS Code workspace flexibility + Figma-like direct visual editing; game maker first, not IDE setup first.** Game and Files navigation should be available separately or together. A VSCodium/Code-OSS-style workbench is a candidate, not a selected workbench composition. Separately, [ADR 0013](../../../docs/adr/0013-desktop-shell-electron.md) already selects Electron as the desktop shell for the editor and player. Preserve G2's shared `editor-ui` host boundary.
 
 ## Input manifest — read before designing
 
@@ -38,7 +38,7 @@ Link sources with relative paths from each output document. Add a **Key source f
 - Show how context survives transitions: originating task/question, subject/selection, pending work, and return destination as relevant. Keep per-visit/task context distinct from shared project/asset state. Make effective edit scope legible; local scope only exists where the data model supports it, otherwise say the edit is shared.
 - Make safe cancel, save/durability, test/run, failure, and recovery visible in flows. Do not promise atomic cross-document undo, deterministic runs, backup/recovery guarantees, or other unverified capabilities.
 - Include accessibility and a usable independent no-AI route; AI/conversation can be optional, never required to navigate or author.
-- Compare the same representative flows under a Code-OSS/VSCodium-style distribution and a custom shell, without selecting the host or smuggling in a distribution/architecture decision. Preserve G2 shared `editor-ui` across hosts.
+- Compare the same representative flows under a Code-OSS/VSCodium-style distribution and a custom workbench, without selecting the workbench composition or smuggling in a new distribution/architecture decision. The Electron desktop-shell decision remains in force. Preserve G2 shared `editor-ui` across hosts.
 - A **prioritized prototype subset** is only a research/prototyping sequence to learn from. It is not feature priority, roadmap, or implementation commitment.
 - Do not require a new format, database, block round-trip, character generator, cloud service, or collaboration system. These are not accepted prerequisites or decisions.
 
@@ -62,7 +62,7 @@ Provide:
 
 - Purpose, status, scope, evidence/claim legend, and a set of end-to-end flows covering the prototype subset and contrasting creator intents/methods.
 - For each flow: starting state and goal; navigation entry (Game, Files, or both); screen/state map; transitions with trigger and destination; focused versus full-view state and promotion/return behavior; context carried; shared versus local scope; save/durability and cancel; test/run state; failure/recovery; accessibility and independent no-AI route.
-- Compare each same flow in both host models (Code-OSS/VSCodium-style distribution and custom shell): what remains shared under G2, what differs, and what is still unknown. Do not choose a host.
+- Compare each same flow in both host models (Code-OSS/VSCodium-style distribution and custom workbench): what remains shared under G2, what differs, and what is still unknown. Do not choose a workbench composition.
 - Cover creating and returning to linked work, existing/missing references, selection/creation, context preservation, and broad management without implying missing assets should be silently created.
 - Cite source-backed facts separately from design proposals, assumptions, and hypotheses. Include validation tasks and unresolved interaction decisions.
 
@@ -76,7 +76,7 @@ Before handing off, confirm:
 - [ ] No implementation is claimed from old plans; no live implementation claims without requested fresh evidence.
 - [ ] Game and Files work as separate or combined navigation; focused/full-view and return/context behavior are mapped.
 - [ ] Shared/local scope, cancel/save/test, failures/recovery, accessibility, and no-AI paths are addressed.
-- [ ] Both host models are compared on the same flows without an early host choice; G2 is preserved.
+- [ ] Both host models are compared on the same flows without an early workbench choice; G2 and the existing Electron desktop-shell decision are preserved.
 - [ ] Prototype ordering is explicitly not feature priority; sources, evidence, assumptions, open decisions, and creator-validation tasks are present.
 - [ ] No rejected prerequisite or unapproved format, database, block round-trip, character generator, cloud, or collaboration decision is introduced.
 - [ ] Neither synthetic scenarios nor paper rehearsals are described as real-user evidence.
