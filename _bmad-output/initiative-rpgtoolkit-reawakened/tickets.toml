@@ -205,3 +205,10 @@ title = "Host Capabilities, Display Planes and Touch Control Surface"
 covers = ["CAP-12"]
 after = [{ epic = 9, needs = "the runner boundary and live session" }]
 
+[[epic]]
+id = 27
+tracker_id = "#1802"
+slug = "epic-native-data-contracts"
+title = "Native data contracts: versioned, text-first documents, proved on the animation clip"
+after = [{ epic = 2, needs = "the legacy readers and format registry that the 1:1 importer oracle uses, for 27.4 only" }, { epic = 11, needs = "shared editor documents and platform-services, for 27.6 only; the earlier stories are independent" }]
+
