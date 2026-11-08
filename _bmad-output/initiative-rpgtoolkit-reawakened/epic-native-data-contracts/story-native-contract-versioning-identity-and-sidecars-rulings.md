@@ -1,9 +1,9 @@
 ---
-id: 2
+id: 1
 type: story
 title: "The native data contracts have approved rulings for versioning, identity and plugin-data separation"
-parent: none
-covers: []
+parent: epic-native-data-contracts
+covers: [E1, E2, E3, E4, E5]
 after: []
 tracker_id: "#1800"
 refined: true
