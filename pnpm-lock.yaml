@@ -272,6 +272,19 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
 
+  packages/native-data-import:
+    dependencies:
+      '@tk-reawakened/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tk-reawakened/native-data':
+        specifier: workspace:*
+        version: link:../native-data
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+
   packages/plugin-tk2-compat:
     dependencies:
       '@tk-reawakened/core':

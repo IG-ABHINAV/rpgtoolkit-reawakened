@@ -191,6 +191,7 @@ jobs:
           - script-spec
           - native-data
           - native-data-cli
+          - native-data-import
     steps:
       - name: CI classifier decision
         shell: bash

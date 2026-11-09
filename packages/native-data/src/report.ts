@@ -43,6 +43,8 @@ export function formatReport(report: CheckReport): string {
       const target = report.plugin.path === null ? "no such document" : code(report.plugin.path);
       return `${report.owner.path}: owner ${code(report.owner.id)} names the plugin document ${code(report.plugin.named)} (${target}), but ${report.reason}.${fixText(report.fix)}`;
     }
+    case "extension-contract-mismatch":
+      return `${report.path}: the extension ${code(report.extension)} is registered for the contract ${code(report.registered)}, but the stamp names ${code(report.stamp)}. Either the extension or the stamp is wrong; the checker cannot tell which.`;
     case "mismatched-link": {
       const [first, second] = report.ends;
       const names = (end: typeof first): string =>

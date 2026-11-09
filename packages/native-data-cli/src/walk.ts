@@ -6,7 +6,7 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { foldId, type DocumentInput } from "@tk-reawakened/native-data";
+import { classifyExtension, extensionOf, foldId, type DocumentInput } from "@tk-reawakened/native-data";
 
 const SKIPPED_FOLDERS: ReadonlySet<string> = new Set([".git", "node_modules"]);
 
@@ -15,19 +15,23 @@ function compareNames(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
-function isDocument(name: string, extensions: readonly string[]): boolean {
+/** Without `extensions`, a native document is a file whose extension the registry holds. */
+function isDocument(name: string, extensions: readonly string[] | undefined): boolean {
+  if (extensions === undefined) return classifyExtension(extensionOf(name)) === "native-registered";
   const folded = foldId(name);
   return extensions.some((extension) => name.length > extension.length && folded.endsWith(foldId(extension)));
 }
 
 /**
- * Every file under `root` whose name ends in one of `extensions` (matched with
- * A to Z folded), as `{ path, text }` with `path` relative to `root` and `/`
- * separated, in name order. Symbolic links and other non-file entries are not
- * followed. A file that is not valid UTF-8 comes back as `unreadable`, so the
- * checker can name it instead of the walk guessing at its text.
+ * Every native document under `root`, as `{ path, text }` with `path` relative to `root`
+ * and `/` separated, in name order. A native document is a file whose extension is in the
+ * registry (matched with A to Z folded) or, when `extensions` is given, ends in one of
+ * those. Any other file, a classic legacy file such as `walk.anm` among them, is not
+ * opened at all. Symbolic links and other non-file entries are not followed. A file that
+ * is not valid UTF-8 comes back as `unreadable`, so the checker can name it instead of the
+ * walk guessing at its text.
  */
-export function collectDocuments(root: string, extensions: readonly string[]): DocumentInput[] {
+export function collectDocuments(root: string, extensions?: readonly string[]): DocumentInput[] {
   const decoder = new TextDecoder("utf-8", { fatal: true });
   const found: DocumentInput[] = [];
   const visit = (folder: string, prefix: string): void => {

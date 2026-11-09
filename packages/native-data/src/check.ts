@@ -3,18 +3,29 @@
  * (docs/spec/formats/native-contracts.md#checker). It reports and never repairs:
  * it takes text in and returns reports out, and has no way to write anything.
  *
- * What is configured, because the spec leaves it open (#open-items):
- *  - which file extensions mark a document, which are removed to make its ID;
+ * What is configured, because the spec leaves it open (#not-decided-here):
+ *  - the registry of native extensions, and optionally which extensions mark a document;
  *  - the name of the link field a plugin document uses for its owner;
  *  - the name of the link field an owner uses for its plugin documents.
+ *
+ * A file whose extension is not a document extension is not a native document. Legacy files
+ * (`.anm`, `.brd`, ...) are such files: the checker neither reads nor reports them.
  */
 
 import { readDocument, type DocumentInput, type FieldValue, type ReadDocument, type StampReport } from "./document.ts";
 import { compareText, foldId } from "./fold.ts";
+import { classifyExtension, extensionOf, lookupExtension, REGISTRY, validateRegistry, type Registry } from "./registry.ts";
 
 export type CheckConfig = {
-  /** Extensions that mark a native document, such as `.yaml`. Matched after ASCII folding. */
-  readonly documentExtensions: readonly string[];
+  /**
+   * Extensions that mark a native document, such as `.tkranm`, matched after ASCII folding.
+   * Absent: every extension of the registry. Present: exactly these, whether or not the
+   * registry holds them (a document whose extension is not registered has no contract to
+   * agree with).
+   */
+  readonly documentExtensions?: readonly string[];
+  /** The extension to contract table. Absent: the shipped {@link REGISTRY}. */
+  readonly registry?: Registry;
   /** Top-level field of a plugin document that holds its owner's ID (a text value). */
   readonly ownerField: string;
   /** Top-level field of an owner that holds its plugin documents' IDs (a list of text values). */
@@ -72,13 +83,25 @@ export type MismatchedLinkReport = {
   readonly fix: FixSide;
 };
 
+export type ExtensionContractMismatchReport = {
+  readonly class: "extension-contract-mismatch";
+  readonly path: string;
+  /** The extension as registered (lowercase), whatever its case in the path. */
+  readonly extension: string;
+  /** The contract the registry holds for the extension. */
+  readonly registered: string;
+  /** The contract the document's stamp names. */
+  readonly stamp: string;
+};
+
 export type CheckReport =
   | StampReport
   | DuplicateIdReport
   | FoldCollisionReport
   | PluginNoOwnerReport
   | OwnerNoBackLinkReport
-  | MismatchedLinkReport;
+  | MismatchedLinkReport
+  | ExtensionContractMismatchReport;
 
 export type ReportClass = CheckReport["class"];
 
@@ -89,17 +112,19 @@ export const REPORT_CLASSES: readonly ReportClass[] = [
   "plugin-no-owner",
   "owner-no-back-link",
   "mismatched-link",
+  "extension-contract-mismatch",
 ];
 
-/** The ID of a document: its path with the document extension removed. */
-export function documentId(path: string, extensions: readonly string[]): string {
-  const folded = foldId(path);
-  let best = "";
-  for (const extension of extensions) {
-    const wanted = foldId(extension);
-    if (folded.endsWith(wanted) && wanted.length > best.length && wanted.length < path.length) best = wanted;
-  }
-  return best === "" ? path : path.slice(0, path.length - best.length);
+/**
+ * The ID of a document: its path, extension included, with `/` between parts. An empty part
+ * (`clips//walk.tkranm`) and a `.` part (`./clips/walk.tkranm`) are dropped, so those spellings
+ * are the one ID `clips/walk.tkranm`. Case is kept; comparison folds it (see {@link foldId}).
+ */
+export function documentId(path: string): string {
+  return path
+    .split("/")
+    .filter((part) => part !== "" && part !== ".")
+    .join("/");
 }
 
 type Doc = {
@@ -141,9 +166,12 @@ export function validateConfig(config: CheckConfig): void {
   for (const name of [config.ownerField, config.pluginsField]) {
     if (name === "contract" || name === "version") throw new RangeError(`\`${name}\` is a stamp key, not a link field`);
   }
-  if (config.documentExtensions.length === 0 || config.documentExtensions.some((extension) => extension === "")) {
-    throw new RangeError("at least one non-empty document extension is required");
+  if (config.documentExtensions !== undefined) {
+    if (config.documentExtensions.length === 0 || config.documentExtensions.some((extension) => extension === "")) {
+      throw new RangeError("at least one non-empty document extension is required");
+    }
   }
+  if (config.registry !== undefined) validateRegistry(config.registry);
 }
 
 function group<T>(items: readonly T[], keyOf: (item: T) => string): Map<string, T[]> {
@@ -165,19 +193,27 @@ function group<T>(items: readonly T[], keyOf: (item: T) => string): Map<string, 
 export function checkDocuments(inputs: readonly DocumentInput[], config: CheckConfig): CheckReport[] {
   validateConfig(config);
   const { ownerField, pluginsField } = config;
+  const registry = config.registry ?? REGISTRY;
+  const overrides = config.documentExtensions?.map(foldId);
+  const isDocument = (path: string): boolean => {
+    if (overrides === undefined) return classifyExtension(extensionOf(path), registry) === "native-registered";
+    const folded = foldId(path);
+    return overrides.some((extension) => folded.endsWith(extension) && path.length > extension.length);
+  };
 
-  const docs: Doc[] = [...inputs]
+  const docs: Doc[] = inputs
+    .filter((input) => isDocument(input.path))
     .sort((left, right) => compareText(left.path, right.path))
     .map((input) => ({
-      read: readDocument(input, [ownerField, pluginsField]),
+      read: readDocument(input, [ownerField, pluginsField, "contract"]),
       path: input.path,
-      id: documentId(input.path, config.documentExtensions),
+      id: documentId(input.path),
     }));
 
   const reports: CheckReport[] = [];
   for (const doc of docs) reports.push(...doc.read.stampReports);
 
-  // Identity. Same ID as written (two extensions for one path), then same ID once folded.
+  // Identity. Same ID as written (a path listed twice, or two spellings of one path), then same ID once folded.
   const byId = group(docs, (doc) => doc.id);
   for (const [id, same] of byId) {
     if (same.length > 1) reports.push({ class: "duplicate-id", id, paths: same.map((doc) => doc.path) });
@@ -325,12 +361,26 @@ export function checkDocuments(inputs: readonly DocumentInput[], config: CheckCo
     }
   }
 
-  reports.push(...noOwner, ...noBackLink, ...mismatched);
+  // The extension and the stamp must name one contract. Judged only when the registry holds the
+  // extension and the stamp names its contract once, as text: any other stamp is already reported.
+  const disagree: ExtensionContractMismatchReport[] = [];
+  for (const doc of docs) {
+    const entry = lookupExtension(extensionOf(doc.path) ?? "", registry);
+    const stamped = doc.read.fields.get("contract");
+    if (entry === undefined || stamped === undefined || stamped.length !== 1) continue;
+    const value = stamped[0]!;
+    if (value.kind === "text" && value.value !== entry.contract) {
+      disagree.push({ class: "extension-contract-mismatch", path: doc.path, extension: entry.extension, registered: entry.contract, stamp: value.value });
+    }
+  }
+
+  reports.push(...noOwner, ...noBackLink, ...mismatched, ...disagree);
   const rank = (report: CheckReport): number => REPORT_CLASSES.indexOf(report.class);
   const firstPath = (report: CheckReport): string => {
     switch (report.class) {
       case "stamp":
       case "plugin-no-owner":
+      case "extension-contract-mismatch":
         return report.path;
       case "duplicate-id":
       case "fold-collision":

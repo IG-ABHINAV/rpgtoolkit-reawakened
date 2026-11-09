@@ -41,6 +41,7 @@ export const GROUPS = Object.freeze([
   "script-spec",
   "native-data",
   "native-data-cli",
+  "native-data-import",
 ]);
 
 const CORE_FORMATS_FILE = /^(?:format-|audio-|canon\.|contracts\.|fmath|lint-rules\.|rng\.|save-migration\.|validate\.)/;

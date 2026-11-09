@@ -6,6 +6,7 @@ export {
   type CheckConfig,
   type CheckReport,
   type DuplicateIdReport,
+  type ExtensionContractMismatchReport,
   type FixSide,
   type FoldCollisionReport,
   type LinkEnd,
@@ -24,5 +25,35 @@ export {
   type StampReport,
 } from "./document.ts";
 export { foldId } from "./fold.ts";
+export {
+  classifyExtension,
+  extensionOf,
+  lookupExtension,
+  REGISTRY,
+  validateRegistry,
+  type Registry,
+  type RegistryEntry,
+} from "./registry.ts";
 export { formatReport } from "./report.ts";
 export { parseVersion, type VersionParse } from "./version.ts";
+export {
+  checkClip,
+  CLIP_CONTRACT,
+  CLIP_VERSION,
+  formatClipPath,
+  formatClipProblems,
+  readClip,
+  removeClipProperty,
+  setClipProperty,
+  writeClip,
+  type Clip,
+  type ClipColour,
+  type ClipEditResult,
+  type ClipEditValue,
+  type ClipFrame,
+  type ClipJson,
+  type ClipPath,
+  type ClipProblem,
+  type ClipReadResult,
+  type ClipWriteResult,
+} from "./clip.ts";

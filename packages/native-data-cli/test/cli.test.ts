@@ -11,11 +11,20 @@ import { runCli } from "../src/index.ts";
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): string => join(here, "fixtures", name);
 const FIELDS = ["--owner-field", "owner", "--plugins-field", "plugins"];
+/**
+ * Documents with an extension the registry does not hold, and with contracts it does not know
+ * (placeholder actors and plugin documents), are read through the `--ext` override. The
+ * registry holds only `.tkranm`.
+ */
+const PLACEHOLDER = [...FIELDS, "--ext", ".yaml"];
 
 /** Run the checker over a fixture folder; the JSON result is the contract, the text is its rendering. */
-function check(name: string): { readonly exitCode: number; readonly text: string; readonly reports: unknown[]; readonly documents: number } {
-  const text = runCli([...FIELDS, fixture(name)]);
-  const json = runCli([...FIELDS, "--json", fixture(name)]);
+function check(
+  name: string,
+  args: readonly string[] = FIELDS,
+): { readonly exitCode: number; readonly text: string; readonly reports: unknown[]; readonly documents: number } {
+  const text = runCli([...args, fixture(name)]);
+  const json = runCli([...args, "--json", fixture(name)]);
   equal(text.exitCode, json.exitCode);
   const parsed = JSON.parse(json.stdout) as { schema: string; documents: number; problems: number; reports: unknown[] };
   equal(parsed.schema, "tkr-native-check/1");
@@ -40,13 +49,19 @@ function fingerprint(root: string): string {
 }
 
 void test("the clean folder reports nothing", () => {
-  const result = check("clean");
-  deepEqual([result.exitCode, result.documents, result.reports], [0, 3, []]);
-  equal(result.text, "3 documents checked, 0 problems found\n");
+  const result = check("clean", PLACEHOLDER);
+  deepEqual([result.exitCode, result.documents, result.reports], [0, 2, []]);
+  equal(result.text, "2 documents checked, 0 problems found\n");
+});
+
+void test("by default a native document is a file with a registered extension, matched without regard to A-Z case", () => {
+  const result = check("native-clean");
+  deepEqual([result.exitCode, result.documents, result.reports], [0, 2, []]);
+  equal(result.text, "2 documents checked, 0 problems found\n");
 });
 
 void test("missing or malformed stamps are reported with the path, the key and the text found", () => {
-  const result = check("stamp");
+  const result = check("stamp", PLACEHOLDER);
   equal(result.exitCode, 1);
   equal(
     result.text,
@@ -72,68 +87,78 @@ void test("missing or malformed stamps are reported with the path, the key and t
   ]);
 });
 
-void test("two documents with one ID are reported with the ID and both documents", () => {
-  const result = check("duplicate-id");
+void test("a clip and an actor with one name are two IDs because the ID includes the extension", () => {
+  const result = check("same-stem", [...FIELDS, "--ext", ".tkranm", "--ext", ".tkract"]);
+  deepEqual([result.exitCode, result.documents, result.reports], [0, 2, []]);
+});
+
+void test("an extension that names a different contract than the stamp is reported with the path, the extension and both contracts", () => {
+  const result = check("extension-mismatch");
   equal(result.exitCode, 1);
-  deepEqual(result.reports, [{ class: "duplicate-id", id: "clips/walk", paths: ["clips/walk.yaml", "clips/walk.yml"] }]);
-  equal(result.text, "duplicate ID `clips/walk`: `clips/walk.yaml` and `clips/walk.yml` both resolve to it\n2 documents checked, 1 problem found\n");
+  deepEqual(result.reports, [
+    { class: "extension-contract-mismatch", path: "clips/walk.tkranm", extension: ".tkranm", registered: "animation-clip", stamp: "actor" },
+  ]);
+  equal(
+    result.text,
+    "clips/walk.tkranm: the extension `.tkranm` is registered for the contract `animation-clip`, but the stamp names `actor`. Either the extension or the stamp is wrong; the checker cannot tell which.\n1 document checked, 1 problem found\n",
+  );
 });
 
 void test("a plugin document with no owner is reported with the document and the owner ID it names", () => {
-  const result = check("no-owner");
+  const result = check("no-owner", PLACEHOLDER);
   equal(result.exitCode, 1);
   deepEqual(result.reports, [
     {
       class: "plugin-no-owner",
       path: "actors/guard.weather.yaml",
-      id: "actors/guard.weather",
-      owner: "actors/ghost",
+      id: "actors/guard.weather.yaml",
+      owner: "actors/ghost.yaml",
       reason: "no document has this ID",
       fix: null,
     },
   ]);
   equal(
     result.text,
-    "actors/guard.weather.yaml: plugin document `actors/guard.weather` names the owner `actors/ghost`, but no document has this ID.\n2 documents checked, 1 problem found\n",
+    "actors/guard.weather.yaml: plugin document `actors/guard.weather.yaml` names the owner `actors/ghost.yaml`, but no document has this ID.\n2 documents checked, 1 problem found\n",
   );
 });
 
 void test("an owner link with no back-link is reported with the owner and the plugin document it names", () => {
-  const result = check("no-back-link");
+  const result = check("no-back-link", PLACEHOLDER);
   equal(result.exitCode, 1);
   deepEqual(result.reports, [
     {
       class: "owner-no-back-link",
-      owner: { path: "actors/guard.yaml", id: "actors/guard" },
-      plugin: { named: "actors/guard.weather", path: "actors/guard.weather.yaml" },
+      owner: { path: "actors/guard.yaml", id: "actors/guard.yaml" },
+      plugin: { named: "actors/guard.weather.yaml", path: "actors/guard.weather.yaml" },
       reason: "`actors/guard.weather.yaml` names no owner",
       fix: "plugin",
     },
   ]);
   equal(
     result.text,
-    "actors/guard.yaml: owner `actors/guard` names the plugin document `actors/guard.weather` (`actors/guard.weather.yaml`), but `actors/guard.weather.yaml` names no owner. Fix the plugin document.\n2 documents checked, 1 problem found\n",
+    "actors/guard.yaml: owner `actors/guard.yaml` names the plugin document `actors/guard.weather.yaml` (`actors/guard.weather.yaml`), but `actors/guard.weather.yaml` names no owner. Fix the plugin document.\n2 documents checked, 1 problem found\n",
   );
 });
 
 void test("a mismatched link is reported with both ends and what each names", () => {
-  const result = check("mismatched-link");
+  const result = check("mismatched-link", PLACEHOLDER);
   equal(result.exitCode, 1);
   deepEqual(result.reports, [
     {
       class: "mismatched-link",
       ends: [
-        { role: "plugin", path: "actors/guard.rain.yaml", id: "actors/guard.rain", names: ["actors/guard"] },
-        { role: "owner", path: "actors/guard.yaml", id: "actors/guard", names: ["actors/guard.weather"] },
+        { role: "plugin", path: "actors/guard.rain.yaml", id: "actors/guard.rain.yaml", names: ["actors/guard.yaml"] },
+        { role: "owner", path: "actors/guard.yaml", id: "actors/guard.yaml", names: ["actors/guard.weather.yaml"] },
       ],
-      reason: "`actors/guard.rain.yaml` names the owner `actors/guard`, which names other plugin documents but not this one",
+      reason: "`actors/guard.rain.yaml` names the owner `actors/guard.yaml`, which names other plugin documents but not this one",
       fix: "plugin",
     },
     {
       class: "mismatched-link",
       ends: [
-        { role: "owner", path: "actors/knight.yaml", id: "actors/knight", names: ["actors/knight.weather"] },
-        { role: "plugin", path: "actors/knight.weather.yaml", id: "actors/knight.weather", names: ["actors/squire"] },
+        { role: "owner", path: "actors/knight.yaml", id: "actors/knight.yaml", names: ["actors/knight.weather.yaml"] },
+        { role: "plugin", path: "actors/knight.weather.yaml", id: "actors/knight.weather.yaml", names: ["actors/squire.yaml"] },
       ],
       reason: "`actors/knight.yaml` names `actors/knight.weather.yaml`, which names `actors/squire.yaml` as its owner instead",
       fix: null,
@@ -142,8 +167,8 @@ void test("a mismatched link is reported with both ends and what each names", ()
   equal(
     result.text,
     [
-      "mismatched link: plugin `actors/guard.rain` (actors/guard.rain.yaml) names `actors/guard`; owner `actors/guard` (actors/guard.yaml) names `actors/guard.weather`: `actors/guard.rain.yaml` names the owner `actors/guard`, which names other plugin documents but not this one. Fix the plugin document.",
-      "mismatched link: owner `actors/knight` (actors/knight.yaml) names `actors/knight.weather`; plugin `actors/knight.weather` (actors/knight.weather.yaml) names `actors/squire`: `actors/knight.yaml` names `actors/knight.weather.yaml`, which names `actors/squire.yaml` as its owner instead.",
+      "mismatched link: plugin `actors/guard.rain.yaml` (actors/guard.rain.yaml) names `actors/guard.yaml`; owner `actors/guard.yaml` (actors/guard.yaml) names `actors/guard.weather.yaml`: `actors/guard.rain.yaml` names the owner `actors/guard.yaml`, which names other plugin documents but not this one. Fix the plugin document.",
+      "mismatched link: owner `actors/knight.yaml` (actors/knight.yaml) names `actors/knight.weather.yaml`; plugin `actors/knight.weather.yaml` (actors/knight.weather.yaml) names `actors/squire.yaml`: `actors/knight.yaml` names `actors/knight.weather.yaml`, which names `actors/squire.yaml` as its owner instead.",
       "6 documents checked, 2 problems found",
       "",
     ].join("\n"),
@@ -153,8 +178,10 @@ void test("a mismatched link is reported with both ends and what each names", ()
 void test("the checker writes nothing: every fixture folder is byte, mode and time identical after a run", () => {
   const before = fingerprint(join(here, "fixtures"));
   for (const name of readdirSync(join(here, "fixtures"))) {
-    runCli([...FIELDS, fixture(name)]);
-    runCli([...FIELDS, "--json", fixture(name)]);
+    for (const args of [FIELDS, PLACEHOLDER]) {
+      runCli([...args, fixture(name)]);
+      runCli([...args, "--json", fixture(name)]);
+    }
   }
   equal(fingerprint(join(here, "fixtures")), before);
 });
@@ -162,12 +189,40 @@ void test("the checker writes nothing: every fixture folder is byte, mode and ti
 void test("a file that is not UTF-8 is named as unreadable instead of being guessed at", () => {
   const folder = mkdtempSync(join(tmpdir(), "tkr-native-check-"));
   try {
-    writeFileSync(join(folder, "bad.yaml"), Buffer.from([0x63, 0x6f, 0xff, 0xfe]));
+    writeFileSync(join(folder, "bad.tkranm"), Buffer.from([0x63, 0x6f, 0xff, 0xfe]));
     writeFileSync(join(folder, "notes.txt"), "not a document");
     const result = JSON.parse(runCli([...FIELDS, "--json", folder]).stdout) as { documents: number; reports: unknown[] };
     equal(result.documents, 1);
     deepEqual(result.reports, [
-      { class: "stamp", path: "bad.yaml", key: null, problem: "unreadable", found: [], reason: "the file is not valid UTF-8 text", line: null },
+      { class: "stamp", path: "bad.tkranm", key: null, problem: "unreadable", found: [], reason: "the file is not valid UTF-8 text", line: null },
+    ]);
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+void test("a legacy file beside a native document is skipped unread: only the native document is reported on", () => {
+  const folder = mkdtempSync(join(tmpdir(), "tkr-native-check-"));
+  try {
+    // Legacy binary: not UTF-8, not YAML. If the walk opened it, it would be reported as unreadable.
+    writeFileSync(join(folder, "walk.anm"), Buffer.from([0x52, 0x50, 0x47, 0x54, 0xff, 0xfe, 0x00, 0x03]));
+    writeFileSync(join(folder, "hero.brd"), Buffer.from([0xff, 0x00, 0x80]));
+    // Not registered, so not a native document either: skipped, and not reported.
+    writeFileSync(join(folder, "walk.tkrxyz"), "contract: [broken\n");
+    writeFileSync(join(folder, "notes.yaml"), "contract: [broken\n");
+    writeFileSync(join(folder, "walk.tkranm"), "contract: animation-clip\n");
+    const result = JSON.parse(runCli([...FIELDS, "--json", folder]).stdout) as { documents: number; reports: unknown[] };
+    equal(result.documents, 1);
+    deepEqual(result.reports, [
+      {
+        class: "stamp",
+        path: "walk.tkranm",
+        key: "version",
+        problem: "missing",
+        found: [],
+        reason: "the document has no `version` key",
+        line: null,
+      },
     ]);
   } finally {
     rmSync(folder, { recursive: true, force: true });
@@ -189,9 +244,9 @@ void test("a usage mistake or an unreadable folder is an exit code, not a crash"
 
 void test("the command-line entry point exits 0 on a clean folder and 1 on a broken one", () => {
   const run = (name: string) => spawnSync(process.execPath, [join(here, "..", "src", "cli.ts"), ...FIELDS, fixture(name)], { encoding: "utf8" });
-  const clean = run("clean");
-  deepEqual([clean.status, clean.stdout, clean.stderr], [0, "3 documents checked, 0 problems found\n", ""]);
-  const broken = run("duplicate-id");
+  const clean = run("native-clean");
+  deepEqual([clean.status, clean.stdout, clean.stderr], [0, "2 documents checked, 0 problems found\n", ""]);
+  const broken = run("extension-mismatch");
   equal(broken.status, 1);
-  ok(broken.stdout.startsWith("duplicate ID `clips/walk`"));
+  ok(broken.stdout.startsWith("clips/walk.tkranm: the extension `.tkranm` is registered for the contract `animation-clip`"));
 });

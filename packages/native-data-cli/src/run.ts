@@ -8,7 +8,7 @@
 
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
-import { checkDocuments, formatReport, validateConfig, type CheckConfig, type CheckReport } from "@tk-reawakened/native-data";
+import { checkDocuments, formatReport, REGISTRY, validateConfig, type CheckConfig, type CheckReport } from "@tk-reawakened/native-data";
 import { collectDocuments } from "./walk.ts";
 
 export const RESULT_SCHEMA = "tkr-native-check/1";
@@ -19,20 +19,27 @@ export type CliResult = {
   readonly stderr: string;
 };
 
+const REGISTERED = REGISTRY.map((entry) => entry.extension).join(", ");
+
 export const HELP = `tkr-native-check: find broken documents in a folder of native game data
 
 In plain words: it reads every native document in a folder and tells you what does
-not line up: a missing or malformed contract/version stamp at the top, two
+not line up: a missing or malformed contract/version stamp at the top, a file name
+extension that names a different kind of document than the stamp does, two
 documents with the same ID, two paths that differ only in A to Z case, a plugin
 document whose owner does not exist, and links between an owner and its plugin
 documents that are missing on one side or disagree. It only reports. It never
-changes a file.
+changes a file. Classic legacy files (.anm, .brd, .tem, .itm, .ene, .tst and the
+rest) are not native documents: it does not read or report them, so a legacy
+file and a native document with the same name can sit in one folder.
 
-Exactly: reads files under the folder whose names end in a document extension,
-as UTF-8 YAML, and writes nothing. A document's ID is its path below the folder,
-separated by "/", without the document extension. IDs are compared with only the
-letters A to Z folded to a to z, so "Guard" and "guard" are one ID, and this holds
-on a case-sensitive file system too.
+Exactly: reads files under the folder whose names end in a native document
+extension (${REGISTERED}), as UTF-8 YAML, and writes nothing. A file with any
+other extension is skipped unread, an unregistered tkr extension included. A
+document's ID is its path below the folder, separated by "/", with the extension
+kept: "clips/walk.tkranm". IDs are compared with only the letters A to Z folded
+to a to z, so "Guard" and "guard" are one ID, and this holds on a case-sensitive
+file system too.
 
 Usage:
   tkr-native-check --owner-field NAME --plugins-field NAME [options] FOLDER
@@ -42,7 +49,8 @@ Required (the spec leaves the link field names open, so they are not assumed):
   --plugins-field NAME  top-level field of an owner listing its plugin documents' IDs
 
 Options:
-  --ext .EXT            a document extension; repeat for several (default: .yaml and .yml)
+  --ext .EXT            read files with this extension as documents instead; repeat for
+                        several (default: ${REGISTERED})
   --json                print one JSON result instead of lines of text
   --help                print this text
 
@@ -77,11 +85,8 @@ function parse(argv: readonly string[]): Parsed {
   if (ownerField === undefined || pluginsField === undefined) {
     return { ok: false, help: false, message: "--owner-field and --plugins-field are required: the link field names are not decided by the spec" };
   }
-  const config: CheckConfig = {
-    documentExtensions: extensions.length === 0 ? [".yaml", ".yml"] : extensions,
-    ownerField,
-    pluginsField,
-  };
+  const config: CheckConfig =
+    extensions.length === 0 ? { ownerField, pluginsField } : { documentExtensions: extensions, ownerField, pluginsField };
   try {
     validateConfig(config);
   } catch (error) {
