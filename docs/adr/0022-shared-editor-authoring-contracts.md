@@ -99,7 +99,7 @@ These are the promises every host passes in the shared conformance suite (11.3):
 | `dockview` | Core is MIT, no runtime dependencies, active. **Keyboard docking and broader keyboard navigation are in the proprietary `dockview-enterprise` package, which G6 excludes**, so those must be supplied by us. Documents tab/ARIA basics. |
 | `flexlayout-react` | MIT, active, but needs React. Keyboard-only docking unverified. |
 
-3. **Blocking question:** the repository has not chosen a UI framework for `editor-ui`. A React-only library cannot be adopted before that is decided. This ADR therefore does not pick a library; it fixes the **adoption gate**: a candidate is accepted only after a packaged-host proof in the browser/PWA and packaged Electron host showing two views over one dirty document that survive move, split, close and recreate with identity, content and undo history intact; layout round-trips across restart and missing panel types; keyboard-only navigation, resize, move and close with focus restoration; no Enterprise code bundled (G6 gate); packaged CSS, CSP and offline loading; and no shortcut collisions with Monaco.
+3. **Blocking question, answered 2026-11-09:** which UI framework `editor-ui` uses is decided by [ADR 0025](0025-editor-ui-framework-preact-tsx.md) (owner decision: Preact with TSX). A React-only library therefore cannot be adopted without a further ADR that admits `preact/compat`. This ADR does not pick a library; it fixes the **adoption gate**: a candidate is accepted only after a packaged-host proof in the browser/PWA and packaged Electron host showing two views over one dirty document that survive move, split, close and recreate with identity, content and undo history intact; layout round-trips across restart and missing panel types; keyboard-only navigation, resize, move and close with focus restoration; no Enterprise code bundled (G6 gate); packaged CSS, CSP and offline loading; and no shortcut collisions with Monaco.
 4. VS Code uses its native editor groups and views; no dock library is embedded there.
 
 ### D8 — Launches and run snapshots
@@ -183,7 +183,7 @@ No cross-document atomic undo or save; no backup beyond what a host really provi
 
 1. Approve D1–D8 as written, or mark the rules to change.
 2. D6.3: are two layers (user, project) enough for the first release? (D6.1 now records your ruling that game data stays in the `.gam`/project documents and only editor settings use the settings ecosystem.)
-3. D7.3: which UI framework does `editor-ui` use (or is the choice a separate ADR before docking)?
+3. D7.3: which UI framework does `editor-ui` use (or is the choice a separate ADR before docking)? **Answered 2026-11-09 (owner): Preact with TSX, recorded in [ADR 0025](0025-editor-ui-framework-preact-tsx.md).**
 4. D8.5: confirm `sys_test.prg` is not reproduced.
 5. D2: confirm the editor does not open a format without a same-version writer even read-write.
 6. Approve the TOOL-5 creator-test block, including that spellings of the new fixture and action operations are fixed at 11.9 after review.
