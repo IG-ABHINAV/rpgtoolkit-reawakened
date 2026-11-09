@@ -6,6 +6,7 @@ export {
   type CheckConfig,
   type CheckReport,
   type DuplicateIdReport,
+  type ExtensionContractMismatchReport,
   type FixSide,
   type FoldCollisionReport,
   type LinkEnd,
@@ -24,6 +25,15 @@ export {
   type StampReport,
 } from "./document.ts";
 export { foldId } from "./fold.ts";
+export {
+  classifyExtension,
+  extensionOf,
+  lookupExtension,
+  REGISTRY,
+  validateRegistry,
+  type Registry,
+  type RegistryEntry,
+} from "./registry.ts";
 export { formatReport } from "./report.ts";
 export { parseVersion, type VersionParse } from "./version.ts";
 export {

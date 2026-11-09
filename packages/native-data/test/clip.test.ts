@@ -4,6 +4,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   checkClip,
+  checkDocuments,
   CLIP_CONTRACT,
   CLIP_VERSION,
   formatClipProblems,
@@ -16,7 +17,7 @@ import {
 } from "../src/index.ts";
 
 const examples = fileURLToPath(new URL("../../../docs/spec/examples/native/animation-clip/", import.meta.url));
-const swordSwing = readFileSync(fileURLToPath(new URL("./fixtures/sword-swing.yaml", import.meta.url)), "utf8");
+const swordSwing = readFileSync(fileURLToPath(new URL("./fixtures/sword-swing.tkranm", import.meta.url)), "utf8");
 const STAMP = "contract: animation-clip\nversion: 1.0.0-pre.1\n";
 const BODY = "canvas:\n  width: 32\n  height: 32\ndelay: 0.5\nframes:\n  - image: a.png\n";
 
@@ -44,10 +45,12 @@ const comments = (text: string): string[] => text.split("\n").flatMap((line) => 
 
 // ---------------------------------------------------------------- the contract's examples
 
-void test("the contract's valid examples read", () => {
+void test("the contract's valid examples read, and the checker finds the extension and stamp in agreement", () => {
   const files = readdirSync(`${examples}valid`).sort();
-  deepEqual(files, ["sword-swing.yaml", "torch-minimal.yaml", "walk-south-imported.yaml"]);
-  for (const file of files) accepted(readFileSync(`${examples}valid/${file}`, "utf8"));
+  deepEqual(files, ["sword-swing.tkranm", "torch-minimal.tkranm", "walk-south-imported.tkranm"]);
+  const documents = files.map((file) => ({ path: `valid/${file}`, text: readFileSync(`${examples}valid/${file}`, "utf8") }));
+  for (const document of documents) accepted(document.text);
+  deepEqual(checkDocuments(documents, { ownerField: "owner", pluginsField: "plugins" }), []);
 });
 
 void test("a valid example reads into the typed model", () => {
@@ -64,21 +67,21 @@ void test("a valid example reads into the typed model", () => {
       { image: "bitmap/swing/swing4-flash.bmp", colourKey: { r: 0, g: 0, b: 0 } },
     ],
   });
-  const imported = accepted(readFileSync(`${examples}valid/walk-south-imported.yaml`, "utf8"));
+  const imported = accepted(readFileSync(`${examples}valid/walk-south-imported.tkranm`, "utf8"));
   deepEqual(imported.tags, ["imported"]);
   deepEqual(imported.metadata, { source: "hero_walk_s.anm", notes: "Two-frame south walk from the example game; the 49 empty legacy slots are not listed." });
 });
 
 void test("the contract's invalid examples are refused, each for the defect its comment names", () => {
   const expected: Record<string, { kind: ClipProblem["kind"]; path: string; message: RegExp }[]> = {
-    "frame-without-image.yaml": [{ kind: "shape", path: "frames[1]", message: /`image` is required/ }],
-    "malformed-version.yaml": [{ kind: "stamp", path: "version", message: /stamp malformed: patch is missing/ }],
-    "missing-stamp.yaml": [
+    "frame-without-image.tkranm": [{ kind: "shape", path: "frames[1]", message: /`image` is required/ }],
+    "malformed-version.tkranm": [{ kind: "stamp", path: "version", message: /stamp malformed: patch is missing/ }],
+    "missing-stamp.tkranm": [
       { kind: "stamp", path: "contract", message: /stamp missing: the document has no `contract` key/ },
       { kind: "stamp", path: "version", message: /stamp missing: the document has no `version` key/ },
     ],
-    "unknown-frame-key.yaml": [{ kind: "shape", path: "frames[0].duration", message: /`duration` is not a key of a frame/ }],
-    "unknown-key.yaml": [{ kind: "shape", path: "loop", message: /`loop` is not a key of the animation clip contract/ }],
+    "unknown-frame-key.tkranm": [{ kind: "shape", path: "frames[0].duration", message: /`duration` is not a key of a frame/ }],
+    "unknown-key.tkranm": [{ kind: "shape", path: "loop", message: /`loop` is not a key of the animation clip contract/ }],
   };
   const files = readdirSync(`${examples}invalid`).sort();
   deepEqual(files, Object.keys(expected).sort());

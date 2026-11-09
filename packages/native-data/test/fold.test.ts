@@ -1,9 +1,10 @@
 import { deepEqual, equal } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { checkDocuments, documentId, foldId, type CheckConfig, type DocumentInput } from "../src/index.ts";
+import { checkDocuments, foldId, type CheckConfig, type DocumentInput } from "../src/index.ts";
 
-const config: CheckConfig = { documentExtensions: [".yaml", ".yml"], ownerField: "owner", pluginsField: "plugins" };
+/** `.tkract` is not in the shipped registry; naming it here makes these actor documents readable without a contract to agree with. */
+const config: CheckConfig = { documentExtensions: [".tkract"], ownerField: "owner", pluginsField: "plugins" };
 
 void test("folding changes only the letters A to Z", () => {
   equal(foldId("Actors/Guard"), "actors/guard");
@@ -22,21 +23,14 @@ void test("a non-ASCII letter compares as written, so it does not fold with its 
 
 void test("Éclair and éclair are two IDs, while Guard and guard are one", () => {
   const documents: DocumentInput[] = [
-    { path: "Éclair.yaml", text: "contract: actor\nversion: 1.0.0\n" },
-    { path: "éclair.yaml", text: "contract: actor\nversion: 1.0.0\n" },
-    { path: "Guard.yaml", text: "contract: actor\nversion: 1.0.0\n" },
-    { path: "guard.yaml", text: "contract: actor\nversion: 1.0.0\n" },
+    { path: "Éclair.tkract", text: "contract: actor\nversion: 1.0.0\n" },
+    { path: "éclair.tkract", text: "contract: actor\nversion: 1.0.0\n" },
+    { path: "Guard.tkract", text: "contract: actor\nversion: 1.0.0\n" },
+    { path: "guard.tkract", text: "contract: actor\nversion: 1.0.0\n" },
   ];
   deepEqual(checkDocuments(documents, config), [
-    { class: "fold-collision", foldedId: "guard", paths: ["Guard.yaml", "guard.yaml"] },
+    { class: "fold-collision", foldedId: "guard.tkract", paths: ["Guard.tkract", "guard.tkract"] },
   ]);
-});
-
-void test("the extension is removed from an ID, matched without regard to A-Z case", () => {
-  equal(documentId("actors/Guard.YAML", [".yaml"]), "actors/Guard");
-  equal(documentId("a.b.yaml", [".yaml"]), "a.b");
-  equal(documentId("notes.txt", [".yaml"]), "notes.txt");
-  equal(documentId(".yaml", [".yaml"]), ".yaml");
 });
 
 /**
@@ -49,6 +43,6 @@ void test("two paths that fold to one ID are reported with both paths and the fo
     readonly documents: readonly DocumentInput[];
   };
   deepEqual(checkDocuments(fixture.documents, config), [
-    { class: "fold-collision", foldedId: "actors/guard", paths: ["Actors/Guard.yaml", "actors/guard.yaml"] },
+    { class: "fold-collision", foldedId: "actors/guard.tkract", paths: ["Actors/Guard.tkract", "actors/guard.tkract"] },
   ]);
 });
