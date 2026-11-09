@@ -2,7 +2,7 @@
 type: initiative
 title: "RPG Toolkit 3 plays and is authored again, clean-room and MIT/Apache"
 parent: none
-covers: ["CAP-1", "CAP-2", "CAP-3", "CAP-4", "CAP-5", "CAP-6", "CAP-7", "CAP-8", "CAP-9", "CAP-10", "CAP-11", "CAP-12", "CAP-13", "CAP-14", "CAP-15", "CAP-16", "CAP-17", "CAP-18", "CAP-19"]
+covers: ["CAP-1", "CAP-2", "CAP-3", "CAP-4", "CAP-5", "CAP-6", "CAP-7", "CAP-8", "CAP-9", "CAP-10", "CAP-11", "CAP-12", "CAP-13", "CAP-14", "CAP-15", "CAP-16", "CAP-17", "CAP-18", "CAP-19", "CAP-20"]
 assignee: ""
 risk: high
 ---
@@ -23,7 +23,7 @@ Legacy authors, modders and players keep their games and tools on browser, deskt
 2. The same games play in the web runner, and a packaged single-file game loads.
 3. A game created from scratch in the VS Code host and in the PWA opens and plays identically.
 4. CI blocks any merge that breaks a guard-rail G1 to G7, and no shipped dependency is outside the licence allowlist.
-5. Every capability CAP-1 to CAP-19 is delivered, and each open question in the spec has an answer.
+5. Every capability CAP-1 to CAP-20 is delivered, and each open question in the spec has an answer.
 
 ## Boundaries
 
@@ -54,6 +54,7 @@ The boundary is capability and ownership: the pure core and engine rules, the ru
 - Evidence: docs/spec answers several of the spec's open questions in facts (legacy `.sav`, text-era formats, compiled `.prg`); what remains for those is scope, not layout.
 - Decision: 2026-10-17 (draft, owner to confirm): a new epic 17, `epic-documentation-website`, covers a new capability CAP-19 (user and contributor documentation and a public website, verified against the built product). It is a new capability, not an extension of CAP-12, whose packaging scope is the product's single-file game. It stands last in build order and waits on the implementation, editor and runner epics. Discovery: epic-documentation-website/discovery/inception-proposal.md and docs-readiness.md. The envelope is drafted; the epic has no `tickets.toml` yet, like epics 5 to 15 awaiting their own inception.
 - Assumption: CAP-19 is owned by epic 17 alone; the product's release process (npm publish, PWA deploy, extension publish, signing, store accounts) is named in the architecture spine as "release epics, owners named at their inception" and no epic of this initiative owns it. Epic 17 documents what ships; it does not own publishing the product. Owner decision D-13 of the inception proposal. Confirm.
+- Decision: 2026-11-08 (draft, owner to confirm wording): a new epic 27, `epic-native-data-contracts`, owns a new capability CAP-20 (versioned, text-first native game data). It is a new capability, not an extension of CAP-1, which is about loading legacy projects. The native format is permitted, not required (ADR 0005).
 - Decision: Jensen, 2026-10-19: 3.1 is a compatibility layer, not the model. The core is built on objects and forward design; legacy 3.1 names, commands and data shapes are aliases/adapters onto it. Our under-the-hood workings and forward design are not bounded by the 3.1 model. Consistent with ADR 0005 (independent product). 19.1 writes this into docs/adr/0009-compatibility-layer-not-the-model.md and the CLAUDE.md working notes.
 
 - Decision: owner requested the independent RPGCode grammar implementation epic on 2026-10-24 after ADR 0011 (#623). Epic 22 (#624) contributes syntax/navigation to CAP-14/CAP-15/CAP-18, with eleven backlog tasks; only 22.9 waits for Epic 11. Games and existing language/editor foundations gain no reverse dependency.
