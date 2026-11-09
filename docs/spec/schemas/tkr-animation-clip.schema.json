@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/tk-reawakened/rpgtoolkit-reawakened/docs/spec/schemas/tkr-animation-clip.schema.json",
   "title": "tkr native animation clip document (contract animation-clip, version 1.0.0-pre.1)",
-  "description": "A native animation clip: an ordered list of frames shown one after another at one delay, on one canvas (docs/spec/formats/native-animation-clip.md). This schema describes version 1.0.0-pre.1 of the animation-clip contract only. The contract is pre-release and free to change; once published, a new optional property is a minor change and a break is a major one (docs/spec/formats/native-contracts.md#versions). It validates the derived JSON form of a document: the authored YAML is read into the same values first. It cannot check key order (contract and version come first), repeated keys, that a reference names a file that exists, or that the optional tags and metadata hold no timestamps; the spec page says which check owns each of those.",
+  "description": "A native animation clip: an ordered list of frames shown one after another at one delay, on one canvas (docs/spec/formats/native-animation-clip.md). This schema describes version 1.0.0-pre.1 of the animation-clip contract only. The contract is pre-release and free to change; once published, a new optional property is a minor change and a break is a major one (docs/spec/formats/native-contracts.md#versions). It validates the derived JSON form of a document: the authored YAML is read into the same values first. The top level is closed to the stamp, the clip's own fields and exactly one open key, pluginData, whose envelope (plugin id, version, data is a mapping) it checks and whose data it leaves open (docs/spec/formats/native-contracts.md#plugin-blocks). It cannot check key order (contract and version come first), repeated keys (including a repeated plugin id), that a reference names a file that exists, or that the optional tags and metadata hold no timestamps; the spec page says which check owns each of those.",
   "type": "object",
   "additionalProperties": false,
   "required": ["contract", "version", "canvas", "delay", "frames"],
@@ -52,9 +52,35 @@
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/frame" }
+    },
+    "pluginData": {
+      "description": "Optional. The one open key of the contract: one block per plugin, keyed by plugin id (docs/spec/formats/native-contracts.md#plugin-blocks). A plugin id is lowercase ASCII segments separated by dots, or one segment, as PKG-2 spells it (docs/spec/engine/rpgcode-modules-and-objects.md#pkg-2); it is never a reserved top-level key or a field of this contract. The schema checks only the envelope. What is inside a block's data belongs to the plugin and is checked by the plugin's own schema, only when the plugin is installed.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*(?:\\.[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)*$",
+        "not": { "enum": ["contract", "version", "tags", "metadata", "pluginData", "canvas", "delay", "colourKey", "frames"] }
+      },
+      "additionalProperties": { "$ref": "#/$defs/pluginBlock" }
     }
   },
   "$defs": {
+    "pluginBlock": {
+      "description": "One plugin's block: the version of that plugin's data on this contract, and the data, which the plugin owns. The envelope is closed to these two keys. Unknown keys inside data are tolerated, so data has no property list and no additionalProperties rule.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "data"],
+      "properties": {
+        "version": {
+          "description": "The version of this plugin's data on this contract, in the form MAJOR.MINOR.PATCH[-pre.N][+build] (docs/spec/formats/native-contracts.md#versions). Text, never a number.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-pre\\.(?:0|[1-9][0-9]*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+        },
+        "data": {
+          "description": "The plugin's data, a mapping that may be empty.",
+          "type": "object"
+        }
+      }
+    },
     "reference": {
       "description": "The ID of a project asset: its path, compared without regard to ASCII case (native-contracts.md#identity). One non-empty line with no space at either end. Whether the file exists is a check made elsewhere.",
       "type": "string",

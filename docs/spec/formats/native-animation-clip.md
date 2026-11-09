@@ -1,6 +1,6 @@
 # Native animation clip contract (`animation-clip`, version `1.0.0-pre.1`)
 
-**Status: proposed, pending owner approval** (ticket 27.3, [#1804](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1804)). This is a **Reawakened rule**: it describes TK Reawakened's own native animation clip document, not any Toolkit 3.1 behaviour. The contract is **pre-release**: it is free to change, and nothing on this page is a 1.0 promise ([versions](native-contracts.md#versions)). A legacy [`.anm`](animation.md) file reaches this contract only through an importer ([ADR 0009](../../adr/0009-compatibility-layer-not-the-model.md)). The stamp, the version form and the identity rules are those of [native-contracts.md](native-contracts.md) and [ADR 0023](../../adr/0023-native-data-contracts-versioning-identity-and-sidecars.md); this page repeats none of them beyond what it needs.
+**Status: proposed, pending owner approval** (ticket 27.3, [#1804](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1804)). This is a **Reawakened rule**: it describes TK Reawakened's own native animation clip document, not any Toolkit 3.1 behaviour. The contract is **pre-release**: it is free to change, and nothing on this page is a 1.0 promise ([versions](native-contracts.md#versions)). A legacy [`.anm`](animation.md) file reaches this contract only through an importer ([ADR 0009](../../adr/0009-compatibility-layer-not-the-model.md)). The stamp, the version form and the identity rules are those of [native-contracts.md](native-contracts.md) and [ADR 0023](../../adr/0023-native-data-contracts-versioning-identity-and-sidecars.md); this page repeats none of them beyond what it needs. The optional key `pluginData`, the contract's one open key, was added in the same pre-release (2026-11-09), so the contract stays at `1.0.0-pre.1`: a pre-release contract is free to change ([ADR 0023](../../adr/0023-native-data-contracts-versioning-identity-and-sidecars.md), decision 2).
 
 ## In plain words
 
@@ -36,9 +36,26 @@ frames:
 
 More valid and invalid examples, with the exact failure of each invalid one, are in [../examples/native/animation-clip/](../examples/native/animation-clip/README.md). The schema is [../schemas/tkr-animation-clip.schema.json](../schemas/tkr-animation-clip.schema.json).
 
+A clip that carries plugin data adds one key, `pluginData`, with a block for each plugin that has data on the clip. The block is the plugin's, and the clip's own fields are untouched:
+
+```yaml
+contract: animation-clip
+version: 1.0.0-pre.1
+canvas: {width: 32, height: 32}
+delay: 0.15
+frames:
+  - image: tiles/village.tst14
+pluginData:
+  com.example.glow:
+    version: 1.0.0
+    data: {bloom: 0.4}
+```
+
+The examples folder does not yet hold a document with `pluginData`, because the [reference reader](#reference-reader-writer-and-importer) still refuses one.
+
 ## Fields
 
-The contract area is closed: a key that is not in these tables is an error ([rule 9](#rules)). The two exceptions are the contents of `tags` and `metadata`, which the engine never reads.
+The contract area is closed: a key that is not in these tables is an error ([rule 9](#rules)). The exceptions are the contents of `tags` and `metadata`, which the engine never reads, and the one open key, `pluginData`, whose blocks belong to plugins.
 
 ### The clip
 
@@ -52,6 +69,7 @@ The contract area is closed: a key that is not in these tables is an error ([rul
 | `delay` | yes | number | Seconds between one frame being shown and the next. Zero or more. |
 | `colourKey` | no | colour | The colour that counts as see-through in every frame that names no key of its own. Absent means the clip names no key. |
 | `frames` | yes | list of frame | The frames in the order they are shown. At least one. |
+| `pluginData` | no | mapping | Plugin blocks: one per plugin id, each with its own `version` and a `data` mapping the plugin owns. The one open key of the contract ([plugin blocks](native-contracts.md#plugin-blocks)). Absent means the clip carries no plugin data. |
 
 ### A frame
 
@@ -67,6 +85,15 @@ A **reference** is text that names an asset by its ID; [rules 4 and 5](#rules) s
 
 A colour is a mapping of `r`, `g` and `b`, each a whole number from 0 to 255, for example `{r: 255, g: 0, b: 255}`. There is no alpha. The legacy colour is one number, `R + G·256 + B·65536` ([primitive encoding](README.md#primitive-encoding)); the native colour spells the three parts out so no reader has to know that order.
 
+### A plugin block
+
+A key of `pluginData` is a plugin id (lowercase ASCII segments separated by dots, such as `com.example.glow`, or one segment, such as `stock_battle`; [PKG-2](../engine/rpgcode-modules-and-objects.md#pkg-2)). It is never one of the reserved keys (`contract`, `version`, `tags`, `metadata`, `pluginData`) or a field of this contract (`canvas`, `delay`, `colourKey`, `frames`).
+
+| Key | Required | Type | Meaning |
+|---|---|---|---|
+| `version` | yes | text | The version of that plugin's data on this contract, in the [version form](native-contracts.md#the-form-of-a-version-string). |
+| `data` | yes | mapping | The plugin's data. The plugin owns every key inside it. An unknown key is tolerated, never reported and never dropped. |
+
 ## Rules
 
 1. **Stamp.** The document starts with the stamp exactly as [native-contracts.md](native-contracts.md#stamp) defines it: `contract` and `version` are the first two keys, `tags` and `metadata` are optional, and neither is read by the engine nor changes how a clip plays. They hold no timestamps and no value that changes on every save. A missing, repeated or unreadable stamp is an error; a reader never guesses a contract or a version. *Reason:* the stamp is how a loader chooses the rules for the rest of the document.
@@ -77,7 +104,7 @@ A colour is a mapping of `r`, `g` and `b`, each a whole number from 0 to 255, fo
 6. **Sound.** A frame's `sound` is played once, when that frame becomes visible; the routing and the one-voice rule are [R-59](../engine/audio-media.md#r-59-routing) and are not changed. Leaving the key out means no sound; an empty text is not accepted.
 7. **Colour key.** Each frame has one colour key: its own `colourKey` if it has one, otherwise the clip's `colourKey`, otherwise none. The key is not stored in the picture file. It is tested against the picture's decoded pixels by whatever draws the frame ([images.md](images.md#the-shared-decode-contract)). A clip that writes the same key on every frame and a clip that writes it once at the clip level mean the same thing.
 8. **Canvas.** `canvas.width` and `canvas.height` are the frame's canvas in the sense of [animation.md](animation.md#layout): they place and anchor the sprite, and a picture frame fills that canvas.
-9. **A closed contract.** An unknown key in a clip or in a frame is an error, and so is a mistyped one (`colorKey`). *Reason:* an engine that ignores a key it does not know lets a typo pass for a setting. Data that a plugin or a tool wants to keep about a clip is a separate document linked both ways ([plugin data](native-contracts.md#plugin-data)); it is never extra keys in the clip.
+9. **A closed contract with one open door.** An unknown key in a clip or in a frame is an error, and so is a mistyped one (`colorKey`). *Reason:* an engine that ignores a key it does not know lets a typo pass for a setting. The exception is `pluginData` at the top level of the clip: data that a plugin wants to keep about a clip goes in a block there, under the plugin's id, and it is never an extra key of the clip ([plugin blocks](native-contracts.md#plugin-blocks)). The top level admits exactly the clip's fields, the stamp keys and `pluginData`. Inside a block's `data`, unknown keys are tolerated and preserved. A frame, a canvas and a colour have no door, so a plugin that needs per-frame data keeps its own structure inside its own block.
 10. **Absence.** "No value" is written by leaving the key out. No key of the contract accepts `null`; the free-form contents of `metadata` are not contract keys. *Reason:* each optional thing then has exactly two states, present or absent, and an empty text or a null can never mean a third.
 11. **Not part of a clip.** Position on the screen or board, drawing size, repetition and whether the clip runs once or until ended belong to whatever plays the clip (the `animation`, `sizedanimation` and `pinnedanimation` commands and the actor and skill contracts to come). The clip describes the pictures, not the use.
 12. **Playback.** A loaded native clip is the same thing the engine plays today: ordered frames of picture, colour key and sound, at one delay, on one canvas. The playback rules of [E-54](../engine/plugins-and-battle.md#e-54) and [animation.md](animation.md) apply to it unchanged, with the step "drop frames whose picture is empty" already done by the list holding only real frames.
@@ -94,6 +121,9 @@ The schema is a machine-checkable statement of these rules. Where the schema and
 | the extension is `.tkranm` and agrees with `contract: animation-clip` | no, the schema reads the JSON form, not the file name | the [checker](native-contracts.md#checker), for a file with the extension `.tkranm`: extension and contract disagree (proposed class) |
 | a key repeated in a mapping | no, the value is already read | the YAML profile's parse check ([research profile](../../findings/native-data-notations/yaml-profile/README.md#proposed-yaml-profile-to-be-decided-not-adopted)) |
 | unknown keys, in a clip, a frame, a canvas or a colour | yes | |
+| `pluginData` is a mapping of blocks; each key is a plugin id of the PKG-2 grammar that is not a reserved key or a field of this contract; each block has exactly `version` (in the version form) and `data` (a mapping) | yes | |
+| a plugin id appears once in `pluginData` | no, the value is already read | the [checker](native-contracts.md#checker): `plugin-block`, kind `duplicate` |
+| a block's `data` has the keys and types its plugin declares | no, the schema leaves `data` open | the plugin's own schema, only when the plugin is installed ([checks that need the plugin](native-contracts.md#checks-that-need-the-plugin)) |
 | every frame has an `image`; at least one frame | yes | |
 | `canvas`, `delay`, colour parts and counts have the right type and range | yes | |
 | `tags` is a list of non-empty text; `metadata` is a mapping | yes | |
@@ -182,7 +212,7 @@ How an importer resolves names, where it writes a key at the clip level instead 
 
 ## Schema
 
-[../schemas/tkr-animation-clip.schema.json](../schemas/tkr-animation-clip.schema.json) is a [JSON Schema](https://json-schema.org/draft/2020-12) (draft 2020-12) for the JSON form of a clip document. It describes version `1.0.0-pre.1` of the contract only; it is replaced when the contract's version changes, and how older versions' schemas are kept once a MAJOR is published is open. It names its dialect in `$schema`, closes every contract object (the clip, the canvas, a frame and a colour) with `additionalProperties: false`, and uses neither `$dynamicRef` nor `unevaluatedProperties`, because the notation research found a validator that mis-evaluates the first and ignores the second when the dialect is not named ([research](../../findings/native-data-notations/README.md#6-schema-validation-is-notation-independent-error-locations-are-not)).
+[../schemas/tkr-animation-clip.schema.json](../schemas/tkr-animation-clip.schema.json) is a [JSON Schema](https://json-schema.org/draft/2020-12) (draft 2020-12) for the JSON form of a clip document. It describes version `1.0.0-pre.1` of the contract only; it is replaced when the contract's version changes, and how older versions' schemas are kept once a MAJOR is published is open. It names its dialect in `$schema`, closes every contract object (the clip, the canvas, a frame and a colour) with `additionalProperties: false`, opens exactly one key, `pluginData`, whose envelope it checks and whose `data` it leaves open, and uses neither `$dynamicRef` nor `unevaluatedProperties`, because the notation research found a validator that mis-evaluates the first and ignores the second when the dialect is not named ([research](../../findings/native-data-notations/README.md#6-schema-validation-is-notation-independent-error-locations-are-not)).
 
 ## Reference reader, writer and importer
 
@@ -196,6 +226,7 @@ Story 27.4 ([#1805](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issue
 - **How the importer spells keys** ([open item 9](#open-items)): when every kept frame has the same colour it writes one clip-level `colourKey` and none on the frames; when they differ it writes no clip-level key and a `colourKey` on every frame. It reports, and does not keep, a dropped slot that held a sound. `tags` is `[imported]` and `metadata` is `source: <legacy file name>` as the caller gives it, with case kept; nothing else is recorded, so importing the same file twice gives the same text.
 - **What the importer refuses**, with the contract's rule named, rather than repairing: no frame with an image, a size under 1, a negative or non-finite delay, and a name with a space or line break at either end.
 - **The oracle.** The tests' oracle is the decoder's model slot for slot (51 slots, with image, colour and sound, the delay, the size, the header and the residue), and the four-point equality of the section above is a test utility that names the point that fails. Across the 51 decoded `.anm` files of `docs/spec/examples` (9) and the fetched legacy sample games (42) every import, written and read back, equals its oracle, 18 of them with a delay of 0.
+- **`pluginData` is not yet read or written by this code.** The reader still refuses it as an unknown key, and `writeClip` cannot carry a block, because the code was written before the 2026-11-09 plugin-block rulings. Story 27.10 ([#1822](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1822)) makes the reader accept it, the editing paths leave every block byte for byte, and the writer and importer carry blocks as verbatim text ([preservation](native-contracts.md#preservation)). The examples folder is test data that `packages/native-data/test/clip.test.ts` reads, so it gains its plugin-bearing cases in that same story.
 
 ## Open items
 
@@ -213,3 +244,4 @@ This page does not choose the layout contract (how a document is laid out on lin
 10. **Schemas of older versions**, how a loader picks a schema from the stamp, and what a loader does with a newer MINOR or PATCH it does not know within the same MAJOR ([native-contracts.md](native-contracts.md#not-decided-here)).
 11. **Schema technology.** A JSON Schema is published here because the ticket asks for one; the project-wide choice of schema technology is still open in [ADR 0023](../../adr/0023-native-data-contracts-versioning-identity-and-sidecars.md#open-questions).
 12. **Later properties.** A frame time of its own, a frame offset or anchor, and a sound that is not tied to a frame are not in this version and are not decided. Each would be a new optional property.
+13. **Plugin blocks on a clip.** Which plugins extend clips, and what their blocks hold, belong to those plugins' own contributions ([ADR 0024](../../adr/0024-plugin-data-contributions.md)) and are not decided here. A frame has no door; whether a nested object may ever carry one is the decision of the scene contract ([native-contracts.md](native-contracts.md#not-decided-here)). Whether a host shows an unknown key inside `data` as a hint is open.
