@@ -189,6 +189,8 @@ jobs:
           - script-cli
           - lsp
           - script-spec
+          - native-data
+          - native-data-cli
     steps:
       - name: CI classifier decision
         shell: bash
