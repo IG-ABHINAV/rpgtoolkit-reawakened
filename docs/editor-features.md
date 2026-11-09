@@ -181,15 +181,15 @@ The most important tool. A board is edited on a zoomable, scrollable canvas, wit
 
 ## 8. Build & distribution tools (T-70 … T-74)
 
-**T-70 Make package.** Package the game as one **distribution package** (§13) plus its **install descriptor**, with an output path: the project folder at the archive root, with `manifest.json { schema, main, index }` naming the main file and the game files. The package is what a player installs and opens; it carries no copy of the engine. The legacy self-running EXE is an **import** format only — we read one and never write one (§13, Standalone EXE).
+**T-70 Make package.** Package the game as one **distribution package** ([packaging and paths](spec/formats/packaging-and-paths.md#distribution-package-this-projects-own)) plus its **install descriptor**, with an output path: the project folder at the archive root, with `manifest.json { schema, main, index }` naming the main file and the game files. The package is what a player installs and opens; it carries no copy of the engine. The legacy self-running EXE is an **import** format only — we read one and never write one ([packaging and paths](spec/formats/packaging-and-paths.md#standalone-exe)).
 
-**T-71 Pak file compiler.** Package the game as a single `.tpk` archive that an installed player opens. A rebuild's build step writes the same archive as its **distribution package** — a `.tpk`-compatible ZIP with `manifest.json { schema, main, index }` at the archive root (§13) — so the build is one step for the `.tpk` and the package.
+**T-71 Pak file compiler.** Package the game as a single `.tpk` archive that an installed player opens. A rebuild's build step writes the same archive as its **distribution package** — a `.tpk`-compatible ZIP with `manifest.json { schema, main, index }` at the archive root ([packaging and paths](spec/formats/packaging-and-paths.md#distribution-package-this-projects-own)) — so the build is one step for the `.tpk` and the package.
 
 **T-72 Create setup.** A ZIP containing the game files plus a simple installer and uninstaller.
 
 **T-73 File-system upgrade.** Migrate a 2.x project layout (flat folders) into the 3.x project-folder structure.
 
-**T-74 Third-party distribution guidance.** Which files the engine needs at runtime. For a **distribution package** that list is the manifest's `index` (`manifest.json { schema, main, index }`, §13): every game file except the manifest, each once, so a consumer builds the resolver's index without walking the archive.
+**T-74 Third-party distribution guidance.** Which files the engine needs at runtime. For a **distribution package** that list is the manifest's `index` (`manifest.json { schema, main, index }`, [packaging and paths](spec/formats/packaging-and-paths.md#distribution-package-this-projects-own)): every game file except the manifest, each once, so a consumer builds the resolver's index without walking the archive.
 
 ---
 

@@ -69,7 +69,7 @@ title = "The editor opens a native clip and saves a one-property change as a one
 description = "Opens a native clip in the editor and saves an edit through the in-place YAML edit path, so comments and unrelated lines are untouched."
 verify = "Edit one property of the fixture clip in the editor and save: the diff is one line and every comment is kept."
 covers = ["E2", "E4"]
-after = [4]
+after = [4, "11.2", "11.3"]
 hitl = false
 risk = "medium"
 

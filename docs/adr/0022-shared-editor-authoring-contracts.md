@@ -164,8 +164,8 @@ No cross-document atomic undo or save; no backup beyond what a host really provi
 | Test-file exclusion from exported packages: only the default-manifest check exists; no exporter-level proof | 12.9 / 11.9 |
 | Editor-side `.gam`, `.brd`, `.tem` writers for every supported version | 11.2 and each editor entry |
 | Autosave on by default: VS Code `files.autoSave` default and its effect on `CustomEditorProvider` are unverified | 11.3 |
-| History store, checkpoint groups, retention, timeline UI and package-inventory exclusion: unspecified in code and not allocated to any entry | new entry (proposed 11.14) |
-| Git surface (`scm`), its engine choice and the VS Code Git API hand-off: unspecified and not allocated | new entry (proposed 11.15) |
+| History store, checkpoint groups, retention, timeline UI and package-inventory exclusion: unspecified in code and not allocated to any entry | not yet allocated; no epic 11 entry exists for it |
+| Git surface (`scm`), its engine choice and the VS Code Git API hand-off: unspecified and not allocated | not yet allocated; no epic 11 entry exists for it |
 | Native VS Code text/visual synchronisation has been read from documentation, not prototyped | 11.7 |
 
 ## Alternatives considered
