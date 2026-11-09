@@ -116,6 +116,19 @@ A checker reads a folder of native documents and reports problems. It **reports 
 
 Each report says which side to fix when one can be told, for example a plugin document that names `guard` while the owner `guard` names a different plugin document.
 
+### The reference checker {#reference-checker}
+
+`tkr-native-check FOLDER --owner-field NAME --plugins-field NAME` is the first checker (ticket 27.2). The rules above are implemented in `packages/native-data`, which reads no file; `packages/native-data-cli` walks the folder and prints the reports. It never writes. Where the rules above leave a choice, the checker makes the smallest one, so each choice is stated here and each can change without changing the six classes:
+
+- **What is configured, not fixed.** The two link field names have no default; the command requires them. The document extensions default to `.yaml` and `.yml` and can be given again with `--ext`.
+- **The ID is the path without the document extension,** with `/` as the separator. So `Actors/Guard.yaml` has the ID `Actors/Guard`, and `guard.yaml` and `guard.yml` both have the ID `guard`: that is a duplicate ID. `Guard.yaml` and `guard.yaml` are a different case: two paths that fold to one ID. A file system that cannot hold both is no reason to skip the check, so the walk lists paths and never asks the file system whether a name exists.
+- **A plugin document is a document with the owner field; an owner is a document with the plugins field.** The owner field holds one ID. The plugins field holds a list of IDs. A link ID is matched to a document by exact casing first, then by folded casing. When several documents answer to one ID, the identity reports already name them, so no link report is added.
+- **A link field the checker cannot read as an ID, or as a list of IDs, is reported where it is** with the text found, under the class of the end that wrote it (a plugin document's owner field: no owner; an owner's plugins field: no back-link).
+- **A link that is one-way from the plugin document's side** (the plugin document names an owner that names nothing, or names other plugin documents) is a mismatched link: the two ends do not name each other. It is not reported twice when a different owner names the plugin document, because that owner's own report covers it.
+- **An owner that names a plugin document no file holds** is reported as an owner link with no back-link, naming no path for the plugin document.
+- **Which side to fix** is told only when the other evidence points one way: a plugin document that names an owner which names other plugin documents is the side to fix; an owner that names a plugin document which names a third document that names it back is the side to fix; an owner that names a plugin document that does not exist is the side to fix; a plugin document that names a missing owner could mean either a wrong link or a missing owner, so no side is named. Otherwise no side is named.
+- **A file that is not UTF-8 text, a YAML error, more than one YAML document, or a top level that is not a mapping** is reported as an unreadable stamp. Nothing else in a document is checked: the YAML profile and the rest of the schema are not decided.
+
 ## Not decided here {#open-items}
 
 This page does not choose the layout contract (how a document is laid out on lines), the schema technology, or the YAML profile rules ([#1799](../../findings/native-data-notations/README.md) leaves those open). Also open:
