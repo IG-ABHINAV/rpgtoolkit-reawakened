@@ -1,0 +1,12 @@
+contract: animation-clip
+version: 1.0.0-pre.1
+canvas:
+  width: 32
+  height: 32
+delay: 0.15
+frames:
+  - image: tiles/village.tst14
+    # Invalid: a frame has no time of its own in this version. The one delay above applies
+    # to every frame.
+    duration: 0.3
+  - image: tiles/village.tst15

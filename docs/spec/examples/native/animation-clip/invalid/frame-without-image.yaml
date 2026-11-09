@@ -1,0 +1,11 @@
+contract: animation-clip
+version: 1.0.0-pre.1
+canvas:
+  width: 32
+  height: 32
+delay: 0.15
+frames:
+  - image: tiles/village.tst14
+  # Invalid: this frame names a sound but no picture. A frame is a picture; there are no
+  # empty slots to skip, so a frame with no picture is an error, not a pause.
+  - sound: media/step.wav

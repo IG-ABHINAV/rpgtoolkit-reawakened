@@ -1,0 +1,12 @@
+contract: animation-clip
+version: 1.0.0-pre.1
+canvas:
+  width: 32
+  height: 32
+delay: 0.15
+# Invalid: loop is not a key of the clip. Whether a clip repeats is decided by whatever
+# plays it, and a key the engine does not know would be silently ignored, so it is refused.
+loop: true
+frames:
+  - image: tiles/village.tst14
+  - image: tiles/village.tst15
