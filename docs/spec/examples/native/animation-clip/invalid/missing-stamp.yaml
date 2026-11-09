@@ -1,0 +1,9 @@
+# Invalid: the document has no stamp. Without contract and version a reader cannot tell
+# which kind of document this is, and it never guesses.
+canvas:
+  width: 32
+  height: 32
+delay: 0.15
+frames:
+  - image: tiles/village.tst14
+  - image: tiles/village.tst15

@@ -1,0 +1,6 @@
+contract: animation-clip
+version: 1.0.0-pre.1
+canvas: {width: 32, height: 32}
+delay: 0.5
+frames:
+  - image: bitmap/torch.png

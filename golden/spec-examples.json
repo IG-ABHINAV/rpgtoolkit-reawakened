@@ -1,5 +1,5 @@
 {
-  "comment": "Committed dump expectation over docs/spec/examples/{game,files,versions} (ticket 2.26). Current formats must parse with 0 failures and 0 residue; legacy text forms and TK2 binary minors name the tk2-support entry that clears them. #481, 2026-10-22: deliberately re-recorded the eleven .gam parsed-model digests because the decoded model now always includes audioSettings:null when no native audio block exists. Legacy bytes, other model fields, parse counts and non-main-file digests are unchanged; no audio cue/image baseline is re-recorded.",
+  "comment": "Committed dump expectation over docs/spec/examples/{game,files,versions} (ticket 2.26). Current formats must parse with 0 failures and 0 residue; legacy text forms and TK2 binary minors name the tk2-support entry that clears them. #481, 2026-10-22: deliberately re-recorded the eleven .gam parsed-model digests because the decoded model now always includes audioSettings:null when no native audio block exists. Legacy bytes, other model fields, parse counts and non-main-file digests are unchanged; no audio cue/image baseline is re-recorded. #1804, 2026-11-08: added `native` to ignore, because it holds authored native-contract documents (YAML), which are not legacy files and which the dump does not read; no digest or count is changed.",
   "games": {
     "files": {
       "counts": {
@@ -117,6 +117,7 @@
   },
   "ignore": [
     "listings",
+    "native",
     "renders"
   ],
   "schema": 1

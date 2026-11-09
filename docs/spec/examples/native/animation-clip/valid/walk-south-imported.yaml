@@ -1,0 +1,14 @@
+contract: animation-clip
+version: 1.0.0-pre.1
+tags: [imported]
+metadata:
+  source: hero_walk_s.anm
+  notes: Two-frame south walk from the example game; the 49 empty legacy slots are not listed.
+canvas:
+  width: 32
+  height: 32
+delay: 0.15
+colourKey: {r: 255, g: 255, b: 255}
+frames:
+  - image: tiles/village.tst14
+  - image: tiles/village.tst15
