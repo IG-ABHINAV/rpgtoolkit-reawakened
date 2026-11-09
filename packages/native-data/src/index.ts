@@ -1,6 +1,7 @@
 export {
   checkDocuments,
   documentId,
+  isDocumentPath,
   REPORT_CLASSES,
   validateConfig,
   type CheckConfig,
@@ -57,3 +58,19 @@ export {
   type ClipReadResult,
   type ClipWriteResult,
 } from "./clip.ts";
+export {
+  applyPlanToDocuments,
+  planRename,
+  validateRenameConfig,
+  verifyPlan,
+  type LineChange,
+  type RefusalCode,
+  type RenameConfig,
+  type RenameEdit,
+  type RenameMove,
+  type RenamePair,
+  type RenamePlan,
+  type RenameRefusal,
+  type RenameResult,
+} from "./rename.ts";
+export { applySplices, type Splice } from "./splice.ts";

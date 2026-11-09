@@ -174,6 +174,20 @@ export function validateConfig(config: CheckConfig): void {
   if (config.registry !== undefined) validateRegistry(config.registry);
 }
 
+/**
+ * Whether a path names a native document: without `documentExtensions`, its extension is in the
+ * registry; with them, it ends in one of them (matched after ASCII folding, with a name before it).
+ * Every other path, a legacy file among them, is not a native document.
+ */
+export function isDocumentPath(path: string, config: Pick<CheckConfig, "documentExtensions" | "registry">): boolean {
+  if (config.documentExtensions === undefined) return classifyExtension(extensionOf(path), config.registry ?? REGISTRY) === "native-registered";
+  const folded = foldId(path);
+  return config.documentExtensions.some((extension) => {
+    const suffix = foldId(extension);
+    return folded.endsWith(suffix) && path.length > suffix.length;
+  });
+}
+
 function group<T>(items: readonly T[], keyOf: (item: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>();
   for (const item of items) {
@@ -194,15 +208,9 @@ export function checkDocuments(inputs: readonly DocumentInput[], config: CheckCo
   validateConfig(config);
   const { ownerField, pluginsField } = config;
   const registry = config.registry ?? REGISTRY;
-  const overrides = config.documentExtensions?.map(foldId);
-  const isDocument = (path: string): boolean => {
-    if (overrides === undefined) return classifyExtension(extensionOf(path), registry) === "native-registered";
-    const folded = foldId(path);
-    return overrides.some((extension) => folded.endsWith(extension) && path.length > extension.length);
-  };
 
   const docs: Doc[] = inputs
-    .filter((input) => isDocument(input.path))
+    .filter((input) => isDocumentPath(input.path, config))
     .sort((left, right) => compareText(left.path, right.path))
     .map((input) => ({
       read: readDocument(input, [ownerField, pluginsField, "contract"]),
