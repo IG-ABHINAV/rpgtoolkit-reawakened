@@ -80,6 +80,8 @@ graph LR
   editorui --> hostdesktop
   plugintk2compat --> runnerharness
   nativedata[native-data] --> nativedatacli[native-data-cli]
+  core --> nativedataimport[native-data-import]
+  nativedata --> nativedataimport
 ```
 
 ## Inherited Invariants

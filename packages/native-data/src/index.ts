@@ -26,3 +26,24 @@ export {
 export { foldId } from "./fold.ts";
 export { formatReport } from "./report.ts";
 export { parseVersion, type VersionParse } from "./version.ts";
+export {
+  checkClip,
+  CLIP_CONTRACT,
+  CLIP_VERSION,
+  formatClipPath,
+  formatClipProblems,
+  readClip,
+  removeClipProperty,
+  setClipProperty,
+  writeClip,
+  type Clip,
+  type ClipColour,
+  type ClipEditResult,
+  type ClipEditValue,
+  type ClipFrame,
+  type ClipJson,
+  type ClipPath,
+  type ClipProblem,
+  type ClipReadResult,
+  type ClipWriteResult,
+} from "./clip.ts";

@@ -36,6 +36,9 @@
     },
     {
       "path": "packages/native-data-cli"
+    },
+    {
+      "path": "packages/native-data-import"
     }
   ]
 }

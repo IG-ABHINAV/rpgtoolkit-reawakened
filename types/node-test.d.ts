@@ -4,6 +4,7 @@
 declare module "node:test" {
   export interface TestContext {
     test(name: string, fn: () => void | Promise<void>): Promise<void>;
+    diagnostic(message: string): void;
   }
   export function test(name: string, fn: (context: TestContext) => void | Promise<void>): void;
   export function test(name: string, fn: () => void | Promise<void>): void;

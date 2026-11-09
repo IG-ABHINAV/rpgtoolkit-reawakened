@@ -136,8 +136,9 @@ These packages exist today (`packages/`):
 | `lsp` | The transport-free RPGCode language server (diagnostics, hover, completion, definition, outline). Host transports live outside this package. |
 | `script-spec` | Shared RPGCode tooling contracts: program, project and runner types used by the language server and script tools. |
 | `script-tools` | RPGCode analysis, indexing, formatting, diagnostics and quick-fixes used by the language server and stand-alone checks. |
-| `native-data` | The pure rules of the native document checker: stamp reading, the version grammar, ASCII ID folding, and owner/plugin link consistency over documents already in memory. It reads no file and depends on no other workspace package ([native data contracts](docs/spec/formats/native-contracts.md#checker)). |
+| `native-data` | The pure rules of the native document checker: stamp reading, the version grammar, ASCII ID folding, and owner/plugin link consistency over documents already in memory, and the native animation clip reader, writer and in-place edit ([clip contract](docs/spec/formats/native-animation-clip.md#reference-reader-writer-and-importer)). It reads no file and depends on no other workspace package ([native data contracts](docs/spec/formats/native-contracts.md#checker)). |
 | `native-data-cli` | The file walk and the `tkr-native-check` command around `native-data`: it reads a folder of native documents and reports problems, and never writes. |
+| `native-data-import` | The legacy `.anm` to native animation clip importer (`importAnimation`): it takes the core decoder's model and returns a clip model, and reads no file. It depends on `core` and `native-data`, so the checker's `native-data` stays free of other workspace packages. |
 
 Outside `packages/`: `docs/` (spec, ADRs, guard-rails), `tools/` (the checks and generators CI runs), `golden/` (committed reference output), `fixtures/` (fetched sample games, never committed), `media/`, and `_bmad-output/` (tickets and plans, see below).
 
