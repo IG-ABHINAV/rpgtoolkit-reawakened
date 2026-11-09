@@ -3,6 +3,7 @@
 * **Status:** Accepted
 * **Date:** 2026-10-11
 * **Context documents:** [0001-typescript-core.md](0001-typescript-core.md), [spec/README.md](../spec/README.md), [editor-features.md](../editor-features.md)
+* **Refined by:** [0023-native-data-contracts-versioning-identity-and-sidecars.md](0023-native-data-contracts-versioning-identity-and-sidecars.md) (stamp, per-contract versions and identity for native documents).
 
 ## Context
 

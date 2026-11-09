@@ -21,6 +21,7 @@ Every RPG Toolkit 3 game is a folder of small binary files plus RPGCode text, al
 | RPGCode program | `.prg` | `Prg\` | [rpgcode-program.md](rpgcode-program.md) |
 | Project layout, PAK archive, standalone EXE | folder, `.tpk`, `.exe` | — | [packaging-and-paths.md](packaging-and-paths.md) |
 | **Legacy files** (Toolkit 1-2 text, older 3.0 binary versions, conversion) | various | — | [legacy/](legacy/README.md) |
+| **Native documents** (stamp, per-contract versions, path identity, plugin data) | contract-defined | — | [native-contracts.md](native-contracts.md) |
 | Images | `.bmp`, `.png`, `.jpg`, `.gif` | `Bitmap\`, `Misc\` | [images.md](images.md) (BMP and GIF layouts; PNG and JPEG: [images.md](images.md#the-shared-decode-contract)) |
 | Audio, fonts, plugins | `.wav/.mid/.mp3/.ogg`, `.ttf`, `.dll` | `Media\`, `Font\`, `Plugin\` | third-party formats, used as-is |
 
