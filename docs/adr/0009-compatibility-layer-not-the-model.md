@@ -3,6 +3,7 @@
 * **Status:** Accepted (owner decision, 2026-10-19). Extends [ADR 0005](0005-independent-product-v1-and-native-format.md), decision 2.
 * **Date:** 2026-10-19
 * **Context documents:** [0005-independent-product-v1-and-native-format.md](0005-independent-product-v1-and-native-format.md), [0007-docs-spec-is-the-normative-specification.md](0007-docs-spec-is-the-normative-specification.md), [spec/README.md](../spec/README.md)
+* **See also:** [0023-native-data-contracts-versioning-identity-and-sidecars.md](0023-native-data-contracts-versioning-identity-and-sidecars.md).
 
 ## Context
 
