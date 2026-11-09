@@ -82,6 +82,8 @@ graph LR
   nativedata[native-data] --> nativedatacli[native-data-cli]
   core --> nativedataimport[native-data-import]
   nativedata --> nativedataimport
+  nativedata --> nativedatarename[native-data-rename]
+  nativedatacli --> nativedatarename
 ```
 
 ## Inherited Invariants

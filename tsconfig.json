@@ -39,6 +39,9 @@
     },
     {
       "path": "packages/native-data-import"
+    },
+    {
+      "path": "packages/native-data-rename"
     }
   ]
 }

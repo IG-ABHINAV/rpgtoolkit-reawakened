@@ -21,12 +21,12 @@ import {
   isSeq,
   LineCounter,
   parseDocument,
-  Scalar,
   type Node,
   type Pair,
   type YAMLMap,
 } from "yaml";
 import { readDocument } from "./document.ts";
+import { applySplices, rangeOf, scalarText, type Splice } from "./splice.ts";
 import { parseVersion } from "./version.ts";
 
 export const CLIP_CONTRACT = "animation-clip";
@@ -360,8 +360,6 @@ export type ClipEditResult =
   | { readonly ok: true; readonly text: string }
   | { readonly ok: false; readonly problems: readonly ClipProblem[] };
 
-type Splice = { readonly start: number; readonly end: number; readonly text: string };
-
 /** What `plan*` return instead of splices when an edit cannot be made. */
 type EditError = { readonly error: string };
 
@@ -377,10 +375,6 @@ function containerKind(path: ClipPath): string {
 
 type Context = { readonly text: string; readonly document: Document.Parsed; readonly lines: LineCounter };
 
-function rangeOf(node: Node): readonly [number, number, number] {
-  return node.range as readonly [number, number, number];
-}
-
 /** The offset just past the last character of a pair's value, before any comment. */
 function pairEnd(pair: Pair): number {
   const value = pair.value as Node | null;
@@ -395,12 +389,6 @@ function nodeEnd(node: Node): number {
     return isMap(node) ? pairEnd(last as Pair) : nodeEnd(last as Node);
   }
   return rangeOf(node)[1];
-}
-
-function scalarText(value: string | number, like: Scalar | null): string {
-  const scalar = new Scalar(value);
-  if (like !== null && typeof value === "string" && (like.type === "QUOTE_DOUBLE" || like.type === "QUOTE_SINGLE")) scalar.type = like.type;
-  return new Document(scalar).toString({ lineWidth: 0 }).replace(/\n$/, "");
 }
 
 const colourText = (colour: ClipColour): string => `{r: ${colour.r}, g: ${colour.g}, b: ${colour.b}}`;
@@ -505,10 +493,7 @@ function applyEdit(text: string, plan: (context: Context) => Splice[] | EditErro
   const splices = plan({ text, document, lines });
   if (!Array.isArray(splices)) return { ok: false, problems: [{ kind: "edit", path: formatClipPath(path), message: (splices as EditError).error, line: null }] };
 
-  let edited = text;
-  for (const splice of [...splices].sort((a, b) => b.start - a.start)) {
-    edited = edited.slice(0, splice.start) + splice.text + edited.slice(splice.end);
-  }
+  const edited = applySplices(text, splices);
   const after = readClip(edited);
   if (!after.ok) {
     return { ok: false, problems: after.problems.map((problem) => ({ ...problem, message: `the edit would leave a document the reader refuses: ${problem.message}` })) };

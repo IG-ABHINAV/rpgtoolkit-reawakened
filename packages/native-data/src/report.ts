@@ -6,9 +6,10 @@
 import type { CheckReport, FixSide } from "./check.ts";
 
 const quote = (text: string): string => JSON.stringify(text);
-const code = (text: string): string => `\`${text}\``;
+export const code = (text: string): string => `\`${text}\``;
 
-function list(items: readonly string[]): string {
+/** `a`, `b` and `c`: each item in code quotes, joined for a sentence. */
+export function list(items: readonly string[]): string {
   const quoted = items.map(code);
   if (quoted.length <= 2) return quoted.join(" and ");
   return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]!}`;
