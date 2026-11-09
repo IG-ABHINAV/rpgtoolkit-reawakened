@@ -1,7 +1,7 @@
 /**
  * Reading one native document's top level: the stamp keys and the named link
  * fields. This is all the checker needs from YAML; the YAML profile rules are
- * not decided (docs/spec/formats/native-contracts.md#open-items), so nothing
+ * not decided (docs/spec/formats/native-contracts.md#not-decided-here), so nothing
  * here validates anything else in the document.
  *
  * The `yaml` package is pure JavaScript text parsing: it touches no file, no

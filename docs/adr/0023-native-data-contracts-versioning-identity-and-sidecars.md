@@ -49,7 +49,7 @@ The owner's direction is that formats are like API definitions: logical contract
 
 ## Open questions
 
-Deliberately not decided here (see [the spec's open items](../spec/formats/native-contracts.md#open-items)):
+Deliberately not decided here (see [the spec's open items](../spec/formats/native-contracts.md#not-decided-here)):
 
 * The layout contract, the schema technology and the YAML profile rules ([#1799](../findings/native-data-notations/README.md)).
 * The standard `metadata` keys and the `tags` vocabulary.

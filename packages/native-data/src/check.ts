@@ -3,7 +3,7 @@
  * (docs/spec/formats/native-contracts.md#checker). It reports and never repairs:
  * it takes text in and returns reports out, and has no way to write anything.
  *
- * What is configured, because the spec leaves it open (#open-items):
+ * What is configured, because the spec leaves it open (#not-decided-here):
  *  - which file extensions mark a document, which are removed to make its ID;
  *  - the name of the link field a plugin document uses for its owner;
  *  - the name of the link field an owner uses for its plugin documents.

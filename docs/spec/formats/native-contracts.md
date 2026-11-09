@@ -8,7 +8,7 @@ A native document says at the top which kind of document it is and which version
 
 The rules below are precise. The examples use YAML, the authored notation the owner accepted in [research #1799](../../findings/native-data-notations/README.md); the rules do not depend on YAML, and the YAML profile and layout rules are not set here.
 
-## Stamp {#stamp}
+## Stamp
 
 Every native document starts with a **stamp**.
 
@@ -35,9 +35,9 @@ Rules:
 4. A missing, repeated or unreadable stamp is an error. A reader never guesses a contract or a version.
 5. Adding `tags` or `metadata` to a contract that lacks them is a MINOR change; both are optional.
 
-The stamp keys use a fixed spelling. The exact spelling of the keys inside `metadata`, and the vocabulary of `tags`, are open ([open items](#open-items)).
+The stamp keys use a fixed spelling. The exact spelling of the keys inside `metadata`, and the vocabulary of `tags`, are open ([open items](#not-decided-here)).
 
-## Versions {#versions}
+## Versions
 
 ### What a version number promises
 
@@ -80,7 +80,7 @@ Because a version always has three parts, a YAML reader reads it as text and nev
 
 Each contract is versioned on its own, like separate API definitions. A document records the version of its own contract only. There is no project-wide version number and no manifest of versions: each document carries its own stamp and a loader chooses the rules for each document from that stamp. A project can hold documents at different versions, and upgrading a project migrates the documents whose version is behind.
 
-## Identity {#identity}
+## Identity
 
 A document's **ID** is its path within the project. The ID is authored (a person or the editor chose the path) and stable (it changes only through an explicit rename that updates every reference). Other documents refer to a document by its ID.
 
@@ -91,7 +91,7 @@ A document's **ID** is its path within the project. The ID is authored (a person
 
 Why the path: two branches that each add the same new ID merged cleanly in every notation the research tested, and nothing reported the duplicate ([research](../../findings/native-data-notations/README.md#3-nothing-in-the-syntax-prevents-conflicts-or-duplicate-identities)). When the ID is the path, both branches added the same file and Git reports an add/add conflict, so the file system does the uniqueness check.
 
-## Plugin data {#plugin-data}
+## Plugin data
 
 A plugin's data for an owner (an actor or a scene, for example) is a **separate document** with its own `contract` and its own `version`. No document holds both core data and plugin data, so a core contract and a plugin contract never share a versioned document and neither can break the other's schema.
 
@@ -99,9 +99,9 @@ A plugin's data for an owner (an actor or a scene, for example) is a **separate 
 2. A link that is missing, one-way, or whose two ends disagree is an error that names both ends.
 3. A plugin document whose plugin is absent is left unchanged: it is not parsed against a schema, not validated and not run. It is preserved byte for byte. Preserved data is not thereby safe to execute.
 
-How a plugin document's path is chosen from its owner's path, and the names of the link fields, are open ([open items](#open-items)).
+How a plugin document's path is chosen from its owner's path, and the names of the link fields, are open ([open items](#not-decided-here)).
 
-## Checker {#checker}
+## Checker
 
 A checker reads a folder of native documents and reports problems. It **reports and never repairs**. It reports every class below, each with the content shown.
 
@@ -116,7 +116,7 @@ A checker reads a folder of native documents and reports problems. It **reports 
 
 Each report says which side to fix when one can be told, for example a plugin document that names `guard` while the owner `guard` names a different plugin document.
 
-### The reference checker {#reference-checker}
+### The reference checker
 
 `tkr-native-check FOLDER --owner-field NAME --plugins-field NAME` is the first checker (ticket 27.2). The rules above are implemented in `packages/native-data`, which reads no file; `packages/native-data-cli` walks the folder and prints the reports. It never writes. Where the rules above leave a choice, the checker makes the smallest one, so each choice is stated here and each can change without changing the six classes:
 
@@ -129,7 +129,7 @@ Each report says which side to fix when one can be told, for example a plugin do
 - **Which side to fix** is told only when the other evidence points one way: a plugin document that names an owner which names other plugin documents is the side to fix; an owner that names a plugin document which names a third document that names it back is the side to fix; an owner that names a plugin document that does not exist is the side to fix; a plugin document that names a missing owner could mean either a wrong link or a missing owner, so no side is named. Otherwise no side is named.
 - **A file that is not UTF-8 text, a YAML error, more than one YAML document, or a top level that is not a mapping** is reported as an unreadable stamp. Nothing else in a document is checked: the YAML profile and the rest of the schema are not decided.
 
-## Not decided here {#open-items}
+## Not decided here
 
 This page does not choose the layout contract (how a document is laid out on lines), the schema technology, or the YAML profile rules ([#1799](../../findings/native-data-notations/README.md) leaves those open). Also open:
 
