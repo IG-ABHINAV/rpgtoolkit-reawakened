@@ -4,6 +4,8 @@ Authored examples of the native animation clip at contract version `1.0.0-pre.1`
 
 **What they are not.** They are not legacy files: the dump tool does not read this folder (`native` is in the `ignore` list of [golden/spec-examples.json](../../../../../golden/spec-examples.json)). They do not decide the layout of a document on lines or any YAML profile rule; they show one plausible authored layout. The asset paths (`bitmap/...`, `media/...`, `tiles/...`) are illustrative, because the project folder names are still open ([open items](../../../formats/native-animation-clip.md#open-items)). No file here names a real asset.
 
+**Plugin blocks.** The contract admits one optional key, `pluginData` ([plugin blocks](../../../formats/native-contracts.md#plugin-blocks)), and none of the files below uses it. These files are test data that `packages/native-data/test/clip.test.ts` reads through the reference reader, which still refuses `pluginData` as an unknown key, so a document with a block is added here by story 27.10 ([#1822](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1822)) in the same change as the reader. The worked examples in [native-contracts.md](../../../formats/native-contracts.md#a-worked-example) and [native-animation-clip.md](../../../formats/native-animation-clip.md#a-clip-at-a-glance) were checked against the schema.
+
 ## Valid
 
 | File | What it shows |
