@@ -4,7 +4,7 @@ remote: "https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1802"
 type: epic
 title: "Native data contracts: versioned, text-first documents, proved on the animation clip"
 parent: initiative-rpgtoolkit-reawakened
-covers: []
+covers: ["CAP-20"]
 after: []
 assignee: ""
 risk: high
@@ -22,7 +22,7 @@ A creator or a tool author can open a native document, see which contract and ve
 
 ## Requirements
 
-Covers is empty: no capability in the product spec names the native format, and ADR 0005 makes it permitted, not required. Each line cites its source instead.
+Each line maps to CAP-20, the draft capability added on 2026-11-08 for this epic. Each also cites its source.
 
 - E1: Versions are per contract, semver, and 1.0 is a promise once published in a release (ticket 27.1 Notes; #1800).
 - E2: Every document carries a stamp (`contract`, `version`, optional `tags` and `metadata`); the path is the ID; plugin data is a separate document linked both ways (ticket 27.1).
@@ -61,7 +61,7 @@ This is the data-contract and document-tooling boundary. It does not include bui
 - Decision: Jensen, 2026-11-08: the other rulings (versions, stamp, IDs, sidecars, validator, rename tool) are recorded as dated Decision lines in ticket 27.1.
 - Decision: Jensen, 2026-11-08: prefer composition over inheritance for the actor family where we can. 27.7 chooses the parts and where composition cannot express something.
 - Assumption: a contract stays pre-release (`1.0.0-pre.N`) until the owner promotes it at a release. Nothing here publishes a 1.0.
-- Assumption: no new capability id is minted for this epic. Offer `bmad-spec` or an architecture amendment if the owner wants the native format listed as a capability.
+- Decision: Jensen, 2026-11-08: add CAP-20 as a draft capability for the native format. Its wording is the owner's to confirm in the spec.
 - Open question: which package owns the path, ID and link rules, and which owns the file walk, given G2 (core touches no I/O). 27.2 settles it in its plan.
 - Decision: Jensen, 2026-11-08: epics 12 to 14 do not gain a prerequisite on 27.6 for now; revisit when the editor proof exists.
 - Parked: runtime loading, importer output and editor support for the actor-family and scene contracts. They are planned in a re-slice after 27.7 and 27.8 are approved.
