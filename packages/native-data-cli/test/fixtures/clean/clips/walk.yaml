@@ -1,0 +1,7 @@
+# An authored animation clip. Comments stay where the author put them.
+contract: animation-clip
+version: 1.0.0-pre.3
+tags: [imported]
+metadata:
+  source: start_s.anm
+frames: [one, two]

@@ -30,6 +30,12 @@
     },
     {
       "path": "packages/script-cli"
+    },
+    {
+      "path": "packages/native-data"
+    },
+    {
+      "path": "packages/native-data-cli"
     }
   ]
 }

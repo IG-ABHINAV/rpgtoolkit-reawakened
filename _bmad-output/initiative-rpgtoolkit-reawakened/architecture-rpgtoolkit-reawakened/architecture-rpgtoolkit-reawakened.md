@@ -79,6 +79,7 @@ graph LR
   editorui --> hostweb
   editorui --> hostdesktop
   plugintk2compat --> runnerharness
+  nativedata[native-data] --> nativedatacli[native-data-cli]
 ```
 
 ## Inherited Invariants

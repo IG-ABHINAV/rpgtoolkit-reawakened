@@ -1,0 +1,7 @@
+{
+  "documents": [
+    { "path": "Actors/Guard.yaml", "text": "contract: actor\nversion: 1.0.0\n" },
+    { "path": "actors/guard.yaml", "text": "contract: actor\nversion: 1.0.0\n" },
+    { "path": "actors/knight.yaml", "text": "contract: actor\nversion: 1.0.0\n" }
+  ]
+}
