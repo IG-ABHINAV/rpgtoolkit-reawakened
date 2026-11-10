@@ -235,6 +235,14 @@ function buildRules() {
     to: { path: "^@tk-reawakened/[^/]+/." },
   });
   rules.push({
+    name: "r6-testing-entry-only-in-tests",
+    severity: "error",
+    comment:
+      "a package's `./testing` entry (src/testing.ts) is for tests: no file under packages/<pkg>/src/ imports another package's (AD-22).",
+    from: { path: "^packages/([^/]+)/src/" },
+    to: { path: "^packages/[^/]+/src/testing\\.ts$", pathNot: "^packages/$1/" },
+  });
+  rules.push({
     name: "r3-render-engines-only-in-render",
     severity: "error",
     comment:
@@ -282,7 +290,9 @@ const config = {
 
 // `paths` resolves a package's entry point to its source, so the graph is read
 // without a build; a `@tk-reawakened/<pkg>/<subpath>` import misses every key,
-// resolution fails and r2 sees it.
+// resolution fails and r2 sees it. The one subpath AD-22 allows is `./testing`,
+// which exists only for a package that has `src/testing.ts`; it resolves, so r2
+// passes it, and r6 keeps it out of `src/`.
 const tsconfig = {
   compilerOptions: {
     target: "ES2022",
@@ -291,7 +301,12 @@ const tsconfig = {
     baseUrl: ".",
     noEmit: true,
     paths: Object.fromEntries(
-      list.packages.map((name) => [`@tk-reawakened/${name}`, [`packages/${name}/src/index.ts`]]),
+      list.packages.flatMap((name) => [
+        [`@tk-reawakened/${name}`, [`packages/${name}/src/index.ts`]],
+        ...(existsSync(join(packagesDir, name, "src", "testing.ts"))
+          ? [[`@tk-reawakened/${name}/testing`, [`packages/${name}/src/testing.ts`]]]
+          : []),
+      ]),
     ),
   },
 };

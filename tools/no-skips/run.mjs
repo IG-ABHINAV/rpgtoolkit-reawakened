@@ -43,6 +43,9 @@ export const GROUPS = Object.freeze([
   "native-data-cli",
   "native-data-import",
   "native-data-rename",
+  "platform-services",
+  "editor-model",
+  "editor-ui",
 ]);
 
 const CORE_FORMATS_FILE = /^(?:format-|audio-|canon\.|contracts\.|fmath|lint-rules\.|rng\.|save-migration\.|validate\.)/;
