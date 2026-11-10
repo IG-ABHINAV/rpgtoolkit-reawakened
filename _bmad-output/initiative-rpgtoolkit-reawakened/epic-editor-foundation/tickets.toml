@@ -16,14 +16,53 @@ plan_checkpoint = true
 done_checkpoint = true
 
 [[entry]]
+id = 16
+tracker_id = "#1831"
+type = "story"
+title = "Set up the Preact and TSX toolchain for editor-ui"
+description = "Do what ADR 0025 asks the first editor story to do first, and write no product code: add `preact` pinned to one exact 11.x version with its THIRD_PARTY_NOTICES entry, set the JSX keys in the TypeScript and esbuild configuration so `tsc -b` and the bundle agree, add a check that no editor bundle contains `eval(` or `new Function`, prove that lint, the dependency-graph check and the provenance scan cover `.tsx` files including a failing `host-*` import, and add the dev-only DOM shim that ADR 0025 decision 8 names, with its licence line."
+verify = "A sample `.tsx` file type-checks under `tsc -b` and bundles under esbuild with the same JSX settings; the bundle check fails on a bundle that contains `eval(` or `new Function`; a `.tsx` file importing a `host-*` package fails both lint and the dependency-graph check; a sample component renders under the DOM shim in `node --test`; `preact` has no version range, and `pnpm licence` and `pnpm provenance` pass."
+covers = ["CAP-15", "CAP-18"]
+references = ["Decision: ADR 0025 decisions 1, 2, 8 and 9 and its follow-up list (written for 11.2; this entry now does that work)", "Constraint: G6 licence gate (`preact` and the DOM shim each need their licence line)"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 17
+tracker_id = "#1832"
+type = "story"
+title = "Build the settings model and view over an in-memory platform-services double"
+description = "Create `platform-services` (the interface, in its own package), `editor-model` and `editor-ui`: a `.gam` document read and written through `readMainFile`, `writeMainFile` and the `fs` read and write of platform-services, a command stack, and a Preact settings view mounted by `mount(el, ctx) -> { dispose }` whose one tracer field is the game title. Everything runs against an in-memory platform-services double; no host exists yet."
+verify = "Over the double, on real `.gam` bytes: editing the title, saving and reopening gives the edited title with every other byte, the file's minor version and its unknown residue preserved; a failing save keeps the model dirty, keeps the edit visible and shows the error naming the document (ADR 0022 D3.3); `editor-ui` imports no `host-*` package, proven by the dependency-graph check on the new packages."
+covers = ["CAP-15", "CAP-18", "T-01", "T-06", "T-10"]
+references = ["Decision: ADR 0022 D1, D2 and D3 (document identity, bytes plus a command stack, a failed save leaves the document dirty)", "Decision: ADR 0025 decision 4 (the view handle) and the epic Notes, 2026-11-10 (`platform-services` is its own package)"]
+after = [16, "2.9"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 18
+tracker_id = "#1833"
+type = "story"
+title = "Carry the settings tracer through the web and VS Code adapters"
+description = "Implement platform-services in `host-web` and `host-vscode`, mount the 11.17 view in both, and prove it: one shared behaviour test runs against both adapters and compares the persisted bytes, a round trip on a fetched-corpus `.gam` is loaded by the headless runner after saving, a vscode.dev proof runs the extension in a web VS Code build with `@vscode/test-web` (MIT, dev-only, with its THIRD_PARTY_NOTICES line and a licence check), and a strict-CSP probe counts violations in the mounted view (ADR 0025 follow-up 3)."
+verify = "The same test edits the game title, saves and reopens through each adapter and the two persisted byte sequences are equal; a corpus `.gam` round-trips with every other byte preserved and the headless runner loads the saved bytes; the vscode.dev proof opens, edits, saves and reopens the document in a web VS Code build; the CSP probe reports no violation in the mounted view; `editor-ui` imports no `host-*` and neither host imports the other; the corpus case may skip locally only because `pnpm fixtures:fetch` has not run, and fails under `pnpm test:strict` in CI."
+covers = ["CAP-15", "CAP-18", "T-01", "T-10"]
+references = ["Decision: ADR 0025 decision 6 (CSP rules for editor bundles; Monaco's `style-src` need is decided separately)", "Constraint: no-skips gate (corpus-backed cases skip without fixtures and CI runs `pnpm test:strict` after `pnpm fixtures:fetch`)", "Constraint: G6 licence gate (`@vscode/test-web`)"]
+after = [17]
+hitl = false
+risk = "high"
+
+[[entry]]
 id = 2
 tracker_id = "#1700"
 type = "story"
 title = "Trace a real game settings document through both hosts"
-description = "Build the shared editor model and UI plus web and VS Code adapters to open, edit, save and reopen a real .gam game setting through platform services."
+description = "Close the real-settings tracer after 11.16 (toolchain), 11.17 (model and UI over an in-memory platform-services double) and 11.18 (web and VS Code adapters) are done: open, edit, save and reopen a real .gam game setting through platform services in both hosts from one clean checkout. It adds no feature code of its own; a gap found here goes back to the slice that owns it."
 verify = "A real authored .gam opens in web and VS Code including vscode.dev, an edited field saves and reopens without loss, and the runner reads the saved file."
 covers = ["CAP-15", "CAP-18", "T-01", "T-06", "T-10"]
-after = [1, "2.9"]
+after = [16, 17, 18, "2.9"]
 hitl = false
 risk = "high"
 
