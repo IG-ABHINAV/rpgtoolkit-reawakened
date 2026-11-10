@@ -14,7 +14,7 @@ risk: high
 
 ## Description
 
-The native game-data documents become explicit, versioned contracts. Each logical contract has its own semantic version, a path that is its ID, and a stamp at the top of every document. Plugin data lives in its own documents, linked both ways to its owner. The epic writes the rulings, builds the checker and the rename tool, and proves the whole path on one contract, the animation clip, before the actor family and scene contracts are specified. Jensen decided the rules on 2026-11-08, after research #1778 and #1799; ticket 27.1 records them.
+The native game-data documents become explicit, versioned contracts. Each logical contract has its own semantic version, a path that is its ID, and a stamp at the top of every document. Plugin data lives in the document it belongs to, in one block per plugin under a single open key, `pluginData`, with its own version; the contract's own fields stay closed. The epic writes the rulings, builds the checker and the rename tool, and proves the whole path on one contract, the animation clip, before the actor family and scene contracts are specified. Jensen decided the rules on 2026-11-08, after research #1778 and #1799, and amended the plugin-data rules on 2026-11-09 (plugin blocks, qualified plugin ids, the two-rule model); ticket 27.1 records them, and ADR 0024 records the plugin side.
 
 ## Outcome
 
@@ -25,10 +25,10 @@ A creator or a tool author can open a native document, see which contract and ve
 Each line maps to CAP-20, the draft capability added on 2026-11-08 for this epic. Each also cites its source.
 
 - E1: Versions are per contract, semver, and 1.0 is a promise once published in a release (ticket 27.1 Notes; #1800).
-- E2: Every document carries a stamp (`contract`, `version`, optional `tags` and `metadata`); the path is the ID; plugin data is a separate document linked both ways (ticket 27.1).
-- E3: A checker reports stamp, ID and link errors by name and never repairs (ticket 27.1, criterion 6).
+- E2: Every document carries a stamp (`contract`, `version`, optional `tags` and `metadata`); the path is the ID; plugin data lives in the owning document under `pluginData`, never in a document of its own (ticket 27.1 Notes; ADR 0023 decisions 7 and 12).
+- E3: A checker reports stamp, ID and plugin-block errors by name and never repairs (ticket 27.1, criterion 6, as amended 2026-11-09).
 - E4: The animation clip is the first contract; the 1:1 importer output stays an oracle and is never the native format (ticket 27.1, criterion 7).
-- E5: A rename keeps every reference and both ends of each sidecar link valid (ticket 27.1, Notes).
+- E5: A rename keeps every reference to a moved document valid; plugin data is inside documents, so there is no link to rewrite and a rename never edits a block (ticket 27.1, Notes).
 - E6: The actor family and the board's placement-versus-definition split are specified as contracts, not copied from legacy file boundaries (`docs/findings/native-data-boundaries/README.md`).
 
 ## Done when
@@ -36,7 +36,7 @@ Each line maps to CAP-20, the draft capability added on 2026-11-08 for this epic
 1. The ADR and the spec page from 27.1 are approved by Jensen and merged.
 2. The checker, run over the authored fixtures, reports each ruled error class with the ruled message content and reports nothing on the clean fixture.
 3. Legacy `.anm` files from the corpus import into native clip documents that decode to the same ordered frames and delays; a one-property edit changes one line and keeps every comment.
-4. Renaming or moving a document leaves the checker clean on a fixture project with references and a sidecar link.
+4. Renaming or moving a document leaves the checker clean on a fixture project with references and a document that carries plugin blocks, whose bytes stay unchanged.
 5. The editor opens a native clip and saves a one-property change as a one-line diff.
 6. The actor-family and scene contracts exist as approved pre-release specs, not published as 1.0.
 
@@ -47,6 +47,8 @@ This is the data-contract and document-tooling boundary. It does not include bui
 ## References
 
 - parent — _bmad-output/initiative-rpgtoolkit-reawakened/initiative-rpgtoolkit-reawakened.md
+- adr — docs/adr/0023-native-data-contracts-versioning-identity-and-sidecars.md (as amended 2026-11-09)
+- adr — docs/adr/0024-plugin-data-contributions.md
 - research — docs/findings/native-data-notations/README.md
 - research — docs/findings/native-data-boundaries/README.md
 - adr — docs/adr/0005-independent-product-v1-and-native-format.md
@@ -59,6 +61,7 @@ This is the data-contract and document-tooling boundary. It does not include bui
 - Decision: Jensen, 2026-11-08: the first round is not a straight 1:1 translation of every file. The item, NPC and enemy family and the board's placement-versus-definition split are redefined; clips, tile layers, skills and effects are translated with small corrections; the 1:1 importer output is a test oracle only.
 - Decision: Jensen, 2026-11-08: the animation clip is the first contract; a thin slice through one contract comes before designing the others. Editors follow the contracts; the actor and scene editors wait for 27.7 and 27.8.
 - Decision: Jensen, 2026-11-08: the other rulings (versions, stamp, IDs, sidecars, validator, rename tool) are recorded as dated Decision lines in ticket 27.1.
+- Decision: Jensen, 2026-11-09: plugin data lives in the document it belongs to, in `pluginData` blocks, and not in documents of its own; the contract's own fields stay closed, plugin namespaces are open, and every writer preserves what it does not understand. This supersedes the 2026-11-08 sidecar ruling. The dated lines are in ticket 27.1's Notes; the plugin-side contract is ADR 0024.
 - Decision: Jensen, 2026-11-08: prefer composition over inheritance for the actor family where we can. 27.7 chooses the parts and where composition cannot express something.
 - Assumption: a contract stays pre-release (`1.0.0-pre.N`) until the owner promotes it at a release. Nothing here publishes a 1.0.
 - Decision: Jensen, 2026-11-08: add CAP-20 as a draft capability for the native format. Its wording is the owner's to confirm in the spec.

@@ -12,13 +12,21 @@ after = []
 hitl = true
 risk = "medium"
 refine = true
+notes = [
+  "Decision: Jensen, 2026-11-09: plugin data lives in the document it belongs to, under one open top-level key, `pluginData`, keyed by plugin id. Each block has its own `version` and `data`. The core checks only the envelope (id well formed, version parses, `data` is a mapping); the plugin owns its schema, version and migration. Unknown keys inside `data` are tolerated and never dropped; an absent plugin's block is preserved as written; data newer than the plugin is read for its known keys. This replaces the 2026-11-08 separate-document ruling (ADR 0023 decision 7). The key name was chosen over `plugins`, `metadata` and `extensionData`.",
+  "Decision: Jensen, 2026-11-09: a contract's own fields are closed (an unknown key is an error, so `colorKey` cannot pass for `colourKey`) and plugin namespaces are open; every writer must preserve what it does not understand, byte for byte, comments included (ADR 0023 decision 12).",
+  "Decision: Jensen, 2026-11-09: plugin ids may be qualified with dots, such as `com.example.weather` (PKG-2 amended; a bare name like `stock_battle` stays valid). A plugin contributes its data configuration through its definition, one entry per native contract it extends, each with a schema and a migration list; a block is valid only on a contract the plugin declares, which only the plugin-present check can see (ADR 0024).",
+  "Decision: Jensen, 2026-11-09: the three link checker classes (plugin document with no owner, owner link with no back-link, mismatched link) are retired and one class, `plugin-block`, replaces their role. The rename tool is kept without link rewriting. How a rename treats references inside plugin data is an open question with two candidate answers (the plugin declares which data paths are references, or the rename refuses when a block holds a value equal to the old ID) and no decision.",
+  "Open question: Jensen, 2026-11-09, proposed a top-level `core:` wrapper for a contract's own fields. The documents use the flat shape (own fields at the top level beside the stamp, one open dictionary) and record the wrapper under ADR 0023's alternatives. He has not chosen.",
+  "Direction (tentative, owner-stated, not a decision): Jensen, 2026-11-09: \"eventually there may not be any 'core' items in a sense. every field will likely have a plugin / extension they are driven by.\" Nothing moves and no contract changes because of it.",
+]
 
 [[entry]]
 id = 2
 tracker_id = "#1803"
 type = "story"
 title = "A checker reports stamp, ID and link errors in a folder of native documents"
-description = "Adds the checker that reads a folder of native documents and reports the six error classes ruled in 27.1, and never repairs anything."
+description = "Adds the checker that reads a folder of native documents and reports the error classes ruled in 27.1 (a missing or malformed stamp, a duplicate ID, two paths folding to one ID and, as amended on 2026-11-09, a plugin block with a wrong envelope in place of the three link classes), and never repairs anything."
 verify = "Authored fixture folders, one per error class plus a clean one, produce exactly the ruled messages; the clean folder reports none."
 covers = ["E3"]
 after = [1]
@@ -54,8 +62,8 @@ id = 5
 tracker_id = "#1806"
 type = "story"
 title = "Renaming or moving a document keeps every reference and sidecar link valid"
-description = "Adds the rename tool: it rewrites every reference to a document and both ends of each sidecar link in one step, or changes nothing."
-verify = "On a fixture project with references and a sidecar link, a rename leaves the checker clean; a rename that cannot complete leaves every file unchanged."
+description = "Adds the rename tool: it moves a document and rewrites every reference to its ID in one step, or changes nothing. As amended on 2026-11-09 there is no sidecar link to rewrite, because plugin data lives in the owning document and a rename never edits a block."
+verify = "On a fixture project with references and plugin blocks, a rename leaves the checker clean and every block byte for byte; a rename that cannot complete leaves every file unchanged."
 covers = ["E5"]
 after = [2, 4]
 hitl = false
@@ -78,7 +86,7 @@ id = 7
 tracker_id = "#1808"
 type = "story"
 title = "The actor-family contracts are specified at pre-release"
-description = "Specifies the contracts for actors, items and enemies, composed from parts rather than inherited, how an item grants a skill, and where plugin data attaches, separating world presence from inventory meaning and keeping skills distinct."
+description = "Specifies the contracts for actors, items and enemies, composed from parts rather than inherited, how an item grants a skill, and the `pluginData` door and which plugin ids own which blocks, separating world presence from inventory meaning and keeping skills distinct."
 verify = "Jensen approves the spec pages, and every field in the research's actor catalogue has a row that says where it lands or why it is dropped."
 covers = ["E6"]
 after = [1, 4]
@@ -91,12 +99,29 @@ id = 8
 tracker_id = "#1809"
 type = "story"
 title = "The scene contract separates a board's placements from its definition"
-description = "Specifies the scene contract so placements reference an actor without duplicating it, the existing separate battle scene stays, and no universal all-purpose container appears."
+description = "Specifies the scene contract so placements reference an actor without duplicating it, the existing separate battle scene stays, and no universal all-purpose container appears; it also decides whether a placement may carry a nested `pluginData` door and which plugin ids own which blocks."
 verify = "Jensen approves the spec page, and every legacy board field has a row that says where it lands or why it is dropped."
 covers = ["E6"]
 after = [7]
 hitl = true
 risk = "high"
+
+[[entry]]
+id = 10
+tracker_id = "#1822"
+type = "story"
+title = "The checker, rename tool and clip reader and writer implement plugin blocks and the closed top level"
+description = "Cuts the shipped native-data code over to the 2026-11-09 owner rulings in one change, so no file is touched twice: the closed top level (the stamp, a contract's own fields and `pluginData` as the one open dictionary, with the reserved keys), the checker's `plugin-block` class with the three link classes retired, the rename tool without link rewriting or its two link-field options, the clip reader, writer, in-place edit and importer accepting `pluginData` and carrying every block byte for byte, the qualified plugin-id grammar of PKG-2, and the fixtures and clip examples."
+verify = "A fixture project with plugin blocks passes the checker, which reports each remaining class and each `plugin-block` problem kind by name and never an unknown key inside `data`; a rename leaves every block byte for byte and the checker clean; a one-property edit of `delay` on a clip that carries blocks changes one line; each preservation test fails against a deliberately regenerating writer; the clip examples gain plugin-bearing valid and invalid cases and are read."
+covers = ["E2", "E3", "E4", "E5"]
+after = [1, 2, 4, 5]
+hitl = false
+risk = "medium"
+notes = [
+  "Boundaries: does not build the plugin definition's `contributes` descriptor, the plugin-present checks or the upgrade command (ADR 0024). They need the plugin catalogue and are planned once the owner approves ADR 0024.",
+  "The flat shape of ADR 0023 decision 5 is recommended and awaits the owner's choice against a `core:` wrapper. This story starts when he has chosen; if he picks the wrapper, the clip's fields move under `core` in this same change, which is free while the clip is pre-release.",
+  "Scope seen from the docs PR: packages/native-data (check.ts, report.ts, document.ts, rename.ts, clip.ts), native-data-cli and native-data-rename (the --owner-field and --plugins-field options go), native-data-import, packages/core/src/script/manifest.ts and packages/runner-harness/src/package-catalogue.ts (the PKG-2 identifier pattern and the default namespace of a qualified id), their tests and fixtures, docs/spec/examples/native/animation-clip/ (read by packages/native-data/test/clip.test.ts) and the native-data rows of CONTRIBUTING.md.",
+]
 
 [[entry]]
 id = 9
