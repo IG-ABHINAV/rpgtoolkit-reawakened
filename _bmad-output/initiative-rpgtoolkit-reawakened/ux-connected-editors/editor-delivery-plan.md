@@ -6,7 +6,7 @@
 
 | Epic | Stories | Responsibility | Breakdown and evidence |
 |---|---:|---|---|
-| [11 · Foundation](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1357) | 13 | Shared documents, hosts, navigation, schema-driven preferences, game settings, Monaco/native text, contextual runs and code-authored tests | [Inception](../epic-editor-foundation/discovery/inception-proposal.md), [tickets](../epic-editor-foundation/tickets.toml) |
+| [11 · Foundation](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1357) | 15 | Shared documents, hosts, navigation, schema-driven preferences, game settings, Monaco/native text, contextual runs, code-authored tests, document history and the standalone Git surface (11.14–11.15 added by the accepted ADR 0022, 2026-11-09) | [Inception](../epic-editor-foundation/discovery/inception-proposal.md), [tickets](../epic-editor-foundation/tickets.toml) |
 | [12 · P0 assets](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1358) | 14 | Board, shared tileset browser, sprite graphics, character, item, animation, tile bitmap and packaging | [Inception](../epic-editor-assets-p0/discovery/inception-proposal.md), [tickets](../epic-editor-assets-p0/tickets.toml) |
 | [13 · P1 tools](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1359) | 18 | Pixel art, extraction/tilesets/animated tiles, battle data, lighting, autotiles, clipboard, export and supported upgrade workflows | [Inception](../epic-editor-p1/discovery/inception-proposal.md), [tickets](../epic-editor-p1/tickets.toml) |
 | [14 · Beginner tools](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1360) | 14 | Visual events, skins, audio audition, media import/export conversion, setup delivery, tutorials and visual fixture/action authoring | [Inception](../epic-editor-p2/discovery/inception-proposal.md), [tickets](../epic-editor-p2/tickets.toml) |
@@ -16,7 +16,7 @@ Every story has a canonical plan and is unstarted. `status: draft` in the reposi
 
 ## Start here
 
-**[11.1 · #1699](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1699) is the first contract session:** resolve remaining shared settings, document/native-text ownership, docking, run and test representation decisions with the owner, committing normative documentation before implementation. Monaco and Electron are already selected.
+**[11.1 · #1699](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1699) is answered:** the owner approved [ADR 0022](../../../docs/adr/0022-shared-editor-authoring-contracts.md) on 2026-11-09 with all ten answers (recorded in its "Owner decisions, 2026-11-09"), and TOOL-5's creator-test rule with it. The ticket closes when the owner has read the approved text. Two of those answers wait on a measurement named in the ADR: the history retention numbers (11.14) and the VS Code autosave proof (11.3). The framework question was answered separately by [ADR 0025](../../../docs/adr/0025-editor-ui-framework-preact-tsx.md) (Preact with TSX).
 
 **[11.2 · #1700](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1700) is the first running editor proof:** open a real game-settings document in web and VS Code, edit, save and reopen it. Then 11.3 hardens lifecycle and conformance. Board tracer 12.1 and desktop tracer 15.1 consume specific foundations rather than the whole epic.
 
