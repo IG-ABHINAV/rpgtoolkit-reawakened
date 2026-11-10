@@ -28,7 +28,7 @@ Not decided yet, and deliberately not decided here:
 * The npm scope and repository name (see §5).
 * Container layout (folder of files vs single package) and how it relates to the distribution package writer (epic 2.12).
 * Schema versioning and migration policy.
-* Whether any TK3 formats remain first-class editable, or only importable.
+* Whether any TK3 formats remain first-class editable, or only importable. Answered 2026-11-09 in the amendment below.
 * Branding and naming consequences of "not a TK version" (README, store listings, package names).
 
 A follow-up ADR (or a native-format page in `docs/spec/formats/`) will settle these before the editor writes any project to disk.
@@ -39,3 +39,11 @@ A follow-up ADR (or a native-format page in `docs/spec/formats/`) will settle th
 * Format work must separate the *legacy reader* layer from the *native model*, so the native format can evolve without breaking importers.
 * Goldens and corpus gates (G5) continue to validate legacy playback; native-format tests are added as that format is specified.
 * Contributors and agents should treat compatibility with TK3 as a requirement of the importers and runner, not of the native data model.
+
+## Amendment (2026-11-09): legacy formats stay first-class editable
+
+Owner decision, 2026-11-09. It answers the open question above for the first release.
+
+1. The TK3 formats `.gam`, `.brd`, `.tem`, `.anm`, `.itm`, `.ene` and `.prg` stay **first-class editable**, not only importable.
+2. Native YAML documents (epic 27, [ADR 0023](0023-native-data-contracts-versioning-identity-and-sidecars.md)) are **deferred**. They are not required for the first release.
+3. Decisions 1 to 5 and the status above are unchanged. This amendment changes only the open question.
