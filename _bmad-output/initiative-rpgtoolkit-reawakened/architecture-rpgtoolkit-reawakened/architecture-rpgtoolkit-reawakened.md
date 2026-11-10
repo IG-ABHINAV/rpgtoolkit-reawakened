@@ -34,7 +34,8 @@ Hexagonal. The **core** is a pure, deterministic simulation: bytes and input eve
 | Driving adapters | `runner-*`, `lsp`, `dap`, `editor-ui` | call the core |
 | Driven adapters | `synth`, `render-webgl2`, asset sources | realise cues, draw lists and asset requests |
 | Editor model | `editor-model` | DOM-free documents and command stacks |
-| Hosts | `host-*` | platform-services and chrome only |
+| Platform services | `platform-services` | the host-door interface of AD-20 as types, and an in-memory double for tests; imports no other workspace package |
+| Hosts | `host-*` | implement `platform-services`, plus chrome; nothing else |
 
 One checked-in edge list (`tools/deps/edges.json`) generates this graph and the dependency-cruiser rules (AD-22). An arrow means "may be depended on by". Same-tier imports are allowed only where an arrow is drawn.
 
@@ -78,6 +79,11 @@ graph LR
   editorui --> hostvscode
   editorui --> hostweb
   editorui --> hostdesktop
+  platformservices[platform-services] --> editormodel
+  platformservices --> editorui
+  platformservices --> hostvscode
+  platformservices --> hostweb
+  platformservices --> hostdesktop
   plugintk2compat --> runnerharness
   nativedata[native-data] --> nativedatacli[native-data-cli]
   core --> nativedataimport[native-data-import]
@@ -325,7 +331,7 @@ graph TD
 
 - **Binds:** CAP-15, CAP-16, CAP-17, CAP-18
 - **Prevents:** `editor-ui` importing host APIs; hosts exposing different surfaces.
-- **Rule:** an async interface: `fs` (`list`, `read`, `write`, `stat`, `delete`, `rename`, `watch`), `project` (`open`, `recent`), `run` (`startGame`, `startProgram` with a fixture, returning a handle), `export`, `dialogs`, `clipboard`, `document` (AD-19), `language.connect()` (the program editor is an LSP client of `lsp` in every host), `shell.openExternal`, `settings`. Each host declares a `capabilities` set, including `fileAssociation` (T-82); `editor-ui` degrades by capability (for example ZIP import and export where folder writes are unavailable). Errors are `PlatformError { code, message }`. A host adds no editor feature of its own.
+- **Rule:** the interface is the package `platform-services`: the types named in this Rule and, at its `./testing` entry, an in-memory double for tests (AD-22). It imports no other workspace package and no host; `editor-model` and `editor-ui` import its types, and each `host-*` implements them. It is an async interface: `fs` (`list`, `read`, `write`, `stat`, `delete`, `rename`, `watch`), `project` (`open`, `recent`), `run` (`startGame`, `startProgram` with a fixture, returning a handle), `export`, `dialogs`, `clipboard`, `document` (AD-19), `language.connect()` (the program editor is an LSP client of `lsp` in every host), `shell.openExternal`, `settings`. Each host declares a `capabilities` set, including `fileAssociation` (T-82); `editor-ui` degrades by capability (for example ZIP import and export where folder writes are unavailable). Errors are `PlatformError { code, message }`. A host adds no editor feature of its own.
 - **Check:** dependency-graph rule that `editor-ui` imports no `host-*`; the AD-19 host-conformance suite.
 
 ### AD-21 — Language servers are transport-free; the debugger needs no Node
@@ -339,7 +345,7 @@ graph TD
 
 - **Binds:** all
 - **Prevents:** deep imports defeating the dependency graph; the diagram and the rules drifting.
-- **Rule:** every package exports one public entry `src/index.ts`, plus `./testing` and, for `runner-web`, `./app` — the player page — where needed. ESM only; target ES2022; TypeScript project references; `host-vscode` is bundled to CommonJS with esbuild. `tools/deps/edges.json` is the single edge list, and it generates the diagram above and the dependency-cruiser rules. [ASSUMPTION: path.] Imports of any non-entry path are banned.
+- **Rule:** every package exports one public entry `src/index.ts`, plus `./testing` and, for `runner-web`, `./app` — the player page — where needed. ESM only; target ES2022; TypeScript project references; `host-vscode` is bundled to CommonJS with esbuild. `tools/deps/edges.json` is the single edge list, and it generates the diagram above and the dependency-cruiser rules. [ASSUMPTION: path.] Imports of any non-entry path are banned, except that a test (`packages/<pkg>/test/`) may import another package's `./testing` entry; no `src/` file may.
 - **Check:** dependency-cruiser rules generated from the edge list; CI fails when the generated diagram differs from the committed one.
 
 ### AD-23 — Schemas are versioned per section
@@ -496,7 +502,7 @@ packages/
     raster/             # reference rasteriser, glyphs, surfaces
   synth/  render-webgl2/
   runner-harness/  runner-headless/  runner-web/  runner-desktop/  runner-mobile/
-  lsp/  dap/  editor-model/  editor-ui/
+  lsp/  dap/  platform-services/  editor-model/  editor-ui/
   host-vscode/  host-web/  host-desktop/
 tools/deps/edges.json   # single edge list (AD-22)
 ```
