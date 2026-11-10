@@ -100,12 +100,19 @@ Legacy animated tiles (`.tan`) reference tiles with one frames-per-second value 
 ## Flow F: an autotile without memorising a variant sheet
 
 1. Pick the semantic operation **Paint terrain** for grass, water or path. The palette shows the terrain name rather than fifty nearly identical corners.
-2. For authors making terrain art, a **Terrain setup** workspace labels the required edge/corner roles and previews each role in small actual map arrangements.
-3. Drag source cells onto roles. Highlight missing roles and invalid duplicates; test a corner, island, bridge and narrow passage directly in the preview.
-4. **Copy or mirror suggested edge** is optional and previews the actual pixels. It never claims all required corner art can be invented from one tile.
+2. For authors making terrain art, a **Terrain setup** workspace offers a **Tilesetter-style procedural generator**: supply a **Base fill** and an **Edge/border** (plus an optional **Cliff face** for elevated isometric terrain), and the editor deterministically synthesises the 47 eight-neighbour blob variants and previews each role in a live sandbox board right beside the controls.
+3. Dynamic source linking keeps the generated variants connected to the source cells in the editor's `.tkrtile` YAML recipe: tweaking the base grass hue or edge pixels regenerates all 47 tiles immediately. Authors can also drag custom cells onto individual roles or paint non-destructive delta overrides on specific corners.
+4. **Copy or mirror suggested edge** and **kitbash helpers** (layering a prop onto a base tile, cutting diagonal corners, palette-ramp swaps) preview the actual pixels before commit.
 5. Preserve imported variant ordering for compatibility; the display grouping is not the stored index order.
 
 Legacy T-25 describes eight-neighbour blob rules and a fixed variant order. A user-drawn sheet cannot be identified as a correct rule set merely because it contains a particular number of cells.
+
+## Flow G: taking command of the isometric tile world (3-plane projection & tall-iso decomposition)
+
+1. **Draw flat (orthographic) → project to isometric live:** An author can draw or kitbash a $32\times 32$ square texture with straight horizontal/vertical lines while seeing the live $64\times 32$ 2:1 dimetric diamond projection (`isoSourceOffset`) and a $3\times 3$ isometric board preview update in real time. An optional isometric polish layer stores pixel overrides on top of the projected diamond without destroying the flat source.
+2. **3-Plane Isometric Block & Wall Builder (Pikuma 2:1 projection):** To build walls, cubes, pillars or raised cliffs without hand-pixeling diagonal 2:1 staircases, the author assigns flat $32\times 32$ textures to the **Top**, **Left (SW)** and **Right (SE)** faces of an isometric block, picks a block height and deterministic per-face shading (for example Top `0`, Left `-24`, Right `-56` under R-15 tint rules), and previews the composite 3D isometric block immediately.
+3. **Tall-Iso Diamond Decomposer:** Because legacy `.iso` tilesets only hold $64\times 32$ diamonds, any tall isometric block ($64\times 64$, $64\times 96$, or an imported isometric building/tree sheet) can be automatically sliced across the staggered $64\times 32$ diamond lattice into `.iso` tile slots plus a ready-to-paint multi-tile stamp or `.tkrpack` scene asset (complete with its ground anchor, `solid` base diamond and `under` occlusion polygon).
+4. **Direct Scene Images & `.tkrpack` YAML Stamp Packs (Editor-only):** When slicing into $64\times 32$ diamonds is unnecessary (such as pre-rendered isometric rooms, large bridges or irregular props), the author lasso/crops the PNG in the **Asset & Tileset Viewer**, marks its ground anchor, `solid` footprint and `under` walk-behind mask once, and saves it to a `.tkrpack` YAML file. Pasting from the Asset Viewer into a board emits standard board layer images and translated `solid`/`under` vectors directly—requiring zero runtime engine changes.
 
 ## Adversarial walkthrough results
 

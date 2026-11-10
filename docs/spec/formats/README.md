@@ -20,6 +20,7 @@ Every RPG Toolkit 3 game is a folder of small binary files plus RPGCode text, al
 | Saved game | `.sav` | `Saved\` | [save-game.md](save-game.md) |
 | RPGCode program | `.prg` | `Prg\` | [rpgcode-program.md](rpgcode-program.md) |
 | Project layout, PAK archive, standalone EXE | folder, `.tpk`, `.exe` | — | [packaging-and-paths.md](packaging-and-paths.md) |
+| **Native authoring formats** (scenes, tile recipes, scene asset packs) | `.tkrscn`, `.tkrtile`, `.tkrpack` (YAML) | `Boards\`, `Tiles\`, `Assets\` | [tkr-authoring.md](tkr-authoring.md) ([ADR 0019](../../adr/0019-tkr-authoring-formats.md)) |
 | **Legacy files** (Toolkit 1-2 text, older 3.0 binary versions, conversion) | various | — | [legacy/](legacy/README.md) |
 | Images | `.bmp`, `.png`, `.jpg`, `.gif` | `Bitmap\`, `Misc\` | [images.md](images.md) (BMP and GIF layouts; PNG and JPEG: [images.md](images.md#the-shared-decode-contract)) |
 | Audio, fonts, plugins | `.wav/.mid/.mp3/.ogg`, `.ttf`, `.dll` | `Media\`, `Font\`, `Plugin\` | third-party formats, used as-is |

@@ -117,6 +117,8 @@ Wall and walk-behind overlays use a pattern plus a floor tint, not colour alone.
 Walls, walk-behind regions and tiles are assigned to a layer. A wall on a higher floor is not silently treated as a Ground wall. The warning names both layers and offers “Move wall to player layer” or “Keep as designed”.
 Auto-solid tiles and explicit Wall shapes both contribute to the blocked-area union. Per-cell Walkable and Force-solid overrides are local and undoable; erasing a painted wall does not erase inherited tile solidity unless a Walkable override is added.
 
+**Boundary intelligence (owner direction, 2026-11-09).** Authors should not trace every wall by hand. **Click floor → wall the rest** (pick the floor tile or tiles; the boundary of that region becomes solid vectors), **flood from the start marker**, a **Walkable / Solid boundary brush** that re-traces affected vectors, **trace from tile roles** (`floor`, `wall`, `wall-cap`), and a **magic wand** on image-first boards. Outer room boundaries are emitted as open polylines and enclosed obstacles as closed polygons, because closed polygons block containment as well as entry (E-26); `wall-cap` cells become under polygons on 2D boards. Every gesture previews its vectors before commit and never replaces hand-drawn vectors unless selected. Algorithm, coordinates for 2D and both isometric layouts, and limits are in [flow 11 §7](11-tile-asset-and-board-architecture.md#7-boundary-intelligence).
+
 ### Isometric boards
 
 The style card explains three coordinate presentations with pictures and a one-line promise:

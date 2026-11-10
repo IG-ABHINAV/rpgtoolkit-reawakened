@@ -20,6 +20,7 @@ This folder captures Jensen's design discussion and extends it through task walk
 | Never have to open `main.gam`, but change conventions when necessary | [08 · Project file by convention](flows/08-project-file-by-convention.md) |
 | Use a battle plugin's specialist editor inside the same application | [09 · Plugin-provided editors](flows/09-plugin-editors.md) |
 | Actually **make** tiles and animated regions without repetitive asset setup | [10 · Tile-making without the grind](flows/10-tile-making-without-the-grind.md) |
+| See how the tile studio, asset viewer, scene-asset pasting and boundary tracing fit the packages | [11 · Tile, asset and board architecture](flows/11-tile-asset-and-board-architecture.md) |
 
 The ten studies are indexed separately to keep related decisions readable; the shared tile import, timeline, Database and document services are not ten unrelated implementations.
 
