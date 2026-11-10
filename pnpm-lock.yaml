@@ -252,6 +252,52 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
 
+  packages/native-data:
+    dependencies:
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+
+  packages/native-data-cli:
+    dependencies:
+      '@tk-reawakened/native-data':
+        specifier: workspace:*
+        version: link:../native-data
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+
+  packages/native-data-import:
+    dependencies:
+      '@tk-reawakened/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tk-reawakened/native-data':
+        specifier: workspace:*
+        version: link:../native-data
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+
+  packages/native-data-rename:
+    dependencies:
+      '@tk-reawakened/native-data':
+        specifier: workspace:*
+        version: link:../native-data
+      '@tk-reawakened/native-data-cli':
+        specifier: workspace:*
+        version: link:../native-data-cli
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+
   packages/plugin-tk2-compat:
     dependencies:
       '@tk-reawakened/core':
@@ -1628,6 +1674,11 @@ packages:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
     engines: {node: '>=18'}
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yauzl@2.10.0:
     resolution: {integrity: sha512-p4a9I6X6nu6IhoGmBqAcbJy1mlC4j27vEPZX9F4L4/vZT3Lyq1VkFHw/V/PUcB9Buo+DG3iHkT0x3Qya58zc3g==}
 
@@ -2836,6 +2887,8 @@ snapshots:
   xmlbuilder@15.1.1: {}
 
   yallist@5.0.0: {}
+
+  yaml@2.9.1: {}
 
   yauzl@2.10.0:
     dependencies:

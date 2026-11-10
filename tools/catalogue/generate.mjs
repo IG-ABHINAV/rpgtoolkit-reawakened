@@ -173,7 +173,7 @@ const REAL_PACK_COMMANDS = new Set([
   "camerapanto", "camerafollow", "camerareset", "camerashake", "getcorner",
   "drawline", "drawrect", "fillrect", "text", "msgbox", "clear", "fade",
   "viewbrd", "put", "layerput", "getboardname", "getboardtile", "boardgettile",
-  "getboardtiletype", "tiletype", "animatedtiles", "parallax", "setambientlevel",
+  "getboardtiletype", "tiletype", "animatedtiles", "parallax", "setambientlevel", "forceredraw",
   "boardgetvector", "boardsetvector", "boardgetvectorpoint", "boardsetvectorpoint",
   "boardgetprogram", "boardsetprogram", "boardgetprogrampoint", "boardsetprogrampoint",
   "prg", "setconstants", "underarrow", "send", "reset", "mainfile", "gone", "over",

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/tkr/yaml-profile/core.json",
+  "title": "Research core schema (not an adopted format)",
+  "oneOf": [
+    { "$ref": "#/$defs/actor" }, { "$ref": "#/$defs/scene" }, { "$ref": "#/$defs/tiles" }
+  ],
+  "$defs": {
+    "ext": { "type": "object", "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$" }, "additionalProperties": { "type": "object" } },
+    "run": {
+      "type": "object", "additionalProperties": false, "minProperties": 1, "maxProperties": 1,
+      "properties": { "inline": { "type": "string", "minLength": 1 }, "program": { "type": "string", "pattern": "\\.prg$" } }
+    },
+    "actor": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id", "name"],
+      "properties": { "kind": { "const": "actor" }, "id": { "type": "string" }, "name": { "type": "string" },
+        "presence": { "type": "object" }, "extensions": { "$ref": "#/$defs/ext" } }
+    },
+    "scene": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "id", "size", "placements"],
+      "properties": {
+        "kind": { "const": "scene" }, "id": { "type": "string" },
+        "size": { "type": "object", "required": ["width", "height"], "additionalProperties": false,
+          "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 } } },
+        "extensions": { "$ref": "#/$defs/ext" },
+        "placements": { "type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "actor", "at"],
+          "properties": { "id": { "type": "string" }, "actor": { "type": "string" },
+            "at": { "type": "array", "items": { "type": "integer" }, "minItems": 3, "maxItems": 3 },
+            "whilePresent": { "$ref": "#/$defs/run" }, "onActivate": { "$ref": "#/$defs/run" } } } }
+      }
+    },
+    "tiles": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "scene", "size", "layers"],
+      "properties": { "kind": { "const": "tile-layers" }, "scene": { "type": "string" },
+        "size": { "type": "object" },
+        "layers": { "type": "array", "items": { "type": "object", "required": ["layer", "rows"], "additionalProperties": false,
+          "properties": { "layer": { "type": "integer" },
+            "rows": { "type": "array", "items": { "type": "array", "items": { "type": ["integer", "null"] } } } } } } }
+    }
+  }
+}

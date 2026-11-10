@@ -1,0 +1,230 @@
+{
+ "#1782 TOML null mapping injective (nested real {\"$null\":true}, \"$$x\" keys, real null)": {
+  "pass": true,
+  "r": {
+   "toml": true,
+   "toml-rows": true
+  }
+ },
+ "#1783 JSON preserve path really parses (invalid input rejected, valid no-op parses)": {
+  "pass": true,
+  "r": {
+   "json": {
+    "invalidRejected": true,
+    "validNoopIdentical": true
+   },
+   "json-layout": {
+    "invalidRejected": true,
+    "validNoopIdentical": true
+   }
+  }
+ },
+ "#1790 EDN arbitrary string keys (project-owned layout printer)": {
+  "pass": true,
+  "libraryOneLinePrinterStillCorrupts": true,
+  "libraryResult": {
+   "payload": {
+    "1": "x/y",
+    "2": "1st",
+    "3": "ok",
+    "4": "com.example.weather",
+    "a": {
+     "sym": "b"
+    }
+   }
+  }
+ },
+ "#1791 XML \"__proto__\" stays data": {
+  "pass": true
+ },
+ "#1792 XML attribute keys with TAB/LF/space stay distinct": {
+  "pass": true
+ },
+ "#1795 XML forbidden characters mapped faithfully (escaped=true) and output is well-formed": {
+  "pass": true,
+  "pythonElementTree": "ok"
+ },
+ "#1793/#1794 KDL edits on argument-only arrays": {
+  "pass": true,
+  "r": {
+   "insert-object-among-scalars": true,
+   "move-scalars": true,
+   "nested-insert-array": true,
+   "insert-empty-array": true
+  }
+ },
+ "#1786 every projected reference-bearing path is collected (combat stances, onLevelUp, portraits, tiles…)": {
+  "pass": true,
+  "kinds": [
+   "asset:media/audio/a.wav",
+   "asset:media/images/absent.png",
+   "clip:missing-clip",
+   "program:scripts/absent.prg",
+   "program:scripts/win.prg",
+   "skill:s1",
+   "tileset:missing-tileset"
+  ]
+ },
+ "#1786 audit: projected string leaves not collected as references (real cohort)": {
+  "pass": true,
+  "uncollectedPathCount": 70,
+  "suspicious": [],
+  "sample": [
+   "actor:character/equipment/accessorySlots/#",
+   "actor:character/equipment/armourSlots/#",
+   "actor:character/progression/mode",
+   "actor:character/skills/learnable/#/requires/variable/equals",
+   "actor:character/skills/learnable/#/requires/variable/name",
+   "actor:character/skills/menuLabel",
+   "actor:character/statVariables/defence",
+   "actor:character/statVariables/experience",
+   "actor:character/statVariables/fight",
+   "actor:character/statVariables/health",
+   "actor:character/statVariables/level",
+   "actor:character/statVariables/maxHealth",
+   "actor:character/statVariables/maxSpecialPower",
+   "actor:character/statVariables/name",
+   "actor:character/statVariables/specialPower",
+   "actor:compat/tk3/residueBase64",
+   "actor:compat/tk3/source",
+   "actor:id",
+   "actor:kind",
+   "actor:name",
+   "clip:compat/tk3/source",
+   "clip:frames/#/id",
+   "clip:id",
+   "clip:kind",
+   "effect:compat/tk3/source",
+   "effect:id",
+   "effect:kind",
+   "effect:name",
+   "environment:compat/tk3/source",
+   "environment:id",
+   "environment:kind",
+   "item:compat/tk3/source",
+   "item:description",
+   "item:equip/accessory",
+   "item:equip/slots/#",
+   "item:id",
+   "item:kind",
+   "item:name",
+   "item:restrictedTo/#",
+   "project:compat/tk3/source",
+   "project:kind",
+   "project:title",
+   "scene:compat/tk3/decodedModelVersion",
+   "scene:compat/tk3/source",
+   "scene:compat/tk3/storedForm",
+   "scene:compat/tk3/storedVersion",
+   "scene:constants/#",
+   "scene:id",
+   "scene:kind",
+   "scene:layerTitles/#",
+   "scene:placements/#/id",
+   "scene:placements/#/whilePresent/inline",
+   "scene:regions/#/id",
+   "scene:regions/#/kind",
+   "scene:tiles",
+   "scene:triggers/#/condition/then/set",
+   "scene:triggers/#/condition/then/variable",
+   "scene:triggers/#/condition/when/equals",
+   "scene:triggers/#/condition/when/variable",
+   "scene:triggers/#/id",
+   "scene:triggers/#/run/inline",
+   "skill:compat/tk3/source",
+   "skill:description",
+   "skill:id",
+   "skill:kind",
+   "skill:name",
+   "tile-animation:compat/tk3/source",
+   "tile-animation:id",
+   "tile-animation:kind",
+   "tile-layers:kind"
+  ]
+ },
+ "#1787 scene rename moves sibling tiles; checker flags a left-behind tiles doc": {
+  "pass": true,
+  "leftoverFilesInOldFolder": [],
+  "errorsAfterRename": [],
+  "renameOutput": [
+   "updated scenes/out/scene.json (0 reference(s), renamed id, format-preserving)",
+   "updated scenes/out/tiles.json (1 reference(s), format-preserving)",
+   "moved scenes/out/scene.json -> scenes/harbour/scene.json",
+   "moved scenes/out/tiles.json -> scenes/harbour/tiles.json"
+  ],
+  "staleTreeErrors": [
+   "id-path-mismatch",
+   "missing-tile-layers"
+  ]
+ },
+ "#1788 rename onto an existing document is refused before any write": {
+  "pass": true,
+  "exit": 2,
+  "stderr": "rename refused: destination already exists (clips/start/start-defend.json); nothing was written"
+ },
+ "#1786 rename of a combat-stance clip updates the actor (real demo)": {
+  "pass": true,
+  "stance": "start/fight"
+ },
+ "#1789 checker detects duplicate identities a clean merge can produce": {
+  "pass": true,
+  "duplicateDiagnostic": "frames id \"new-frame\" repeats /frames/1",
+  "mergeOutcomes": {
+   "false-clean-text-duplicate-id-detected-by-checker": 53,
+   "raw-hunk-did-not-apply": 11,
+   "n/a (notation has no comments; raw path identical to reemit)": 4,
+   "n/a (no format-preserving editor library)": 12,
+   "pass-conflict-surfaced": 4
+  }
+ },
+ "#1780 full-document merge oracle rejects corruption that keeps added IDs/count": {
+  "pass": true,
+  "verdictBad": "FAIL-false-clean-wrong",
+  "verdictGood": "pass-clean-both-kept",
+  "failsInRerun": 0
+ },
+ "#1784 host probe makes semantic assertions; accept-everything schema is caught": {
+  "pass": true,
+  "negativeControlFailed": [
+   "rejectsInvalid",
+   "errorAtExpectedPath"
+  ],
+  "failingStepsInBothHosts": [
+   "edn-data: rejectsMalformed"
+  ]
+ },
+ "#1796 physical board version separated from decoder model version": {
+  "pass": true,
+  "row": {
+   "storedForm": "tk2-text",
+   "stored": "2.1",
+   "decoded": "2.4"
+  },
+  "compat": {
+   "source": "Boards/house3.brd",
+   "coordType": 0,
+   "storedForm": "tk2-text",
+   "storedVersion": "2.1",
+   "decodedModelVersion": "2.4"
+  }
+ },
+ "#1797 HOCON: constant absolute root, varied cwd": {
+  "pass": true,
+  "result": {
+   "cwds": [
+    "/private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable/hocon",
+    "/private/tmp/tkr-1778-opus/tools/research/native-data-notations/opus/programmable",
+    "/private/tmp",
+    "/"
+   ],
+   "allSucceeded": true,
+   "identicalValues": true,
+   "identicalOrigins": true,
+   "placements": 6
+  },
+  "relativeRoot": {
+   "note": "root path given relative to the cwd (programmable/hocon/castle3left.conf from the opus tools dir); this tests root-path resolution, not include resolution",
+   "status": 0
+  }
+ }
+}

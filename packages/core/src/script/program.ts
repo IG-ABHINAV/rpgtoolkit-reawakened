@@ -253,7 +253,9 @@ export function compileProgram(ref: ProgramRef, context: CompileContext = {}): P
       "a file program needs a source loader (an asset index, a root and a byte port)",
     );
   }
-  return build(ref, context, "<inline>");
+  // Package startups are distinct source units even when supplied inline. Their lambda names
+  // must not collide across packages (docs/spec/engine/rpgcode-modules-and-objects.md#pkg-8).
+  return build(ref, context, ref.kind === "inline" && ref.owner !== undefined ? `<package:${ref.owner}>` : "<inline>");
 }
 
 function build(ref: ProgramRef, context: CompileContext, inlineName: string): Program {

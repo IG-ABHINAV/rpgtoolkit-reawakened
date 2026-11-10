@@ -1,0 +1,7 @@
+kind: scene
+id: 13-unquoted-yes
+size: { width: 8, height: 4 }
+placements:
+  - id: yes
+    actor: gatekeeper
+    at: [1, 1, 1]

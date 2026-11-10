@@ -19,6 +19,13 @@ import type { VmState } from "./state.ts";
 /** The text of a cell reference's scope, `cell:<id>` (see `cellRef`). */
 const CELL_REF_PREFIX = "cell:";
 
+/** Legacy prefix for lambdas lowered before inline package startups were owner-qualified (#1673, #1676). */
+const INLINE_LAMBDA_PREFIX = "<inline>#";
+
+function setOwnProperty(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true });
+}
+
 /** The id a cell number is written as: `cell` and a positive whole number with no leading zero. */
 const CELL_ID = /^cell[1-9][0-9]*$/;
 
@@ -158,6 +165,91 @@ export function recordOwner(vm: VmState, def: string, ref: ProgramRef): void {
   const owners = (vm.defOwners ??= {});
   if (Object.hasOwn(owners, def)) return;
   Object.defineProperty(owners, def, { value: ref, writable: true, enumerable: true, configurable: true });
+}
+
+/**
+ * Rewrite pre-#1673 inline package startup lambda definitions (`<inline>#lambda_n`)
+ * to their owner-qualified form (`<package:owner>#lambda_n`) across `vm` and `events` (#1676).
+ */
+export function migratePackageInlineLambdaDefs(vm: unknown, events?: unknown): void {
+  if (!isRecord(vm)) return;
+  const knownInlineRefs = new Map<string, Record<string, unknown>>();
+  let hasUnownedInlineProgram = false;
+  const inspectProgramRef = (ref: unknown): void => {
+    if (!isRecord(ref) || ref.kind !== "inline" || typeof ref.text !== "string" || typeof ref.ir !== "string") return;
+    if (typeof ref.owner === "string" && ref.owner !== "") {
+      if (!knownInlineRefs.has(ref.owner)) knownInlineRefs.set(ref.owner, ref);
+    } else if (ref.owner === undefined) {
+      hasUnownedInlineProgram = true;
+    }
+  };
+  if (Array.isArray(vm.threads)) {
+    for (const thread of vm.threads) {
+      if (!isRecord(thread) || !Array.isArray(thread.frames)) continue;
+      for (const frame of thread.frames) {
+        if (isRecord(frame)) inspectProgramRef(frame.program);
+      }
+    }
+  }
+  if (Array.isArray(vm.objects)) {
+    for (const object of vm.objects) {
+      if (isRecord(object)) inspectProgramRef(object.program);
+    }
+  }
+  const migratedByDef = new Map<string, { readonly nextDef: string; readonly owner: string; readonly ref: Record<string, unknown> }>();
+  if (isRecord(vm.defOwners)) {
+    const currentOwners = vm.defOwners;
+    for (const ref of Object.values(currentOwners)) inspectProgramRef(ref);
+    const nextOwners: Record<string, unknown> = {};
+    let changed = false;
+    for (const [def, ref] of Object.entries(currentOwners)) {
+      if (
+        def.startsWith(INLINE_LAMBDA_PREFIX) &&
+        isRecord(ref) &&
+        ref.kind === "inline" &&
+        typeof ref.text === "string" &&
+        typeof ref.ir === "string" &&
+        typeof ref.owner === "string" &&
+        ref.owner !== ""
+      ) {
+        const nextDef = `<package:${ref.owner}>#${def.slice(INLINE_LAMBDA_PREFIX.length)}`;
+        migratedByDef.set(def, { nextDef, owner: ref.owner, ref });
+        if (!Object.hasOwn(nextOwners, nextDef)) setOwnProperty(nextOwners, nextDef, ref);
+        changed = true;
+      } else if (!Object.hasOwn(nextOwners, def)) {
+        setOwnProperty(nextOwners, def, ref);
+      }
+    }
+    if (changed) vm.defOwners = nextOwners;
+  }
+
+  const migrateCallable = (value: unknown): void => {
+    if (!isCallableRecord(value) || !value.def.startsWith(INLINE_LAMBDA_PREFIX)) return;
+    const raw = value as unknown as Record<string, unknown>;
+    const explicitOwner = typeof raw.owner === "string" && raw.owner !== "" ? raw.owner : undefined;
+    const fallback = explicitOwner === undefined && !hasUnownedInlineProgram ? migratedByDef.get(value.def) : undefined;
+    const owner = explicitOwner ?? fallback?.owner;
+    if (owner === undefined) return;
+    const nextDef = `<package:${owner}>#${value.def.slice(INLINE_LAMBDA_PREFIX.length)}`;
+    raw.def = nextDef;
+    if (explicitOwner === undefined && Object.keys(raw).sort().join(",") === "captures,def,receiver,type") {
+      raw.owner = owner;
+    }
+    if (isRecord(vm.defOwners) && !Object.hasOwn(vm.defOwners, nextDef)) {
+      const ref = knownInlineRefs.get(owner) ?? fallback?.ref;
+      if (ref !== undefined) setOwnProperty(vm.defOwners, nextDef, ref);
+    }
+  };
+
+  eachRootValue(vm, (_path, value) => migrateCallable(value), () => undefined);
+  if (isRecord(vm.cells)) {
+    for (const id of Object.keys(vm.cells)) migrateCallable(vm.cells[id]);
+  }
+  if (isRecord(events) && Array.isArray(events.listeners)) {
+    for (const listener of events.listeners) {
+      if (isRecord(listener)) migrateCallable(listener.callable);
+    }
+  }
 }
 
 /**

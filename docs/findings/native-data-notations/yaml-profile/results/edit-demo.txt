@@ -1,0 +1,4 @@
+A. edit through the YAML document
+   comments kept: 3/3   still a |- block: true   lines changed: 1
+B. derive JSON, edit it, regenerate YAML (do not do this)
+   comments kept: 0/3   lines changed: 26 of 26

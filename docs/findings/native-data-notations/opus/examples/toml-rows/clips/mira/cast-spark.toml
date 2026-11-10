@@ -1,0 +1,12 @@
+kind = "clip"
+id = "mira/cast-spark"
+size = [ 32, 64 ]
+secondsPerFrame = 0.1
+
+[[frames]]
+id = "raise"
+tile = { tileset = "people", tile = 44 }
+
+[[frames]]
+id = "release"
+tile = { tileset = "people", tile = 45 }

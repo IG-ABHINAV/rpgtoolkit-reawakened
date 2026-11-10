@@ -1,0 +1,178 @@
+[
+  {
+    "name": "yaml",
+    "version": "2.9.1",
+    "license": "ISC",
+    "repository": {
+      "url": "git+https://github.com/eemeli/yaml.git",
+      "type": "git"
+    },
+    "modified": "2026-09-11T20:30:10.905Z",
+    "description": "JavaScript parser and stringifier for YAML",
+    "exactVersionPublished": "2026-09-11T20:30:10.905Z",
+    "registry": "https://registry.npmjs.org/yaml"
+  },
+  {
+    "name": "@bgotink/kdl",
+    "version": "0.4.1",
+    "license": "MIT",
+    "repository": {
+      "url": "git+https://github.com/bgotink/kdl.git",
+      "type": "git"
+    },
+    "modified": "2026-10-13T19:26:24.942Z",
+    "description": "Modification-friendly KDL parser and serializer.",
+    "exactVersionPublished": "2026-10-13T19:26:24.942Z",
+    "registry": "https://registry.npmjs.org/@bgotink/kdl"
+  },
+  {
+    "name": "smol-toml",
+    "version": "1.9.1",
+    "license": "BSD-3-Clause",
+    "repository": {
+      "url": "github:squirrelchat/smol-toml",
+      "type": "git"
+    },
+    "modified": "2026-10-09T10:21:39.612Z",
+    "description": "A small, fast, and correct TOML parser/serializer",
+    "exactVersionPublished": "2026-10-09T10:21:39.612Z",
+    "registry": "https://registry.npmjs.org/smol-toml"
+  },
+  {
+    "name": "json5",
+    "version": "2.2.3",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/json5/json5.git"
+    },
+    "modified": "2022-12-31T17:11:32.047Z",
+    "description": "JSON for Humans",
+    "exactVersionPublished": "2022-12-31T17:11:32.047Z",
+    "registry": "https://registry.npmjs.org/json5"
+  },
+  {
+    "name": "hjson",
+    "version": "3.2.2",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/hjson/hjson-js.git"
+    },
+    "modified": "2020-11-17T19:53:01.618Z",
+    "description": "A user interface for JSON.",
+    "exactVersionPublished": "2020-11-17T19:53:01.618Z",
+    "registry": "https://registry.npmjs.org/hjson"
+  },
+  {
+    "name": "edn-data",
+    "version": "1.2.2",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/jorinvo/edn-data.git"
+    },
+    "modified": "2026-07-24T01:36:37.310Z",
+    "description": "EDN parser and generator that work with plain JS data, with support for TS and node streams",
+    "exactVersionPublished": "2026-07-24T01:36:37.310Z",
+    "registry": "https://registry.npmjs.org/edn-data"
+  },
+  {
+    "name": "jsedn",
+    "version": "0.4.1",
+    "license": null,
+    "repository": {
+      "type": "git",
+      "url": "http://www.github.com/shaunxcode/jsedn"
+    },
+    "modified": "2017-09-15T16:33:42.560Z",
+    "description": "js implementation of edn",
+    "exactVersionPublished": "2017-09-15T16:33:42.560Z",
+    "registry": "https://registry.npmjs.org/jsedn"
+  },
+  {
+    "name": "fast-xml-parser",
+    "version": "5.12.0",
+    "license": "MIT",
+    "repository": {
+      "url": "git+https://github.com/NaturalIntelligence/fast-xml-parser.git",
+      "type": "git"
+    },
+    "modified": "2026-11-03T12:15:08.693Z",
+    "description": "Validate XML, Parse XML, Build XML without C/C++ based libraries",
+    "exactVersionPublished": "2026-11-03T12:15:08.693Z",
+    "registry": "https://registry.npmjs.org/fast-xml-parser"
+  },
+  {
+    "name": "sdlang",
+    "version": "0.2.2",
+    "license": "ISC",
+    "repository": null,
+    "modified": "2021-07-24T16:32:30.591Z",
+    "description": "An SDLang parser for JS/TS.",
+    "exactVersionPublished": "2021-07-24T16:32:30.591Z",
+    "registry": "https://registry.npmjs.org/sdlang"
+  },
+  {
+    "name": "hocon-parser",
+    "version": "1.0.1",
+    "license": "ISC",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/yellowblood/hocon-js.git"
+    },
+    "modified": "2017-08-21T13:13:05.071Z",
+    "description": "This is a very basic [Hocon](https://github.com/typesafehub/config/blob/master/HOCON.md) parser written in JavaScript.",
+    "exactVersionPublished": "2017-08-21T13:13:05.071Z",
+    "registry": "https://registry.npmjs.org/hocon-parser"
+  },
+  {
+    "name": "hocon",
+    "version": "0.0.1",
+    "license": "MIT",
+    "repository": null,
+    "modified": "2019-01-28T16:01:21.360Z",
+    "description": "javascript hocon port",
+    "exactVersionPublished": "2019-01-28T16:01:21.360Z",
+    "registry": "https://registry.npmjs.org/hocon"
+  },
+  {
+    "name": "ajv",
+    "version": "8.20.0",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/ajv-validator/ajv.git"
+    },
+    "modified": "2026-04-24T15:22:16.529Z",
+    "description": "Another JSON Schema Validator",
+    "exactVersionPublished": "2026-04-24T15:22:16.529Z",
+    "registry": "https://registry.npmjs.org/ajv"
+  },
+  {
+    "name": "esbuild",
+    "version": "0.28.2",
+    "license": "MIT",
+    "repository": {
+      "url": "git+https://github.com/evanw/esbuild.git",
+      "type": "git"
+    },
+    "modified": "2026-08-08T20:00:55.454Z",
+    "description": "An extremely fast JavaScript and CSS bundler and minifier.",
+    "exactVersionPublished": "2026-08-08T20:00:55.454Z",
+    "registry": "https://registry.npmjs.org/esbuild"
+  },
+  {
+    "name": "playwright",
+    "version": "1.65.0",
+    "license": "Apache-2.0",
+    "repository": {
+      "url": "git+https://github.com/microsoft/playwright.git",
+      "type": "git"
+    },
+    "modified": "2026-11-05T18:28:14.786Z",
+    "description": "A high-level API to automate web browsers",
+    "exactVersionPublished": "2026-11-05T18:28:14.786Z",
+    "registry": "https://registry.npmjs.org/playwright"
+  }
+]

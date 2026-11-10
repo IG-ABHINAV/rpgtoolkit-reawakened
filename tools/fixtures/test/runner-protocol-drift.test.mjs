@@ -98,3 +98,10 @@ test("v2 action drift uses the active v2 input union while v1 stays historical",
   });
   ok(problems.some((problem) => problem.includes("InputRecord.event: the schema allows object")));
 });
+
+test("published ordering refusals catch removal of the schema ordering guard", async () => {
+  const schema = loadSchema();
+  delete schema.$defs.hostGamepadsInput.properties.devices.oneOf;
+  ok(await run({ schema, expect: "vector host-gamepads-order-descending: should be refused" }));
+  ok(await run({ schema, expect: "vector host-gamepads-order-duplicate: should be refused" }));
+});

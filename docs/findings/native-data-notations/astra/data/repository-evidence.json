@@ -1,0 +1,102 @@
+[
+  {
+    "repo": "ron-rs/ron",
+    "url": "https://github.com/ron-rs/ron",
+    "pushedAt": "2026-11-08T10:50:32Z",
+    "archived": false,
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "spdx_id": "Apache-2.0",
+      "url": "https://api.github.com/licenses/apache-2.0",
+      "node_id": "MDc6TGljZW5zZTI="
+    },
+    "defaultBranch": "master"
+  },
+  {
+    "repo": "cue-lang/cue",
+    "url": "https://github.com/cue-lang/cue",
+    "pushedAt": "2026-11-08T14:11:13Z",
+    "archived": false,
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "spdx_id": "Apache-2.0",
+      "url": "https://api.github.com/licenses/apache-2.0",
+      "node_id": "MDc6TGljZW5zZTI="
+    },
+    "defaultBranch": "master"
+  },
+  {
+    "repo": "dhall-lang/dhall-haskell",
+    "url": "https://github.com/dhall-lang/dhall-haskell",
+    "pushedAt": "2026-11-03T18:42:53Z",
+    "archived": false,
+    "license": {
+      "key": "bsd-3-clause",
+      "name": "BSD 3-Clause \"New\" or \"Revised\" License",
+      "spdx_id": "BSD-3-Clause",
+      "url": "https://api.github.com/licenses/bsd-3-clause",
+      "node_id": "MDc6TGljZW5zZTU="
+    },
+    "defaultBranch": "main"
+  },
+  {
+    "repo": "nickel-lang/nickel",
+    "url": "https://github.com/nickel-lang/nickel",
+    "pushedAt": "2026-11-03T00:03:00Z",
+    "archived": false,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "defaultBranch": "master"
+  },
+  {
+    "repo": "apple/pkl",
+    "url": "https://github.com/apple/pkl",
+    "pushedAt": "2026-11-05T21:26:22Z",
+    "archived": false,
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "spdx_id": "Apache-2.0",
+      "url": "https://api.github.com/licenses/apache-2.0",
+      "node_id": "MDc6TGljZW5zZTI="
+    },
+    "defaultBranch": "main"
+  },
+  {
+    "repo": "lightbend/config",
+    "url": "https://github.com/lightbend/config",
+    "pushedAt": "2026-11-06T07:10:44Z",
+    "archived": false,
+    "license": null,
+    "defaultBranch": "main"
+  },
+  {
+    "repo": "kdl-org/kdl",
+    "url": "https://github.com/kdl-org/kdl",
+    "pushedAt": "2026-10-01T21:08:16Z",
+    "archived": false,
+    "license": {
+      "key": "other",
+      "name": "Other",
+      "spdx_id": "NOASSERTION",
+      "url": null,
+      "node_id": "MDc6TGljZW5zZTA="
+    },
+    "defaultBranch": "main"
+  },
+  {
+    "repo": "edn-format/edn",
+    "url": "https://github.com/edn-format/edn",
+    "pushedAt": "2022-01-15T06:14:47Z",
+    "archived": false,
+    "license": null,
+    "defaultBranch": "master"
+  }
+]

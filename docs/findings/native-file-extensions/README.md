@@ -1,0 +1,47 @@
+# Native file extensions: what the research showed and what was decided
+
+**Status: research record.** The decision below is the owner's, recorded in [ADR 0023](../../adr/0023-native-data-contracts-versioning-identity-and-sidecars.md) (still Proposed) and written into [the spec](../../spec/formats/native-contracts.md#file-names). Nothing here changes a ruling.
+
+| | |
+|---|---|
+| Question | How should a native document's kind show in its file name, given that classic legacy files (`.anm`, `.brd`, `.tem`, `.itm`, `.ene`, `.tst`) stay supported and share project folders with native ones? |
+| Evidence | Two research reports, copied here unchanged: [games.md](games.md) (game engines and game-maker tools) and [general.md](general.md) (structured-text ecosystems, editors and language servers, Git hosting). |
+| Decision | One custom extension per kind, with the prefix `tkr`: `.tkranm` for the animation clip today; a new kind takes `.tkr` and its own three letters when its contract is written. Deliberately not the legacy extensions. A document's ID includes its extension. The content stays YAML and the in-file stamp stays authoritative. |
+
+## The question and the options
+
+Native documents are YAML with a `contract` and `version` stamp at the top, and the path is the ID. The question was whether the kind is also carried by the file name. Three options were compared:
+
+1. **`name.<kind>.yaml`**, for example `walk.clip.yaml`: a kind marker before a standard `.yaml`.
+2. **Plain `.yaml`**, with the kind from the folder and the stamp.
+3. **A custom extension per kind**, either the legacy extensions reused for YAML or new ones.
+
+The owner chose option 3 with new extensions: `tkr` and a three-letter code, so that an extension starting with `tkr` is a native document and a classic extension is a legacy file, and the two families can sit in one folder and be told apart by extension alone.
+
+## What the evidence showed
+
+- **Reusing legacy extensions for native YAML has no good precedent.** Every case found where an extension was kept across a format change needed a version header, a converter or content sniffing: Godot 3 to 4 `.tscn`/`.tres`, GameMaker `.yy`, Unity text and binary under one extension ([games.md, section 2(d)](games.md#d-text-formats-that-kept-the-same-extension-as-an-earlier-format)). The clean changes tended to change the extension: Godot's `.shader` became `.gdshader` after it collided with GLSL tooling and with Quake 3's shaders ([games.md, Godot](games.md#godot); [section 2(c)](games.md#c-collisions-with-older-or-binary-formats)). Ren'Py shows a loader silently preferring a stale sibling of the same stem ([games.md, Ren'Py](games.md#renpy-scripts-but-relevant-to-sibling-same-stem-files)). The general report reaches the same view from the OS side: an extension drives the application association, so a legacy extension on new content keeps its old meaning until renamed ([general.md, 4a](general.md#4a-windows-extension-drives-application-association); [section 6](general.md#6-what-this-suggests-for-us-with-honest-uncertainty)).
+- **A custom extension per kind is the most common scheme among the engines read** (Stride `.sd*`, all YAML; Defold, LDtk, Tiled, O3DE, Unity scenes and prefabs, Godot scenes) and tooling hooks key on it: Unity's smart merge is set up by extension and skips the generic `.asset` and `.mat`; Stride needs a registry of globally unique extensions, which is the shape adopted here ([games.md, section 2(b)](games.md#b-custom-per-kind-extensions-vs-a-generic-text-extension); [Stride](games.md#stride)).
+- **The costs of a custom extension are editor support and the registry.** Tools do not know a custom extension is YAML until told (Godot's `.shader` proposal lists it as the downside); a Defold user asked what the syntax of its custom text format was; GameMaker marks `.yy` as `linguist-generated` so GitHub does not misidentify it ([games.md, section 2(b)](games.md#b-custom-per-kind-extensions-vs-a-generic-text-extension)).
+- **YAML schema matching by glob is unreliable for custom extensions.** SchemaStore says `fileMatch` "will not work as expected if no `.ya?ml` extension is supplied with a custom file extension", and yaml-language-server issue #790, about schemas not applying to custom extensions, was open when read ([general.md, 1c](general.md#1c-schemastore-contributing); [1d](general.md#1d-yaml-language-server-issue-790-read-directly-not-via-schemastore); [1e](general.md#1e-vs-code-issue-26289-read-directly)). The in-file modeline `# yaml-language-server: $schema=...` is the route that does not depend on globs ([general.md, 1a](general.md#1a-yaml-language-server-readme)); the owner tested that the modeline works without any association.
+- **Linguist overrides apply only once committed, and only to a language it knows**, so a project maps `*.tkr*` to YAML in `.gitattributes` ([general.md, 4b](general.md#4b-github-linguist-overrides)).
+- **A kind in the name is a kind in the ID.** The games report notes that any scheme putting the kind in the file name makes the kind part of the ID, so changing a document's kind is a rename with every reference rewritten, and that it found no evidence on whether this matters in practice ([games.md, section 4, point 4](games.md#4-what-this-suggests-for-us)).
+- **The kind is then in two places, the name and the stamp, and can drift.** The general report names this as a cost of option 1 ([general.md, section 5](general.md#5-evidence-table)); it applies equally to a custom extension (this record's inference). The stamp stays authoritative and the checker reports a disagreement; that report is a proposed addition and awaits the owner's confirmation.
+
+## What the evidence did not show
+
+- **It did not rank the options, and the two reports lean differently.** The games report says reusing legacy extensions for YAML has no good precedent and calls the rest a map of trade-offs, not a ranking ([games.md, section 4](games.md#4-what-this-suggests-for-us)). The general report calls custom extensions, new ones included, the weakest option on current evidence because editor schema association for them is documented as incomplete, and leaves `name.<kind>.yaml` against plain `.yaml` open ([general.md, section 6](general.md#6-what-this-suggests-for-us-with-honest-uncertainty)). The choice of new custom extensions is the owner's ruling, made for the goal above, with the modeline and `.gitattributes` as the answer to the editor cost; it is not a finding.
+- **No close analogue was found for legacy binary and native text in one folder.** The games report searched for a project that mixes a legacy binary format and a native text format in the same folders and found none; that part of the situation is extrapolated ([games.md, section 2(c)](games.md#c-collisions-with-older-or-binary-formats); [section 4, point 5](games.md#4-what-this-suggests-for-us)).
+- **Most evidence is from 3D and general engines.** The one RPG-maker data point (RPG Maker MZ) is a hard-coded filename design that does not extend to user-defined kinds ([games.md, section 4, point 5](games.md#4-what-this-suggests-for-us)).
+- **No first-party engine read ships double extensions as its main scheme.** Bevy ships `scn.ron` and the `*.level.json` convention, Godot's `.kind.tres` is an open proposal, and Tiled fixed a multi-dot export bug ([games.md, section 2(a)](games.md#a-double-extensions-with-a-kind-marker-in-practice)).
+- **Several sources are third-party descriptions or search snippets** (RPG Maker, GameMaker's reverse-engineering notes, Bevy issue #9714, Construct 3). The reports label each one.
+- **Not researched at all:** whether other software already uses an extension beginning `.tkr`; how Windows, macOS and Explorer treat these names beyond the one Microsoft page read; and how GitHub renders a custom extension that has no linguist mapping ([general.md, section 7](general.md#7-unverified-recalled-or-search-snippet-only-not-fetched-and-read)).
+
+## The unverified lists
+
+The two reports each end with their own list of claims that were recalled or seen only in a search snippet. They are kept as written and are the authority; read them before relying on any single claim above:
+
+- [games.md, section 5: UNVERIFIED / not verified](games.md#5-unverified--not-verified): Construct 3 layout, Cocos Creator and O3DE syntax, Unity serialization-mode names and extension sharing, whether Godot's `.kind.tres` and `.compute.glsl` ever merged, Tiled's reason for adding `.tmj`/`.tsj`/`.tj`, GameMaker's reuse of `.yy` for an incompatible shape, RPG Maker's history, Bevy #9714, Defold's full extension list, double-extension behaviour of operating systems, and Unreal Engine.
+- [general.md, section 7: UNVERIFIED](general.md#7-unverified-recalled-or-search-snippet-only-not-fetched-and-read) and [section 8: not covered](general.md#8-not-covered-out-of-time-budget): the yaml-language-server 1.25.0 negated patterns, a SchemaStore `fileMatch` snippet, Vitest's default pattern, Storybook, Unity extensions, GitHub rendering of an unmapped custom extension, case-insensitive file system behaviour, Explorer's hidden extensions, and the formats not covered.
+
+Two of these bear on the decision directly. Whether `*.tkr*` globs work end to end in yaml-language-server was not tested here beyond the owner's modeline test. How GitHub shows an unmapped extension was not verified, which is why the `.gitattributes` mapping is recommended.

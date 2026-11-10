@@ -1,0 +1,665 @@
+{
+  "note": "Retained city-scene timings before actor-owned plugin fixture relocation; same scene projection.",
+  "candidates": {
+    "JSON": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 16104,
+        "operationMs": 0.09987499999999727,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 455,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 64053,
+        "operationMs": 0.2913340000000062,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 497,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 50480,
+        "operationMs": 0.20566700000006222,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 472,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 339170,
+        "operationMs": 1.2634590000000117,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 511,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "YAML": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 11041,
+        "operationMs": 15.643249999999625,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 452,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 45626,
+        "operationMs": 28.67141700000002,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 494,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 38109,
+        "operationMs": 20.100832999999966,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 469,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 273046,
+        "operationMs": 149.63841599999978,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 508,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "KDL": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 10357,
+        "operationMs": 1.0436249999997926,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 543,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 42023,
+        "operationMs": 5.497667000000092,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 586,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 26338,
+        "operationMs": 2.4768749999998363,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 557,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 137221,
+        "operationMs": 26.644333000000188,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 845,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "TOML": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 8419,
+        "operationMs": 0.39920900000015536,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 644,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 37121,
+        "operationMs": 1.387000000000171,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 683,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 25238,
+        "operationMs": 0.8888750000000982,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 653,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 137825,
+        "operationMs": 4.545791999999892,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 1016,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "JSON5": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 15435,
+        "operationMs": 1.209791999999652,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 457,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 61428,
+        "operationMs": 4.428207999999358,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 499,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 48855,
+        "operationMs": 3.471917000000758,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 474,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 332921,
+        "operationMs": 21.93187500000022,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 513,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "Hjson": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 14641,
+        "operationMs": 0.34649999999965075,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 443,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 58612,
+        "operationMs": 1.231416999999965,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 485,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 46123,
+        "operationMs": 0.9507079999993948,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 460,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 309046,
+        "operationMs": 7.308458000000428,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 499,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "EDN": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 11090,
+        "operationMs": 1.0157499999995707,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 561,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 45088,
+        "operationMs": 2.214082999999846,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 604,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 28467,
+        "operationMs": 1.3178749999997308,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 575,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 145362,
+        "operationMs": 7.144624999999905,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 863,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "XML": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 41569,
+        "operationMs": 4.858041999999841,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 665,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 156992,
+        "operationMs": 17.47520799999984,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 707,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 139349,
+        "operationMs": 16.465041000000383,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 682,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 1053093,
+        "operationMs": 171.98624999999993,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 721,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "SDLang": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 37124,
+        "operationMs": 3.2955000000001746,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 667,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 140927,
+        "operationMs": 17.026041999999507,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 709,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 123910,
+        "operationMs": 8.555124999998952,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 684,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 930582,
+        "operationMs": 82.85050000000047,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 723,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    },
+    "RON": {
+      "demo": {
+        "dimensions": [
+          20,
+          11,
+          2
+        ],
+        "bytes": 24725,
+        "operationMs": 5.17174999999952,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 513,
+          "exit": 1,
+          "artifact": "tile-demo.diff"
+        }
+      },
+      "ChimeranEmpire": {
+        "dimensions": [
+          19,
+          11,
+          8
+        ],
+        "bytes": 97020,
+        "operationMs": 7.536874999999782,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 555,
+          "exit": 1,
+          "artifact": "tile-ChimeranEmpire.diff"
+        }
+      },
+      "Caoquest": {
+        "dimensions": [
+          19,
+          14,
+          8
+        ],
+        "bytes": 78479,
+        "operationMs": 6.410041999999521,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 530,
+          "exit": 1,
+          "artifact": "tile-Caoquest.diff"
+        }
+      },
+      "CrystalImmortality": {
+        "dimensions": [
+          50,
+          50,
+          8
+        ],
+        "bytes": 550361,
+        "operationMs": 38.137917000000016,
+        "semanticEqual": true,
+        "diff": {
+          "changedLines": 2,
+          "diffBytes": 569,
+          "exit": 1,
+          "artifact": "tile-CrystalImmortality.diff"
+        }
+      }
+    }
+  }
+}

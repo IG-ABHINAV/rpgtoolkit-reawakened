@@ -1,0 +1,1766 @@
+[
+  {
+    "id": "Caoquest/Boards/house3.brd@27c3f37c0a22",
+    "sha256": "27c3f37c0a220cd07e66b9934c0a1241bb514b1892c84cf8d21d8fb50afe9618",
+    "game": "Caoquest",
+    "path": "Boards/house3.brd",
+    "originUsed": "ludotheque/Caoquest/Boards/house3.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": "pre-vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Boards/town.brd@fd6e95999a33",
+    "sha256": "fd6e95999a33bbda539eae249dac13402da90b31f61bad3ff6d1a4a1c3ce286e",
+    "game": "Caoquest",
+    "path": "Boards/town.brd",
+    "originUsed": "ludotheque/Caoquest/Boards/town.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": "pre-vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Chrs/cao.tem@51ca628f1015",
+    "sha256": "51ca628f1015b211eb1043ca8da50582cabf0f8de752610cb813ee99e2407bd6",
+    "game": "Caoquest",
+    "path": "Chrs/cao.tem",
+    "originUsed": "ludotheque/Caoquest/Chrs/cao.tem",
+    "format": "character",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 4
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Chrs/start.tem@7b966eff4391",
+    "sha256": "7b966eff43915367856a2fa806ce069914d59a042fee0c6b4f7dc673052deeb7",
+    "game": "Caoquest",
+    "path": "Chrs/start.tem",
+    "originUsed": "ludotheque/Caoquest/Chrs/start.tem",
+    "format": "character",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 2,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Item/10smp.itm@c437ce3642be",
+    "sha256": "c437ce3642bee156735781e43e19a65094fdf3f2c9bc7076eacf5d9a4b5f306f",
+    "game": "Caoquest",
+    "path": "Item/10smp.itm",
+    "originUsed": "ludotheque/Caoquest/Item/10smp.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 1,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Item/50hp.itm@6150cf14d565",
+    "sha256": "6150cf14d565aa0fe5cf83fd2593a2467a4c7da4470dfa020523d9196c7599a5",
+    "game": "Caoquest",
+    "path": "Item/50hp.itm",
+    "originUsed": "ludotheque/Caoquest/Item/50hp.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 1,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Item/50smp.itm@dc4f8bf325a6",
+    "sha256": "dc4f8bf325a6281ddf00f5ad42775c640f40e095fd62a42c73bcad3f8cbb8401",
+    "game": "Caoquest",
+    "path": "Item/50smp.itm",
+    "originUsed": "ludotheque/Caoquest/Item/50smp.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 1,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Item/cao2.itm@9a3480a9da68",
+    "sha256": "9a3480a9da6826c2b7170e7ae56eddaa2257dff8b716cc768d2d8dcb5ab5feb5",
+    "game": "Caoquest",
+    "path": "Item/cao2.itm",
+    "originUsed": "ludotheque/Caoquest/Item/cao2.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 1,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Item/clerk.itm@f89a94e89aef",
+    "sha256": "f89a94e89aef87bbd663742b97472004b05924fb48adf83574aa6c222ce25e9f",
+    "game": "Caoquest",
+    "path": "Item/clerk.itm",
+    "originUsed": "ludotheque/Caoquest/Item/clerk.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 1,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Item/gem.itm@ccda3a759a6f",
+    "sha256": "ccda3a759a6f5b5ddbd2d448a1b8e558c596c9b9468bea9a0dcb00a1489d6cbf",
+    "game": "Caoquest",
+    "path": "Item/gem.itm",
+    "originUsed": "ludotheque/Caoquest/Item/gem.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 1,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Item/goodpotion.itm@c8e851240aa2",
+    "sha256": "c8e851240aa27aeb1a1ce4ddfe1ce1894aef3161a55db79896613676b7f83cda",
+    "game": "Caoquest",
+    "path": "Item/goodpotion.itm",
+    "originUsed": "ludotheque/Caoquest/Item/goodpotion.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 1
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 1,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Main/caoquest.gam@5d32f94f8514",
+    "sha256": "5d32f94f85146fdfc39dbf6a2c7dec7701cafafea46b13ffbedb38fc0373fd0a",
+    "game": "Caoquest",
+    "path": "Main/caoquest.gam",
+    "originUsed": "ludotheque/Caoquest/Main/caoquest.gam",
+    "format": "gam",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 0
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 0,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Misc/combo.anm@076c45a8b497",
+    "sha256": "076c45a8b497b19f6c9807472448588353e09b193aafa48ce1e6fef92e43e252",
+    "game": "Caoquest",
+    "path": "Misc/combo.anm",
+    "originUsed": "ludotheque/Caoquest/Misc/combo.anm",
+    "format": "animation",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 0
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 0,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Prg/warp00000002.prg@ae8addebb84f",
+    "sha256": "ae8addebb84fc27bcb8f17f3d9ba06840673b344f0a2114dc358483485e0eca1",
+    "game": "Caoquest",
+    "path": "Prg/warp00000002.prg",
+    "originUsed": "ludotheque/Caoquest/Prg/warp00000002.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Prg/warp00000005.prg@384afcd3cb22",
+    "sha256": "384afcd3cb222e12c39147f4f7cbf38367999ce480c19424dfbab47106c4a376",
+    "game": "Caoquest",
+    "path": "Prg/warp00000005.prg",
+    "originUsed": "ludotheque/Caoquest/Prg/warp00000005.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Prg/warp00000007.prg@addb8a3478ca",
+    "sha256": "addb8a3478cadc9c2256c15287dc2ea3e04d0f2de3a5edbfdab0c436c5a13a53",
+    "game": "Caoquest",
+    "path": "Prg/warp00000007.prg",
+    "originUsed": "ludotheque/Caoquest/Prg/warp00000007.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Prg/warp00000009.prg@07d8327e3409",
+    "sha256": "07d8327e340982538f42484ed834d795fcde9fb3c025a16104ad6836bd032856",
+    "game": "Caoquest",
+    "path": "Prg/warp00000009.prg",
+    "originUsed": "ludotheque/Caoquest/Prg/warp00000009.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Prg/warp00000010.prg@6b433817b6ae",
+    "sha256": "6b433817b6aebeeddf1768b5c237e10dd997d9825c7c11ce4ff497a21f735f87",
+    "game": "Caoquest",
+    "path": "Prg/warp00000010.prg",
+    "originUsed": "ludotheque/Caoquest/Prg/warp00000010.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/Prg/warp3.prg@75cb101d1859",
+    "sha256": "75cb101d18599e8fa5ca3cafcc4da8258ae1c09c5302f50e1b2556117a852860",
+    "game": "Caoquest",
+    "path": "Prg/warp3.prg",
+    "originUsed": "ludotheque/Caoquest/Prg/warp3.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "Caoquest/SpcMove/Earth.spc@6dc2d0aba97e",
+    "sha256": "6dc2d0aba97e676728bfa68cca373c5b771e8d14d35033cddefc6056eefdcdf3",
+    "game": "Caoquest",
+    "path": "SpcMove/Earth.spc",
+    "originUsed": "ludotheque/Caoquest/SpcMove/Earth.spc",
+    "format": "special-move",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 0
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 0,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Boards/Museum.brd@38c425d180fa",
+    "sha256": "38c425d180fac31ebf1761e079a67c4bbd43052295e3971f03dc1fde562ae952",
+    "game": "ChimeranEmpire",
+    "path": "Boards/Museum.brd",
+    "originUsed": "ludotheque/ChimeranEmpire/Boards/Museum.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": "pre-vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Boards/Secret Weapon Shop 2.brd@e3b0c44298fc",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "game": "ChimeranEmpire",
+    "path": "Boards/Secret Weapon Shop 2.brd",
+    "originUsed": "ludotheque/ChimeranEmpire/Boards/Secret Weapon Shop 2.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": false,
+    "selected": false
+  },
+  {
+    "id": "ChimeranEmpire/Boards/Trogan 1.brd@7bc3ae6ecd66",
+    "sha256": "7bc3ae6ecd66b03a32c20470969d41a5f28b39d851fe54f4775e3ea375314c5b",
+    "game": "ChimeranEmpire",
+    "path": "Boards/Trogan 1.brd",
+    "originUsed": "ludotheque/ChimeranEmpire/Boards/Trogan 1.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": "pre-vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Chrs/Flane.tem@68ed83008e6c",
+    "sha256": "68ed83008e6cfd0eb8eefb1960d596280243f12578954a74914aff1958b86ab7",
+    "game": "ChimeranEmpire",
+    "path": "Chrs/Flane.tem",
+    "originUsed": "ludotheque/ChimeranEmpire/Chrs/Flane.tem",
+    "format": "character",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 4
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Item/Apple.itm@b38e60d11c34",
+    "sha256": "b38e60d11c3448f49a039d721f739caf7924bd289c48c6c5892b53cf51cbf8f3",
+    "game": "ChimeranEmpire",
+    "path": "Item/Apple.itm",
+    "originUsed": "ludotheque/ChimeranEmpire/Item/Apple.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Item/Crystal Staff.itm@8d5b8ebdec1d",
+    "sha256": "8d5b8ebdec1d8fd5c78c8170f0a5f62108500c8624036e1f0af36b213e7512dc",
+    "game": "ChimeranEmpire",
+    "path": "Item/Crystal Staff.itm",
+    "originUsed": "ludotheque/ChimeranEmpire/Item/Crystal Staff.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Item/Man 2.itm@c8f063b56842",
+    "sha256": "c8f063b568422eac06d4e9f8abf5953bd1ce6df10c005a96c59696121e61563b",
+    "game": "ChimeranEmpire",
+    "path": "Item/Man 2.itm",
+    "originUsed": "ludotheque/ChimeranEmpire/Item/Man 2.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Item/Man.itm@7b93ec396f4f",
+    "sha256": "7b93ec396f4f8ca706f4376e253750db2347b6e828906dc47433f3236dc0819f",
+    "game": "ChimeranEmpire",
+    "path": "Item/Man.itm",
+    "originUsed": "ludotheque/ChimeranEmpire/Item/Man.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Item/Villager 1.itm@aa71e699cf3f",
+    "sha256": "aa71e699cf3f5d4344f4606e8dedeb4b83b5fe0259509f81a0447ed5532827e8",
+    "game": "ChimeranEmpire",
+    "path": "Item/Villager 1.itm",
+    "originUsed": "ludotheque/ChimeranEmpire/Item/Villager 1.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Item/Villager 2.itm@df8033e352bc",
+    "sha256": "df8033e352bcd0aeb5da2ce3a6f284ff1406c59741d0c9e91b0716f540d4a01b",
+    "game": "ChimeranEmpire",
+    "path": "Item/Villager 2.itm",
+    "originUsed": "ludotheque/ChimeranEmpire/Item/Villager 2.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Item/Woman.itm@22756c0bb6d0",
+    "sha256": "22756c0bb6d049836fbd7fc394d50d810dd6d72e958aa7b213b2dd2a37a532d3",
+    "game": "ChimeranEmpire",
+    "path": "Item/Woman.itm",
+    "originUsed": "ludotheque/ChimeranEmpire/Item/Woman.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Main/ChimeranEmpire.gam@521fd80cac9a",
+    "sha256": "521fd80cac9af61b1ee70af2d3e28bba35f39cae2d62370c83aa2240913df62d",
+    "game": "ChimeranEmpire",
+    "path": "Main/ChimeranEmpire.gam",
+    "originUsed": "ludotheque/ChimeranEmpire/Main/ChimeranEmpire.gam",
+    "format": "gam",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 2,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Misc/Bolt 1.anm@e14abdf726d1",
+    "sha256": "e14abdf726d1fdd4d0e54d1f7bfa36177e308c9bf0a0db167112862613aaa596",
+    "game": "ChimeranEmpire",
+    "path": "Misc/Bolt 1.anm",
+    "originUsed": "ludotheque/ChimeranEmpire/Misc/Bolt 1.anm",
+    "format": "animation",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 0
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 0,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Ancient Books.prg@14867ecfd4ff",
+    "sha256": "14867ecfd4ffa8578ce521f13565b21cfc3ae1ee044de8ad3099662de181d821",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Ancient Books.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Ancient Books.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Give Apple.prg@a28b551b2e47",
+    "sha256": "a28b551b2e47bdf2a09dee3974d9346579439606182afbc7917d93670cd193cf",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Give Apple.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Give Apple.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Inn 3.prg@a0de9a99f43c",
+    "sha256": "a0de9a99f43c667bac2710c5a1157b4ed7f9ba99b1b015b4361e0ef47f59528b",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Inn 3.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Inn 3.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Ogre Skeleton.prg@dfd8e2550905",
+    "sha256": "dfd8e25509055896baf8c11fb452ec9e601793ca6ddc1b2845aaddd12f4c5133",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Ogre Skeleton.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Ogre Skeleton.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Old Painting.prg@cd3886bd4d0c",
+    "sha256": "cd3886bd4d0c57f14e16b21311e74231f85e91ccc61c943241b2d01ffd5a7dfd",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Old Painting.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Old Painting.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Old Shield.prg@330a7f4cef85",
+    "sha256": "330a7f4cef8527f3f96c15375bc53c43a4c623b273c6dad3bc73a94ec7cb69d6",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Old Shield.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Old Shield.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Old Weapon.prg@d122e8b5dfeb",
+    "sha256": "d122e8b5dfeb114bcd7effc1ab01b17fc226308ae92d23bcf61a80506276c3e1",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Old Weapon.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Old Weapon.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Person 2.prg@f37cda1222a6",
+    "sha256": "f37cda1222a6a152d32d097662bb4b8700c2808d5325e5316cd212836b8ea087",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Person 2.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Person 2.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Person.prg@512d0c82253d",
+    "sha256": "512d0c82253d1c245ea2d48e4a8344b55f624cbdce7882849681ea8f15c17992",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Person.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Person.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Sign 02.prg@d2149e797d8e",
+    "sha256": "d2149e797d8e5eb3658303a9c7fe918350645906610c4d974a95b97c27e062f1",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Sign 02.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Sign 02.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Villager 1.prg@255389acd10e",
+    "sha256": "255389acd10eac4a38843ff70b37a394ecbeb5c4cb53e675aa6b9e9e8afa9184",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Villager 1.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Villager 1.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/Villager 2.prg@cf80de68e4b1",
+    "sha256": "cf80de68e4b1f8d04e7d985dbc913f067937ddac646fb8950248213253dfe2a7",
+    "game": "ChimeranEmpire",
+    "path": "Prg/Villager 2.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/Villager 2.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/warp00000002.prg@8431ff007182",
+    "sha256": "8431ff007182146691b1616b3b75ffe9b147f002beb1c76f4b2033d65465ec38",
+    "game": "ChimeranEmpire",
+    "path": "Prg/warp00000002.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/warp00000002.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/warp00000004.prg@0c060ac55e24",
+    "sha256": "0c060ac55e24ab6ac21b3d4f36bf2ee1d0ed3e6b5856b1c3b7b437764b02c453",
+    "game": "ChimeranEmpire",
+    "path": "Prg/warp00000004.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/warp00000004.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/Prg/warp00000035.prg@0d52a3db6af6",
+    "sha256": "0d52a3db6af69b8126be31fd0d91b7be1d896f2dbc5280f48156321cf1ab647c",
+    "game": "ChimeranEmpire",
+    "path": "Prg/warp00000035.prg",
+    "originUsed": "ludotheque/ChimeranEmpire/Prg/warp00000035.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/SpcMove/Bolt 1.spc@8836d8003aef",
+    "sha256": "8836d8003aef6cd113a0de7bfdc97b515cc31b49eeb79598c82dfd2850561610",
+    "game": "ChimeranEmpire",
+    "path": "SpcMove/Bolt 1.spc",
+    "originUsed": "ludotheque/ChimeranEmpire/SpcMove/Bolt 1.spc",
+    "format": "special-move",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 2,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "ChimeranEmpire/SpcMove/Defenseless.spc@e3b0c44298fc",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "game": "ChimeranEmpire",
+    "path": "SpcMove/Defenseless.spc",
+    "originUsed": "ludotheque/ChimeranEmpire/SpcMove/Defenseless.spc",
+    "format": "special-move",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": false,
+    "selected": false
+  },
+  {
+    "id": "ChimeranEmpire/SpcMove/UnMotivate.spc@e3b0c44298fc",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "game": "ChimeranEmpire",
+    "path": "SpcMove/UnMotivate.spc",
+    "originUsed": "ludotheque/ChimeranEmpire/SpcMove/UnMotivate.spc",
+    "format": "special-move",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": false,
+    "selected": false
+  },
+  {
+    "id": "CrystalImmortality/Boards/Castle3left.brd@84c2e61a69d3",
+    "sha256": "84c2e61a69d368ee0aa52961e7b6aa3d08c8b7229f51b4f978c9d7b2142d49c4",
+    "game": "CrystalImmortality",
+    "path": "Boards/Castle3left.brd",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Boards\\Castle3left.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": "pre-vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Boards/city1.brd@3c26430c149d",
+    "sha256": "3c26430c149d8c0adbc8b8eecf1c31bebc14864ee182daf4c6e3d75abc5e3974",
+    "game": "CrystalImmortality",
+    "path": "Boards/city1.brd",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Boards\\city1.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": "pre-vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Chrs/Dupcyk.tem@ec40b0bcc907",
+    "sha256": "ec40b0bcc9072c7507da518cb9a1c891be1e23216561af8c2b97c3e96a0a5182",
+    "game": "CrystalImmortality",
+    "path": "Chrs/Dupcyk.tem",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Chrs\\Dupcyk.tem",
+    "format": "character",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 4
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Item/HP gain.itm@2e169982331e",
+    "sha256": "2e169982331e73b7fbdb26ed11d2ec6fa9b20afa5f67a5b81d98473415206992",
+    "game": "CrystalImmortality",
+    "path": "Item/HP gain.itm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Item\\HP gain.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Item/city folk1.itm@fb192ee0382f",
+    "sha256": "fb192ee0382f7cde3c690b0b32cf5538c92a942a06808eaefec44c73937f86ee",
+    "game": "CrystalImmortality",
+    "path": "Item/city folk1.itm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Item\\city folk1.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Item/city folk2.itm@7d32c27418f9",
+    "sha256": "7d32c27418f9e68c65b85b491a48f64d7b657cb3fa22526ec3803b38c9b42ac8",
+    "game": "CrystalImmortality",
+    "path": "Item/city folk2.itm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Item\\city folk2.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Item/city folk3.itm@1a9f46554c09",
+    "sha256": "1a9f46554c0924a3028687e4da3115ac9f08d17a4238b2134fed6d481b260ca6",
+    "game": "CrystalImmortality",
+    "path": "Item/city folk3.itm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Item\\city folk3.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Item/city folk4.itm@e77aab21c546",
+    "sha256": "e77aab21c54600a1bdc5dd349f0c8e961e63a2b4da14cbf4fe26ede98ec1accd",
+    "game": "CrystalImmortality",
+    "path": "Item/city folk4.itm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Item\\city folk4.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Item/train soldier1.itm@7235640922a8",
+    "sha256": "7235640922a8f9b48270640c2950c76d7e299cae3c871438649a1d628c72d0cb",
+    "game": "CrystalImmortality",
+    "path": "Item/train soldier1.itm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Item\\train soldier1.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Item/train soldier2.itm@1246ccadb52e",
+    "sha256": "1246ccadb52edf20dc4ab37a00f830ffb01dd5729556b9d2f24822330826531c",
+    "game": "CrystalImmortality",
+    "path": "Item/train soldier2.itm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Item\\train soldier2.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Main/Crystal.gam@a12ca4de8dd2",
+    "sha256": "a12ca4de8dd24d80101e0aa24a27c1bd0e1a397eafff9eeac27bf8b886822aab",
+    "game": "CrystalImmortality",
+    "path": "Main/Crystal.gam",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Main\\Crystal.gam",
+    "format": "gam",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 2,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Misc/bolt1.anm@cae13c5891e4",
+    "sha256": "cae13c5891e470efe50d317a1d74e4f041b6e3103637df43fc6465beb37d1797",
+    "game": "CrystalImmortality",
+    "path": "Misc/bolt1.anm",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Misc\\bolt1.anm",
+    "format": "animation",
+    "physicalHeader": {
+      "encoding": "legacy text",
+      "major": 2,
+      "minor": 0
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 0,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/Tooth fight.prg@fcee6a8ccf27",
+    "sha256": "fcee6a8ccf27601dc6463ee141295cea87524c43b6a67e93be50361fd37f4bf7",
+    "game": "CrystalImmortality",
+    "path": "Prg/Tooth fight.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\Tooth fight.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/Wander.prg@7f73a7a1538c",
+    "sha256": "7f73a7a1538c21e6221c153640b8faa1b9edb79734675f4cbe7749d63eb8fa6b",
+    "game": "CrystalImmortality",
+    "path": "Prg/Wander.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\Wander.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/bar fight C.prg@cb9a7984b658",
+    "sha256": "cb9a7984b658bccf7b804e250ef988e86c93bcb6f31118c307cf975eeb6e318f",
+    "game": "CrystalImmortality",
+    "path": "Prg/bar fight C.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\bar fight C.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/church-entrance.prg@fb1b0db22dc5",
+    "sha256": "fb1b0db22dc52b90c9f7eaebfed262df2f8616417131281dcafb34cfb21e1bfe",
+    "game": "CrystalImmortality",
+    "path": "Prg/church-entrance.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\church-entrance.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/city folk1.prg@f084413ed198",
+    "sha256": "f084413ed198eb5bd9c8e3914fc44b2900093dac5a0a8cd1ebcb1c0035e66ba9",
+    "game": "CrystalImmortality",
+    "path": "Prg/city folk1.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\city folk1.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/city folk2.prg@40fc8d8a7196",
+    "sha256": "40fc8d8a719633b12fb1369e91da8d01ea0f4768c0c23154c56e166018d1c063",
+    "game": "CrystalImmortality",
+    "path": "Prg/city folk2.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\city folk2.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/city folk3.prg@b958f8a4ba1b",
+    "sha256": "b958f8a4ba1ba940c4f3ac9302c5479c80b1a63cbaafda6b004f0ab7dc258bd4",
+    "game": "CrystalImmortality",
+    "path": "Prg/city folk3.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\city folk3.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/city folk4.prg@7ebe13a7aed8",
+    "sha256": "7ebe13a7aed89c9b7d3393b7391ef72192ac25ef5ceb0cfebb3056d90b677cfb",
+    "game": "CrystalImmortality",
+    "path": "Prg/city folk4.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\city folk4.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/city pub entrance.prg@953fd7fe37a7",
+    "sha256": "953fd7fe37a7152758d794defcb3603013c859cd4e8774e4238f14770725224e",
+    "game": "CrystalImmortality",
+    "path": "Prg/city pub entrance.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\city pub entrance.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/city1exit.prg@e9c78f1090da",
+    "sha256": "e9c78f1090da7439cb5d96590184919cdcefd02796de58967292802d4018a7a1",
+    "game": "CrystalImmortality",
+    "path": "Prg/city1exit.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\city1exit.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/closed door.prg@64a88ed74568",
+    "sha256": "64a88ed745687f097f8fc72011ee688d63370c6766761af95d6fc17f54da7af0",
+    "game": "CrystalImmortality",
+    "path": "Prg/closed door.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\closed door.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/giftbox(random).prg@456ba52894dd",
+    "sha256": "456ba52894dd329a6fa4216d55d724cd1569b8a145ddb259f764e0736bebf513",
+    "game": "CrystalImmortality",
+    "path": "Prg/giftbox(random).prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\giftbox(random).prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/guardF4.prg@6ee5b807bd9c",
+    "sha256": "6ee5b807bd9c813058f1b6e2fcc48fb7dda5cd7066e9f4429685166dd9dd1d08",
+    "game": "CrystalImmortality",
+    "path": "Prg/guardF4.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\guardF4.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/hole entrance.prg@37d695772206",
+    "sha256": "37d695772206f522509c61f5bdad4c2be145057a705fc7af8972ecb99ef1dca5",
+    "game": "CrystalImmortality",
+    "path": "Prg/hole entrance.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\hole entrance.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/house2entr.prg@03b0ffeb14e4",
+    "sha256": "03b0ffeb14e42dd8a2bd2a55e5f1308084f998e242e37f4bef1b4cecabd8d298",
+    "game": "CrystalImmortality",
+    "path": "Prg/house2entr.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\house2entr.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/mymenu.prg@2e0412397925",
+    "sha256": "2e04123979256f95d2b7591aa00278188ae0989cb49573cb5f22d20fb678b0d8",
+    "game": "CrystalImmortality",
+    "path": "Prg/mymenu.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\mymenu.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/signs.prg@7ee341a28c8a",
+    "sha256": "7ee341a28c8a6382e912c89944de87e97fac164617ec8f4f42c8ba49b9accfaf",
+    "game": "CrystalImmortality",
+    "path": "Prg/signs.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\signs.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/train sold1.prg@a68cf1c876f3",
+    "sha256": "a68cf1c876f3577bd0621d438e4ccd54a0e99d73f72ec37d604306c8c2c07c30",
+    "game": "CrystalImmortality",
+    "path": "Prg/train sold1.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\train sold1.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/train sold2.prg@516c5d18d23b",
+    "sha256": "516c5d18d23b6fb913335f505ddbafd8d114e97c3c8db9fe09e80c6c98b6fcca",
+    "game": "CrystalImmortality",
+    "path": "Prg/train sold2.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\train sold2.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/warp00000025.prg@8079faae8a25",
+    "sha256": "8079faae8a25046a355e6dfe83019fb527649d6037d2d8bcf78f278039e92e9d",
+    "game": "CrystalImmortality",
+    "path": "Prg/warp00000025.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\warp00000025.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/warp00000026.prg@8079faae8a25",
+    "sha256": "8079faae8a25046a355e6dfe83019fb527649d6037d2d8bcf78f278039e92e9d",
+    "game": "CrystalImmortality",
+    "path": "Prg/warp00000026.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\warp00000026.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/warp00000027.prg@0dd1fe577c6c",
+    "sha256": "0dd1fe577c6c615acd3d76cbc76f461d96154deef17fd130f08836b130cab30a",
+    "game": "CrystalImmortality",
+    "path": "Prg/warp00000027.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\warp00000027.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/warp00000028.prg@0dd1fe577c6c",
+    "sha256": "0dd1fe577c6c615acd3d76cbc76f461d96154deef17fd130f08836b130cab30a",
+    "game": "CrystalImmortality",
+    "path": "Prg/warp00000028.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\warp00000028.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/warp00000067.prg@e34e297ff75c",
+    "sha256": "e34e297ff75c7367813ad837d188ee82bcdc5aa534e737cb7739154e88dc3682",
+    "game": "CrystalImmortality",
+    "path": "Prg/warp00000067.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\warp00000067.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/Prg/warp00000107.prg@c602b56d260c",
+    "sha256": "c602b56d260cbf9d4a56a0f1ff4ad9a5dad9fc1519ae277e2f0ec77f8e92be02",
+    "game": "CrystalImmortality",
+    "path": "Prg/warp00000107.prg",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\Prg\\warp00000107.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "CrystalImmortality/SpcMove/Magus.spc@af469f9cb8cd",
+    "sha256": "af469f9cb8cde7a704b4e7ee9a5821393b3530db421dc3ae801d6c23687cb481",
+    "game": "CrystalImmortality",
+    "path": "SpcMove/Magus.spc",
+    "originUsed": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!Game\\Crystalo\\SpcMove\\Magus.spc",
+    "format": "special-move",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 2
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 2,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Boards/out.brd@fc6c374f9060",
+    "sha256": "fc6c374f9060e6915956997ab00e6fcb0f24d4a68d03d70bba98a55a2e2b3288",
+    "game": "demo",
+    "path": "Boards/out.brd",
+    "originUsed": "fixtures/demo/Boards/out.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 4
+    },
+    "decoderLayout": "vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Boards/start.brd@1b4aa691baf5",
+    "sha256": "1b4aa691baf54f5c2fca457bd3447bda89748fcda58e070610a659393ddd3f9c",
+    "game": "demo",
+    "path": "Boards/start.brd",
+    "originUsed": "fixtures/demo/Boards/start.brd",
+    "format": "board",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 4
+    },
+    "decoderLayout": "vector",
+    "normalizedMajor": 2,
+    "normalizedMinor": 4,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Chrs/start.tem@771eeb253742",
+    "sha256": "771eeb2537425ef693710874121d6e107b0f629fbbadad83da539895af232f86",
+    "game": "demo",
+    "path": "Chrs/start.tem",
+    "originUsed": "fixtures/demo/Chrs/start.tem",
+    "format": "character",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 8
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 8,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Item/man.itm@c298678163d2",
+    "sha256": "c298678163d2f3656ba95859208fea6814ff59a5bfd83c238edcb0c2fe576c0f",
+    "game": "demo",
+    "path": "Item/man.itm",
+    "originUsed": "fixtures/demo/Item/man.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 7
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 7,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Item/oldman.itm@954f6bdd24a5",
+    "sha256": "954f6bdd24a5a8e145a9c8c0041304f618a39ee3de6f1e22b1d8a15efe4deeaf",
+    "game": "demo",
+    "path": "Item/oldman.itm",
+    "originUsed": "fixtures/demo/Item/oldman.itm",
+    "format": "item",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 7
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 7,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Misc/start/start_s.anm@3b3ace1f6967",
+    "sha256": "3b3ace1f6967a0517a56d5a6f03563e121cf077c84fa6f68f6cf6b45abd92c81",
+    "game": "demo",
+    "path": "Misc/start/start_s.anm",
+    "originUsed": "fixtures/demo/Misc/start/start_s.anm",
+    "format": "animation",
+    "physicalHeader": {
+      "encoding": "binary NUL header",
+      "major": 2,
+      "minor": 3
+    },
+    "decoderLayout": null,
+    "normalizedMajor": 2,
+    "normalizedMinor": 3,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Prg/man.prg@61d666fc1272",
+    "sha256": "61d666fc1272d0281c68d4845ad6e4af38d0d81232669f7e5a267b0576c185e0",
+    "game": "demo",
+    "path": "Prg/man.prg",
+    "originUsed": "fixtures/demo/Prg/man.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Prg/man_wander.prg@cc07a22a7c48",
+    "sha256": "cc07a22a7c48f456e51e05500e657b5af865dd36a2b6fe5fad3bb1351bf39bb6",
+    "game": "demo",
+    "path": "Prg/man_wander.prg",
+    "originUsed": "fixtures/demo/Prg/man_wander.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  },
+  {
+    "id": "demo/Prg/oldman.prg@2fdbd46df7f6",
+    "sha256": "2fdbd46df7f60850b5fc4bad4442f9ec5d121ba2d79d3729fb760e24b64bae22",
+    "game": "demo",
+    "path": "Prg/oldman.prg",
+    "originUsed": "fixtures/demo/Prg/oldman.prg",
+    "format": "program",
+    "physicalHeader": {
+      "encoding": "not a versioned domain header",
+      "major": null,
+      "minor": null
+    },
+    "decoderLayout": null,
+    "normalizedMajor": null,
+    "normalizedMinor": null,
+    "decoded": true,
+    "selected": true
+  }
+]

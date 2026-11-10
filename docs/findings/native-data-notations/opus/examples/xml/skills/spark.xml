@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">skill</string>
+  <string key="id">spark</string>
+  <string key="name">Spark</string>
+  <string key="description">A small arc of light that stings one foe.</string>
+  <map key="cost">
+    <number key="smp">4</number>
+  </map>
+  <number key="power">18</number>
+  <map key="usable">
+    <boolean key="battle">true</boolean>
+    <boolean key="menu">false</boolean>
+  </map>
+  <map key="presentation">
+    <string key="clip">effects/spark</string>
+  </map>
+</map>

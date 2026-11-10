@@ -87,7 +87,7 @@ test("a v4 save (no module fields) restores unchanged apart from the v7 section 
 });
 
 test("vm schema 6 saves, out of and mid battle, migrate to vm 7 changing only the schema version", () => {
-  for (const [previous, current] of [["vm6-battle-out.json", "battle-v2-out.json"], ["vm6-battle-mid.json", "battle-v2-mid.json"]] as const) {
+  for (const [previous, current] of [["vm6-battle-out.json", "engine1-battle-v2-out.json"], ["vm6-battle-mid.json", "engine1-battle-v2-mid.json"]] as const) {
     const saved = JSON.parse(fixtureText(previous)) as { schema: { vm: number } };
     equal(saved.schema.vm, 6, `${previous} is a real vm-6 save`);
     const restored = restoreGameState(fixtureText(previous));
@@ -602,4 +602,31 @@ test("UI schema 8 migration preserves the pending result marker and author modal
   const migratedOld8 = restoreGameState(JSON.stringify(schema8BeforePendingMarker));
   equal(migratedOld8.schema.ui, 9);
   equal(migratedOld8.ui.surfaceResultsPending, false);
+});
+
+test("engine-v1 saves retain continuation while readiness migrates as unknown", () => {
+  const previous = fixtureText("engine1-battle-v2-mid.json");
+  const raw = JSON.parse(previous) as { schema: { engine: number }; engine: Record<string, unknown>; vm: unknown };
+  equal(raw.schema.engine, 1);
+  const restored = restoreGameState(previous);
+  equal(restored.schema.engine, SCHEMA_VERSIONS.engine);
+  equal(restored.engine.cacheKeys, null);
+  deepEqual(restored.vm, raw.vm, "migration preserves saved instruction positions, stacks and waits");
+  equal(snapshot(restoreGameState(snapshot(restored))), snapshot(restored));
+});
+
+test("restore refuses malformed shared readiness before exposing the saved continuation", () => {
+  for (const cacheKeys of [
+    undefined, {}, "bitmap/red.png", [1], [null], [""],
+    ["Bitmap/red.png"], ["bitmap\\red.png"],
+    ["bitmap/red.png", "bitmap/red.png"], ["misc/spin.anm", "bitmap/red.png"],
+  ]) {
+    const state = createGameState({ seed: 5 });
+    const raw = JSON.parse(snapshot(state)) as { engine: Record<string, unknown> };
+    if (cacheKeys === undefined) delete raw.engine.cacheKeys;
+    else raw.engine.cacheKeys = cacheKeys;
+    const error = errorOf(() => restoreGameState(JSON.stringify(raw)));
+    equal(error.code, "restore.shape");
+    ok(error.message.includes("engine.cacheKeys"));
+  }
 });

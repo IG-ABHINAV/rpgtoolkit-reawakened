@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">actor</string>
+  <string key="id">gatekeeper</string>
+  <string key="name">Gatekeeper</string>
+  <map key="presence">
+    <map key="clips">
+      <map key="walk">
+        <string key="south">gatekeeper/walk-south</string>
+        <string key="north">gatekeeper/walk-north</string>
+      </map>
+    </map>
+    <map key="timing">
+      <number key="secondsPerFrame">0.3</number>
+      <number key="idleAfterSeconds">3</number>
+    </map>
+    <array key="collision">
+      <array><number>-15</number><number>-15</number></array>
+      <array><number>15</number><number>-15</number></array>
+      <array><number>15</number><number>0</number></array>
+      <array><number>-15</number><number>0</number></array>
+    </array>
+    <array key="activation">
+      <array><number>-24</number><number>-24</number></array>
+      <array><number>24</number><number>-24</number></array>
+      <array><number>24</number><number>8</number></array>
+      <array><number>-24</number><number>8</number></array>
+    </array>
+  </map>
+  <map key="behaviour">
+    <map key="onActivate">
+      <string key="program">scripts/gatekeeper.prg</string>
+    </map>
+  </map>
+  <map key="extensions">
+    <map key="org.example.dialogue-portraits">
+      <number key="version">2</number>
+      <string key="portrait">media/images/gatekeeper-face.png</string>
+      <string key="mood">stern</string>
+    </map>
+  </map>
+</map>

@@ -1,0 +1,10 @@
+contract: animation-clip
+# Invalid: a version has three parts. A bare 1.0 is read as the number 1, which loses
+# the zero, so a version is always text and never a number.
+version: 1.0
+canvas:
+  width: 32
+  height: 32
+delay: 0.15
+frames:
+  - image: tiles/village.tst14

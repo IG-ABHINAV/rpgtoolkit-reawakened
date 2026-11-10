@@ -1,0 +1,541 @@
+[
+  {
+    "origin": "ludotheque/AICSMIS/OriginalPackage/AICSMIS.exe",
+    "sha256": "34e9ad4c779517fd64cd5391aa3ca40847b83d095e5a86b7fb13d52be35c1313",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/AMUAftermath/OriginalPackage/AMU_Aftermath.exe",
+    "sha256": "7a2fd44a697ea326fbd3f41fab12dbae59b9faf753fafd4297e4b0192956e5c3",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/AxeOfYulon/OriginalPackage/axeofyulon.exe",
+    "sha256": "8e8ddecf71def2c7b101bd6eaee4802dec02390eccfb64583d884339aca4ad25",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Caoquest/BRDDRAW.EXE",
+    "sha256": "aa48b5ba845733f9a99ff4c9e4506786f2960f4571c6943a7f14204a9576390b",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Caoquest/Trans2.exe",
+    "sha256": "ec25c0ab5ba87786aa99a8be8d173bda04f3f7278edb0a6b49a471b8add84141",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!VBRun60.exe",
+    "sha256": "ab0220420f5af23898b6a29861d0c4e0702990d6048ea9b40dc7935c7d6228db",
+    "returncode": 0,
+    "members": [
+      "vbrun60.inf",
+      "COMCAT.DLL",
+      "msvbvm60.dll",
+      "OLEAUT32.DLL",
+      "OLEPRO32.DLL",
+      "STDOLE2.TLB",
+      "ASYCFILT.DLL",
+      "ADVPACK.DLL",
+      "W95INF32.DLL",
+      "W95INF16.DLL"
+    ],
+    "message": ""
+  },
+  {
+    "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!phase2.exe",
+    "sha256": "85c11ebf4561532f4e42d86d8cfe2d30e58802e5498bdfddc2a43acb284fa1e5",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!setup.exe",
+    "sha256": "b7783d8d7228aed9279b2149274ebae8e2031fe0b1076028d7e1e23c6056aa19",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/ChickitHunt/OriginalPackage/Chickit%20Hunt.zip!zip.zip!trans2.exe",
+    "sha256": "7dadd43aa96459b12541d15920352a8b0f7c440cd3eec3e9f176a6b8bd504bbd",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!phase2.exe",
+    "sha256": "3f4cb76c61b80abaac54b03eb95ee057fb3f81a92d49660469e50190baf5abd1",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!setup.exe",
+    "sha256": "bc6726ede4319df4a308c505a4b8c24a3d00f3c2f9c7283e1dc28452b7f70466",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/CrystalImmortality/OriginalPackage/crystal_of_immortality.zip!zip.zip!trans2.exe",
+    "sha256": "8bdc70058d6805794cd356963f06638b1bbad05eaf68df7779e50eab5caf7f79",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/DangerDingo/OriginalPackage/dangerthedingo.zip!zip.zip!trans2.exe",
+    "sha256": "24d5e3cf10eb83a93e930cd56403ccfbd2a589e52734f6ae41385eefece61d1f",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/DarkAge/OriginalPackage/DarkAge.exe",
+    "sha256": "acf97f070d1125105c044314f212dc5f6ed1d27c9acf52d484a3fbdf40b56993",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/DarkAge2Demo/OriginalPackage/DarkAge2_DemoB.exe",
+    "sha256": "f020076f6386689b5060030192416ba2f0ea0eb54fa5ef814488bb3d741700d3",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/DarkAgeEX/OriginalPackage/DarkAgeEX_MIDI.exe",
+    "sha256": "5119ce1367d19bac929a3fbd7c137352f2b9c2589c6e5ca411fa61de4889c05d",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/EternalBlade/OriginalPackage/eternalblade.zip!zip.zip!trans2.exe",
+    "sha256": "6c0a5e9f91cbcfea3341a2fa21cb9e29f3d0c7be91ca85f59b00c9664e86bc6d",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Firesword13/OriginalPackage/Firesword13.exe",
+    "sha256": "a55fe20e2e1952be9c7b5f8274705251e9dce64e8fbcec098ef2fdea0d5d8a65",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/FourthDimension/OriginalPackage/fourth.exe",
+    "sha256": "da3c811d6a5523310417190500619298a9b5a3c0d781cc689e33e70ecaf09214",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/GrandDragonElite/OriginalPackage/GrandDragonElite.exe",
+    "sha256": "e4dc4d79fceca445aa2899cf70f66266086a0c022e808eb566164badff705730",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Gw/GW/GW.exe",
+    "sha256": "d34b98905a951f4a5b9b697b65ff4bdcfc561b73a21b1d6521d6f0b3374e36a1",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/ImperialNexus/OriginalPackage/imperialnexus.zip!setup.exe",
+    "sha256": "df5e072ce1e22a97e0b5dbb80dbdffcfcf70d87a8f4ca174cc0d206edcf914fd",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/ImperialNexus/OriginalPackage/imperialnexus.zip!zip.exe!trans2.exe",
+    "sha256": "3c6eae45e0e02c45063001d39649744d19618828714339a678dc7d7f57da816b",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/JoD/OriginalPackage/jod.zip!zip.zip!trans2.exe",
+    "sha256": "298211fb5ff1c7f39671029a34cd8a1d5ba10c62651a4bd0c4cb1f21706603f1",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!phase2.exe",
+    "sha256": "b1b352b3a4db5c85f0c09b3f2eca9876956e766c9a7494219d2c59c9b478e62d",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!setup.exe",
+    "sha256": "4698c52fa4f138f8d00b7fa851ba3de045bedb68411d19c2f3424b149a139346",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!zip.zip!Main\\JoD.exe",
+    "sha256": "af8868d54724bfd0d8ed8d4404171c2def51134bd17aa3ea42527d0bf2ca0cde",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/JoD3/OriginalPackage/JoD3.zip!zip.zip!trans3.exe",
+    "sha256": "b246ed95a04cd551376b060c99a90778134b1dc3845418acfe983250ea1af26d",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/LegendMagic/OriginalPackage/Legend%20of%20Magic.exe",
+    "sha256": "f60645dbc6f6077ef6f123c9f348c9c57f45c11a1fe60a8064f1a34310f7d22d",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/LegendStorm/OriginalPackage/LegendofStorm.exe",
+    "sha256": "824e856b746ca25c09b1bf433d7bb067aebdce0451cd6c22006cf39e9783f25e",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/LoZMasterOfTime/OriginalPackage/LoZ-MoT.exe",
+    "sha256": "9389946510038576aaa92fc99c82f7a72b77631f1ed5ddad74491be9dac00703",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/MysticalQuest/OriginalPackage/mysticalquest.zip!mysticalDemo2/Mystical Quest Demo 2/MysticalQuest.exe",
+    "sha256": "f35cf4589419f35a69a5d8371c61180f770c9656bc016772435bc4f379987f6b",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/RunesOfManchia/OriginalPackage/Runes%20Of%20Manchia.exe",
+    "sha256": "8a0a6dca460e1266e99e2f840a8d423e90622514950502ba94e53f3045426063",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/TalismansOfTheNine/OriginalPackage/Talismans_of_the_Nine.exe",
+    "sha256": "e9c2e5013c2e2c6134f490a304780ddbcbbd2c81f651000739567960251fbb2c",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Traidon/OriginalPackage/Traidon.exe",
+    "sha256": "ddef5ddd6a84c69f6835c18829b1ea76e1852c4019602c32b1b20414c52d6817",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Volcano1/OriginalPackage/volc1.exe",
+    "sha256": "894faef7c7d1374f3cc1b859e9665168cfc79cd4bf5a985415e9f474db5ca12a",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Worm/BGI/BGIOBJ.EXE",
+    "sha256": "7b5adb4af3ae82ed5b073dca0ce5bb363f148027744fe8ffadb8e1d08fffc146",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Worm/BGI/TABLE.EXE",
+    "sha256": "a11d43d961ae7b34aebcec646aab1de7e098ff2ff8a9cd4777c6d4bcad7e0354",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "ludotheque/Worm/OriginalPackage/worm.zip!Worm.exe",
+    "sha256": "e56e837672e7233f1dc539fc2554c99228740d087ac365504571bff81b773807",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/LunarQuestP1.zip!setup.exe",
+    "sha256": "92af381476bd8cc34aee810750d3052972686aaa4563e83166577c9751616622",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/LunarQuestP1.zip!zip.exe!trans2.exe",
+    "sha256": "8c373a8004f424b4e277e8316d0394625f82f362820f015eac9f1bc021e460bb",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/MysteriousBattles.zip!zip.zip!trans2.exe",
+    "sha256": "c1cfb809236ac163f730bf0bd3731992bf9637b0fcbeac0fa9c0728d24b2f273",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/Nes3_0.zip",
+    "sha256": "4bd9089bc65ac85d467614d633471acf8d47d782a0cd8ed07d8ab9f3d0a57c25",
+    "returncode": 1,
+    "members": [
+      "Monster_Patch.exe",
+      "Nes3/",
+      "Nes3/zip.zip"
+    ],
+    "message": "bsdtar: Truncated input file (needed 3165815 bytes, only 966099 available)\nbsdtar: Error exit delayed from previous errors."
+  },
+  {
+    "origin": "downloads-1/Omega.zip!setup.exe",
+    "sha256": "d167ef87a573e7752629b66a0f60cb6c74bb2e0d657706aa24fe54da61acc9ba",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/Omega.zip!zip.exe!trans2.exe",
+    "sha256": "6896c9add5a486ef6d751839f58442bd82d71ffd0e9e2b3a7d0a6b5bce1a175d",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/SilverSky_Demo1.ZIP!phase2.exe",
+    "sha256": "a580bbaeadea0ef542ecf803c1ceb16837e88490a29fefb702c619be0b23b8c0",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/SilverSky_Demo1.ZIP!setup.exe",
+    "sha256": "28a5cba6480d2a271d07ecd9a3672507db8a6dc93ee9ea8c9e009b386844f736",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/SilverSky_Demo1.ZIP!zip.zip!trans2.exe",
+    "sha256": "a4ee7cca617d2ed35fae280e873abd07b710be4fb8c576cdd9f4d9b378b572a7",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/WarriorLegends.ZIP!Warrior Legends.exe",
+    "sha256": "deeadde77cf03e618fa496c6ec712d870ae87ec90360e88f1db1e9dc41b9e91e",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/just_another_day.zip!J.A.D..exe",
+    "sha256": "0f8fab6e8df03a0ba74a8df53c8e834462db60b1de107d0b8afa40c4e4d19f31",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/legend.zip!zip.zip!trans2.exe",
+    "sha256": "b75cb8b647c2ac46a6bef1eb19e12353b74f1dfe2d8d1034f5322d9caca49db8",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/legendofatalna2.zip!setup.exe",
+    "sha256": "93012a42082473956155cb3f712da7e1966b9f7e2ca6e1911639a49f7458e4fc",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/legendofatalna2.zip!zip.exe!trans2.exe",
+    "sha256": "75b075ebb2250b7224fe98fe615c40f958cc91ab787f27de1e3d851c4aae47be",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/legendofosiris1.1.zip!zip.zip!Plugin\\Plugin Installer.exe",
+    "sha256": "c92fa5e277a9536d5f94e7ad3f9ad578441bcb156be8b9353b88b4b451899f28",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/lunardragon.zip!phase2.exe",
+    "sha256": "3e2a98d3b9cf33d88e362b2a9aa33b62abb63cf834e9a6fa755d428f87bb05ba",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/lunardragon.zip!zip.exe!trans2.exe",
+    "sha256": "a5fb4aca34d2e5206debce28656cd9ee6110b82c4d8bf107415293b80612cc37",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/marovia.zip!VBRun60sp5.exe",
+    "sha256": "66453c28a3a11f52cefb00178714f710c23a8c611373d39f336c1ae3c8701def",
+    "returncode": 0,
+    "members": [
+      "vbrun60.inf",
+      "COMCAT.DLL",
+      "msvbvm60.dll",
+      "OLEAUT32.DLL",
+      "OLEPRO32.DLL",
+      "STDOLE2.TLB",
+      "ASYCFILT.DLL",
+      "ADVPACK.DLL",
+      "W95INF32.DLL",
+      "W95INF16.DLL"
+    ],
+    "message": ""
+  },
+  {
+    "origin": "downloads-1/marovia.zip!zip.zip!trans3.exe",
+    "sha256": "eeaa21c65023eadf5baea35bc3e2fe7eeaf18f879ebfd60a99c1882343cbfe41",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/minicars.zip!zip.exe!Main/ASE.tpk",
+    "sha256": "fc70f27c3318d2e8cabdd4c4791b0d9cbe7c761abd0af3829e8aac153b18936e",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/minicars.zip!zip.exe!Main/AlienSE.tpk",
+    "sha256": "30000fca24e6674ca7f4e174d2b4afe75e98f8a6139a99c93796da46a7429ad5",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/minicars.zip!zip.exe!Main/demo.tpk",
+    "sha256": "23b50d568286d62225835018a4ad69f582c4c8f44bc7bea756a863c8ead03a9a",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/minicars.zip!zip.exe!trans2.exe",
+    "sha256": "f1ab54591a51197d305fbfac936c13f935d1eec1028676b5c7c7533b0d3d1f1b",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/oasis.zip!zip.exe!trans2.exe",
+    "sha256": "b3d55c71047c1bdabb261006c7b11f938dd67a83f0353dfa70e927e3c37c6689",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "downloads-1/pl2demo.zip",
+    "sha256": "25c73ed1795e08db7e7dc3fcccbea6180c105d28a226054084a7cb96cf45dc47",
+    "returncode": 1,
+    "members": [
+      "zip.zip"
+    ],
+    "message": "bsdtar: Truncated input file (needed 38106928 bytes, only 2757507 available)\nbsdtar: Error exit delayed from previous errors."
+  },
+  {
+    "origin": "extra/LittleMan/LittleMan.zip!phase2.exe",
+    "sha256": "07b7959650b9035d3b0bf90b55701c82d899390507fa8a2bd8597656aa628ff9",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/LittleMan/LittleMan.zip!setup.exe",
+    "sha256": "ec9ac84f8e822ab015bba9d3ddccc6da5e2023a75f847afdc8b29286ea73685f",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/LittleMan/LittleMan.zip!zip.zip!trans2.exe",
+    "sha256": "152f45311b0879015712551dc4248af6a66025646c3cb96efc5b1b328293769f",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/BusDriver/busd.zip!zip.zip!trans2.exe",
+    "sha256": "5a2b44bbaff7505586bb12746a4bc81bc510c9f97ac9dbc54893c6559f775e07",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/ChimeranEmpire/chimeran_empire.zip!phase2.exe",
+    "sha256": "cfa86ca1cfb7a092986ed139f430d501174cc3e6a96508d89cca462528f1a37c",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/ChimeranEmpire/chimeran_empire.zip!setup.exe",
+    "sha256": "7d5b3fce56d49c80d32f5bef8c8abe205dc590c7c3d389d3df9d0ada81106f21",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/ChimeranEmpire/chimeran_empire.zip!zip.zip!trans2.exe",
+    "sha256": "a9e824d287d319ef7131405ea88b153cadb2c92293ffb223c0ead5a81833d5f5",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/School2Demo/School2Demo.zip!zip.zip!trans2.exe",
+    "sha256": "ba8daf8cb990cef7a4ad8cc3243185c783ebb934b612597b2712864b24f0c205",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  },
+  {
+    "origin": "extra/GrandDragonElite/GrandDragonElite.exe",
+    "sha256": "7d143bf4dcd2518698054f3b4779117d2a6733a1a3f0fcb85405b456a8ed97bf",
+    "returncode": 1,
+    "members": [],
+    "message": "bsdtar: Error opening archive: Unrecognized archive format"
+  }
+]

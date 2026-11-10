@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">clip</string>
+  <string key="id">effects/spark</string>
+  <array key="size"><number>64</number><number>64</number></array>
+  <number key="secondsPerFrame">0.05</number>
+  <array key="frames">
+    <map>
+      <string key="id">flash</string>
+      <string key="image">media/images/spark.png</string>
+      <string key="sound">media/audio/zap.wav</string>
+    </map>
+  </array>
+</map>

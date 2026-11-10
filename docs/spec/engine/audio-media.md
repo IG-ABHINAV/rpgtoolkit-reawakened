@@ -973,8 +973,8 @@ plays and loops it exactly like any WAV. Technically:
    listing each file's original name, original and output SHA-256, delay
    trimmed and resampling.
 4. The importer is an authoring tool run at project import and package export;
-   it is not part of `core` or a runner. No entry in any epic builds it today
-   (**[UNCHECKED]**; the editor and asset epics own it, [audio-authoring-handoff](#audio-authoring-handoff)).
+   it is not part of `core` or a runner. Editor stories 14.11 (contract approval),
+   14.12 (audio conversion) and 14.14 (integration) own the unimplemented tool.
    Its decoder and encoder dependencies must clear G6 before they are shipped;
    a tool may call a user-installed decoder without shipping it.
 5. An unconverted MP3/Ogg file is "unsupported" under F1: silent, with
@@ -1923,8 +1923,8 @@ items 2 and 3 in epic 6 (they cannot be shown without a browser runner).
 plain terms, cutscene videos are converted once when a game is imported, keep
 their file name, and the runner plays the converted copy. This closes the spine's
 open question "transcode on import, or drop?" in favour of transcoding (E-104).
-Technically: the importer (an authoring tool owned by the editor and asset epics;
-no entry builds it today, **[UNCHECKED]**) converts `.avi`, `.mpg` and `.mov` to
+Technically: the importer (editor stories 14.11 for contract approval, 14.13 for
+conversion and 14.14 for integration; not yet implemented) converts `.avi`, `.mpg` and `.mov` to
 the **portable video profile**: a WebM container with VP9 video and Opus audio.
 The converted bytes keep the original logical name, exactly as for audio
 ([audio-import-policy](#audio-import-policy)); a runner identifies the container
@@ -2091,10 +2091,10 @@ audio gets converted, checked and licensed; the editor previews sound with the
 same engine the game uses. Epic 6 builds none of the tools; it fixes what they
 must do. Technically:
 
-1. *Import tools* (audio F2, video V1) belong to the editor and asset epics, run
-   at project import and package export, and write the name-preserving
-   import report. Nothing in epic 6 builds them (**[UNCHECKED]** whether any
-   epic schedules them).
+1. *Import tools* (audio F2, video V1) run at project import and package export
+   and write the name-preserving import report. Editor stories 14.11–14.14
+   own their contract approval, audio/video conversion and integration;
+   14.14 also owns the SoundFont packaging handoff below. They are not yet implemented.
 2. *Game default SoundFont* (rank 2 of the layers) is the optional
    `defaultSoundFont` in the additive TKR game-file audio settings
    ([MEDIA-4](#media-4)). The editor's game audio settings show it and the
@@ -2139,7 +2139,7 @@ above.
 | Project-file storage of the game default SoundFont | MEDIA-4 in this spec | not used; `defaultSoundFont` is an optional TKR game-file audio setting |
 | Reword guard-rail G6 rule 3, ADR 0001 point 5, the spine's pinned-version table and `architecture-options.md` §7, which still name FluidR3_GM as the default SoundFont | the owner (a guard-rail change needs an ADR, `guardrails.md` "Changing a rule") | at this checkpoint's approval: write the ADR or accept the superseding text of [path-b-bank](#path-b-bank) |
 | The prefetch hint wire shape and the core prefetch planner | epic 9's inception (a core entry at the AD-5 seam) | epic 9 inception |
-| The audio and video import tools | the editor and asset epics (**[UNCHECKED]** that any entry schedules them) | editor epics' inception |
+| The audio and video import tools | Editor 14.11–14.14: contract approval, audio/video conversion and import/export integration | approved contracts, licensed tool route and actual host playback providers |
 | Frame-0 per-case sound timing (Q14) | the owner (a legacy fact still unanswered) | the fact is supplied |
 | Visual sound indicators | later accessibility work | an accessibility entry |
 | Script read-back of the game default SoundFont | none; MEDIA-5 retires script-level SoundFont control | a demonstrated author need |

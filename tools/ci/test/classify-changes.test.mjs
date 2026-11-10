@@ -289,15 +289,17 @@ test("mobile CI reserves AVD space and keeps the real emulator proof", () => {
   const sdk = text.indexOf("- run: sdkmanager ");
   const assemble = text.indexOf("- name: Assemble debug APK");
   const check = text.indexOf("- name: Require Android emulator disk space");
-  const emulator = text.indexOf("- name: Exercise APK on API 33 emulator");
+  const emulator = text.indexOf("- name: Exercise APK on API 36 emulator");
   ok(cleanup >= 0 && cleanup < sdk && sdk < assemble && assemble < check && check < emulator);
   match(text, /sudo rm -rf \/usr\/share\/dotnet \/opt\/ghc \/usr\/local\/share\/boost/u);
-  match(text, /system-images;android-33;google_apis;x86_64/u);
+  match(text, /system-images;android-36;google_apis;x86_64/u);
   match(text, /name: Configure and require KVM access/u);
   match(text, /uses: reactivecircus\/android-emulator-runner@v2/u);
-  match(text, /api-level: 33/u);
+  match(text, /api-level: 36/u);
   match(text, /arch: x86_64/u);
+  match(text, /emulator-options:.*-gpu swiftshader_indirect/u);
   match(text, /script: pnpm mobile:proof/u);
+  match(text, /name: mobile-android-api36-proof/u);
 
   const start = lines.findIndex((line) => line.trim() === "- name: Require Android emulator disk space");
   const run = lines.findIndex((line, index) => index > start && line === "        run: |");

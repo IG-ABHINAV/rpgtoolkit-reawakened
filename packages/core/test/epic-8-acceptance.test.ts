@@ -55,6 +55,7 @@ function readGolden(): AcceptanceGolden | null {
 // #1234, #1231, #1224 and #1241 changed their documented stock-menu state/draw projections.
 // #1410 adds registered action definitions, control indexes, and held-source claims to normalized input state.
 // #1352 adds UI author-margin state and DrawList v2's explicit marginCommands array, changing state and draw hashes.
+// #1673 gives inline package lambdas owner-qualified identities, changing hashed VM state, not draw lists or events.
 function recordCheckpoint(checkpoints: GoldenCheckpoint[], id: string, session: Session, events: EventView[]): void {
   const state = session.state();
   const stateHash = hashGameState(state);

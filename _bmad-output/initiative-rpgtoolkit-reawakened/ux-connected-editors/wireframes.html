@@ -1,0 +1,204 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connected Game Workshop — wireframe atlas</title><style> :root{color-scheme:light;--fg:#202124;--muted:#53565a;--border:#777b80;--surface:#f3f4f5}*{box-sizing:border-box}body{margin:0;color:var(--fg);background:white;font:14px/1.55 system-ui,sans-serif}header,main,footer{max-inline-size:1440px;margin:auto;padding:24px}h1{font-size:32px}h2{font-size:24px;margin-block:0 8px}h3,h4{margin-block:0 12px}a{color:inherit;text-underline-offset:3px}a:focus-visible{outline:2px solid currentColor;outline-offset:4px}.index,.tools,.cards{display:flex;flex-wrap:wrap;gap:12px}.index a,.tool{border:1px solid var(--border);padding:6px 10px;border-radius:4px}.screen{margin-block:36px 64px;scroll-margin-block-start:16px}.shell{border:2px solid var(--border);border-radius:4px}.top,.status{padding:12px 16px;background:var(--surface)}.top{border-block-end:1px solid var(--border)}.status{border-block-start:1px solid var(--border)}.layout{display:grid;grid-template-columns:minmax(160px,1fr) minmax(0,3.6fr) minmax(180px,1.25fr)}.region{padding:16px;min-inline-size:0}.side{background:var(--surface);white-space:pre-wrap}.editor{border-inline:1px solid var(--border)}.cards>div{flex:1 1 220px;min-inline-size:0;border:1px solid var(--border);padding:16px}.tools{margin-block:16px}.tool{background:var(--surface)}.field{border:1px solid var(--border);padding:10px;margin-block:10px}.hint,.scope{color:var(--muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.7 ui-monospace,monospace}.map{display:grid;grid-template-columns:2fr 1fr 2fr;grid-template-rows:140px 100px;gap:16px;padding:24px;background:repeating-linear-gradient(0deg,transparent,transparent 31px,#ddd 31px,#ddd 32px),repeating-linear-gradient(90deg,transparent,transparent 31px,#ddd 31px,#ddd 32px)}.house,.guard,.trees{border:2px solid var(--border);background:white;padding:16px;text-align:center}.house{grid-column:1}.path{grid-column:2;grid-row:1/3;border-inline:2px dashed var(--border);display:grid;place-items:center}.guard{grid-column:3;outline:2px dashed currentColor;outline-offset:4px}.trees{grid-row:2}.pixels{min-block-size:180px;display:grid;place-content:center;text-align:center;border:1px dashed var(--border);background:repeating-conic-gradient(#fff 0% 25%,#eee 0% 50%) 0/24px 24px}.timeline{padding:24px;border:1px solid var(--border);margin-block:16px;font-family:monospace}.iteration{border-inline-start:4px solid var(--border);padding-inline-start:16px}.notice{border:1px solid var(--border);padding:16px} @media(max-width:900px){.layout{grid-template-columns:1fr}.editor{border-inline:0;border-block:1px solid var(--border)}header,main,footer{padding:16px}} @media print{.screen{break-before:page}.index{display:none}.shell{break-inside:avoid}}</style><body><header><p>TK Reawakened · design proposal · 2026-11-08</p><h1>Connected Game Workshop</h1><p>Game-making clarity. Flexible workspace. Direct manipulation.</p><p class="notice"><strong>Static wireframes, not a working editor.</strong> Navigation links work; depicted controls, values and test strips illustrate proposed interactions only. No engine runs, editing or saving occurs here. Proportions and neutral styling are exploratory.</p><nav aria-label="Wireframes" class="index">
+<a href="#workspace">01 · A game, not an empty IDE</a>
+<a href="#board">02 · Compose without every overlay competing</a>
+<a href="#artwork">03 · Repair shared art in context</a>
+<a href="#animation">04 · Motion, geometry and sound together</a>
+<a href="#database">05 · One record or a deliberate comparison</a>
+<a href="#effects">06 · Follow Poison into a real encounter</a>
+<a href="#events">07 · Approachable actions, first-class code</a>
+<a href="#settings">08 · Find a preference; see who owns it</a>
+<a href="#delivery">09 · Preserve, repair, then hand off</a>
+<a href="#appearance">10 · Appearance is not gameplay logic</a>
+</nav><p><a href="EXPERIENCE.md">Interaction proposal</a> · <a href="architecture.md">Architecture</a> · <a href="flow-coverage.md">Scenario coverage</a></p></header><main>
+<section class="screen" id="workspace" aria-labelledby="workspace-title"><h2 id="workspace-title">01 · A game, not an empty IDE</h2><p>F-01 / F-13</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Game
+Places
+  Village
+  Forest
+People
+Items
+Moves &amp; Effects
+Programs
+Game Setup
+
+Files (also open)
+Boards/
+Prg/</div><div class="region editor"><h3>Continue your game</h3><p class="scope">Last working context: Village entrance</p><div class="tools"><span class="tool">Open Village</span><span class="tool">Open recent program</span><span class="tool">Create artwork</span></div><div class="cards"><div><h4>Make something</h4><p>Place · Person · Item · Program · Artwork</p><p>Choose your starting point. No board required.</p></div><div><h4>Continue a task</h4><p>Guard conversation · unfinished</p><p>Door arrival · needs a test</p></div></div><h4>Find a setting or tool</h4><div class="field">Search: cursor, starting party, grid, export…</div></div><div class="region side">Project context
+Start: Village / south path
+Starting party: Ada
+Game setup →
+
+Recent changes
+Village: saved
+Guard program: unsaved</div></div><div class="status">Preview selection | Test current board | Run game from start</div></div><p class="iteration">First idea: an IDE-like empty editor. Revision: show meaningful starting points and unfinished tasks without prescribing a story-first or board-first workflow.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="board" aria-labelledby="board-title"><h2 id="board-title">02 · Compose without every overlay competing</h2><p>F-02 / F-03</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Village layers
+Ground · visible
+Roof · visible / locked
+
+Overlays
+Collision: shown
+Triggers: hidden
+Lighting: hidden
+
+Assets
+Ground tiles
+Place a door
+Place a person</div><div class="region editor"><h3>Village · Guard selected</h3><p class="scope">Board instance · shared look: Village Guard</p><div class="tools"><span class="tool">Paint</span><span class="tool">Select</span><span class="tool">Collision</span><span class="tool">Connections</span><span class="tool">Atmosphere</span></div><div class="map"><div class="house">INN<br>Door → Interior</div><div class="path">Path</div><div class="guard">Guard<br>[selected]</div><div class="trees">Trees · roof layer</div></div><p class="hint">Collision outline shown. Trigger display hidden. Neither changes runtime behaviour.</p></div><div class="region side">Guard placement
+Position: 8, 6
+Facing: south
+Look: Village Guard →
+
+When spoken to
+Open interaction →
+
+Destination links
+Inn interior → arrival</div></div><div class="status">Test current board · spawn: south path · fixture: without key</div></div><p class="iteration">First idea: put every board tool in an inspector. Revision: separate task tools from view overlays; selecting a person reveals its interaction without burying the canvas.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="artwork" aria-labelledby="artwork-title"><h2 id="artwork-title">03 · Repair shared art in context</h2><p>F-04 / F-05</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Art sources
+Village sheet
+Water animations
+House stamps
+
+Sheet regions
+Roof corner [selected]
+Roof edge
+Wall</div><div class="region editor"><h3>Village roof · pixel edit</h3><p class="scope">Shared source · known uses: Village, Inn · dynamic uses not proven</p><div class="tools"><span class="tool">Pencil</span><span class="tool">Fill</span><span class="tool">Pick colour</span><span class="tool">Import sheet</span><span class="tool">Find uses</span></div><div class="cards"><div><h4>Editable tile</h4><div class="pixels">Roof corner<br>8× zoom<br>checkerboard transparency</div></div><div><h4>Neighbour context · locked</h4><div class="pixels">Roof edge | corner<br>Wall edge | wall</div></div></div><h4>Import / replace review</h4><p>Grid, spacing and transparency preview before applying. Keep existing identity or create an independent copy explicitly.</p></div><div class="region side">Change scope
+Edit shared source
+OR create independent copy
+
+Known uses →
+Source dimensions
+Palette / transparency
+
+External edit detected?
+Preserve both versions</div></div><div class="status">Preview tiling | Review affected uses | Save source</div></div><p class="iteration">The canvas stays editable; neighbour tiles are context, not accidental paint targets. A reusable stamp is not silently promised to be a live linked prefab.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="animation" aria-labelledby="animation-title"><h2 id="animation-title">04 · Motion, geometry and sound together</h2><p>F-05 / F-06</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Animations
+Guard walk
+Guard idle
+Fountain
+
+Stances
+Walk south [selected]
+Walk north
+Stand</div><div class="region editor"><h3>Guard walk · south</h3><p class="scope">Shared animation · opened from Guard placement</p><div class="tools"><span class="tool">Select frame</span><span class="tool">Add frames</span><span class="tool">Onion skin</span><span class="tool">Collision shape</span><span class="tool">Activation shape</span></div><div class="cards"><div class="pixels">Sprite preview<br>Anchor + collision outline<br>Actual size / zoom</div><div><h4>Frame properties</h4><p>Duration: explicit units from selected format</p><p>Frame sound: footstep → audition</p><p>Transparency: inspect edge pixels</p></div></div><div class="timeline">Frame 1 ┃ Frame 2 [selected] ┃ Frame 3 ┃ Frame 4</div><p>Whole fountain preview for multi-cell art; cell timing/synchronisation depends on supported representation.</p></div><div class="region side">Assignment
+Character: Guard
+Stance: walking
+Direction: south
+
+Return to placement →
+
+Geometry
+Anchor ≠ collision
+Collision ≠ activation</div></div><div class="status">Animation preview (not a game run) | Test movement in context</div></div><p class="iteration">Frames are a timeline, not a modal wizard. Geometry is a selectable overlay; frame audition does not claim game-time sound behaviour.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="database" aria-labelledby="database-title"><h2 id="database-title">05 · One record or a deliberate comparison</h2><p>F-07 / F-08</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Game data
+Characters
+Items [selected]
+Enemies
+Moves
+Effects
+
+Find item…
+Potion [selected]
+Iron sword
+Gate key</div><div class="region editor"><h3>Potion · definition</h3><p class="scope">Shared item · acquisition and shop stock are separate</p><div class="tools"><span class="tool">New item</span><span class="tool">Duplicate</span><span class="tool">Compare selected</span><span class="tool">Find uses</span></div><div class="cards"><div><h4>Identity & appearance</h4><div class="field">Potion · look: bottle</div><h4>Where can it be used?</h4><p>Menu use · Battle use · Equip · Board use</p><p>Show all context flags together; each has relevant settings.</p></div><div><h4>Selected context: menu use</h4><div class="field">Target / effect / program references</div><p>Shared fields are labelled; changing this definition affects every linked use.</p></div></div><h4>Compare mode</h4><p>Explicitly select records → review old/new values → preserve exceptions. Not every form becomes a spreadsheet.</p></div><div class="region side">Related work
+Placed pickup →
+Chest contents →
+Shop stock →
+
+Test cases
+Acquire
+Use / refuse
+Cancel
+Equip / unequip</div></div><div class="status">Fixture: Ada with Potion | Test selected use context</div></div><p class="iteration">The same collection grammar supports characters, enemies, moves and effects, but each keeps specialist fields, previews and tests rather than becoming a generic property grid.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="effects" aria-labelledby="effects-title"><h2 id="effects-title">06 · Follow Poison into a real encounter</h2><p>F-09</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Task trail
+Forest encounter
+  Serpent
+    Venom Bite
+      Poison [selected]
+
+Effects
+Poison
+Sleep</div><div class="region editor"><h3>Poison · focused edit</h3><p class="scope">Shared effect · opened from Venom Bite · unsaved</p><div class="tools"><span class="tool">Open full editor</span><span class="tool">Find uses</span><span class="tool">Return to Venom Bite</span></div><div class="cards"><div><h4>Effect</h4><div class="field">Name: Poison</div><div class="field">Duration: configured rounds</div><p>Explain verified rules. Do not interpret zero as infinite without evidence.</p><h4>What it does</h4><p>HP change · SMP change · charge timing · disable target · program</p></div><div><h4>Venom Bite remains in context</h4><p>Target, cost and animation belong to the move.</p><p>Enemy tactics choose when to use it.</p><p>The encounter chooses participants and rules.</p></div></div></div><div class="region side">Known uses
+Venom Bite →
+
+Scope
+Shared definition
+No unsupported local override
+
+Promote to full editor
+Same document / undo history</div></div><div class="status">Run encounter fixture · selected rules · fixed inputs · results not yet run</div></div><p class="iteration">Revision: keep effect, move, enemy and encounter ownership explicit. The focused editor can expand without losing its origin or duplicating pending edits.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="events" aria-labelledby="events-title"><h2 id="events-title">07 · Approachable actions, first-class code</h2><p>F-11</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Village
+Guard interaction
+Door entry
+Chest A
+Chest B
+
+Programs
+guard.prg
+
+Help
+Action reference</div><div class="region editor"><h3>Guard · when spoken to</h3><p class="scope">Authoritative representation labelled · code exceptions preserved</p><div class="tools"><span class="tool">Add action</span><span class="tool">Open program</span><span class="tool">Find uses</span><span class="tool">Test fixture</span></div><div class="cards"><div><h4>Readable interaction</h4><ol><li>If player has Gate key</li><li>Move guard aside</li><li>Say: The forest is unsafe.</li><li>Otherwise: Ask for the key</li></ol><p>Conceptual actions, not asserted RPGCode syntax.</p></div><div><h4>Code view</h4><pre>// Handwritten region retained
+// Language tooling supplied by host
+// Unsupported reverse conversion
+// is explained, never guessed</pre><p>Visual/code round-trip boundary remains an explicit model decision.</p></div></div></div><div class="region side">Fixture
+Player: Ada
+Key: absent / present
+Board: Village
+
+Watch state
+Guard position
+Input restored
+Opened-state ownership</div></div><div class="status">Run selected program fixture | Test board | Normal game start</div></div><p class="iteration">Two chests must not accidentally share opened-state. Skipping a cutscene is tested for final state and restored controls, not only for whether the dialog disappears.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="settings" aria-labelledby="settings-title"><h2 id="settings-title">08 · Find a preference; see who owns it</h2><p>F-01 / F-12</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Preferences
+Editor
+Board tools
+Code
+Accessibility
+
+Game setup (separate)
+Startup
+Input &amp; cursor
+Audio
+Providers</div><div class="region editor"><h3>Editor preferences</h3><p class="scope">Scope: this workspace · effective source shown per setting</p><div class="tools"><span class="tool">Search settings</span><span class="tool">User scope</span><span class="tool">Workspace scope</span><span class="tool">Open JSON</span></div><div class="field">Search: grid</div><h4>Show board grid</h4><div class="field">On · workspace override · default: Off · Reset override</div><p>Changes presentation only, not board collision or game rules.</p><h4>Shared setting definition</h4><pre>type: boolean
+default: false
+description: Show grid while editing boards</pre><p>Illustrative schema metadata, not a selected namespace or shipped setting.</p></div><div class="region side">Portability
+Same definition
+Standalone form / JSON
+VS Code configuration
+
+Invalid JSON
+Explain the error
+Retain last valid value
+Never silently coerce</div></div><div class="status">Game starting point? Open Game Setup → Startup, not editor preferences</div></div><p class="iteration">One schema catalogue is the candidate; scope resolution and persistence are host responsibilities. A schema does not make every VS Code setting feature portable automatically.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="delivery" aria-labelledby="delivery-title"><h2 id="delivery-title">09 · Preserve, repair, then hand off</h2><p>F-13</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Project
+Game view
+Files view
+Find references
+
+Delivery
+Playable game
+Editable project
+Ingredient pack
+
+Recovery</div><div class="region editor"><h3>Share an editable project</h3><p class="scope">Source preserved · recipient output is separate</p><div class="tools"><span class="tool">Review dependencies</span><span class="tool">Review changes</span><span class="tool">Choose destination</span></div><div class="cards"><div><h4>Before writing output</h4><p>Included sources and referenced assets</p><p>Missing or machine-local dependencies</p><p>Rights and provider requirements</p><p>Dynamic references: unresolved, not “unused”</p></div><div><h4>If saving fails</h4><p>Current edit remains unsaved.</p><p>Retry · choose another supported destination · preserve a recovery copy.</p><p>External version stays available for comparison.</p></div></div><h4>Recipient check</h4><p>Open the generated output separately. Test the actual package, not the development source.</p></div><div class="region side">Resume context
+Last durable revision
+Current machine edits
+Recovery available?
+
+Rename / delete review
+Known dependents
+Unresolved references</div></div><div class="status">Output review → Write output → Open recipient copy → Verify</div></div><p class="iteration">No silent conversion of originals. “Saved”, “backed up”, “exported” and “tested” are different states; partial multi-file failure must be reported honestly.</p><a href="#">Back to contents</a></section>
+<section class="screen" id="appearance" aria-labelledby="appearance-title"><h2 id="appearance-title">10 · Appearance is not gameplay logic</h2><p>F-03 / F-10 / F-12</p><div class="shell"><div class="top">Reawakened / Village project　 ·　 Find tool or setting　 ·　 Document save status</div><div class="layout"><div class="region side">Presentation
+Board atmosphere
+Battle backgrounds
+Audio audition
+Window skins
+Cursor
+
+Provider tools</div><div class="region editor"><h3>Forest battle background</h3><p class="scope">Presentation asset · opened from Forest encounter</p><div class="tools"><span class="tool">Image framing</span><span class="tool">Sound roles</span><span class="tool">Audition</span><span class="tool">Open encounter</span></div><div class="cards"><div class="pixels">Background composition<br>Safe content region<br>Representative combatants</div><div><h4>Music and named sound roles</h4><p>Music · cursor · selection · fighter-ready · unavailable</p><p>Audition one sound; stop before leaving.</p><h4>Other presentation tasks</h4><p>Skin: window/button graphics</p><p>Cursor: transparency + hotspot</p><p>Board: shade/image layers; baking reviewed separately</p></div></div><p>Full menu layout needs its own representation/provider; a legacy skin is not one.</p></div><div class="region side">Preview context
+Longer translated text
+Missing glyph warning
+Input affordances
+
+Provider unavailable
+Preserve unknown fields
+Explain how to restore</div></div><div class="status">Visual preview ≠ battle run | Audition ≠ in-game mix | Test encounter</div></div><p class="iteration">A reusable audition panel supports audio work without requiring a battle. Custom providers use the same document/recovery rules; missing tools never erase their data.</p><a href="#">Back to contents</a></section>
+</main><footer>Authored wireframes; no third-party screenshots or game assets. DESIGN.md and EXPERIENCE.md govern the proposal. Host/platform fitness remains to be prototyped.</footer></body></html>

@@ -1,0 +1,4 @@
+contract: actor
+version: 1.2.3
+name: Guard
+plugins: [actors/guard.weather.yaml]

@@ -1,0 +1,25 @@
+// #1778 research (Opus), AUTHORED: same six castle3left placements, generated.
+//   pkl eval -f json castle3left.pkl
+import "Soldiers.pkl"
+
+kind = "scene"
+id = "castle3left"
+size { width = 19; height = 19; layers = 8 }
+
+local columns = List(
+  new Dynamic { actor = "train-soldier1"; x = 208; prg = "scripts/train sold1.prg" },
+  new Dynamic { actor = "train-soldier2"; x = 400; prg = "scripts/train sold2.prg" }
+)
+
+placements: Listing<Soldiers.Placement> = new {
+  for (row in List(0, 1, 2)) {
+    for (col in columns) {
+      new {
+        id = "\(col.actor)-\(row + 1)"
+        actor = col.actor
+        at = List(col.x, 319 + 96 * row, 1)
+        whilePresent { program = col.prg }
+      }
+    }
+  }
+}

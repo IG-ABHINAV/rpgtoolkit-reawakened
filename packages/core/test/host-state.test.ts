@@ -234,6 +234,24 @@ test("validated boundary gamepad records drive real engine input and snapshot re
   equal(live.state.input.actions.up, false);
   equal(live.state.input.actions.left, true);
   equal(live.state.input.actions.down, true);
+  const ordered = validateInputEvent(JSON.parse(JSON.stringify({
+    kind: "host.gamepads",
+    devices: [
+      { device: 0, axes: { x: 1000, y: 0 }, buttons: 0 },
+      { device: 3, axes: { x: 0, y: -1000 }, buttons: 0 },
+    ],
+  })));
+  if (!ordered.ok) throw new Error(ordered.message);
+  const accepted = engine.advance(1, [{ tick: 2, event: ordered.value }]);
+  equal(accepted.consumed[0]?.event.kind, "host.gamepads");
+  equal(live.state.input.actions.right, true);
+  equal(live.state.input.actions.up, true);
+  equal(live.state.input.actions.left, false);
+  const inverted = validateInputEvent({ kind: "host.gamepads", devices: [
+    { device: 3, axes: { x: 0, y: 0 }, buttons: 0 },
+    { device: 0, axes: { x: 0, y: 0 }, buttons: 0 },
+  ] });
+  equal(inverted.ok, false, "the boundary refuses an inverted snapshot before engine delivery");
 });
 test("delayed replacement MainFile re-registers external actions before recomputing held gamepad state", () => {
   const encodeMain = (startupPrg: string) => {

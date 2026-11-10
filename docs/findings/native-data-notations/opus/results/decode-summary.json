@@ -1,0 +1,64 @@
+{
+  "node": "v26.13.0",
+  "games": {
+    "demo": {
+      "root": "/Users/jensen/projects/rpgtoolkit-reawakened/fixtures/legacy/demo",
+      "files": 75,
+      "byStatus": {
+        "decoded": 26,
+        "media-hashed-not-decoded": 38,
+        "not-a-data-format": 4,
+        "program-source": 7
+      },
+      "hashMismatches": 0,
+      "storedBoardVersions": {
+        "2.4": 2
+      }
+    },
+    "ChimeranEmpire": {
+      "root": "/Users/jensen/projects/ludotheque/games/ChimeranEmpire",
+      "files": 665,
+      "byStatus": {
+        "decoded": 287,
+        "media-hashed-not-decoded": 137,
+        "not-a-data-format": 4,
+        "program-source": 233,
+        "zero-byte-placeholder": 4
+      },
+      "hashMismatches": 0,
+      "storedBoardVersions": {
+        "2.2": 98,
+        "null.null": 2
+      }
+    },
+    "Caoquest": {
+      "root": "/Users/jensen/projects/ludotheque/games/Caoquest",
+      "files": 174,
+      "byStatus": {
+        "decoded": 80,
+        "media-hashed-not-decoded": 28,
+        "not-a-data-format": 20,
+        "program-source": 46
+      },
+      "hashMismatches": 0,
+      "storedBoardVersions": {
+        "2.2": 2,
+        "null.null": 14
+      }
+    },
+    "CrystalImmortality": {
+      "root": "/private/tmp/tkr-1778-opus-experiments/inputs/CrystalImmortality",
+      "files": 1545,
+      "byStatus": {
+        "decoded": 493,
+        "media-hashed-not-decoded": 457,
+        "not-a-data-format": 3,
+        "program-source": 592
+      },
+      "hashMismatches": 0,
+      "storedBoardVersions": {
+        "2.2": 242
+      }
+    }
+  }
+}

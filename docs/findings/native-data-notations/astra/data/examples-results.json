@@ -1,0 +1,162 @@
+{
+  "JSON": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.json",
+      "notation": "JSON",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "YAML": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.yaml",
+      "notation": "YAML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "KDL": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.kdl",
+      "notation": "KDL",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "TOML": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": false,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.toml",
+      "notation": "TOML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "JSON5": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.json5",
+      "notation": "JSON5",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "Hjson": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.hjson",
+      "notation": "Hjson",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "EDN": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.edn",
+      "notation": "EDN",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "XML": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.xml",
+      "notation": "XML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "SDLang": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.sdl",
+      "notation": "SDLang",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  },
+  "RON": {
+    "roundtrip": true,
+    "objectKeyOrderEqual": true,
+    "validation": {
+      "file": "$SCRATCH/examples/keeper.ron",
+      "notation": "RON",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    }
+  }
+}

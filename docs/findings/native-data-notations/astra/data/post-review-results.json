@@ -1,0 +1,782 @@
+{
+  "model": "openai-codex/gpt-6-astra",
+  "issues": [
+    1780,
+    1781,
+    1789,
+    1792,
+    1795,
+    1798
+  ],
+  "semanticOracles": {
+    "simultaneous-add": {
+      "allowedFullDocuments": 2,
+      "rejected": [
+        "actorName",
+        "placementOrder",
+        "placementActor",
+        "existingFrameSound",
+        "frameOrder",
+        "extraRootField",
+        "duplicateFrame",
+        "addedPlacementContent"
+      ]
+    },
+    "frame-insert-reorder": {
+      "allowedFullDocuments": 1,
+      "rejected": [
+        "actorName",
+        "placementOrder",
+        "placementActor",
+        "existingFrameSound",
+        "frameOrder",
+        "extraRootField",
+        "duplicateFrame",
+        "insertedFrameContent"
+      ]
+    },
+    "frame-remove-edit": {
+      "allowedFullDocuments": 1,
+      "rejected": [
+        "actorName",
+        "placementOrder",
+        "placementActor",
+        "existingFrameSound",
+        "frameOrder",
+        "extraRootField",
+        "duplicateFrame"
+      ]
+    }
+  },
+  "references": {
+    "JSON": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "YAML": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "KDL": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "TOML": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "JSON5": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "Hjson": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "EDN": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "XML": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "SDLang": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    },
+    "RON": {
+      "fullExpectedDocument": true,
+      "rewrittenReferences": 3,
+      "stalePerformance": [
+        {
+          "path": "/designExample/performance/actor",
+          "missing": "actor:item/cao2.itm"
+        }
+      ],
+      "cliExit": 1
+    }
+  },
+  "sameIdGitCases": {
+    "JSON": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "YAML": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "KDL": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "TOML": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "JSON5": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "Hjson": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "EDN": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "XML": {
+      "same-id-placement-disjoint": {
+        "gitExit": 1,
+        "classification": "textual conflict; no parsed merge credited"
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "SDLang": {
+      "same-id-placement-disjoint": {
+        "gitExit": 1,
+        "classification": "textual conflict; no parsed merge credited"
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    },
+    "RON": {
+      "same-id-placement-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/scene/placements/6/id",
+            "firstPath": "/scene/placements/1/id",
+            "id": "same-added"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      },
+      "same-id-frame-disjoint": {
+        "gitExit": 0,
+        "classification": "false-clean duplicate identity rejected",
+        "identityErrors": [
+          {
+            "keyword": "uniqueIdentity",
+            "instancePath": "/clip/frames/5/id",
+            "firstPath": "/clip/frames/0/id",
+            "id": "same-frame"
+          }
+        ],
+        "schemaValid": true,
+        "coreValid": false,
+        "cliExit": 1
+      }
+    }
+  },
+  "duplicateValidation": {
+    "JSON": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "YAML": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "KDL": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "TOML": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "JSON5": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "Hjson": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "EDN": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "XML": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "SDLang": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    },
+    "RON": {
+      "errors": [
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/scene/placements/6/id",
+          "firstPath": "/scene/placements/0/id",
+          "id": "placement-0"
+        },
+        {
+          "keyword": "uniqueIdentity",
+          "instancePath": "/clip/frames/4/id",
+          "firstPath": "/clip/frames/0/id",
+          "id": "frame-0"
+        }
+      ],
+      "cliExit": 1
+    }
+  },
+  "xml": {
+    "whitespace": {
+      "ownParserEqual": true,
+      "independentParser": "Python xml.etree.ElementTree",
+      "independentEqual": true,
+      "keys": [
+        "a\nb",
+        "a\tb",
+        "a\rb",
+        "a b",
+        "a&#10;b",
+        "quote\"&<"
+      ]
+    },
+    "forbidden": [
+      {
+        "code": 0,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 1,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 8,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 11,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 12,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 14,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 31,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 55296,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 56320,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 65534,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      },
+      {
+        "code": 65535,
+        "rejectedEncodeKeyAndValue": true,
+        "rejectedDecodeLiteralAndReference": true,
+        "independentReferenceExit": 1
+      }
+    ],
+    "allowedCharacterBoundariesAndLiteralReferences": true,
+    "booleans": [
+      {
+        "token": "treu",
+        "rejected": true
+      },
+      {
+        "token": "FALSE",
+        "rejected": true
+      },
+      {
+        "token": "",
+        "rejected": true
+      },
+      {
+        "token": "1",
+        "rejected": true
+      },
+      {
+        "token": "0",
+        "rejected": true
+      },
+      {
+        "token": " true ",
+        "rejected": true
+      }
+    ]
+  },
+  "mutations": {
+    "full-document": {
+      "brokenGuard": "assertion failed as required",
+      "reason": "Expected values to be strictly equal:\n\ntrue !== false\n",
+      "restoredGuard": "passed in positive/negative probes above"
+    },
+    "performance-reference": {
+      "brokenGuard": "assertion failed as required",
+      "reason": "The expression evaluated to a falsy value:\n\n  assert(missingRef.unresolvedActorReferences(stale).some(r => r.path === '/designExample/performance/actor'))\n",
+      "restoredGuard": "passed in positive/negative probes above"
+    },
+    "duplicate-identity": {
+      "brokenGuard": "assertion failed as required",
+      "reason": "The expression evaluated to a falsy value:\n\n  assert(noIdentity.duplicateIdentities(duplicates).some(e => e.keyword === 'uniqueIdentity'))\n",
+      "restoredGuard": "passed in positive/negative probes above"
+    },
+    "xml-whitespace": {
+      "brokenGuard": "assertion failed as required",
+      "reason": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    payload: {\n      'a b': 4,\n      'a&#10;b': 5,\n-     'a\\nb': 1,\n      'a\\rb': 3,\n-     'a\\tb': 2,\n      'quote\"&<': 6\n    },\n    source: 'line\\r\\n\\tα雨😀\\n'\n  }\n",
+      "restoredGuard": "passed in positive/negative probes above"
+    },
+    "xml-character": {
+      "brokenGuard": "assertion failed as required",
+      "reason": "Missing expected exception.",
+      "restoredGuard": "passed in positive/negative probes above"
+    },
+    "xml-character-reference": {
+      "brokenGuard": "assertion failed as required",
+      "reason": "Missing expected exception.",
+      "restoredGuard": "passed in positive/negative probes above"
+    },
+    "xml-boolean": {
+      "brokenGuard": "assertion failed as required",
+      "reason": "Missing expected exception.",
+      "restoredGuard": "passed in positive/negative probes above"
+    }
+  }
+}

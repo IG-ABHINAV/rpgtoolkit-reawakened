@@ -1,0 +1,129 @@
+# Desktop editor implementation stories; cross-epic providers are planned, not implemented.
+
+[[entry]]
+id = 1
+tracker_id = "#1758"
+type = "story"
+title = "Desktop editor project tracer"
+description = "Build the separate Electron editor application and its platform-services adapter to open, edit, save and reopen a real main file using the shared editor UI and model."
+verify = "Launch the editor, change a real .gam field, save, restart and observe the persisted value through the same shared editor build."
+covers = ["CAP-18"]
+after = ["11.1", "11.2"]
+hitl = false
+risk = "high"
+plan_checkpoint = true
+
+[[entry]]
+id = 2
+tracker_id = "#1759"
+type = "story"
+title = "Secure desktop process and service boundary"
+description = "Harden the editor app scheme, renderer, preload and project-scoped platform-service IPC without introducing host-specific editor features."
+verify = "Exercise allowed editor requests and reject untrusted navigation, arbitrary IPC, filesystem escape and malformed requests in the packaged application."
+covers = ["CAP-18"]
+after = [1]
+hitl = false
+risk = "high"
+plan_checkpoint = true
+
+[[entry]]
+id = 3
+tracker_id = "#1760"
+type = "story"
+title = "Desktop document lifecycle and file watching"
+description = "Implement filesystem, dialogs, watches and document events against shared lifecycle and conformance contracts, retaining dirty work through external changes and failures."
+verify = "Run host conformance plus real-file scenarios for save failure, cancel, external modification, rename and close without losing the unsaved document."
+covers = ["CAP-18"]
+after = [2, "11.3"]
+hitl = false
+risk = "high"
+plan_checkpoint = true
+
+[[entry]]
+id = 4
+tracker_id = "#1761"
+type = "story"
+title = "Desktop project entry and file association"
+description = "Implement native project selection, drag-and-drop and explicitly requested editor file association with safe project routing and observable unsupported states."
+verify = "Open the intended project via dialog, drop and an explicitly registered association and verify cancel or refusal does not replace dirty work."
+covers = ["CAP-18", "T-82"]
+after = [3]
+hitl = true
+risk = "high"
+plan_checkpoint = true
+
+[[entry]]
+id = 5
+tracker_id = "#1762"
+type = "story"
+title = "Desktop workspace preferences and language services"
+description = "Connect shared workspace, settings, Monaco and language services to desktop platform services without duplicating their models or UI."
+verify = "Open Game and Files views and a program, change a preference, restart and verify language feedback and document identity remain correct."
+covers = ["CAP-18"]
+after = [4, "11.4", "11.5", "11.7"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 6
+tracker_id = "#1763"
+type = "story"
+title = "Desktop preview and creator test services"
+description = "Connect the embedded shared runner and creator test services to desktop project documents using explicit saved revision and fixture boundaries."
+verify = "Run a game and an RPGCode fixture from the desktop editor and verify results identify their input revision while later authoring changes do not mutate the running session."
+covers = ["CAP-18"]
+after = [5, "11.8", "11.9"]
+hitl = false
+risk = "high"
+plan_checkpoint = true
+
+[[entry]]
+id = 7
+tracker_id = "#1764"
+type = "story"
+title = "Three-platform editor behavior measurements"
+description = "Measure native editor I/O, watching, dialogs, association, drag-and-drop and the shared board tracer on macOS, Windows and Linux and record the ADR 0013 decision and results."
+verify = "On each named operating system record versioned evidence for a real board edit/save/reopen, external change, dialog, explicit association and dropped project."
+covers = ["CAP-18", "T-82"]
+after = [6, "12.1"]
+hitl = true
+risk = "high"
+plan_checkpoint = true
+
+[[entry]]
+id = 8
+tracker_id = "#1765"
+type = "story"
+title = "Independent editor release signing and updates"
+description = "Package and distribute the editor independently with platform signing, macOS notarisation, updater and editor-only release identity under the ADR 0013 Electron inventory rule."
+verify = "Install and update signed editor artifacts on macOS, Windows and Linux, verify authenticity and Chromium inventory, and show the player remains independently installed and unchanged."
+covers = ["CAP-18"]
+after = [7, "9.10"]
+hitl = true
+risk = "high"
+plan_checkpoint = true
+
+[[entry]]
+id = 9
+tracker_id = "#1766"
+type = "story"
+title = "Refactor sweep"
+description = "Clean up desktop-host duplication, integration seams and documented deferred review findings without adding features."
+verify = "Review the completed desktop stories and remove dead host-only paths while preserving their existing conformance and integration coverage."
+covers = ["CAP-18"]
+after = [1, 2, 3, 4, 5, 6, 7, 8]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 10
+tracker_id = "#1767"
+type = "story"
+title = "Desktop editor end-to-end acceptance"
+description = "Prove the complete desktop editor lifecycle and independent signed release using shared editor capabilities across all three target operating systems."
+verify = "Execute the per-platform install, conflict, upgrade and independent-player journey, plus 12.14's complete new-project, all-P0-editors, save/reopen, package and actual-output run proof on desktop."
+covers = ["CAP-18"]
+after = [9, "12.14"]
+hitl = true
+risk = "high"
+plan_checkpoint = true

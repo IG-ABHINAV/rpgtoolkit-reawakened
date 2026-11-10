@@ -14,7 +14,7 @@ Monorepo, one language (TypeScript). Dependency direction is fixed (G2): `core �
 | `runner-mobile` | `runner-web` in Capacitor. | CAP-12 |
 | `lsp`, `dap` | RPGCode language server, linter, formatter, test framework, help generator and debug adapter built on core's parser and VM. | CAP-14 |
 | `editor-model` | DOM-free document model: bytes and a stack of serialisable commands; runs in the VS Code extension host and in-page elsewhere. | CAP-15…18 |
-| `editor-ui` | Host-agnostic editor components (board, sprite, animation, tile/tileset, tile bitmap, data editors; CodeMirror 6 for scripts) over the platform-services interface (fs, project, run, export, dialogs, clipboard, document events, language.connect, shell.openExternal, settings). | CAP-15…17 |
+| `editor-ui` | Host-agnostic editor components (board, sprite, animation, tile/tileset, tile bitmap, data editors; Monaco for standalone/browser scripts, with VS Code using native text editing per [ADR 0021](../../../docs/adr/0021-monaco-code-editor.md)) over the platform-services interface (fs, project, run, export, dialogs, clipboard, document events, language.connect, shell.openExternal, settings). | CAP-15…17 |
 | `host-vscode` | VS Code extension: webview custom editors, bundled LSP and DAP, tasks, `vscode.dev` web build; VS Code Marketplace and Open VSX. | CAP-18 |
 | `host-web` | Standalone PWA editor (File System Access API / OPFS + ZIP). | CAP-18 |
 | `host-desktop` | Standalone editor in a desktop shell; shell chosen by spike. | CAP-18 |

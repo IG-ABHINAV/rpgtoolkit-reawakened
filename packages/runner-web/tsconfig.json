@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2022", "DOM", "ES2024.Promise"],
+    "lib": ["ES2022", "DOM"],
     "types": [],
     "rootDir": "src",
     "outDir": "dist"

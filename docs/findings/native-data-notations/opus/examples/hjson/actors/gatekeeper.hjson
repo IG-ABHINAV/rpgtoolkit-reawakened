@@ -1,0 +1,29 @@
+{
+  kind: actor
+  id: gatekeeper
+  name: Gatekeeper
+  presence: {
+    clips: {
+      walk: {south: "gatekeeper/walk-south", north: "gatekeeper/walk-north"}
+    }
+    timing: {secondsPerFrame: 0.3, idleAfterSeconds: 3}
+    collision: [
+      [-15, -15]
+      [15, -15]
+      [15, 0]
+      [-15, 0]
+    ]
+    activation: [
+      [-24, -24]
+      [24, -24]
+      [24, 8]
+      [-24, 8]
+    ]
+  }
+  behaviour: {
+    onActivate: {program: "scripts/gatekeeper.prg"}
+  }
+  extensions: {
+    org.example.dialogue-portraits: {version: 2, portrait: "media/images/gatekeeper-face.png", mood: "stern"}
+  }
+}

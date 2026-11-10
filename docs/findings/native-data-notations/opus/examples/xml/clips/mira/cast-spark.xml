@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://www.w3.org/2005/xpath-functions">
+  <string key="kind">clip</string>
+  <string key="id">mira/cast-spark</string>
+  <array key="size"><number>32</number><number>64</number></array>
+  <number key="secondsPerFrame">0.1</number>
+  <array key="frames">
+    <map>
+      <string key="id">raise</string>
+      <map key="tile">
+        <string key="tileset">people</string>
+        <number key="tile">44</number>
+      </map>
+    </map>
+    <map>
+      <string key="id">release</string>
+      <map key="tile">
+        <string key="tileset">people</string>
+        <number key="tile">45</number>
+      </map>
+    </map>
+  </array>
+</map>

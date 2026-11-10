@@ -23,6 +23,13 @@ function errorOf(run: () => unknown): { code: string; message: string } {
   }
   throw new Error("expected the call to throw");
 }
+test("inline package startups give their lambdas distinct stable identities", () => {
+  const text = "f = (x) => x\n";
+  const alpha = compileProgram({ kind: "inline", text, ir: "1", owner: "alpha" });
+  const beta = compileProgram({ kind: "inline", text, ir: "1", owner: "beta" });
+  deepEqual(Object.keys(alpha.functions), ["<package:alpha>#lambda_1"]);
+  deepEqual(Object.keys(beta.functions), ["<package:beta>#lambda_1"]);
+});
 test("all documented compile-time constants tokenize case-insensitively as their numeric values", () => {
   const constants: Readonly<Record<string, number>> = {
     tkMV_PAUSE_THREAD: 1, tkMV_CLEAR_QUEUE: 2, tkMV_PATHFIND: 4,

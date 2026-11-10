@@ -521,3 +521,43 @@ test("a built-in shadowed while a package also supplies the name still names the
   deepEqual(warnings[0]!.previous, 'built-in "core"');
   deepEqual(warnings[0]!.winner, 'built-in "core"');
 });
+
+test("pre-#1673 saves with <inline>#lambda_N package startup closures and collided defOwners migrate and run (#1676)", () => {
+  const spec: RigSpec = {
+    packages: [
+      { name: "alpha", source: "alphaObj = { fn: (n) => n + 10 }\n" },
+      { name: "beta", source: "betaObj = { fn: (n) => n + 20 }\n" },
+    ],
+  };
+  const initial = boot(spec, "sleep(1)\na = alphaObj.fn(5)\nb = betaObj.fn(5)\n");
+  advanceScriptTick(initial.state, initial.services);
+  drainDiagnostics(initial.services);
+
+  // Rewrite the snapshot to the pre-#1673 layout where both inline package startups emitted
+  // `<inline>#lambda_1` and `vm.defOwners` kept only the first package's ProgramRef.
+  const pre1673 = JSON.parse(snapshot(initial.state)) as {
+    vm: {
+      defOwners: Record<string, unknown>;
+      objects: Array<{ members: Record<string, { type?: string; def?: string; owner?: string }> }>;
+    };
+  };
+  const alphaRef = pre1673.vm.defOwners["<package:alpha>#lambda_1"];
+  ok(alphaRef !== undefined);
+  pre1673.vm.defOwners = { "<inline>#lambda_1": alphaRef };
+  for (const object of pre1673.vm.objects) {
+    for (const member of Object.values(object.members)) {
+      if (member?.type === "callable" && typeof member.def === "string") {
+        member.def = "<inline>#lambda_1";
+      }
+    }
+  }
+
+  const restored = restore(initial, JSON.stringify(pre1673));
+  deepEqual(Object.keys(restored.state.vm.defOwners ?? {}).sort(), [
+    "<package:alpha>#lambda_1",
+    "<package:beta>#lambda_1",
+  ]);
+  deepEqual(run(restored), []);
+  equal(restored.state.vm.globals.a, 15);
+  equal(restored.state.vm.globals.b, 25);
+});

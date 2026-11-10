@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import {
+  composeBoard,
   createEmptyBoard,
   createGameState,
   enqueueDirectionMove,
@@ -12,6 +13,7 @@ import {
   runMovementPhase,
   snapshot,
   hashState,
+  spriteDraws,
   ticksPerAdvance,
   type MovementEvent,
   type WorldBoard,
@@ -154,6 +156,53 @@ test("direct sprite collision freezes the stationary loser for 120 ticks", () =>
   equal(sprites.items[0]?.frozenUntil, 144);
   equal(sprites.players[0]?.x, 80);
   equal(events.some((record) => record.type === "sprite-collision" && record.winner === "hero" && record.loser === "npc.itm"), true);
+});
+
+test("a newly solid wall, item or actor ends the active step and allows retreat", () => {
+  for (const obstacle of ["wall", "item", "actor"]) {
+    let currentBoard = board([], obstacle === "item" ? [npcItem()] : []);
+    const sprites = playerState(currentBoard);
+    if (obstacle === "actor") sprites.players.push({ ...sprites.players[0]!, id: "other", index: 1, controlled: false, x: 112 });
+    enqueueDirectionMove(sprites, "hero", "E", 0);
+    runMovementPhase(sprites, currentBoard, 0);
+    equal(sprites.players[0]?.x, 52);
+    if (obstacle === "wall") currentBoard = board([{ handle: "closing-wall", attributes: 0, closed: 1, layer: 1, type: 1, points: [{ x: 70, y: 32 }, { x: 74, y: 32 }, { x: 74, y: 90 }, { x: 70, y: 90 }] }]);
+    else if (obstacle === "item") sprites.items[0] = { ...sprites.items[0]!, x: 84 };
+    else sprites.players[1] = { ...sprites.players[1]!, x: 84 };
+    const events: MovementEvent[] = [];
+    for (let tick = 1; tick <= 3; tick += 1) events.push(...runMovementPhase(sprites, currentBoard, tick));
+    equal(sprites.players[0]?.x, 52, obstacle);
+    equal(sprites.players[0]?.movement.active, null, obstacle);
+    equal(events.some((event) => event.type === "step-complete"), false, obstacle);
+    equal(events.filter((event) => event.type === "movement-complete" && event.actor === "hero" && event.blocked === true).length, 1, obstacle);
+    enqueueDirectionMove(sprites, "hero", "W", 1, true);
+    for (let tick = 4; tick <= 6; tick += 1) runMovementPhase(sprites, currentBoard, tick, { pixelMovement: 1 });
+    equal(sprites.players[0]?.x, 48, `${obstacle}: retreat`);
+    if (obstacle === "item") {
+      setWaypoint(sprites, "npc.itm", [{ x: 120, y: 63 }], 0, true);
+      runMovementPhase(sprites, currentBoard, 123);
+      runMovementPhase(sprites, currentBoard, 124);
+      equal(sprites.items[0]?.x, 88, "the NPC patrol resumes after thaw");
+    }
+  }
+});
+
+test("cadence, frozen and idle ticks do not replay a previous displacement", () => {
+  for (const state of ["moving", "frozen", "waiting"] as const) {
+    const currentBoard = board();
+    const sprites = playerState(currentBoard);
+    const renderedX = (alpha: number) => composeBoard({
+      board: { ...currentBoard, layers: [{ tiles: [] }], background: { r: 0, g: 0, b: 0 }, ambient: { r: 0, g: 0, b: 0 } }, tick: 0, camera: { x: 0, y: 0 }, viewport: { width: 320, height: 320 },
+      alpha, include: { shading: false, images: false, sprites: true }, sprites: spriteDraws(sprites),
+    }).commands.filter((command) => command.kind === "rect").find((command) => command.rect.w === 16 && command.rect.h === 16)?.rect.x;
+    enqueueDirectionMove(sprites, "hero", "E", 0);
+    runMovementPhase(sprites, currentBoard, 0);
+    equal(renderedX(0), 40, "the movement tick starts at the previous position");
+    equal(renderedX(0.5), 42, "actual movement still interpolates");
+    sprites.players[0] = { ...sprites.players[0]!, state, frozenUntil: state === "frozen" ? 120 : null, movement: { ...sprites.players[0]!.movement, active: state === "waiting" ? null : sprites.players[0]!.movement.active } };
+    runMovementPhase(sprites, currentBoard, 1);
+    deepEqual([renderedX(0), renderedX(0.5), renderedX(1)], [44, 44, 44], state);
+  }
 });
 
 test("active movement survives snapshot restore with equal later behavior", () => {

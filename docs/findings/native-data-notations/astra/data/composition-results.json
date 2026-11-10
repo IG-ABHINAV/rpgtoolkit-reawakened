@@ -1,0 +1,316 @@
+{
+  "HOCON": {
+    "version": {
+      "command": [
+        "/opt/homebrew/opt/openjdk/bin/java",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "openjdk 27.0.1.0.3 2026-10-24\nOpenJDK Runtime Environment Homebrew (build 27.0.1.0.3)\nOpenJDK 64-Bit Server VM Homebrew (build 27.0.1.0.3, mixed mode, sharing)\n",
+      "stderr": "",
+      "elapsedMs": 96.68050000618678
+    },
+    "evaluate": {
+      "command": [
+        "/opt/homebrew/opt/openjdk/bin/java",
+        "-cp",
+        "/private/tmp/tkr-1778-astra-experiments/config-1.4.10.jar",
+        "/private/tmp/tkr-1778-astra/tools/research/native-data-notations/astra/HoconProbe.java",
+        "actor.conf"
+      ],
+      "status": 0,
+      "stdout": "{\"actor\":{\"hp\":120,\"name\":\"Frap\",\"speed\":2},\"base\":{\"hp\":100,\"name\":\"Frap\",\"speed\":2}}\n",
+      "stderr": "hp origin=/private/tmp/tkr-1778-astra-experiments/composition/actor.conf: 3\nname origin=/private/tmp/tkr-1778-astra-experiments/composition/defaults.conf: 1\n",
+      "elapsedMs": 501.80512499355245
+    },
+    "editOverride": {
+      "command": [
+        "/opt/homebrew/opt/openjdk/bin/java",
+        "-cp",
+        "/private/tmp/tkr-1778-astra-experiments/config-1.4.10.jar",
+        "/private/tmp/tkr-1778-astra/tools/research/native-data-notations/astra/HoconProbe.java",
+        "override.conf"
+      ],
+      "status": 0,
+      "stdout": "{\"actor\":{\"hp\":140,\"name\":\"Frap\",\"speed\":2},\"base\":{\"hp\":100,\"name\":\"Frap\",\"speed\":2}}\n",
+      "stderr": "hp origin=/private/tmp/tkr-1778-astra-experiments/composition/override.conf: 2\nname origin=/private/tmp/tkr-1778-astra-experiments/composition/defaults.conf: 1\n",
+      "elapsedMs": 385.20341699768323
+    },
+    "invalid": {
+      "command": [
+        "/opt/homebrew/opt/openjdk/bin/java",
+        "-cp",
+        "/private/tmp/tkr-1778-astra-experiments/config-1.4.10.jar",
+        "/private/tmp/tkr-1778-astra/tools/research/native-data-notations/astra/HoconProbe.java",
+        "bad.conf"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "Exception in thread \"main\" com.typesafe.config.ConfigException$WrongType: /private/tmp/tkr-1778-astra-experiments/composition/bad.conf: 2: actor.hp has type STRING rather than NUMBER\n\tat com.typesafe.config.impl.SimpleConfig.findKeyOrNull(SimpleConfig.java:168)\n\tat com.typesafe.config.impl.SimpleConfig.findOrNull(SimpleConfig.java:179)\n\tat com.typesafe.config.impl.SimpleConfig.findOrNull(SimpleConfig.java:185)\n\tat com.typesafe.config.impl.SimpleConfig.find(SimpleConfig.java:193)\n\tat com.typesafe.config.impl.SimpleConfig.find(SimpleConfig.java:198)\n\tat com.typesafe.config.impl.SimpleConfig.getConfigNumber(SimpleConfig.java:228)\n\tat com.typesafe.config.impl.SimpleConfig.getInt(SimpleConfig.java:239)\n\tat HoconProbe.main(HoconProbe.java:8)\n",
+      "elapsedMs": 495.9080829867162
+    },
+    "environmentDisabled": {
+      "command": [
+        "/opt/homebrew/opt/openjdk/bin/java",
+        "-cp",
+        "/private/tmp/tkr-1778-astra-experiments/config-1.4.10.jar",
+        "/private/tmp/tkr-1778-astra/tools/research/native-data-notations/astra/HoconProbe.java",
+        "environment.conf"
+      ],
+      "status": 0,
+      "stdout": "{\"actor\":{\"hp\":100,\"name\":\"Frap\"}}\n",
+      "stderr": "hp origin=/private/tmp/tkr-1778-astra-experiments/composition/environment.conf: 1\nname origin=/private/tmp/tkr-1778-astra-experiments/composition/environment.conf: 1\n",
+      "elapsedMs": 440.01341600960586
+    },
+    "writePolicy": "write actor.hp to override.conf; changing defaults.conf intentionally affects all inheritors; substitutions do not support arithmetic"
+  },
+  "CUE": {
+    "version": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/cue",
+        "version"
+      ],
+      "status": 0,
+      "stdout": "cue version v0.17.1\n\nCUE language version v0.17.1\n\nGo version go1.26.5\n      -buildmode exe\n       -compiler gc\n       -trimpath true\n     CGO_ENABLED 0\n          GOARCH arm64\n            GOOS darwin\n         GOARM64 v8.0\n",
+      "stderr": "",
+      "elapsedMs": 56.29454100562725
+    },
+    "evaluate": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/cue",
+        "export",
+        "defaults.cue",
+        "actor.cue",
+        "-e",
+        "actor"
+      ],
+      "status": 0,
+      "stdout": "{\n    \"name\": \"Frap\",\n    \"hp\": 120,\n    \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 13.893541996367276
+    },
+    "editComputedConflict": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/cue",
+        "export",
+        "defaults.cue",
+        "actor.cue",
+        "override.cue",
+        "-e",
+        "actor"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "actor.hp: conflicting values 120 and 140:\n    ./actor.cue:2:39\n    ./override.cue:2:12\n",
+      "elapsedMs": 11.98304099671077
+    },
+    "editDefaultOverride": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/cue",
+        "export",
+        "defaults.cue",
+        "editable.cue",
+        "override.cue",
+        "-e",
+        "actor"
+      ],
+      "status": 0,
+      "stdout": "{\n    \"name\": \"Frap\",\n    \"hp\": 140,\n    \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 13.653709000209346
+    },
+    "invalid": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/cue",
+        "export",
+        "defaults.cue",
+        "actor.cue",
+        "bad.cue",
+        "-e",
+        "actor"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "actor.hp: conflicting values \"invalid\" and int (mismatched types string and int):\n    ./actor.cue:2:8\n    ./bad.cue:2:12\n    ./defaults.cue:2:28\n",
+      "elapsedMs": 14.637833999586292
+    },
+    "writePolicy": "computed constraints cannot be overridden; edit expression at actor.cue or design an explicit default alternative; unification is not Git conflict resolution"
+  },
+  "Dhall": {
+    "version": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/dhall",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "1.42.2\n",
+      "stderr": "",
+      "elapsedMs": 68.16633300331887
+    },
+    "evaluate": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/dhall-to-json",
+        "--file",
+        "actor.dhall"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"hp\": 120,\n  \"name\": \"Frap\",\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 101.42945899860933
+    },
+    "editOverride": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/dhall-to-json",
+        "--file",
+        "override.dhall"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"hp\": 140,\n  \"name\": \"Frap\",\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 21.467292011948302
+    },
+    "invalid": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/dhall-to-json",
+        "--file",
+        "bad.dhall"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "\n\n\u001b[1;31mError\u001b[0m: Expression doesn't match annotation\n\n{ hp : - Natural\n       + Text\n, …\n}\n\n2│    (actor // { hp = \"invalid\" }) : { name : Text, hp : Natural, speed : Natural }\n\nbad.dhall:2:4\n",
+      "elapsedMs": 32.40233298856765
+    },
+    "writePolicy": "write an explicit record override in override.dhall; normalization produces values but not original comments/import provenance"
+  },
+  "Nickel": {
+    "version": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/nickel",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "nickel-lang-cli nickel 1.18.0 (rev e6515c4)\n",
+      "stderr": "",
+      "elapsedMs": 15.019792001112364
+    },
+    "evaluate": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/nickel",
+        "export",
+        "actor.ncl"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"hp\": 120,\n  \"name\": \"Frap\",\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 32.10100000433158
+    },
+    "editOverride": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/nickel",
+        "export",
+        "override.ncl"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"hp\": 120,\n  \"name\": \"Frap\",\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 11.729332996765152
+    },
+    "invalid": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/nickel",
+        "export",
+        "bad.ncl"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"hp\": 120,\n  \"name\": \"Frap\",\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 11.840791994472966
+    },
+    "conflict": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/nickel",
+        "export",
+        "conflict.ncl"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "error: non mergeable terms\n  ┌─ /private/tmp/tkr-1778-astra-experiments/composition/conflict.ncl:1:8\n  │\n1 │ { hp = 100 } & { hp = 120 }\n  │ -------^^^------------^^^--\n  │ │      │              │\n  │ │      │              with this expression\n  │ │      cannot merge this expression\n  │ originally merged here\n  │\n  = Merge operands have the same merge priority but they can't be combined.\n  = Both values are of type Number but they aren't equal.\n  = Number values can only be merged if they are equal\n\n",
+      "elapsedMs": 15.39545800187625
+    },
+    "writePolicy": "priority cannot automatically choose a creator-intended owner; force has stronger priority than ordinary numeric priorities; keep source expression or introduce an explicit edit field",
+    "editExplicitPriority": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/nickel",
+        "export",
+        "editable-override.ncl"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"hp\": 140,\n  \"name\": \"Frap\",\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 13.602958992123604
+    },
+    "invalidUnshadowed": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/nickel",
+        "export",
+        "editable-bad.ncl"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "error: contract broken by the value of `hp`\n  ┌─ /private/tmp/tkr-1778-astra-experiments/composition/editable.ncl:2:15\n  │\n2 │ base & { hp | Number | priority 1 = base.hp + 20, speed | Number }\n  │               ------ expected type\n  │\n  ┌─ /private/tmp/tkr-1778-astra-experiments/composition/editable-bad.ncl:2:31\n  │\n2 │ actor & { hp | priority 100 = \"invalid\" }\n  │                               ^^^^^^^^^ applied to this expression\n  │\n  ┌─ <unknown> (generated by evaluation):1:1\n  │\n1 │ \"invalid\"\n  │ --------- evaluated to this value\n\n",
+      "elapsedMs": 13.613957999041304
+    }
+  },
+  "Pkl": {
+    "version": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/pkl",
+        "--version"
+      ],
+      "status": 0,
+      "stdout": "Pkl 0.33.0 (macOS 26.6.2, native)\n",
+      "stderr": "",
+      "elapsedMs": 70.77358299284242
+    },
+    "evaluate": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/pkl",
+        "eval",
+        "-f",
+        "json",
+        "actor.pkl"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"name\": \"Frap\",\n  \"hp\": 120,\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 65.33887499244884
+    },
+    "editOverride": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/pkl",
+        "eval",
+        "-f",
+        "json",
+        "override.pkl"
+      ],
+      "status": 0,
+      "stdout": "{\n  \"name\": \"Frap\",\n  \"hp\": 140,\n  \"speed\": 2\n}\n",
+      "stderr": "",
+      "elapsedMs": 12.985542009118944
+    },
+    "invalid": {
+      "command": [
+        "/private/tmp/tkr-1778-astra-experiments/bin/pkl",
+        "eval",
+        "-f",
+        "json",
+        "bad.pkl"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "–– Pkl Error ––\nExpected value of type `Int`, but got type `String`.\nValue: \"invalid\"\n\n2 | hp: Int(isBetween(0, 10000)) = 100\n        ^^^\nat defaults#hp (file:///private/tmp/tkr-1778-astra-experiments/composition/defaults.pkl, line 2)\n\n2 | hp = \"invalid\"\n         ^^^^^^^^^\nat bad#hp (file:///private/tmp/tkr-1778-astra-experiments/composition/bad.pkl, line 2)\n\n133 | renderer.renderDocument(value)\n      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nat pkl.base#Module.output.text (https://github.com/apple/pkl/blob/0.33.0/stdlib/base.pkl#L133)\n\n137 | if (renderer is BytesRenderer) renderer.renderDocument(value) else text.encodeToBytes(\"UTF-8\")\n                                                                         ^^^^\nat pkl.base#Module.output.bytes (https://github.com/apple/pkl/blob/0.33.0/stdlib/base.pkl#L137)\n",
+      "elapsedMs": 53.0492910038447
+    },
+    "writePolicy": "write amendment override.pkl; super.hp remains provenance in actor.pkl rather than an editable exported literal"
+  }
+}

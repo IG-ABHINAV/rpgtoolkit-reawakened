@@ -561,7 +561,10 @@ function forwardToWorklet(node: AudioWorkletNode, sink: PcmSink, message: AudioM
 }
 
 async function workletLatency(context: AudioContext, node: AudioWorkletNode): Promise<number> {
-  const { promise, resolve } = Promise.withResolvers<number>();
+  let resolve!: (value: number) => void;
+  const promise = new Promise<number>((res) => {
+    resolve = res;
+  });
   const handler = (event: MessageEvent<{ kind: "latency"; renderQuantumSize: number }>) => {
     if (event.data.kind === "latency") {
       node.port.removeEventListener("message", handler);

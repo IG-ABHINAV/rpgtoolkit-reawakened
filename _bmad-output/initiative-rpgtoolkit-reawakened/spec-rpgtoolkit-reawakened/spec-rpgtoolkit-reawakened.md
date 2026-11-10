@@ -80,6 +80,9 @@ A vision to realize. RPG Toolkit 3 (final release 2007) is a Windows-only, GPL-2
 - **CAP-19**
   - **intent:** People who have never seen the project can find out what it is, install or open it on every shipped host, and learn to play, make, import, debug, package and share a game from versioned user documentation and a public website that match the released product; contributors and extension authors get developer documentation. The normative spec (`docs/spec/`) stays the separate engine and format contract and is linked, never restated.
   - **success:** A reader who did not write the documentation completes each flagship task (install or open on each shipped host, build a first game, import a legacy game, debug a script, package and share a game) from the published site against the release build; every command name, menu label, file name, format name and code sample in the user documentation is checked against the built product or the normative spec by a gate or a recorded walkthrough; link, accessibility and build checks pass for every published version.
+- **CAP-20**
+  - **intent:** Game data can be stored natively as versioned, text-first documents that a person can read and edit in an ordinary text editor and that merge cleanly in Git. Each logical contract has its own semantic version; a document names its contract and version, is identified by its path, and keeps plugin data in separate documents linked both ways to their owner. A checker reports broken stamps, IDs and links by name. Legacy formats stay readable through the compatibility layer (ADR 0009); the native format is permitted, not required (ADR 0005).
+  - **success:** Legacy animation clips from the corpus import into native clip documents that decode to the same ordered frames and delays; a one-property edit changes one line and keeps every comment; the checker reports each ruled error class on authored fixtures and nothing on a clean project; renaming a document leaves the checker clean.
 
 ## Constraints
 
@@ -119,6 +122,7 @@ The headless runner plays the legacy `demo` and `Basic` sample games end to end 
 - `docs/spec/engine/parity-checklist.md` "nice-to-have" items are outside the must-have contract. Legacy-syntax conversion ships as LSP quick fixes (CAP-14).
 - The non-goals T-71 (separate Pak compiler) and T-73 (2.x file-system upgrade) are my inference: editor-features calls T-71 superseded by the EXE route and T-73 serves only 2.x projects. T-72 setup builder stays in CAP-17. Overturn either if wrong.
 - CAP-19 was added on 2026-10-17 as a draft for the documentation-and-website epic (epic 17). It is not part of the success signal below, which stays about the product. Its wording, and the choice of a new capability rather than extending CAP-12, are the owner's to confirm.
+- CAP-20 was added on 2026-11-08 as a draft for the native-data-contracts epic (epic 27). It is not part of the success signal below, which stays about the product. Its wording, and the choice of a new capability rather than extending CAP-1, are the owner's to confirm.
 
 ## Open Questions
 

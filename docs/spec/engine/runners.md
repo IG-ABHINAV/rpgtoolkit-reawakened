@@ -405,7 +405,10 @@ behind them. Store submission, signing, icons, splash screens, deep links and pe
 belong to a release owner that does not exist yet.
 
 The wrapper **MUST NOT** fork the player: a platform difference is a host service or a policy on this page, never a
-second rendering or input path.
+second rendering or input path. Host blob persistence records existence (`save.blobPresent`) and write confirmation
+(`save.written`). The mobile wrapper confirms its initial save blob upon session startup and preserves it across
+restarts; it writes this startup save blob once and **MUST NOT** dispatch recurring filesystem bridge writes on
+subsequent animation frames or game ticks.
 
 <a id="build"></a>
 ## Build and artefact shape
@@ -462,6 +465,7 @@ The historical v1 schema and vector kit remain fixed together; the active core i
    cannot weaken the schema.
 3. **The schema and the kit agree.** Every vector's verdict matches what the schema returns: a valid record is accepted
    and a refusal is refused. A kit that holds no valid record for some kind the schema lists fails.
+   The v1 check also requires the schema to reject a representative v2 semantic `action` record, without changing the frozen v1 vector kit.
 4. **The schema and historical TypeScript types agree.** The check reads `DrawList`, `InputRecordV1` and `RunnerRequest` from
    `packages/core/src/ports/` with the TypeScript compiler and compares each with its schema definition in the JSON
    projection, recursively: the keys a record carries, which are required (every key but `repeat`, AD-14), literal and

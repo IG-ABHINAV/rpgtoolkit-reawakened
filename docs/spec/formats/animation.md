@@ -22,7 +22,7 @@ Header text: `RPGTLKIT ANIM`. The only accepted minor for the binary layout is *
 
 **Empty frames.** The editor keeps 51 frame slots and writes all of them (UB = 50), most empty. The engine drops frames whose image is empty when playing; a gap in the middle of the list therefore shortens the sequence. The editor counts only up to the last non-empty frame.
 
-**Reawakened rule (frame canvas and picture source).** The header's `width` and `height` are the frame's **canvas**: they place and anchor the sprite, and a picture frame fills that canvas. They never size the source rectangle. A frame's picture — a PNG, JPEG, BMP, GIF frame or a [tile bitmap](tiles.md#tile-bitmap-tbm) — is sampled whole at its own pixel size, so a 64×32 canvas naming a 32×32 image draws the whole image into the 64×32 canvas instead of reading 32 pixels past the texture. A tile-reference frame samples its own cell only. For sprites the tile keeps its own size at the canvas origin; for script animations it fills the animation's destination rectangle, including an explicitly sized destination ([E-54](../engine/main-loop-and-startup.md#e-54)).
+**Reawakened rule (frame canvas and picture source).** The header's `width` and `height` are the frame's **canvas**: they place and anchor the sprite, and a picture frame fills that canvas. They never size the source rectangle. A frame's picture — a PNG, JPEG, BMP, GIF frame or a [tile bitmap](tiles.md#tile-bitmap-tbm) — is sampled whole at its own pixel size, so a 64×32 canvas naming a 32×32 image draws the whole image into the 64×32 canvas instead of reading 32 pixels past the texture. A tile-reference frame samples its own cell only. For sprites the tile keeps its own size at the canvas origin; for script animations it fills the animation's destination rectangle, including an explicitly sized destination ([E-54](../engine/plugins-and-battle.md#e-54)).
 
 
 ## Older versions
@@ -36,6 +36,10 @@ When an animation name ends in `.gif`, the frames are the GIF's pages; the size 
 ## Written by the engine
 
 The engine itself writes animations when it converts legacy items, enemies and fight backgrounds (see [legacy/conversion.md](legacy/conversion.md)): minor 3, delay 0.167 s, transparent white.
+
+## Native form
+
+Reawakened's own animation clip is a native document, not a Toolkit 3.1 file: [native-animation-clip.md](native-animation-clip.md) says where each field above goes, or why it is dropped. A legacy `.anm` reaches it only through an importer.
 
 ## Example
 

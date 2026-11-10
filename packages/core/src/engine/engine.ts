@@ -45,7 +45,7 @@ import type { StartupPorts } from "../ports/startup.ts";
 import type { AssetKey, SurfaceId } from "../ports/keys.ts";
 import type { BlobKey } from "../ports/requests.ts";
 import { createGameState, type GameState, type SectionKey } from "../save/state.ts";
-import { resetUiForProgramStart } from "../save/sections/ui.ts";
+import { resetUiForProgramStart, type UiMessageWindow } from "../save/sections/ui.ts";
 import { normalizeDisplayGeometry, normalizeHostFeatures } from "../save/sections/host.ts";
 import { applyMenuStateEffect, createMenuOwnerPorts } from "../menu/index.ts";
 import { createShopSessionRuntime } from "./shop-session.ts";
@@ -119,13 +119,13 @@ import {
   type ScriptServices,
   createVmState,
 } from "../script/index.ts";
-import { hasLiveBlockingThread, type ObjectRecord, type Thread, type VmState } from "../script/state.ts";
+import { hasLiveBlockingThread, type Frame, type ObjectRecord, type Thread, type VmState } from "../script/state.ts";
 import { findObject, readMember } from "../script/objects.ts";
 import type { PackageCatalogueEntry, PluginDefinition } from "../script/plugin.ts";
 import { DEFAULT_FONT_ASSET } from "../raster/text.ts";
 import type { WaitView } from "../ports/wait.ts";
 import { runTimePhase } from "../time/time.ts";
-import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
+import { blitTexture, rasterize, readSurfacePixels, replaceSurface, surfaceTextures, createSurfacesSection, ensureScriptScreen, scriptScreen, resetScriptScreen, copyPresentedFrameToScriptScreen, SCRIPT_SCREEN, renderNowCanvas, renderNowEnabled, type RasterAsset, type SurfacePixelCache } from "../raster/index.ts";
 import { rasterizeAuthorMargin } from "../raster/raster.ts";
 import { beginSurfaceBatch, endSurfaceBatch, flushSurfaceBatch, killSurface } from "../raster/surfaces.ts";
 import { guardExternalPlugins } from "./surface-guard.ts";
@@ -347,7 +347,7 @@ export function createEngine(init: EngineInit): Engine {
       if (registerGameAction(state.input, action)) registered.add(action.name);
     }
   }
-  state.engine = { claims: [] };
+  state.engine = { cacheKeys: [], claims: [] };
   const defaultFontAsset = DEFAULT_FONT_ASSET;
   let root: AssetRoot = init.assetRoot;
   let mainFile: MainFile | null = null;
@@ -364,6 +364,10 @@ export function createEngine(init: EngineInit): Engine {
   let mainKey: AssetKey | null = null;
   const installedFonts = new Map<AssetKey, Uint8Array>();
   const cache = new Map<AssetKey, Uint8Array>();
+  // Source resolution is synchronous; installed sources remain physically available when Load hides newer keys.
+  const programSources = new Map<AssetKey, Uint8Array>();
+  let cacheKeysSnapshot: string[] = [];
+  let cacheKeysDirty = true;
   const inventoryItemDefinitions = new Map<AssetKey, Item>();
   const inventoryCharacterDefinitions = new Map<AssetKey, Character>();
   const decodedImages = new Map<AssetKey, DecodedTexture>();
@@ -383,6 +387,11 @@ export function createEngine(init: EngineInit): Engine {
   const canvasTextAssets = new Map<AssetKey, RasterAsset>();
   const pending = new Map<number, RequestEntry>();
   const pendingTileBitmapAnimations = new Set<number>();
+  const restoreAssetRequests = new Set<number>();
+  let restoringSavedAssets = false;
+  let savedAssetRestoreKeys: readonly AssetKey[] = [];
+  let nextRestoreRequestId = 0x20000000;
+  const deferredRestoreDecode = new Set<AssetKey>();
   const pendingBlobs = new Map<number, PendingBlobRequest>();
   const pendingImageEffects: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
   const pendingBoardPreviews: Array<{ readonly key: AssetKey; readonly effect: EffectRecord }> = [];
@@ -534,7 +543,12 @@ export function createEngine(init: EngineInit): Engine {
     },
   );
   for (const section of ["party", "inventory", "menu"] as const) {
-    bus.register(section, (effect) => applyMenuStateEffect(menuOwners, effect));
+    bus.register(section, (effect) => {
+      applyMenuStateEffect(menuOwners, effect);
+      if (effect.name === "destroyplayer") {
+        boardRedraw();
+      }
+    });
   }
   // The script-facing media owner (MEDIA-1): starts post through the one bus so
   // the audio applier stays the only start route; `bind` fills the returned voice.
@@ -551,7 +565,17 @@ export function createEngine(init: EngineInit): Engine {
       diagnostics.push({ code, file: typeof file === "string" ? file : "", line: 0, message: `${op}: ${code} ${text}`.trimEnd() });
     },
   );
-  bus.register("world", (effect) => applyWorldEffect(state, effect));
+  bus.register("world", (effect) => {
+    applyWorldEffect(state, effect);
+    if (
+      effect.name === "forceredraw" ||
+      effect.name === "setambientlevel" ||
+      effect.name === "layerput" ||
+      effect.name === "put"
+    ) {
+      boardRedraw();
+    }
+  });
   bus.register("camera", (effect) => applyCameraEffect(state, effect));
   bus.register("ui", (effect) => {
     const lower = effect.name.toLowerCase();
@@ -654,6 +678,9 @@ export function createEngine(init: EngineInit): Engine {
     }
     applySpriteEffect(state, effect.name, values, effect.thread);
     if (effect.name === "hideitem" || effect.name === "removeitem") expireProgramTileEdits(state);
+    if (isSpriteRedrawCommand(effect.name) && blockingAlive()) {
+      boardRedraw();
+    }
   });
   bus.register("triggers", (effect) => applyTriggerEffect(state, effect));
   /**
@@ -667,7 +694,7 @@ export function createEngine(init: EngineInit): Engine {
       return;
     }
     const kind = blockingAlive() ? "board" : "blocking";
-    if (kind === "blocking") resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+    if (kind === "blocking") beginOutermostProgram();
     const ref: ProgramRef = {
       kind: "inline",
       text: `${command}(${JSON.stringify(encodeInlineScriptString(serialized))})`,
@@ -694,7 +721,7 @@ export function createEngine(init: EngineInit): Engine {
         return;
       }
       if (!blockingAlive()) {
-        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+        beginOutermostProgram();
         startProgram(state.vm, { kind: "inline", text: "wait()", ir: IR_VERSION });
       }
       bus.postEffect("ui", engineEffect("ui", "mwin", [payload.message]));
@@ -767,6 +794,116 @@ export function createEngine(init: EngineInit): Engine {
   let surfaceCacheEpoch = 0;
   let generatedMarginPixels: { readonly id: SurfaceId; readonly rev: number; readonly pixels: SurfacePixels } | null = null;
   let frameHash: string | null = null;
+  /** Set when an outermost program ended in the current tick; suppresses tick-end and tail presentation so its final screen stays committed as surface 0 until the next free-roam draw (ADR 0018 R5). */
+  let endedProgramThisTick = false;
+  /** When true, `engine.drawList` presents surface 0 (the committed final program screen) instead of re-rasterising the board; cleared when a free-roam frame is actually committed. */
+  let holdProgramFrame = false;
+  /** True when a tick has advanced the presented scene since surface 0 was last rasterised (ADR 0018 T13). */
+  let presentedFrameDirty = false;
+  /** Whether a live blocking thread was present at the end of the previous threads phase. */
+  let blockingWasAlive = false;
+  /** Transient flag set while committing the final program screen before hiding the message window (ADR 0018 R5, #1186). */
+  let committingFinalProgramScreen = false;
+  /** Animation ID watermark when the currently running outermost program started; used to filter thread animations started earlier (#1183). */
+  let outermostProgramStartAnimationId = 1;
+  /** The baked overlay command active during a running program; updated only at board redraws (3.1 P3, #1184). */
+  let programActiveOverlay: DrawCommand | null = null;
+  /** Snapshot of canvas pixels captured at the last board redraw (3.1 P3, #1184). */
+  let programOverlayPixels: { readonly w: number; readonly h: number; readonly rgba: Uint8Array } | null = null;
+  let programOverlayRev = 0;
+
+  function activeProgramForCompose(): boolean {
+    const activeSurface = blockingAlive() || committingFinalProgramScreen;
+    return activeSurface && state.world.board != null && state.battle === null && state.menu.screens.length === 0;
+  }
+
+  function captureProgramOverlay(): void {
+    if (!renderNowEnabled(state.surfaces)) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const canvasId = renderNowCanvas(state.surfaces);
+    if (canvasId === null) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const canvasEntry = state.surfaces.entries[String(canvasId)];
+    if (canvasEntry === undefined) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    const pixels = readSurfacePixels(state.surfaces, canvasId, canvasEntry.rev, surfaceCache);
+    if (pixels === null) {
+      programActiveOverlay = null;
+      programOverlayPixels = null;
+      return;
+    }
+    programOverlayRev = canvasEntry.rev;
+    programOverlayPixels = { w: pixels.w, h: pixels.h, rgba: new Uint8Array(pixels.rgba) };
+    programActiveOverlay = {
+      kind: "blit",
+      source: { surface: canvasId, rev: programOverlayRev },
+      src: { x: 0, y: 0, w: pixels.w, h: pixels.h },
+      dst: { x: 0, y: 0, w: pixels.w, h: pixels.h },
+      key: null,
+      tint: { r: 0, g: 0, b: 0 },
+      alpha: 255,
+      blend: "normal",
+      iso2d: false,
+    };
+  }
+
+  function isSpriteRedrawCommand(name: string): boolean {
+    switch (name.toLowerCase()) {
+      case "playerstep":
+      case "itemstep":
+      case "push":
+      case "pushitem":
+      case "wander":
+      case "playerpath":
+      case "itempath":
+      case "playerdirection":
+      case "itemdirection":
+      case "playerstance":
+      case "itemstance":
+      case "stance":
+      case "posture":
+      case "putplayer":
+      case "eraseplayer":
+      case "destroyplayer":
+      case "putitem":
+      case "eraseitem":
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * P2 commands redraw the whole board (board, sprites, thread animations, overlay if on)
+   * into the program surface from scratch, erasing whatever the program had drawn, then
+   * present it with the message window on top (3.1 P2, #1182, ADR 0018).
+   */
+  function boardRedraw(): void {
+    resetScriptScreen(state.surfaces);
+    state.ui.draws = [];
+    captureProgramOverlay();
+    if (state.world.board !== null) refreshFrame(false);
+  }
+
+  function currentSurfaceTextures(): ReadonlyMap<SurfaceId, DecodedTexture> {
+    const textures = new Map<SurfaceId, DecodedTexture>(surfaceTextures(state.surfaces, surfaceCache));
+    if (activeProgramForCompose() && programOverlayPixels !== null) {
+      const rnId = renderNowCanvas(state.surfaces);
+      if (rnId !== null) {
+        textures.set(rnId, { w: programOverlayPixels.w, h: programOverlayPixels.h, rgba: new Uint8Array(programOverlayPixels.rgba) });
+      }
+    }
+    return textures;
+  }
   /** The failure of the last rebuilt frame, kept so a script that reads it is told even when the frame is current. */
   let frameFailure: { readonly hash: string; readonly message: string } | null = null;
   // Presentation inputs are plain draw-list data; decoded textures remain runner-owned (AD-29).
@@ -1192,7 +1329,23 @@ export function createEngine(init: EngineInit): Engine {
     candidate.ui.nextModalId = nextId;
   }
 
-  function applyLoadedGame(candidate: GameState, projection: AudioSaveProjection): void {
+  function applyLoadedGame(
+    candidate: GameState,
+    projection: AudioSaveProjection,
+    callingThread?: Thread,
+    savedMessage?: UiMessageWindow,
+  ): void {
+    const previousCache = new Map(cache);
+    const previousDeferredDecode = new Set(deferredRestoreDecode);
+    const savedKeys = candidate.engine.cacheKeys;
+    const retainedKeys = savedKeys === null
+      ? new Set<AssetKey>([
+          ...(mainKey === null ? [] : [mainKey]),
+          ...installedFonts.keys(),
+          ...programKeys(index, root),
+          ...(initialCharacterKey === null ? [] : [initialCharacterKey]),
+        ].filter((key) => cache.has(key)))
+      : new Set(savedKeys.filter((key) => index.byKey.has(assetKey(key))).map(assetKey));
     const modalIdFloor = state.ui.nextModalId;
     const movementFallback = movementDefaults(mainFile);
     const previous = restoreGameState(snapshot(state));
@@ -1224,6 +1377,43 @@ export function createEngine(init: EngineInit): Engine {
 
       rebaseModalTimeline(candidate, modalIdFloor);
       Object.assign(state, candidate);
+
+      if (callingThread !== undefined) {
+        if (previous.engine.boot !== undefined) {
+          state.engine.boot = { ...previous.engine.boot, ...candidate.engine?.boot, stage: "running" };
+        }
+        delete state.engine.transition;
+        delete state.engine.pendingEnterThread;
+
+        if (savedMessage !== undefined) {
+          state.ui.message = { ...savedMessage };
+        }
+
+        const player = state.sprites.players.find((candidateActor) => candidateActor.id === state.sprites.selectedPlayer) ?? state.sprites.players[0];
+        if (player !== undefined) {
+          const placement: PlainData[] = [player.x, player.y, player.layer, "pixel"];
+          bus.postEffect("triggers", engineEffect("triggers", "deactivateat", placement));
+        }
+        if (state.world.board !== null && state.world.board !== undefined) {
+          postBoardMusic(state.world.board);
+        }
+
+        const restoredThreads = [...candidate.vm.threads];
+        let nextId = Math.max(callingThread.id, ...restoredThreads.map((t) => t.id), 0) + 1;
+        for (const t of restoredThreads) {
+          if (t.id === callingThread.id) {
+            t.id = nextId++;
+          }
+        }
+        const callerFrame = callingThread.frames[callingThread.frames.length - 1];
+        if (callerFrame !== undefined) {
+          callerFrame.operands.push({ value: 1, ref: null });
+        }
+        callingThread.wait = null;
+        callingThread.status = "ready";
+        state.vm.threads = [callingThread, ...restoredThreads];
+      }
+
       const actionRegistry = createInputSection();
       for (const action of startupActions) registerGameAction(actionRegistry, action);
       for (const action of externallyRegisteredActions) registerGameAction(actionRegistry, action);
@@ -1248,6 +1438,7 @@ export function createEngine(init: EngineInit): Engine {
           pushing: state.world.movement.pushing ?? movementFallback.pushing,
         },
       };
+
       // A save may carry a bare section; the restored continuation must still render, so the engine completes
       // the surface section it owns, exactly as it does at creation (never inventing game data).
       if (Object.keys(state.surfaces).length === 0) state.surfaces = createSurfacesSection(init.width, init.height);
@@ -1263,16 +1454,89 @@ export function createEngine(init: EngineInit): Engine {
       compileRestoredPrograms(state.vm, restoredServices);
       verifyRestoredHandles(state.vm, restoredServices, state.events);
       services = restoredServices;
+
+      const enterPrgAlreadyRunning =
+        candidate.battle !== null ||
+        candidate.vm.threads.some(
+          (t) =>
+            t.status !== "finished" &&
+            t.frames.some(
+              (f) =>
+                (f.program.kind === "file" && f.program.path === state.world.board?.enterPrg) ||
+                (f.program.kind === "inline" && f.program.text === state.world.board?.enterPrg),
+            ),
+        );
+
+      if (
+        callingThread !== undefined &&
+        loader !== null &&
+        !enterPrgAlreadyRunning &&
+        state.world.board?.enterPrg !== undefined &&
+        state.world.board.enterPrg !== ""
+      ) {
+        try {
+          const enterRef = fileProgramRef(loader, state.world.board.enterPrg, state.vm.redirects);
+          services.programs.get(enterRef);
+          const callerPair = { source: callingThread.source, target: callingThread.target };
+          const rootFrame: Frame = {
+            program: enterRef,
+            ip: 0,
+            locals: {},
+            operands: [],
+            errorHandler: null,
+            autoLocal: false,
+            programRoot: { restore: callerPair },
+          };
+          callingThread.frames.push(rootFrame);
+        } catch (error) {
+          if (error instanceof ScriptError) {
+            diagnostics.push({
+              code: error.code,
+              file: error.pos?.file ?? state.world.board.enterPrg,
+              line: error.pos?.line ?? 0,
+              message: error.message,
+            });
+          } else {
+            throw error;
+          }
+        }
+      }
+
       startupServicesReady = true;
       audio.load(projection);
+      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
       clearPathfindingCache();
+      cache.clear();
+      cacheKeysDirty = true;
+      for (const key of retainedKeys) {
+        const bytes = previousCache.get(key);
+        if (bytes !== undefined) cacheAsset(key, bytes);
+      }
+      savedAssetRestoreKeys = [...retainedKeys];
+      restoringSavedAssets = true;
+      inventoryItemDefinitions.clear();
+      inventoryCharacterDefinitions.clear();
+      decodedImages.clear();
+      decodedTiles.clear();
+      spriteAnimations.clear();
+      spriteAnimationSourceBytes.clear();
+      spriteGifPageAssets.clear();
+      spriteCellSizes.clear();
+      missingSpriteAnimationAssets.clear();
+      decodedBundled.clear();
+      canvasTextAssets.clear();
+      deferredRestoreDecode.clear();
+      for (const key of retainedKeys) if (cache.has(key)) deferredRestoreDecode.add(key);
       surfaceCache.clear();
       frameHash = null;
       frameFailure = null;
-      refreshFrame(true);
-      init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
+      endedProgramThisTick = false;
+      holdProgramFrame = false;
+      presentedFrameDirty = false;
+      blockingWasAlive = blockingAlive();
       pendingTileBitmapAnimations.clear();
       surfaceCacheEpoch += 1;
+      boardRedraw();
     } catch (error) {
       Object.assign(state, previous);
       init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram, state.world.board ?? null);
@@ -1284,6 +1548,13 @@ export function createEngine(init: EngineInit): Engine {
       frameHash = previousFrameHash;
       frameFailure = previousFrameFailure;
       nextRequestId = previousNextRequestId;
+      cache.clear();
+      cacheKeysDirty = true;
+      for (const [key, bytes] of previousCache) cacheAsset(key, bytes);
+      restoringSavedAssets = false;
+      restoreAssetRequests.clear();
+      deferredRestoreDecode.clear();
+      for (const key of previousDeferredDecode) deferredRestoreDecode.add(key);
       throw error;
     }
   }
@@ -1294,7 +1565,7 @@ export function createEngine(init: EngineInit): Engine {
     const ref: ProgramRef = typeof init.program === "string"
       ? { kind: "inline", text: init.program, ir: IR_VERSION, dialect: "tk3" }
       : init.program;
-    resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+    beginOutermostProgram();
     startProgram(state.vm, ref);
   }
 
@@ -1305,6 +1576,49 @@ export function createEngine(init: EngineInit): Engine {
     pending.set(entry.reqId, entry);
     requestsOut.push({ kind: "asset", reqId: entry.reqId, key });
   }
+  function cacheAsset(key: AssetKey, bytes: Uint8Array): void {
+    if (!cache.has(key)) cacheKeysDirty = true;
+    cache.set(key, bytes);
+  }
+  function readProgramSource(key: AssetKey): Uint8Array | undefined {
+    const cached = cache.get(key);
+    if (cached !== undefined) {
+      if (programSources.get(key) !== cached) programSources.set(key, cached);
+      return cached;
+    }
+    const source = programSources.get(key);
+    if (source !== undefined) cacheAsset(key, source);
+    return source;
+  }
+  function beginSavedAssetRestore(): void {
+    restoreAssetRequests.clear();
+    for (const key of savedAssetRestoreKeys) {
+      if (cache.has(key)) continue;
+      const reqId = nextRestoreRequestId++;
+      const entry: RequestEntry = { reqId, key, kind: requestKindFor(key) };
+      pending.set(reqId, entry);
+      restoreAssetRequests.add(reqId);
+      requestsOut.push({ kind: "asset", reqId, key });
+    }
+    if (restoreAssetRequests.size === 0) finishSavedAssetRestore();
+  }
+  function finishSavedAssetRestore(): void {
+    restoringSavedAssets = false;
+    const board = state.world.board;
+    // Background/free-image blits need decoded dimensions before they appear in a draw list.
+    if (board !== null && board !== undefined) {
+      for (const reference of [board.backgroundImage ?? "", ...(board.images ?? []).map((image) => image.file)]) {
+        if (reference === "") continue;
+        const resolved = resolveAsset(index, root, "bitmaps", reference);
+        if (!resolved.ok) continue;
+        if (cache.has(resolved.value)) imageTexture(resolved.value);
+        else request(resolved.value, "image");
+      }
+    }
+    primeMessageGraphic();
+    if (pending.size === 0) refreshFrame(true);
+  }
+
   const IMAGE_EFFECTS: Record<string, true> = {
     bitmap: true,
     setimage: true,
@@ -1315,6 +1629,7 @@ export function createEngine(init: EngineInit): Engine {
     [MENU_HAND_EFFECT]: true,
   };
   function imageTexture(key: AssetKey): DecodedTexture | null {
+    deferredRestoreDecode.delete(key);
     const cached = decodedImages.get(key);
     if (cached !== undefined) return cached;
     // A tile bitmap is an image like any other for `bitmap` and the `setimage*` family
@@ -1450,6 +1765,7 @@ export function createEngine(init: EngineInit): Engine {
     return ok({ w: tileWidth, h: strip.h, rgba });
   }
   function tileTexture(key: AssetKey): DecodedTexture | null {
+    deferredRestoreDecode.delete(key);
     const cached = decodedTiles.get(key);
     if (cached !== undefined) return cached;
     const bytes = cache.get(key);
@@ -1524,10 +1840,13 @@ export function createEngine(init: EngineInit): Engine {
   }
   /** Ask for the message-window image's bytes; the draw list shows the picture once its texture is decoded. */
   function primeMessageGraphic(): void {
+    if (restoringSavedAssets) return;
     const reference = state.ui.message?.graphic ?? "";
     if (reference === "") return;
     const key = messageGraphicAsset(reference);
-    if (key !== null) request(key, "image");
+    if (key === null) return;
+    if (cache.has(key)) imageTexture(key);
+    else request(key, "image");
   }
   /** The message-window image's key while its texture is decoded, so the draw list never names a texture a renderer lacks. */
   function messageGraphicKey(): AssetKey | null {
@@ -1637,7 +1956,10 @@ export function createEngine(init: EngineInit): Engine {
     };
     // An image that names no canvas lands on the script-screen layer, exactly like the drawing commands
     // (docs/spec/engine/runners.md#surface-read-and-state-hash); destination 0 is the derived presented frame.
-    if (destination === (0 as SurfaceId)) destination = ensureScriptScreen(state.surfaces);
+    if (destination === (0 as SurfaceId)) {
+      if (presentedFrameDirty && !Object.hasOwn(state.surfaces.entries, String(SCRIPT_SCREEN))) refreshFrame(false);
+      destination = ensureScriptScreen(state.surfaces);
+    }
     if (!blitTexture(state.surfaces, texture, destination, x, y, width, height, keyColour, alpha, additive)) {
       imageDiagnostic(args[0], `${effect.name}: destination surface is not live`);
       return;
@@ -1691,7 +2013,12 @@ export function createEngine(init: EngineInit): Engine {
     applySurfaceImage(effect, texture, key);
   }
   function syncEngineState(): void {
+    if (cacheKeysDirty) {
+      cacheKeysSnapshot = Array.from(cache.keys()).sort();
+      cacheKeysDirty = false;
+    }
     const next: EngineSection = {
+      cacheKeys: cacheKeysSnapshot,
       nextRequestId,
       ...(state.engine.nextBattleId === undefined ? {} : { nextBattleId: state.engine.nextBattleId }),
       pending: Array.from(pending.values(), (entry) => ({ reqId: entry.reqId, key: entry.key, kind: entry.kind })),
@@ -1784,12 +2111,20 @@ export function createEngine(init: EngineInit): Engine {
     if (entry === undefined) return;
     pending.delete(entry.reqId);
     consumed.push(record);
+    if (restoreAssetRequests.delete(entry.reqId)) {
+      if (record.event.bytes !== null) {
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
+        deferredRestoreDecode.add(entry.key);
+      }
+      if (restoreAssetRequests.size === 0) finishSavedAssetRestore();
+      return;
+    }
     if (entry.kind === "initial-character") {
       initialCharacterResolved = true;
       if (record.event.bytes === null) {
         diagnostics.push({ code: "asset.missing", file: entry.key, line: 0, message: `asset not found: ${entry.key}` });
       } else {
-        cache.set(entry.key, new Uint8Array(record.event.bytes));
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
       }
       return;
     }
@@ -1799,7 +2134,7 @@ export function createEngine(init: EngineInit): Engine {
       } else {
         let hex = "";
         for (const byte of record.event.bytes) hex += byte.toString(16).padStart(2, "0");
-        cache.set(entry.key, new Uint8Array(record.event.bytes));
+        cacheAsset(entry.key, new Uint8Array(record.event.bytes));
         replyToRequest(state.vm, entry.reqId - SCRIPT_REQUEST_BASE, { ok: true, value: hex });
       }
       return;
@@ -1824,7 +2159,7 @@ export function createEngine(init: EngineInit): Engine {
       if (state.engine.boot !== undefined) state.engine.boot.stage = "stopped";
       return;
     }
-    cache.set(entry.key, new Uint8Array(record.event.bytes));
+    cacheAsset(entry.key, new Uint8Array(record.event.bytes));
     if (entry.kind === "image") {
       imageTexture(entry.key);
     } else if (entry.kind === "tile") {
@@ -1874,12 +2209,22 @@ export function createEngine(init: EngineInit): Engine {
       try {
         const restored = restoreGameSave(utf8Decode(event.bytes), state.audio, { logicalWidth: init.width, logicalHeight: init.height });
         diagnostics.push(...restored.diagnostics);
-        applyLoadedGame(restored.state, restored.audio);
+        const callingThread = state.vm.threads.find(
+          (t) => t.status === "waiting" && (t.wait?.kind === "request" || t.wait?.kind === "blob") && t.wait.reqId === entry.vmReqId,
+        );
+        const isStartupProgram =
+          (state.engine.boot?.stage === "startup" || state.world.board === null) &&
+          callingThread?.kind === "blocking" &&
+          restored.state.battle === null;
+        const threadToContinue = isStartupProgram ? callingThread : undefined;
+        const savedMessage = isStartupProgram && state.ui.message ? { ...state.ui.message } : undefined;
+        applyLoadedGame(restored.state, restored.audio, threadToContinue, savedMessage);
         discardRecoveryCandidates();
         pending.clear();
         pendingBlobs.clear();
         pendingImageEffects.length = 0;
         pendingBoardPreviews.length = 0;
+        beginSavedAssetRestore();
         return "loaded";
       } catch (error) {
         if (error instanceof ScriptError) diagnostics.push(toDiagnostic(error));
@@ -1919,6 +2264,7 @@ export function createEngine(init: EngineInit): Engine {
   }
   function rasterAssets(assets = new Map<AssetKey, RasterAsset>()): Map<AssetKey, RasterAsset> {
     for (const key of cache.keys()) {
+      if (deferredRestoreDecode.has(key)) continue;
       if (isBitmapKey(key)) imageTexture(key);
       else {
         const lower = key.toLowerCase();
@@ -2091,11 +2437,21 @@ export function createEngine(init: EngineInit): Engine {
     generatedMarginPixels = null;
     frameHash = null;
     frameFailure = null;
+    endedProgramThisTick = false;
+    holdProgramFrame = false;
+    presentedFrameDirty = false;
+    blockingWasAlive = false;
+    programActiveOverlay = null;
+    programOverlayPixels = null;
+    programOverlayRev = 0;
     surfaceCacheEpoch += 1;
     state.rng = rng;
     state.time = time;
     shopSession.reset();
     pending.clear();
+    restoringSavedAssets = false;
+    restoreAssetRequests.clear();
+    savedAssetRestoreKeys = [];
     pendingTileBitmapAnimations.clear();
     pendingImageEffects.length = 0;
     pendingBoardPreviews.length = 0;
@@ -2105,7 +2461,7 @@ export function createEngine(init: EngineInit): Engine {
     decodedTiles.clear();
     failed = false;
     postQuitWriteFailures.length = 0;
-    state.engine = mainKey === null ? { claims: [] } : { claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
+    state.engine = mainKey === null ? { cacheKeys: [], claims: [] } : { cacheKeys: [], claims: [], boot: { stage: "assets", main: mainKey, fonts: [] } };
     for (const registration of [...(init.resetRegistrations ?? [])].sort((left, right) => (left.rank ?? 0) - (right.rank ?? 0))) registration.reset(state);
     init.spriteRuntime?.bindState(state.sprites, state.vm, resolveSpriteProgram);
     if (nextMain !== undefined) {
@@ -2147,6 +2503,16 @@ export function createEngine(init: EngineInit): Engine {
     return hasLiveBlockingThread(state.vm);
   }
 
+  /** Start of an outermost program: reset the UI for a program start, and reset the script screen to transparent black (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle). */
+  function beginOutermostProgram(): void {
+    if (presentedFrameDirty) refreshFrame(false);
+    resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+    resetScriptScreen(state.surfaces);
+    outermostProgramStartAnimationId = (state.fx as Partial<FxSection>)?.nextAnimationId ?? 1;
+    programActiveOverlay = null;
+    programOverlayPixels = null;
+  }
+
   /** Hydrate board `key`, requesting its file and then each missing tile asset in turn. */
   function loadBoard(key: AssetKey, tick = state.time.tick, active = true): "pending" | WorldBoard | null {
     const bytes = cache.get(key);
@@ -2164,6 +2530,14 @@ export function createEngine(init: EngineInit): Engine {
       return "pending";
     }
     const board = result.value?.board ?? null;
+    for (const dependency of result.value?.dependencies ?? []) {
+      if (!deferredRestoreDecode.has(dependency)) continue;
+      if (isBitmapKey(dependency)) imageTexture(dependency);
+      else {
+        const lower = dependency.toLowerCase();
+        if (lower.endsWith(".tst") || lower.endsWith(".iso") || lower.endsWith(".gph")) tileTexture(dependency);
+      }
+    }
     if (board !== null && active) {
       for (const item of board.items ?? []) {
         const resolved = resolveAsset(index, root, "items", item.itemFile);
@@ -2455,13 +2829,21 @@ export function createEngine(init: EngineInit): Engine {
     postBoardMusic(board);
     postPrefetch(board);
     boardLifecycle("entered", board, player);
+    if (fromSend) {
+      boardRedraw();
+    } else {
+      captureProgramOverlay();
+    }
     // An empty list is stored as one empty string and empty entries are ignored (docs/spec/formats/board.md#threads-constants-and-settings).
     for (const name of board.threads ?? []) if (name !== "") startFileProgram(name, board.key, "board");
     if (board.enterPrg !== undefined && board.enterPrg !== "") {
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // A blocking enter program is a new outermost program; reset the message window.
       const blocking = blockingAlive();
-      if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+      if (!blocking) {
+        if (fromSend) refreshFrame(false);
+        beginOutermostProgram();
+      }
       const enterThread = startFileProgram(board.enterPrg, board.key, blocking ? "board" : "blocking");
       if (blocking && enterThread !== null) state.engine.pendingEnterThread = enterThread.id;
       else delete state.engine.pendingEnterThread;
@@ -2486,7 +2868,7 @@ export function createEngine(init: EngineInit): Engine {
       clearPendingExit(player.id);
       // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
       // An edge link that runs a program starts a new outermost program.
-      resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+      beginOutermostProgram();
       startFileProgram(link, board.key, "blocking");
       return;
     }
@@ -2657,6 +3039,8 @@ export function createEngine(init: EngineInit): Engine {
       if (mainFile === null) return false;
       const fonts = privateFontKeys(index, root);
       const programs = programKeys(index, root);
+      for (const key of fonts) request(key, "font");
+      for (const key of programs) if (readProgramSource(key) === undefined) request(key, "program");
       if (!initialCharacterResolved || ![...fonts, ...programs].every((key) => cache.has(key))) return false;
       for (const key of fonts) {
         const gated = gateTrueType(cache.get(key) ?? new Uint8Array(), key);
@@ -2670,7 +3054,7 @@ export function createEngine(init: EngineInit): Engine {
       const manifest = pluginManifestFor(mainFile, mainKey, init.packageCatalogue ?? []);
       const resolvedPlugins = resolveManifestPlugins(manifest.manifest, mainKey, init.packageCatalogue ?? []);
       diagnostics.push(...manifest.diagnostics, ...resolvedPlugins.diagnostics);
-      loader = { index, root, read: (key) => cache.get(key) };
+      loader = { index, root, read: readProgramSource };
       activePlugins = init.plugins ?? resolvedPlugins.plugins;
       if (mainFileAudioNeedsApply) {
         applyMainFileAudio(mainFile, activePlugins);
@@ -2689,7 +3073,7 @@ export function createEngine(init: EngineInit): Engine {
         bus.postEffect("sprites", engineEffect("sprites", "createplayer", [initialCharacterKey]));
       }
       if (mainFile.startupPrg !== "") {
-        resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+        beginOutermostProgram();
         startFileProgram(mainFile.startupPrg, mainKey, "blocking");
       }
       boot.stage = "startup";
@@ -2998,7 +3382,7 @@ export function createEngine(init: EngineInit): Engine {
       for (const ref of prepared.boardPrograms) startThread(stagedVm, { ref, kind: "board", owner: "world" });
       if (prepared.entryProgram !== null) {
         const blocking = stagedVm.threads.some((thread) => thread.kind === "blocking" && thread.status !== "finished");
-        if (!blocking) resetUiForProgramStart(state.ui, (id) => killSurface(state.surfaces, id));
+        if (!blocking) beginOutermostProgram();
         startThread(stagedVm, { ref: prepared.entryProgram, kind: blocking ? "board" : "blocking", owner: blocking ? "world" : "script" });
       }
     } catch (error) {
@@ -3143,6 +3527,7 @@ export function createEngine(init: EngineInit): Engine {
    * `send`, the scene board) until one waits for a host reply or a tick.
    */
   function drive(): void {
+    if (restoringSavedAssets) return;
     requestRestoredAnimationAssets();
     for (let guard = 0; guard < 64; guard += 1) {
       prepareSpriteVisuals();
@@ -3215,11 +3600,15 @@ export function createEngine(init: EngineInit): Engine {
       if (frame.asset === null || frame.surface !== undefined) continue;
       const isTileBitmap = frame.asset.toLowerCase().endsWith(".tbm");
       if (isTileBitmap) pendingTileBitmapAnimations.add(animation.id);
+      const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
       if (cache.has(frame.asset)) {
+        if (deferredRestoreDecode.has(frame.asset)) {
+          if (kind === "tile") tileTexture(frame.asset);
+          else imageTexture(frame.asset);
+        }
         if (isTileBitmap && imageTexture(frame.asset) === null) waiting = true;
         continue;
       }
-      const kind = frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph") ? "tile" : "image";
       request(frame.asset, kind);
       waiting = true;
     }
@@ -3887,6 +4276,9 @@ export function createEngine(init: EngineInit): Engine {
         pruneClaimed(state.input, state.engine.claims ?? []);
         return;
       case "threads": {
+        if (presentedFrameDirty && blockingAlive() && !blockingWasAlive) {
+          refreshFrame(false);
+        }
         const liveBlockingBefore = new Set(
           state.vm.threads.filter((thread) => thread.kind === "blocking" && thread.status !== "finished").map((thread) => thread.id),
         );
@@ -3907,6 +4299,7 @@ export function createEngine(init: EngineInit): Engine {
             onBlockingThreadFinished(thread);
           }
         }
+        blockingWasAlive = blockingAlive();
         expireProgramTileEdits(state);
         return;
       }
@@ -3924,6 +4317,9 @@ export function createEngine(init: EngineInit): Engine {
       case "movement":
         state.camera = updateCamera(state.camera, state.world.board ?? null, init.cameraTarget ?? init.spriteRuntime);
         for (const registration of registrationByPhase.get(phase) ?? []) registration.run(state, (section, effect) => bus.postEffect(section, effect));
+        if (state.vm.threads.some((thread) => thread.kind === "blocking" && (thread.wait?.kind === "sprite.movement" || thread.wait?.kind === "movement" || thread.wait?.kind === "sprite.stance"))) {
+          boardRedraw();
+        }
         return;
       case "edges":
         runEdgesPhase();
@@ -4084,12 +4480,21 @@ export function createEngine(init: EngineInit): Engine {
       }
     }
   }
-  /** Hide the message window when an outermost (blocking) program ends, without clearing its text. */
+  /** Hide the message window when an outermost (blocking) program ends, without clearing its text, and commit
+   * the program's final screen (surface + window pixels) as the presented frame before the window is hidden
+   * (ADR 0018 R5, fixes #1186). */
   function onBlockingThreadFinished(thread: Thread): void {
     if (thread.kind !== "blocking") return;
     if (blockingAlive()) return;
-    if (state.ui.message === undefined) return;
-    state.ui.message = { ...state.ui.message, visible: false };
+    committingFinalProgramScreen = true;
+    try {
+      refreshFrame(false);
+    } finally {
+      committingFinalProgramScreen = false;
+    }
+    endedProgramThisTick = true;
+    holdProgramFrame = true;
+    if (state.ui.message !== undefined) state.ui.message = { ...state.ui.message, visible: false };
     state.ui.modal = null;
   }
 
@@ -4134,7 +4539,7 @@ export function createEngine(init: EngineInit): Engine {
     const rendered = rasterizeAuthorMargin(
       { tick: state.time.tick, width, height, commands: shifted, marginCommands: [] },
       rasterAssets(),
-      surfaceTextures(state.surfaces, surfaceCache),
+      currentSurfaceTextures(),
     );
     if (rendered.error !== null) return [...commands];
     const id = state.surfaces.nextId as SurfaceId;
@@ -4187,8 +4592,9 @@ export function createEngine(init: EngineInit): Engine {
       return commands;
     };
     const empty = { tick: state.time.tick, width: init.width, height: init.height, commands: [] as DrawList["commands"], marginCommands: [] as DrawList["marginCommands"] };
+    const held = (holdProgramFrame || (board === null && !blockingAlive() && frameHash !== null)) ? surfaceBlit(state.surfaces, 0 as SurfaceId) : null;
     const base = board === null
-      ? empty
+      ? (held === null ? empty : { ...empty, commands: [held] })
       : composeBoard({
         board,
         tick: state.time.tick,
@@ -4211,15 +4617,28 @@ export function createEngine(init: EngineInit): Engine {
       if (frame.tile !== null || frame.asset.toLowerCase().endsWith(".gph")) return spriteTileCellSize(frame.asset);
       return imageTexture(frame.asset);
     };
-    const withFx = applyFxDrawList(base, fx, sourceSize);
-    // A script-screen layer is visible only while an outermost program runs (#1045).
-    const activeSurface = blockingAlive();
+    const activeSurface = blockingAlive() || committingFinalProgramScreen;
     const scriptLayer = activeSurface ? surfaceBlit(state.surfaces, scriptScreen(state.surfaces)) : null;
+    // While a program runs outside battle and menu, neither the render-now overlay nor thread animations
+    // started earlier are composed live (3.1 P1, #1183, ADR 0018).
+    const activeProgram = activeProgramForCompose();
+    const fxForCompose = activeProgram
+      ? { ...fx, animations: fx.animations.filter((a) => a.pinned === true || a.id >= outermostProgramStartAnimationId) }
+      : fx;
+    const withFx = applyFxDrawList(base, fxForCompose, sourceSize);
     // E-57: the enabled render-now canvas sits above the board, sprites and animations and below UI text and the message window.
-    const overlay = renderNowBlit(state.surfaces);
+    // While a program runs outside battle, the overlay is baked at board redraws, not composed live (3.1 P3, #1184).
+    const overlay = activeProgram ? programActiveOverlay : renderNowBlit(state.surfaces);
     // Pinned animations (`pinnedanimation`) are engine-owned pictures that sit directly above that canvas.
     const withScript = scriptLayer === null ? withFx : { ...withFx, commands: [...withFx.commands, scriptLayer] };
-    const withOverlay = { ...withScript, commands: [...withScript.commands, ...(overlay === null ? [] : [overlay]), ...animationBlits(fx, true, sourceSize)] };
+    const withOverlay = {
+      ...withScript,
+      commands: [
+        ...withScript.commands,
+        ...(overlay === null ? [] : [overlay]),
+        ...animationBlits(fxForCompose, true, sourceSize),
+      ],
+    };
     // docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle
     const uiForCompose = activeSurface
       ? state.ui
@@ -4253,32 +4672,38 @@ export function createEngine(init: EngineInit): Engine {
       iso2d: false,
     };
   }
+  function primeCurrentDrawAssets(list: DrawList): boolean {
+    let ready = true;
+    for (let layer = 0; layer < 2; layer += 1) {
+      const commands = layer === 0 ? list.commands : list.marginCommands;
+      for (const command of commands) {
+        if (command.kind !== "blit" || !("asset" in command.source)) continue;
+        const asset = command.source.asset;
+        if (decodedImages.has(asset) || decodedTiles.has(asset)) continue;
+        const kind = command.source.tile !== null || asset.endsWith(".gph") ? "tile" : "image";
+        if (cache.has(asset) || init.bundled?.has(asset)) {
+          const texture = kind === "tile" ? tileTexture(asset) : imageTexture(asset);
+          if (texture === null) ready = false;
+        } else if (layer === 1 || index.byKey.has(asset)) {
+          request(asset, kind);
+          ready = false;
+        }
+      }
+    }
+    return ready;
+  }
+
   /**
    * Rebuild the presented screen (surface 0) from the current state. `report` is true only for the deterministic
    * operations a script or a restore asks for; the presentation refresh at the end of `advance` renders the same frame
    * silently, so a simulation that never reads the screen never reports a presentation failure, and a script that
    * reads a frame that cannot be replayed is told (docs/spec/engine/runners.md#surface-read-and-state-hash).
    */
-  function primeMarginAssets(list: DrawList): void {
-    const visited = new Set<AssetKey>();
-    for (const command of list.marginCommands) {
-      if (command.kind !== "blit" || !("asset" in command.source)) continue;
-      const asset = command.source.asset;
-      if (visited.has(asset)) continue;
-      visited.add(asset);
-      if (command.source.tile === null) {
-        if (cache.has(asset) || init.bundled?.has(asset)) imageTexture(asset);
-        else request(asset, "image");
-      } else if (cache.has(asset)) {
-        tileTexture(asset);
-      } else {
-        request(asset, "tile");
-      }
-    }
-  }
   function refreshFrame(report: boolean): void {
+    if (restoringSavedAssets) return;
+    presentedFrameDirty = false;
     const list = currentDrawList(0);
-    primeMarginAssets(list);
+    if (!primeCurrentDrawAssets(list)) return;
     // The rasteriser reads the list's size and commands, never its tick, so a static scene is rebuilt once, not every
     // tick. A rebuild is also forced when an asset has arrived, because a command that named it may now replay.
     const nextHash = `${hashDrawList({ ...list, tick: 0 })}:${cache.size}:${installedFonts.size}`;
@@ -4290,12 +4715,35 @@ export function createEngine(init: EngineInit): Engine {
     // A font the game does not ship (a legacy family name such as "Comic Sans MS") draws in the default bitmap font.
     const fallbackFont = assets.get(defaultFontAsset);
     if (fallbackFont !== undefined) for (const command of list.commands) if (command.kind === "text" && !assets.has(command.font.asset)) assets.set(command.font.asset, fallbackFont);
-    const rendered = rasterize(list, assets, surfaceTextures(state.surfaces, surfaceCache));
+    const rendered = rasterize(list, assets, currentSurfaceTextures());
     // A frame that could not be replayed is never left as a silently blank or partial image.
     frameFailure = rendered.error === null ? null : { hash: nextHash, message: rendered.error };
     if (report && frameFailure !== null) reportRenderFailure(frameFailure.message);
     replaceSurface(state.surfaces, 0 as SurfaceId, rendered.width, rendered.height, rendered.rgba);
     frameHash = nextHash;
+  }
+
+  /** Mark the presented frame (surface 0) dirty at the end of a tick unless an outermost program ended this tick,
+   * in which case its final committed screen must survive until the next free-roam draw. Also does nothing when
+   * there is no board and no live blocking program (fixes #1171's boot interval). Clears `holdProgramFrame` when
+   * a tick advances without ending a program, deferring CPU rasterisation until an outermost program starts, a
+   * script reads surface 0, or `advance()` finishes (ADR 0018 T13). */
+  function markPresentedFrameDirty(): void {
+    if (endedProgramThisTick) return;
+    if (!blockingAlive() && state.world.board === null) return;
+    holdProgramFrame = false;
+    presentedFrameDirty = true;
+  }
+
+  /** Refresh the presented frame (surface 0) unless an outermost program ended this tick, in which case its
+   * final committed screen must survive until the next free-roam draw. Also does nothing when there is no board
+   * and no live blocking program (fixes #1171's boot interval). Clears `holdProgramFrame` when it actually
+   * commits a board frame. */
+  function refreshPresentedFrame(): void {
+    if (endedProgramThisTick) return;
+    if (!blockingAlive() && state.world.board === null) return;
+    holdProgramFrame = false;
+    refreshFrame(false);
   }
   function reportRenderFailure(message: string): void {
     diagnostics.push({ code: "render.failed", file: state.world.board?.key ?? "", line: 0, message });
@@ -4315,6 +4763,10 @@ export function createEngine(init: EngineInit): Engine {
     return { thread: thread.id, frame: Math.max(0, thread.frames.length - 1), line: location.line };
   }
   function beginOpenTick(): void {
+    if (presentedFrameDirty && blockingAlive() && !blockingWasAlive) {
+      refreshFrame(false);
+    }
+    blockingWasAlive = blockingAlive();
     const readyThreads = state.vm.threads
       .filter((thread) => thread.status === "ready" && startupThreadEligible(thread))
       .sort((left, right) => left.id - right.id)
@@ -4391,6 +4843,8 @@ export function createEngine(init: EngineInit): Engine {
       let ticksRun = 0;
       let paused: Paused | null = null;
       while (canTick() && state.input.focused && (state.engine.openTick !== undefined || ticksRun < bounded)) {
+        // A program-end frame must survive the tail of the tick it ends in; the flag clears on the next tick.
+        endedProgramThisTick = false;
         if (state.engine.openTick === undefined) {
           runPhase("input", consumed);
           if (!state.input.focused) break;
@@ -4408,12 +4862,13 @@ export function createEngine(init: EngineInit): Engine {
         ticksRun += 1;
         resume = "continue";
         drive();
+        markPresentedFrameDirty();
       }
       syncEngineState();
       settlePostQuitWriteFailures();
       finalizeBlobRequests();
       publishQuitRequest();
-      refreshFrame(false);
+      refreshPresentedFrame();
       const reportDiagnostics = [...diagnostics.splice(0), ...drainDiagnostics(services)];
       return {
         ticksRun,
@@ -4498,6 +4953,10 @@ export function createEngine(init: EngineInit): Engine {
       return surfaceCacheEpoch;
     },
     surfacePixels(id: SurfaceId, rev: number): SurfacePixels | null {
+      const rnId = renderNowCanvas(state.surfaces);
+      if (activeProgramForCompose() && programOverlayPixels !== null && rnId !== null && id === rnId && rev === programOverlayRev) {
+        return { w: programOverlayPixels.w, h: programOverlayPixels.h, rgba: new Uint8Array(programOverlayPixels.rgba) };
+      }
       if (generatedMarginPixels?.id === id && generatedMarginPixels.id === state.surfaces.nextId && generatedMarginPixels.rev === rev) {
         const { w, h, rgba } = generatedMarginPixels.pixels;
         return { w, h, rgba: new Uint8Array(rgba) };

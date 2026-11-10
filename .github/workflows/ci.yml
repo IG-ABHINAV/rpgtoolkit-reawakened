@@ -189,6 +189,10 @@ jobs:
           - script-cli
           - lsp
           - script-spec
+          - native-data
+          - native-data-cli
+          - native-data-import
+          - native-data-rename
     steps:
       - name: CI classifier decision
         shell: bash
@@ -500,8 +504,8 @@ jobs:
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm browser:test
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
-  # The mobile lane builds and drives the real Capacitor APK on API 33. The
-  # proof script captures the page's own readings and fails instead of
+  # The mobile lane builds and drives the real Capacitor APK on Android 16.
+  # The proof script captures the page's own readings and fails instead of
   # substituting browser stubs or synthetic reports.
   mobile:
     needs: [changes]
@@ -549,7 +553,7 @@ jobs:
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         with:
           packages: platform-tools
-      - run: sdkmanager "emulator" "platforms;android-33" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "build-tools;37.0.0" "system-images;android-33;google_apis;x86_64"
+      - run: sdkmanager "emulator" "platforms;android-33" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "build-tools;37.0.0" "system-images;android-36;google_apis;x86_64"
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: mkdir -p artifacts/mobile-proof
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
@@ -572,6 +576,9 @@ jobs:
       - name: Assemble debug APK
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         run: cd packages/runner-mobile/android && ./gradlew assembleDebug
+      - name: Install Playwright Android driver
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+        run: pnpm exec playwright install android
       - name: Configure and require KVM access
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         run: |
@@ -608,29 +615,32 @@ jobs:
               exit 1
             fi
           }
-      - name: Exercise APK on API 33 emulator
+      - name: Exercise APK on API 36 emulator
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
         uses: reactivecircus/android-emulator-runner@v2
         env:
           CI: "true"
+          # Preserve Playwright API diagnostics if capture or interaction stalls (#1621, #1668).
+          DEBUG: "pw:api"
         with:
-          api-level: 33
+          api-level: 36
           target: google_apis
           arch: x86_64
           profile: pixel_2
           # Keep userdata bounded on hosted runners; the demo APK still runs the full proof.
           disk-size: 2048M
-          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none
+          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           disable-animations: true
           script: pnpm mobile:proof
       - uses: actions/upload-artifact@v6
         if: always() && (needs.changes.result != 'success' || needs.changes.outputs.full != 'false')
         with:
-          name: mobile-android-api33-proof
+          name: mobile-android-api36-proof
           path: artifacts/mobile-proof/
           if-no-files-found: error
   gate:
-    needs: [changes, checks, unit, golden, golden-bun, browser, desktop, mobile, script-dogfood]
+    # Gate checks all required jobs, including the Android 16 mobile emulator proof (#1621).
+    needs: [changes, checks, unit, golden, golden-bun, browser, desktop, script-dogfood, mobile]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5

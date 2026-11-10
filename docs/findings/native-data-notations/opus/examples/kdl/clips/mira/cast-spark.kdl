@@ -1,0 +1,11 @@
+- kind=clip id="mira/cast-spark" secondsPerFrame=0.1 {
+  size 32 64
+  frames {
+    - id=raise {
+      tile tileset=people tile=44
+    }
+    - id=release {
+      tile tileset=people tile=45
+    }
+  }
+}

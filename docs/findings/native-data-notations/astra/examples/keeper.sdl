@@ -1,0 +1,185 @@
+// creator note
+entry "" type="object" {
+  entry "evidence" "Authored illustration, not a recovered game or adopted native schema" type="string"
+  entry "actor" type="object" {
+    entry "id" "actor:keeper" type="string"
+    entry "kind" "actor" type="string"
+    entry "name" "Keeper" type="string"
+    entry "presentation" "presentation:keeper" type="string"
+    entry "movement" type="object" {
+      entry "speedSeconds" 0.15d type="number"
+    }
+    entry "skillPerformances" type="object" {
+      entry "skill:light" type="object" {
+        entry "clip" "clip:gesture" type="string"
+      }
+    }
+    entry "extensions" type="object" {
+      entry "@example/patrol" type="object" {
+        entry "schemaVersion" 1 type="number"
+        entry "radius" 6 type="number"
+        entry "notes" "Actor-owned plugin data; core owns placement coordinates" type="string"
+      }
+      entry "@missing/story" type="object" {
+        entry "schemaVersion" 7 type="number"
+        entry "untouched" type="array" {
+          entry "0" "future" type="string"
+          entry "1" type="null"
+          entry "2" type="object" {
+            entry "flag" true type="boolean"
+          }
+        }
+      }
+    }
+  }
+  entry "scene" type="object" {
+    entry "id" "scene:plaza" type="string"
+    entry "width" 4 type="number"
+    entry "height" 3 type="number"
+    entry "layers" 1 type="number"
+    entry "placements" type="array" {
+      entry "0" type="object" {
+        entry "id" "placement:east" type="string"
+        entry "actor" "actor:keeper" type="string"
+        entry "x" 96 type="number"
+        entry "y" 32 type="number"
+      }
+      entry "1" type="object" {
+        entry "id" "placement:west" type="string"
+        entry "actor" "actor:keeper" type="string"
+        entry "x" 32 type="number"
+        entry "y" 32 type="number"
+      }
+      entry "2" type="object" {
+        entry "id" "placement:gate" type="string"
+        entry "actor" "actor:keeper" type="string"
+        entry "x" 64 type="number"
+        entry "y" 64 type="number"
+      }
+    }
+    entry "geometry" type="array" {
+      entry "0" type="object" {
+        entry "id" "region:gate" type="string"
+        entry "closed" true type="boolean"
+        entry "points" type="array" {
+          entry "0" type="array" {
+            entry "0" 0 type="number"
+            entry "1" 0 type="number"
+          }
+          entry "1" type="array" {
+            entry "0" 32 type="number"
+            entry "1" 0 type="number"
+          }
+          entry "2" type="array" {
+            entry "0" 32 type="number"
+            entry "1" 32 type="number"
+          }
+          entry "3" type="array" {
+            entry "0" 0 type="number"
+            entry "1" 32 type="number"
+          }
+        }
+      }
+    }
+    entry "tileLut" type="array" {
+      entry "0" "" type="string"
+      entry "1" "stone.tst1" type="string"
+    }
+    entry "tileRows" type="array" {
+      entry "0" type="object" {
+        entry "id" "layer:1/row:0" type="string"
+        entry "cells" type="array" {
+          entry "0" 1 type="number"
+          entry "1" 1 type="number"
+          entry "2" 1 type="number"
+          entry "3" 1 type="number"
+        }
+      }
+      entry "1" type="object" {
+        entry "id" "layer:1/row:1" type="string"
+        entry "cells" type="array" {
+          entry "0" 1 type="number"
+          entry "1" 0 type="number"
+          entry "2" 0 type="number"
+          entry "3" 1 type="number"
+        }
+      }
+      entry "2" type="object" {
+        entry "id" "layer:1/row:2" type="string"
+        entry "cells" type="array" {
+          entry "0" 1 type="number"
+          entry "1" 1 type="number"
+          entry "2" 1 type="number"
+          entry "3" 1 type="number"
+        }
+      }
+    }
+    entry "triggers" type="array" {
+      entry "0" type="object" {
+        entry "id" "trigger:welcome" type="string"
+        entry "binding" type="object" {
+          entry "mode" "inline" type="string"
+          entry "bindingId" "hook:welcome" type="string"
+          entry "context" "placement-interaction" type="string"
+          entry "program" type="null"
+          entry "source" "mwin(\"Welcome, traveller\");\n// path: C:\\games\\demo; café\n" type="string"
+        }
+      }
+      entry "1" type="object" {
+        entry "id" "trigger:leave" type="string"
+        entry "binding" type="object" {
+          entry "mode" "file" type="string"
+          entry "bindingId" "hook:leave" type="string"
+          entry "context" "placement-interaction" type="string"
+          entry "program" "program:leave.prg" type="string"
+          entry "source" type="null"
+        }
+      }
+    }
+  }
+  entry "presentation" type="object" {
+    entry "id" "presentation:keeper" type="string"
+    entry "idle" "clip:gesture" type="string"
+    entry "pixelPayload" "Graphics/keeper.png" type="string"
+  }
+  entry "clip" type="object" {
+    entry "id" "clip:gesture" type="string"
+    entry "delaySeconds" 0.15d type="number"
+    entry "frames" type="array" {
+      entry "0" type="object" {
+        entry "id" "frame:a" type="string"
+        entry "graphic" "keeper.tst1" type="string"
+        entry "sound" type="null"
+      }
+      entry "1" type="object" {
+        entry "id" "frame:b" type="string"
+        entry "graphic" "keeper.tst2" type="string"
+        entry "sound" type="null"
+      }
+      entry "2" type="object" {
+        entry "id" "frame:c" type="string"
+        entry "graphic" "keeper.tst3" type="string"
+        entry "sound" "wave.wav" type="string"
+      }
+    }
+  }
+  entry "item" type="object" {
+    entry "id" "inventory:lantern" type="string"
+    entry "kind" "inventory" type="string"
+    entry "name" "Lantern" type="string"
+    entry "grants" type="array" {
+      entry "0" type="object" {
+        entry "skill" "skill:light" type="string"
+        entry "while" "equipped" type="string"
+      }
+    }
+  }
+  entry "skill" type="object" {
+    entry "id" "skill:light" type="string"
+    entry "name" "Light" type="string"
+    entry "cost" 3 type="number"
+  }
+  entry "actorCatalogue" type="array" {
+    entry "0" "actor:keeper" type="string"
+  }
+}

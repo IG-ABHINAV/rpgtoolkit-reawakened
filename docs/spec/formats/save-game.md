@@ -65,7 +65,16 @@ without replacing the current game. The current implementation replaces live
 state, rebuilds package layers, hydrates saved actors and verifies VM handles
 before continuing the saved thread set.
 
-**Start-program Load exception (OWNER, 2026-11-02; [#1177](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177)).** The target follows 3.1: the loaded board is drawn into the program surface, replacing its drawing; the player is placed as for `send`, disarming programs under the player; the message window's flag and text remain unchanged; board music starts; the loaded board's enter program runs nested without a new copy; then the calling start program continues over the board. This overrides continuing only the saved thread set for that caller, but is not yet implemented. An [issue comment](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177#issuecomment-6579294362) attributes redraw-before-placement to an owner ruling; its underlying direct owner wording has not been independently located. The owner-relayed engineer account in this PR's request instead places the player before redraw. Preserve both accounts and obtain clarification before implementing their relative order; do not treat the issue comment as a verified verbatim owner quote. Saved blocking programs and threads, VM, tick and UI state also remain open. Evidence for nested entry and continuation is source-read, not run-confirmed; first-board skipping was labelled certain.
+**Start-program Load exception (OWNER, 2026-11-02; [#1177](https://github.com/tk-reawakened/rpgtoolkit-reawakened/issues/1177)).** The target follows 3.1:
+1. The game state is restored from the saved game.
+2. The player is placed as for `send`, disarming programs under the player at the arrival position.
+3. The message window's flag and text remain unchanged.
+4. Board music starts.
+5. The loaded board is drawn into the program surface via `boardRedraw()`, replacing what the program drew while leaving the message window intact.
+6. The calling thread receives success (`1`) from `Load()`. If the loaded board names an enter program (`enterPrg`), its call frame is pushed onto the calling thread to execute nested (without taking a new surface starting copy).
+7. Upon completion of the nested enter program (or immediately if none), the calling start program continues over the loaded board.
+8. When the start program ends, the main file's first board (`initBoard`) is skipped and the engine transitions to free roam on the loaded board.
+If `Load()` fails (missing or corrupted file), the calling program receives failure (`0`) and continues with the live state unchanged.
 
 **In-flight requests.** A game save is serialized only once every other host
 request it would capture has been answered: outstanding asset requests, deferred
@@ -78,8 +87,48 @@ which a restore would drop and strand.
 
 **Item-action clarification (#589; TKR engineering rule).** A pending item-asset acquisition obeys this same in-flight request rule. A request-free saved item-action continuation may need to acquire its definitions again on a cold restore; an unanswered host request itself is never serialized. The [item-action contract](../engine/plugins-and-battle.md#epic-85-item-action-proposal) specifies request phases and distinguishes normal save continuation from interruption recovery.
 
+<a id="saved-asset-readiness"></a>
+**Shared asset readiness (#1340).** A save records which game assets the core
+had successfully acquired, so an unloaded animation and every other consumer
+resume with the same availability instead of inheriting the destination's cache.
+The saved engine section carries `cacheKeys`, a sorted, duplicate-free array of
+canonical asset keys. This is semantic continuation state and remains in the
+replay hash; asset bytes, decoded textures and prefetch-only facts are not saved
+by this field. The engine section is version 2; instruction positions are unchanged.
+
+Load first validates current program sources under the existing compatibility
+rules. It then replaces destination cache visibility with the saved set and
+reacquires absent saved-warm assets before running scripts or rebuilding frames.
+No simulation tick passes during that acquisition. Assets absent from the saved
+set remain cold until their ordinary consumers request them. This preserves
+shared consumers and lets resumed scripts cancel animations without fetching
+their previously cold pictures.
+
+This deliberately restores **all previously acquired assets**, even files the
+continuation never uses again. A missing or invalid unused asset does not fail
+Load or the game merely because restoration reads it: decoding and failure
+handling remain with the normal consumer if it later needs the file. Ordinary
+Load uses current installed image and animation content, not historical bytes
+or recovery-style fingerprints (owner choice, 2026-11-07). Exact continuation
+equivalence therefore assumes unchanged game data.
+
+Current installed program sources remain physically accessible to synchronous
+source resolution even when a newer source key was absent from the save.
+Consuming such a source records that key as acquired; Load alone does not.
+
+Older saves migrate with `cacheKeys: null`, meaning historical readiness is
+unknown. Their deterministic fallback retains only the boot-required main file,
+fonts, program sources and initial character, discarding other destination cache
+warmth. Already loaded animations retain their saved clocks; unloaded animations
+cannot recover historical timing information the old save never recorded.
+Malformed new manifests refuse the save before replacing live state or caches.
+
+References: [full-engine Save and Load](#reawakened-full-engine-save-and-load),
+[save compatibility](#save-compatibility-and-instruction-versions-owner-ruling),
+[determinism](../../guardrails.md#g3--determinism).
+
 <a id="state-hash-request-projection"></a>
-**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash, so a bookkeeping difference such as an additional settled boot-time asset request does not move golden baselines.
+**State-hash request projection (owner ruling, 2026-11-01).** The engine's request-id counter remains in saved state for reply correlation but is excluded from `hashGameState`. The outstanding-request list remains in the projection, including each request's id: differences in work in flight therefore still change the hash. Completed request history alone does not change the hash. Settled requests with the same acquired-key set therefore do not move golden baselines; acquiring an additional key changes semantic readiness (#1340), so its hash can change even after the request settles.
 
 <a id="state-hash-surface-projection"></a>
 **Surface hash projection — Approved ruling (owner: Jensen, 2026-11-02).**

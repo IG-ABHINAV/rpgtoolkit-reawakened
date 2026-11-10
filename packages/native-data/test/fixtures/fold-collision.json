@@ -1,0 +1,7 @@
+{
+  "documents": [
+    { "path": "Actors/Guard.tkract", "text": "contract: actor\nversion: 1.0.0\n" },
+    { "path": "actors/guard.tkract", "text": "contract: actor\nversion: 1.0.0\n" },
+    { "path": "actors/knight.tkract", "text": "contract: actor\nversion: 1.0.0\n" }
+  ]
+}

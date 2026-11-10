@@ -25,7 +25,7 @@ test("transient adb failure does not restart, genuine absence does, and failure 
     const adb = join(dir, "adb");
     const calls = join(dir, "calls");
     const clock = join(dir, "clock.mjs");
-    writeFileSync(adb, `#!/bin/sh\necho "$*" >> "$CALLS"\ncase "$*" in\n  'shell pidof '*)\n    if [ ! -e "$FIRST" ]; then touch "$FIRST"; echo 'error: device offline' >&2; exit 1; fi\n    exit 1;;\n  *) exit 0;;\nesac\n`);
+    writeFileSync(adb, `#!/bin/sh\necho "$*" >> "$CALLS"\ncase "$*" in\n  get-serialno) echo emulator-5554;;\n  'shell pidof '*)\n    if [ ! -e "$FIRST" ]; then touch "$FIRST"; echo 'error: device offline' >&2; exit 1; fi\n    exit 1;;\n  *) exit 0;;\nesac\n`);
     chmodSync(adb, 0o755);
     // Accelerate only the spawned proof's clock; no wall-clock sleeps or production test switches.
     writeFileSync(clock, 'let now = 0; Date.now = () => { now += 5000; return now; }; const original = globalThis.setTimeout; globalThis.setTimeout = (fn, _ms, ...args) => original(fn, 1, ...args);\n');
@@ -56,7 +56,7 @@ test("a malformed pidof response (exit 0, non-numeric stdout) keeps its raw stdo
   try {
     const adb = join(dir, "adb");
     const calls = join(dir, "calls");
-    writeFileSync(adb, `#!/bin/sh\necho "$*" >> "$CALLS"\ncase "$*" in\n  'shell pidof '*)\n    if [ ! -e "$FIRST" ]; then touch "$FIRST"; echo garbage; exit 0; fi\n    exit 1;;\n  *) exit 0;;\nesac\n`);
+    writeFileSync(adb, `#!/bin/sh\necho "$*" >> "$CALLS"\ncase "$*" in\n  get-serialno) echo emulator-5554;;\n  'shell pidof '*)\n    if [ ! -e "$FIRST" ]; then touch "$FIRST"; echo garbage; exit 0; fi\n    exit 1;;\n  *) exit 0;;\nesac\n`);
     chmodSync(adb, 0o755);
     const clock = join(dir, "clock.mjs");
     writeFileSync(clock, 'let now = 0; Date.now = () => { now += 5000; return now; }; const original = globalThis.setTimeout; globalThis.setTimeout = (fn, _ms, ...args) => original(fn, 1, ...args);\n');

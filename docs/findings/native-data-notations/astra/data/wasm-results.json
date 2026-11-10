@@ -1,0 +1,25 @@
+{
+  "wasmBytes": 349235,
+  "gzipBytes": 121614,
+  "node": {
+    "roundtrip": true,
+    "edited": true,
+    "valid": true,
+    "invalidRejected": true,
+    "syntaxError": "Error: 1:7-1:8: Unexpected end of RON",
+    "bytes": 99061,
+    "elapsedIncludingInstantiationMs": 37.553292000000006,
+    "parser": "official ron-rs 0.12.3; custom ABI only"
+  },
+  "browserVersion": "157.0.4341.42",
+  "browser": {
+    "roundtrip": true,
+    "edited": true,
+    "valid": true,
+    "invalidRejected": true,
+    "syntaxError": "Error: 1:7-1:8: Unexpected end of RON",
+    "bytes": 99061,
+    "elapsedIncludingInstantiationMs": 60.70000000298023,
+    "parser": "official ron-rs 0.12.3; custom ABI only"
+  }
+}

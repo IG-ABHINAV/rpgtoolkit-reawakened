@@ -1,0 +1,15 @@
+{
+  kind: "clip",
+  id: "gatekeeper/walk-north",
+  size: [32, 64],
+  secondsPerFrame: 0.15,
+  frames: [
+    {
+      id: "stand",
+      tile: {
+        tileset: "people",
+        tile: 20,
+      },
+    },
+  ],
+}

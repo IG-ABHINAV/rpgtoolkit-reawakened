@@ -123,6 +123,7 @@ export type WorldBoard = DataRecord & {
   readonly height: number;
   readonly background: WorldRgb;
   readonly ambient: WorldRgb;
+  readonly activeAmbient?: WorldRgb;
   readonly backgroundImage?: string;
   readonly backgroundDrawType?: number;
   readonly backgroundMusic?: string;

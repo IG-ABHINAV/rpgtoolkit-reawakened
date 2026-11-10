@@ -92,6 +92,9 @@ const TILE_TYPE: BuiltinSpec = {
 const AMBIENT: BuiltinSpec = {
   name: "setambientlevel", aliases: [], params: [{ name: "red", optional: false, byRef: false, variadic: false }, { name: "green", optional: false, byRef: false, variadic: false }, { name: "blue", optional: false, byRef: false, variadic: false }], doc: docs("Set the board's ambient light level.", "Write red, green and blue levels in the inclusive -255..255 range immediately; the next draw list uses the new values and the call does not wait."), call: (view, args) => { board(view); return effect(args); },
 };
+const FORCE_REDRAW: BuiltinSpec = {
+  name: "forceredraw", aliases: [], params: [], doc: docs("Force a redrawing of the screen.", "Redraws the board, thread animations and overlay into the presented frame immediately, applying any pending ambient light changes. The call does not wait."), call: (_view, args) => effect(args),
+};
 const GET_VECTOR: BuiltinSpec = {
   name: "boardgetvector", aliases: [], params: [{ name: "vector", optional: false, byRef: false, variadic: false }, { name: "type", optional: false, byRef: true, variadic: false }, { name: "pointCount", optional: false, byRef: true, variadic: false }, { name: "layer", optional: false, byRef: true, variadic: false }, { name: "closed", optional: false, byRef: true, variadic: false }, { name: "attributes", optional: false, byRef: true, variadic: false }], doc: docs("Read a board vector's properties.", "Read the vector at index and write type, point count, layer, closed flag and attributes to the by-reference outputs immediately."), call: (view, args) => { const value = vector(board(view), args); return { value: value === undefined ? 0 : 1, out: [ [1, value?.type ?? 0], [2, value?.points.length ?? 0], [3, value?.layer ?? 0], [4, value?.closed ?? 0], [5, value?.attributes ?? 0] ] }; },
 };
@@ -271,7 +274,7 @@ const PIXEL_MOVEMENT: BuiltinSpec = {
 const WORLD_COMMANDS: readonly BuiltinSpec[] = [
   GET_NAME, PUT, LAYER_PUT, tileGetter("getboardtile", "boardgettile"), TILE_TYPE_GET, TILE_TYPE, PIXEL_MOVEMENT,
   noArgs("animatedtiles", [{ name: "list", optional: true, byRef: true, variadic: false }]),
-  noArgs("parallax", [{ name: "setting", optional: false, byRef: false, variadic: false }]), AMBIENT,
+  noArgs("parallax", [{ name: "setting", optional: false, byRef: false, variadic: false }]), AMBIENT, FORCE_REDRAW,
   GET_VECTOR, SET_VECTOR, GET_VECTOR_POINT, SET_VECTOR_POINT, GET_PROGRAM, SET_PROGRAM, GET_PROGRAM_POINT, SET_PROGRAM_POINT, PRG,
   noArgs("setconstants", [{ name: "args", optional: true, byRef: false, variadic: true }]), noArgs("underarrow"),
   GET_CORNER, CAMERA_PAN_TO, CAMERA_FOLLOW, CAMERA_RESET, CAMERA_SHAKE, SEND,

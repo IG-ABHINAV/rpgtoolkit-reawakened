@@ -72,13 +72,6 @@ function makeStub(stub: CatalogueStub): BuiltinSpec {
 
 const STUBS: readonly CatalogueStub[] = [
   {
-    name: "forceredraw",
-    kind: "state-write",
-    sections: ["engine"],
-    obsolete: false,
-    params: [],
-  },
-  {
     name: "putplayer",
     kind: "state-write",
     sections: ["sprites"],

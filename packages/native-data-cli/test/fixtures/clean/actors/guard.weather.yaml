@@ -1,0 +1,4 @@
+contract: actor-weather
+version: 0.1.0+build.5
+owner: actors/guard.yaml
+wind: 3

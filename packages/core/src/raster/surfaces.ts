@@ -390,20 +390,64 @@ export const SCRIPT_SCREEN = -1 as SurfaceId;
 
 /** Create the script-screen layer if it does not exist yet, and return its id. */
 export function ensureScriptScreen(state: SurfacesSection): SurfaceId {
-  if (Object.hasOwn(state.entries, String(SCRIPT_SCREEN))) return SCRIPT_SCREEN;
-  const frame = entry(state, 0 as SurfaceId);
-  const width = frame?.bitmap.w ?? 640;
-  const height = frame?.bitmap.h ?? 480;
-  const pixels = new Uint8Array(byteCount(width, height));
-  const current: SurfaceState = { id: SCRIPT_SCREEN, rev: 0, bitmap: snapshot(width, height, pixels) };
-  state.entries[String(SCRIPT_SCREEN)] = current;
-  decodedRecords.set(current, { rev: 0, bitmap: current.bitmap, b64: current.bitmap.b64, w: width, h: height, rgba: pixels, canonical: true });
-  return SCRIPT_SCREEN;
+  if (state.entries === undefined || Object.hasOwn(state.entries, String(SCRIPT_SCREEN))) return SCRIPT_SCREEN;
+  return copyPresentedFrameToScriptScreen(state);
 }
 
 /** The script-screen layer's id, or `null` when nothing has drawn to the screen yet. */
 export function scriptScreen(state: SurfacesSection): SurfaceId | null {
   return Object.hasOwn(state.entries, String(SCRIPT_SCREEN)) ? SCRIPT_SCREEN : null;
+}
+
+/**
+ * The starting image of an outermost program: the presented frame (surface 0) flattened over opaque black and
+ * written into the script-screen layer, replacing whatever the previous program drew
+ * (docs/spec/engine/main-loop-and-startup.md#reawakened-starting-frame-capture; ADR 0018 R2 and R5).
+ * Compositing matches `blitSurface`'s source-over arithmetic over a black base, so the result is opaque everywhere.
+ */
+export function copyPresentedFrameToScriptScreen(state: SurfacesSection): SurfaceId {
+  // A hand-built state (e.g. in tests) may not have a surfaces section yet; there is nothing to seed.
+  if (state.entries === undefined) return SCRIPT_SCREEN;
+  const presented = entry(state, 0 as SurfaceId);
+  const layer = entry(state, SCRIPT_SCREEN);
+  const width = presented?.bitmap.w ?? layer?.bitmap.w ?? 640;
+  const height = presented?.bitmap.h ?? layer?.bitmap.h ?? 480;
+  const rgba = new Uint8Array(byteCount(width, height));
+  if (presented === null) {
+    for (let at = 3; at < rgba.length; at += 4) rgba[at] = 255;
+  } else {
+    const source = decode(presented);
+    for (let at = 0; at < rgba.length; at += 4) {
+      const alpha = source[at + 3]!;
+      rgba[at] = Math.trunc(source[at]! * alpha / 255);
+      rgba[at + 1] = Math.trunc(source[at + 1]! * alpha / 255);
+      rgba[at + 2] = Math.trunc(source[at + 2]! * alpha / 255);
+      rgba[at + 3] = 255;
+    }
+  }
+  if (layer === null) {
+    const current: SurfaceState = { id: SCRIPT_SCREEN, rev: 0, bitmap: snapshot(width, height, rgba) };
+    state.entries[String(SCRIPT_SCREEN)] = current;
+    decodedRecords.set(current, { rev: 0, bitmap: current.bitmap, b64: current.bitmap.b64, w: width, h: height, rgba, canonical: true });
+  } else {
+    replaceSurface(state, SCRIPT_SCREEN, width, height, rgba);
+  }
+  return SCRIPT_SCREEN;
+}
+
+/**
+ * Reset the script-screen layer to transparent black at outermost program start
+ * (docs/spec/engine/main-loop-and-startup.md#reawakened-script-surface-lifecycle).
+ * If the layer has not been created yet, do nothing so games that never draw do not allocate it.
+ */
+export function resetScriptScreen(state: SurfacesSection): void {
+  const current = state?.entries?.[String(SCRIPT_SCREEN)];
+  if (current === undefined) return;
+  const frame = entry(state, 0 as SurfaceId);
+  const width = frame?.bitmap.w ?? current.bitmap.w;
+  const height = frame?.bitmap.h ?? current.bitmap.h;
+  const pixels = new Uint8Array(byteCount(width, height));
+  replaceSurface(state, SCRIPT_SCREEN, width, height, pixels);
 }
 
 /** Allocate a monotonically increasing surface id. Ids are never reused. */

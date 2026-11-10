@@ -49,7 +49,7 @@
  */
 
 import { canon, reviveNonFinite, tagNonFinite } from "../canon/index.ts";
-import { cellIdOfRef, cellNumber, eachRootValue, isRecord } from "../script/cells.ts";
+import { cellIdOfRef, cellNumber, eachRootValue, isRecord, migratePackageInlineLambdaDefs } from "../script/cells.ts";
 import { parseObjectRef } from "../script/objects.ts";
 import {
   RESTORE_CALLABLE_MALFORMED,
@@ -75,6 +75,7 @@ import type { HostDisplayGeometry, HostFeatures } from "../ports/host.ts";
 import { BATTLE_SCHEMA_VERSION, createBattleSection, validateBattleSection } from "../battle/model.ts";
 import { migrateMenuSections } from "../menu/migrate.ts";
 import { surfaceByteLength } from "../raster/surfaces.ts";
+import { assetKey } from "../formats/resolver/resolver.ts";
 import { createDisplaySection, HOST_FEATURES_SCHEMA_VERSION, DISPLAY_SCHEMA_VERSION, normalizeDisplayGeometry, normalizeHostFeatures } from "./sections/host.ts";
 /** Upgrade the old empty battle placeholder to the fighter-reference section. */
 function migrateBattle(record: Record<string, unknown>, schema: Record<string, unknown>): void {
@@ -179,7 +180,7 @@ function migrateVm(record: Record<string, unknown>, schema: Record<string, unkno
   schema.vm = SCHEMA_VERSIONS.vm;
 }
 
-/** Advance engine effect-dispatch state to the bounded-queue schema. */
+/** Migrate engine continuation state, including unknown readiness in older saves. */
 function migrateEngine(record: Record<string, unknown>, schema: Record<string, unknown>): void {
   const version = schema.engine;
   if (typeof version !== "number") {
@@ -198,6 +199,7 @@ function migrateEngine(record: Record<string, unknown>, schema: Record<string, u
     if (engine.effectDiagnostics !== undefined && !Array.isArray(engine.effectDiagnostics)) {
       throw new ScriptError("restore.shape", "the snapshot's engine.effectDiagnostics is not an array");
     }
+    engine.cacheKeys = null;
   }
   schema.engine = SCHEMA_VERSIONS.engine;
 }
@@ -1220,6 +1222,18 @@ function validateAudioShape(value: unknown): void {
 /** Validate engine-owned identifiers when a snapshot carries them. */
 function validateEngineShape(value: unknown): void {
   const engine = recordAt(value, "engine");
+  if (engine.cacheKeys !== null) {
+    const keys = arrayAt(engine.cacheKeys, "engine.cacheKeys");
+    let previous = "";
+    for (const [index, value] of keys.entries()) {
+      const path = `engine.cacheKeys[${index}]`;
+      const key = stringAt(value, path);
+      if (key === "" || assetKey(key) !== key || key <= previous) {
+        shapeError(`the snapshot's ${path} must be a canonical asset key in strictly increasing order`);
+      }
+      previous = key;
+    }
+  }
   for (const key of ["nextBattleId", "pendingEnterThread"] as const) {
     const id = engine[key];
     if (id !== undefined && (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1)) {
@@ -1470,6 +1484,7 @@ export function restoreGameState(
   migrateWorld(record, schema as Record<string, unknown>);
 
   migrateVm(record, schema as Record<string, unknown>);
+  migratePackageInlineLambdaDefs(record.vm, record.events);
   migrateSprites(record, schema as Record<string, unknown>);
   migrateInput(record, schema as Record<string, unknown>);
   rebuildKeyboardActionClaimIndex(record.input as GameState["input"]);

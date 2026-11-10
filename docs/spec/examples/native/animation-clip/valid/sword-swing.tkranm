@@ -1,0 +1,15 @@
+contract: animation-clip
+version: 1.0.0-pre.1
+# A sword swing in a 64 by 64 box. Frames show in the order listed, 0.08 s apart.
+canvas:
+  width: 64
+  height: 64
+delay: 0.08
+colourKey: {r: 255, g: 0, b: 255}   # magenta is see-through in every frame that names no key of its own
+frames:
+  - image: bitmap/swing/swing1.png
+  - image: bitmap/swing/swing2.png
+  - image: bitmap/swing/swing3.png
+    sound: media/sword-whoosh.wav   # plays once, when this frame appears
+  - image: bitmap/swing/swing4-flash.bmp
+    colourKey: {r: 0, g: 0, b: 0}   # this picture sits on black, so black is see-through here

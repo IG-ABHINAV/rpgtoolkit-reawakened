@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "actor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "extensions": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "extensions"
+      ]
+    },
+    "scene": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "actor": {
+                "type": "string"
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "actor",
+              "x",
+              "y"
+            ]
+          }
+        }
+      },
+      "required": [
+        "width",
+        "placements"
+      ]
+    },
+    "clip": {
+      "type": "object",
+      "properties": {
+        "frames": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "frames"
+      ]
+    }
+  },
+  "required": [
+    "actor",
+    "scene",
+    "clip"
+  ]
+}

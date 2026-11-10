@@ -7,6 +7,7 @@
 > Research current as of **October 2026**. Versions and statuses are cited at the end. Re-verify before committing.
 >
 > **Decision (October 2026): Option B, TypeScript everywhere**, with the VS Code extension as a first-class editor host alongside a standalone editor. See [ADR 0001](adr/0001-typescript-core.md). The comparison below is kept as the record of why. §8 states the chosen default.
+> **Editor decision (November 2026):** Monaco is selected for standalone/browser code editing; VS Code retains its native text editor. Pin a version when integrating. See [ADR 0021](adr/0021-monaco-code-editor.md).
 
 ---
 
@@ -22,7 +23,7 @@ Most stack debates about 2D engines are settled by a few hard requirements. For 
 | R4 | **Layered 2D compositing** with colour-key transparency, per-pixel **additive RGB tint** (−255…+255), translucency, masked iso diamonds, off-screen canvases, read-back (`getPixel`, `canvasGetScreen`). | E-52…E-59, E-17 | Needs render-to-texture and a simple tint shader, *or* a CPU compositor. Any WebGL2-class renderer is enough. 3D engines are overkill. Read-back rules out "fire-and-forget" GPU-only APIs unless the runner supports copies back to the CPU (under [ADR 0002](adr/0002-core-pixels-and-deterministic-maths.md), read-back is served by `core/raster`, so runners need no CPU copy). |
 | R5 | **General MIDI playback everywhere.** | E-100, E-103 | Browsers and mobile have no OS MIDI synth, so a **SoundFont synthesiser must ship with the runner**, together with a permissively licensed SoundFont. This is a licensing trap (FluidSynth is LGPL; some popular SoundFonts are GPL or have unclear provenance). |
 | R6 | **Binary legacy formats + ZIP + appended-ZIP EXE import.** | [spec/formats/](spec/formats/README.md), E-01, E-131 | Byte-level readers in the core, kept I/O-free. The runner provides bytes. Needs a permissive ZIP reader. |
-| R7 | **Editor with heavy forms, trees, a code editor with syntax colouring and call tips, a pixel editor, and a zoomable vector/tile canvas.** | T-01…T-64 | Favours a mature UI toolkit with a strong text-editor component. The web platform is the strongest here (CodeMirror/Monaco). Immediate-mode GUIs are weak at rich text. |
+| R7 | **Editor with heavy forms, trees, a code editor with syntax colouring and call tips, a pixel editor, and a zoomable vector/tile canvas.** | T-01…T-64 | Favours a mature UI toolkit with a strong text-editor component. The web platform is the strongest here; Monaco is selected for standalone/browser editing ([ADR 0021](adr/0021-monaco-code-editor.md)). Immediate-mode GUIs are weak at rich text. |
 | R8 | **Editor live preview and test-run** using the *same* core. | T-07, T-41, E-01 test mode | The core must embed in the editor (in-process, or as wasm in the editor's web view). |
 | R9 | **Licence: MIT/Apache for everything we ship;** clean-room relative to the GPL-2 legacy code. | brief | No GPL/LGPL in shipped binaries (including the wasm bundle). Non-OSI "source-available" engines are excluded. GPL tools may be used *externally* only (e.g. as importers run by the user). |
 
@@ -139,7 +140,7 @@ Five realistic families. "Core" is the pure library. "Runners" are the platform 
 
 ## 4. The editor shell (don't default to Tauri — compare)
 
-The editor's **UI** should be web technology in every recommended path: R7 needs CodeMirror 6 or Monaco (both MIT) for the RPGCode editor with call tips (T-40), plus trees, tabbed documents, inspectors and a canvas board editor (T-20…T-35). The real question is the **shell** that provides file-system access, menus, running a game from a package through the platform-services `run` call, and writing the distribution package that a harness opens (T-70).
+The editor's **UI** should be web technology in every recommended path: R7 uses Monaco for the standalone/browser RPGCode editor with call tips (T-40), plus trees, tabbed documents, inspectors and a canvas board editor (T-20…T-35). VS Code uses its native text editor; see [ADR 0021](adr/0021-monaco-code-editor.md). The shell provides file-system access, menus, running a game from a package through the platform-services `run` call, and writing the distribution package that a harness opens (T-70).
 
 | Shell | How it hosts the UI | Size / RAM | Fit for this editor | Licence | Risks |
 |---|---|---|---|---|---|
@@ -162,7 +163,7 @@ This is not just "another shell". Because the editor UI in the recommended path 
 
 | Piece | What it delivers | Capabilities | Reuse outside VS Code |
 |---|---|---|---|
-| **RPGCode language server (LSP)** | Syntax colouring (TextMate grammar), diagnostics from the *core's own parser*, call tips and hover from the built-in catalogue ([rpgcode-functions.md](spec/engine/rpgcode-functions.md)), go-to-definition across `#include` and implicit includes, outline of functions/classes/labels (replaces the legacy bookmark bar), formatting (replaces the indent wizard), quick fixes for legacy syntax (replaces the update and cleanup wizards). | T-40, T-42, T-43, T-44, T-46 | Any LSP client: Neovim, Zed, Helix, JetBrains, and the standalone editor's CodeMirror. |
+| **RPGCode language server (LSP)** | Syntax colouring (TextMate grammar), diagnostics from the *core's own parser*, call tips and hover from the built-in catalogue ([rpgcode-functions.md](spec/engine/rpgcode-functions.md)), go-to-definition across `#include` and implicit includes, outline of functions/classes/labels (replaces the legacy bookmark bar), formatting (replaces the indent wizard), quick fixes for legacy syntax (replaces the update and cleanup wizards). | T-40, T-42, T-43, T-44, T-46 | Any LSP client: Neovim, Zed, Helix, JetBrains, and the standalone editor's Monaco integration. |
 | **RPGCode debug adapter (DAP)** | Launch the game or a single program against a test fixture. Breakpoints, step, watch variables, thread list, call stack. The step VM (R1) makes this cheap to build. | T-07, T-41, E-98 (exceeds legacy, which only had an error window) | Any DAP client. |
 | **Custom editors (webviews)** | `.brd`, `.tem`, `.itm`, `.ene`, `.anm`, `.tbm`, `.tst`, `.gam` and the rest open in the same web components the standalone editor uses, with the core (wasm) for parsing, preview and saving. The Custom Editor API supports binary documents with undo/redo and dirty tracking. | T-10…T-64 | The components are shared with the browser, Tauri and Electron editors. |
 
@@ -217,7 +218,7 @@ How each hard capability lands in an Option A build, with notes on alternatives.
 | Save/load incl. threads (E-120…E-122) | core serialises plain state | Optional legacy `.sav` reader. |
 | Packaging/import (E-131, T-70…T-72) | editor backend (native core in Tauri) or browser ZIP | Import legacy `.tpk`/appended-ZIP EXE ([packaging and paths](spec/formats/packaging-and-paths.md)). Export a web bundle and desktop runner bundle. |
 | Board editor canvas (T-20…T-35) | editor UI (web canvas/WebGL) using core types for vectors, tiles and coordinates | Reuses the same renderer code as the web runner for WYSIWYG. |
-| Program editor, call tips, test-run (T-40…T-41) | CodeMirror 6 + core parser (wasm) as a language service | Diagnostics match the engine exactly because it is the same parser. |
+| Program editor, call tips, test-run (T-40…T-41) | Monaco in standalone/browser hosts; native text editing in VS Code, with the core parser as a language service | Diagnostics match the engine exactly because it is the same parser. |
 | Pixel/tile tools, grabber, tilesets (T-36…T-39) | editor UI | Pure web canvas work. Tileset writer in core `formats`. |
 | Auto-tiler (T-25) | core (rule) + editor (UI) | Variant ordering reconstructed from sample sets. |
 
@@ -246,7 +247,7 @@ How each hard capability lands in an Option A build, with notes on alternatives.
 * `runner-mobile/`: `runner-web` in Capacitor.
 * `runner-headless/` (Node/Bun): CPU rasteriser + null audio + scripted input for CI golden tests against `build/game/demo` and `build/game/Basic`.
 * `lsp/` + `dap/`: the RPGCode language server and debug adapter, built directly on `core`'s parser and VM.
-* `editor-ui/`: host-agnostic editor components (board, sprite, animation, tile/tileset, tile bitmap, data editors; CodeMirror 6 for scripts) that talk only to the **platform-services** interface.
+* `editor-ui/`: host-agnostic editor components (board, sprite, animation, tile/tileset, tile bitmap, data editors; Monaco for standalone/browser scripts) that talk only to the **platform-services** interface.
 * **Editor hosts, all implementing platform-services:**
   * `host-vscode/`: **VS Code extension** (§4.1). Webview custom editors for every legacy format, bundled LSP and DAP, tasks for test-run and packaging, a web-extension build for `vscode.dev`. Published to the VS Code Marketplace **and** Open VSX.
   * `host-web/`: standalone editor as a PWA (File System Access API / OPFS + ZIP import/export). The zero-install path for beginners.

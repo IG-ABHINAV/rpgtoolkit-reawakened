@@ -226,7 +226,10 @@ export function waitForHostDisplay(
 ): Promise<HostDisplayGeometry> {
   const initial = measureHostDisplay(host, view, safeArea);
   if (initial !== null) return Promise.resolve(initial);
-  const { promise, resolve } = Promise.withResolvers<HostDisplayGeometry>();
+  let resolve!: (value: HostDisplayGeometry) => void;
+  const promise = new Promise<HostDisplayGeometry>((res) => {
+    resolve = res;
+  });
   let observer: ResizeObserver | null = null;
   const cleanup = (): void => {
     observer?.disconnect();

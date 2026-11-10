@@ -1,0 +1,8 @@
+kind = "clip"
+id = "mira/walk-south"
+size = [ 32, 64 ]
+secondsPerFrame = 0.15
+
+[[frames]]
+id = "stand"
+tile = { tileset = "people", tile = 40 }

@@ -1,0 +1,402 @@
+{
+  "JSON": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 30,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/JSON/after.json",
+      "notation": "JSON",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/JSON/broken.json",
+      "notation": "JSON",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "YAML": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 25,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/YAML/after.yaml",
+      "notation": "YAML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/YAML/broken.yaml",
+      "notation": "YAML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "KDL": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 30,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/KDL/after.kdl",
+      "notation": "KDL",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/KDL/broken.kdl",
+      "notation": "KDL",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "TOML": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 38,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/TOML/after.toml",
+      "notation": "TOML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/TOML/broken.toml",
+      "notation": "TOML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "JSON5": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 30,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/JSON5/after.json5",
+      "notation": "JSON5",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/JSON5/broken.json5",
+      "notation": "JSON5",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "Hjson": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 33,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/Hjson/after.hjson",
+      "notation": "Hjson",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/Hjson/broken.hjson",
+      "notation": "Hjson",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "EDN": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 30,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/EDN/after.edn",
+      "notation": "EDN",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/EDN/broken.edn",
+      "notation": "EDN",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "XML": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 30,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/XML/after.xml",
+      "notation": "XML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/XML/broken.xml",
+      "notation": "XML",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "SDLang": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 30,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/SDLang/after.sdl",
+      "notation": "SDLang",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/SDLang/broken.sdl",
+      "notation": "SDLang",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  },
+  "RON": {
+    "exactExpectedSemantics": true,
+    "sourceBlockLines": 30,
+    "placementsBefore": 6,
+    "placementsAfter": 7,
+    "newId": "placement-hand-added",
+    "actor": "actor:item/cao2.itm",
+    "x": 240,
+    "valid": {
+      "file": "$SCRATCH/text-rehearsal/RON/after.ron",
+      "notation": "RON",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "broken": {
+      "file": "$SCRATCH/text-rehearsal/RON/broken.ron",
+      "notation": "RON",
+      "schemaValid": true,
+      "coreValid": true,
+      "errors": [],
+      "unresolvedReferences": [
+        {
+          "path": "/scene/placements/1/actor",
+          "placement": "placement-hand-added",
+          "missing": "actor:missing"
+        }
+      ],
+      "preservedButUnvalidatedPlugins": [
+        "@missing/story"
+      ],
+      "executable": false
+    },
+    "method": "literal block copy and scalar text replacement; no serialize/edit call after source text was opened; agent-performed, not a user study"
+  }
+}
