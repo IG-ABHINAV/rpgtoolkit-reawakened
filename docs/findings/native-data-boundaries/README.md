@@ -13,6 +13,7 @@ An actor may be an item, NPC or other participant that appears and moves in the 
 - [Candidate constructions and logical grouping](candidate-constructions.md): what the data could become, with definition/placement/state boundaries.
 - [Repeated RPGCode and possible missing capabilities](script-patterns.md): source-grounded examples and cautions.
 - [Coverage and limitations](coverage.md): every source collection, unreadable/unsupported material, and interpretation rules.
+- [Decode-gap classification](decode-gaps.md): every refused data file from the census sorted into unsupported version, damaged capture, missing format evidence or reader defect (#1772).
 - Field catalogue: [actors/items/skills/effects](fields-actors.md), [project/world](fields-world-project.md), [presentation](fields-presentation.md), [save/package/media boundaries](fields-compatibility-runtime.md).
 
 ## What was measured
