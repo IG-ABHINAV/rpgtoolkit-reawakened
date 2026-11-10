@@ -165,10 +165,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      preact:
-        specifier: 11.2.0
-        version: 11.2.0
     devDependencies:
       '@capacitor/android':
         specifier: 8.4.3
@@ -215,6 +211,9 @@ importers:
       eslint:
         specifier: 10.12.0
         version: 10.12.0(supports-color@7.2.0)
+      preact:
+        specifier: 11.2.0
+        version: 11.2.0
       typescript:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
@@ -230,6 +229,35 @@ importers:
       opentype.js:
         specifier: 2.0.0
         version: 2.0.0
+
+  packages/editor-model:
+    dependencies:
+      '@tk-reawakened/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tk-reawakened/platform-services':
+        specifier: workspace:*
+        version: link:../platform-services
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+
+  packages/editor-ui:
+    dependencies:
+      '@tk-reawakened/editor-model':
+        specifier: workspace:*
+        version: link:../editor-model
+      '@tk-reawakened/platform-services':
+        specifier: workspace:*
+        version: link:../platform-services
+      preact:
+        specifier: 11.2.0
+        version: 11.2.0
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
 
   packages/lsp:
     dependencies:
@@ -300,6 +328,12 @@ importers:
       '@tk-reawakened/native-data-cli':
         specifier: workspace:*
         version: link:../native-data-cli
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+
+  packages/platform-services:
     devDependencies:
       '@types/node':
         specifier: 24.0.0

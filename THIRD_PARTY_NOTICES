@@ -245,7 +245,7 @@ THIS SOFTWARE.
 
 ### preact 11.2.0 — MIT
 
-The component layer of `editor-ui` ([ADR 0025](docs/adr/0025-editor-ui-framework-preact-tsx.md)) and its only production dependency. It has no production dependencies of its own (its optional peer `preact-render-to-string` is not installed). It is bundled by esbuild into editor browser bundles; today it is installed at the repository root because the `editor-ui` package does not exist yet, and the toolchain fixture under `tools/editor-ui-toolchain/` is its only consumer. Copyright Jason Miller.
+The component layer of `editor-ui` ([ADR 0025](docs/adr/0025-editor-ui-framework-preact-tsx.md)) and its only production dependency. It has no production dependencies of its own (its optional peer `preact-render-to-string` is not installed). It is bundled by esbuild into editor browser bundles. It is declared as a production dependency of `packages/editor-ui`, its one consumer in shipped code; the repository root also lists the same exact version as a dev-only dependency for the toolchain fixture under `tools/editor-ui-toolchain/`. Copyright Jason Miller.
 
 ```
 The MIT License (MIT)

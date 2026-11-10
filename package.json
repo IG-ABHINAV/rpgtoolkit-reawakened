@@ -72,9 +72,6 @@
     "saveload:record": "tsc -b && node tools/fixtures/saveload/record.mjs",
     "saveload:check": "tsc -b && node tools/fixtures/saveload/record.mjs --check"
   },
-  "dependencies": {
-    "preact": "11.2.0"
-  },
   "devDependencies": {
     "@capacitor/android": "8.4.3",
     "@capacitor/cli": "8.5.3",
@@ -91,6 +88,7 @@
     "electron": "45.2.1",
     "esbuild": "0.28.2",
     "eslint": "10.12.0",
+    "preact": "11.2.0",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.71.1"
   }

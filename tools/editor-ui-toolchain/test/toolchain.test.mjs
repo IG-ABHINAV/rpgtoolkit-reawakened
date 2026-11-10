@@ -60,6 +60,16 @@ test("tsc and esbuild name the same JSX runtime, and the base config stays free 
   equal(base.jsxImportSource, undefined);
 });
 
+// `preact` is a production dependency of `packages/editor-ui`. The fixture below `tools/` is not a package, so it
+// resolves the repository root's dev-only copy; the two must be the same exact version (ADR 0025 decision 1).
+test("the root's dev copy of preact is the exact version editor-ui ships", () => {
+  const shipped = readJson(join(repoRoot, "packages", "editor-ui", "package.json")).dependencies.preact;
+  const dev = readJson(join(repoRoot, "package.json")).devDependencies.preact;
+  match(shipped, /^\d+\.\d+\.\d+$/, "editor-ui pins preact exactly, no range");
+  equal(dev, shipped);
+  ok(readJson(join(repoRoot, "package.json")).dependencies?.preact === undefined, "the root does not ship preact");
+});
+
 test("a .tsx file type-checks under the editor-ui config", () => {
   withProject("clean", { files: { "counter.tsx": counterSource } }, (dir) => {
     const result = typecheck(dir);
