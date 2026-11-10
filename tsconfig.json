@@ -44,6 +44,15 @@
       "path": "packages/native-data-rename"
     },
     {
+      "path": "packages/platform-services"
+    },
+    {
+      "path": "packages/editor-model"
+    },
+    {
+      "path": "packages/editor-ui"
+    },
+    {
       "path": "tools/editor-ui-toolchain"
     }
   ]
