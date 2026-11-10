@@ -44,6 +44,7 @@ P1 tools of editor-features section 11. Not P0 or P2.
 - Decision: epic set approved by the user, 2026-10-10.
 - Waits on editor-assets-p0 because: the board editor and shared tileset browser.
 - Decision: envelope re-sliced against the architecture spine, 2026-10-10.
+- Handoff (owner direction, 2026-11-09): the proposed tile, asset and board architecture is [research flow 11](../research-editor-ux-for-beginners/flows/11-tile-asset-and-board-architecture.md). For this epic it proposes unifying T-25 and T-36 to T-38 into a Tile & Iso Studio backed by a DOM-free Tile Forge in `editor-model` (sheet slicer, kitbash stack, flat → iso projection reusing `isoSourceOffset`, three-face iso blocks, tall-iso decomposition, Tilesetter-style 47-variant autotile generator), plus isometric and image-mask boundary tracing, and the `.tkrtile` / `.tkrpack` YAML formats (schema page in `docs/spec/` first, per G7). Settle at inception; not yet part of the Done-when list.
 
 - Decision (2026-11-08): incept all editor epics; entry 2's art reuse evidence and approval precede entry 1, the real `.tst` edit/save/reopen/board-use tracer, not a browser or a new document model.
 - Source conflict: the 2026-10-31 audit above is historical; this envelope now has parent #1359 and this breakdown, but its child issue mirroring is a separate publication step.
