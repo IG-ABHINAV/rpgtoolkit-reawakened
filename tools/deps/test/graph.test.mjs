@@ -396,3 +396,67 @@ test("tool errors: a missing anchor and a missing diagram block name the spine f
     },
   );
 });
+
+// ADR 0025 decision 2 and "What 11.2 does first" item 4: the cruise reads `.tsx`, so an editor view that imports a
+// `host-*` package fails G2 like any `.ts` file does. `--write` regenerates the config and cruises in one run, so one
+// invocation both writes and judges.
+const tsxView = (imports) =>
+  `${imports}\nexport const View = () => <p>{String(host)}</p>;\n`;
+
+test("tsx: an editor-ui .tsx file importing a host package fails r1-editor-ui-workspace-edges", () => {
+  withRoot(
+    "tsx-host",
+    {
+      packages: {
+        "editor-ui": { "src/View.tsx": tsxView('import { host } from "@tk-reawakened/host-web";') },
+        "host-web": { "src/index.ts": "export const host = 1;\n" },
+      },
+      // The host may import the editor, never the other way round.
+      edges: [["editor-ui", "host-web"]],
+    },
+    (root) => {
+      const result = run(root, "--write");
+      notEqual(result.status, 0, result.output);
+      match(
+        result.output,
+        /r1-editor-ui-workspace-edges: packages\/editor-ui\/src\/View\.tsx\s*\u2192\s*packages\/host-web\/src\/index\.ts/,
+      );
+    },
+  );
+});
+
+test("tsx: a clean .tsx file importing an allowed package passes", () => {
+  withRoot(
+    "tsx-clean",
+    {
+      packages: {
+        "editor-ui": { "src/View.tsx": tsxView('import { host } from "@tk-reawakened/editor-model";') },
+        "editor-model": { "src/index.ts": "export const host = 1;\n" },
+      },
+      edges: [["editor-model", "editor-ui"]],
+    },
+    (root) => {
+      const result = run(root, "--write");
+      equal(result.status, 0, result.output);
+      match(result.output, /no dependency violations found/);
+    },
+  );
+});
+
+test("tsx: a .tsx relative import out of the package fails r1-editor-ui-no-relative-escape", () => {
+  withRoot(
+    "tsx-escape",
+    {
+      packages: {
+        "editor-ui": { "src/View.tsx": tsxView('import { host } from "../../editor-model/src/index.ts";') },
+        "editor-model": { "src/index.ts": "export const host = 1;\n" },
+      },
+      edges: [["editor-model", "editor-ui"]],
+    },
+    (root) => {
+      const result = run(root, "--write");
+      notEqual(result.status, 0, result.output);
+      match(result.output, /r1-editor-ui-no-relative-escape: packages\/editor-ui\/src\/View\.tsx/);
+    },
+  );
+});

@@ -165,6 +165,12 @@ jobs:
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
       - run: pnpm icons:test
         if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+      # The editor-ui toolchain (ADR 0025): JSX options agree between tsc and esbuild, .tsx is read by lint and the
+      # graph, the DOM shim renders Preact, and no editor bundle contains eval( or new Function.
+      - run: pnpm editor-ui-toolchain:test
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
+      - run: pnpm editor-ui-toolchain:check
+        if: needs.changes.result != 'success' || needs.changes.outputs.full != 'false'
   unit:
     needs: [changes]
     if: ${{ !cancelled() }}

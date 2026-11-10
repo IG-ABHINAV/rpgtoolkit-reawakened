@@ -650,6 +650,21 @@ test("every extension in the allowlist is scanned", () => {
   }
 });
 
+test("a .tsx file is scanned: the allowlist names it and a marker in an editor view is reported (ADR 0025 decision 2)", () => {
+  ok(raw.scope.extensions.includes(".tsx"), "tools/provenance/markers.json must list .tsx");
+  const [sample] = entriesOf("legacyIdentifiers")[0].examples;
+  const { violations, scanned } = scanFiles({
+    ...CLEAN,
+    "packages/editor-ui/src/View.tsx": `export const View = () => <p>{${sample}}</p>;\n`,
+    "packages/editor-ui/src/Clean.tsx": "export const Clean = () => <p>ok</p>;\n",
+  });
+  equal(scanned, 3);
+  deepEqual(
+    violations.map((hit) => hit.file),
+    ["packages/editor-ui/src/View.tsx"],
+  );
+});
+
 const utf16 = {
   le: (text) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, "utf16le")]),
   be: (text) => Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(text, "utf16le").swap16()]),

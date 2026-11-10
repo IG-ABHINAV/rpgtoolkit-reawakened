@@ -42,6 +42,9 @@
     },
     {
       "path": "packages/native-data-rename"
+    },
+    {
+      "path": "tools/editor-ui-toolchain"
     }
   ]
 }
