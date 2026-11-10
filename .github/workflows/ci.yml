@@ -199,6 +199,9 @@ jobs:
           - native-data-cli
           - native-data-import
           - native-data-rename
+          - platform-services
+          - editor-model
+          - editor-ui
     steps:
       - name: CI classifier decision
         shell: bash

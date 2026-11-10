@@ -184,7 +184,7 @@ test("the tool fails saying no test ran when a directory holds none", () => {
 
 // ====================================================== groups & LCOV merge
 
-test("verifyGroups confirms that the repository's 20 groups partition every package test file", () => {
+test("verifyGroups confirms that the repository's 23 groups partition every package test file", () => {
   const report = verifyGroups(repoRoot);
   equal(report.ok, true, JSON.stringify(report));
   equal(report.emptyGroups.length, 0);
@@ -195,7 +195,7 @@ test("verifyGroups confirms that the repository's 20 groups partition every pack
   }
   const result = runTool(repoRoot, ["--verify-groups"]);
   equal(result.status, 0, result.output);
-  match(result.stdout, /verified 20 test groups: \d+ files/);
+  match(result.stdout, /verified 23 test groups: \d+ files/);
   ok(report.byGroup["core-battle"].length > 0, "core-battle is non-empty");
   ok(report.byGroup["core-battle"].every((file) => /^packages\/core\/test\/battle-.*\.test\.ts$/.test(file)), "core-battle contains only battle-*.test.ts files");
   ok(report.byGroup["core-engine"].every((file) => !/^packages\/core\/test\/battle-.*\.test\.ts$/.test(file)), "core-engine excludes battle-*.test.ts files");
@@ -203,7 +203,7 @@ test("verifyGroups confirms that the repository's 20 groups partition every pack
 
 test("verifyGroups fails when an unmapped package has test files or a group is empty", () => {
   const root = makeDir("groups");
-  // `runner-desktop`, `runner-mobile`, `runner-web`, `script-cli`, `native-data`, `native-data-cli`, `native-data-import` and `native-data-rename` get no file, so exactly those groups are empty.
+  // `runner-desktop`, `runner-mobile`, `runner-web`, `script-cli`, `native-data`, `native-data-cli`, `native-data-import`, `native-data-rename`, `platform-services`, `editor-model` and `editor-ui` get no file, so exactly those groups are empty.
   for (const pkg of ["core", "synth", "plugin-tk2-compat", "render-webgl2", "runner-harness", "runner-headless", "runner-web", "script-tools", "lsp", "script-spec", "extra-pkg"]) {
     mkdirSync(join(root, "packages", pkg, "test"), { recursive: true });
   }
@@ -224,12 +224,12 @@ test("verifyGroups fails when an unmapped package has test files or a group is e
 
   const report = verifyGroups(root);
   equal(report.ok, false);
-  deepEqual(report.emptyGroups, ["runner-desktop", "runner-mobile", "runner-web", "script-cli", "native-data", "native-data-cli", "native-data-import", "native-data-rename"]);
+  deepEqual(report.emptyGroups, ["runner-desktop", "runner-mobile", "runner-web", "script-cli", "native-data", "native-data-cli", "native-data-import", "native-data-rename", "platform-services", "editor-model", "editor-ui"]);
   deepEqual(report.missing, ["packages/extra-pkg/test/unmapped.test.ts"]);
 
   const result = runTool(root, ["--verify-groups"]);
   equal(result.status, 1, result.output);
-  match(result.stderr, /empty test group\(s\): runner-desktop, runner-mobile, runner-web, script-cli, native-data, native-data-cli, native-data-import, native-data-rename/);
+  match(result.stderr, /empty test group\(s\): runner-desktop, runner-mobile, runner-web, script-cli, native-data, native-data-cli, native-data-import, native-data-rename, platform-services, editor-model, editor-ui/);
   match(result.stderr, /unmapped test file\(s\): packages\/extra-pkg\/test\/unmapped\.test\.ts/);
 });
 
