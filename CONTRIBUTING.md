@@ -242,6 +242,7 @@ pnpm catalogue:check             # the generated catalogue stubs match the catal
 pnpm command-docs:test && pnpm command-docs:check  # command documentation tool tests, then the check [checks]
 pnpm no-skips:test               # the no-skips guard's own tests [checks]
 pnpm icons:test                  # the icon builder's own tests [checks]
+pnpm editor-ui-toolchain:test && pnpm editor-ui-toolchain:check  # the Preact/TSX toolchain's tests (JSX options, .tsx in lint, graph and the DOM shim), then the check that no editor bundle contains `eval(` or `new Function` (ADR 0025) [checks]
 pnpm golden:bun                  # replay the golden and closing suites under Bun against the committed output; needs Bun and fixtures:fetch [golden-bun]
 ```
 
@@ -259,6 +260,8 @@ pnpm graph:write                 # dev aid: write the dependency-graph inputs; C
 ```
 
 `pnpm license` and `pnpm license:test` are aliases of `licence` and `licence:test`. The `*:test` scripts are the tool self-tests that CI also runs, so run them when you touch `tools/`.
+
+The editor's Preact and TSX toolchain ([ADR 0025](docs/adr/0025-editor-ui-framework-preact-tsx.md)) is set up before the `editor-ui` package exists. `tsconfig.editor-ui.json` holds the JSX options (`react-jsx` with `preact` as the import source) and the DOM lib, and an editor-style project extends it; `tsconfig.base.json`, which `core` extends, has neither. esbuild gets the matching options from `tools/browser/bundle-options.mjs`, which `tools/browser/build.mjs` spreads into every bundle, and a test fails if the two drift. `tools/editor-ui-toolchain/` holds a small `.tsx` fixture that `tsc -b` checks and the tests bundle and render under `@happy-dom/global-registrator` (dev-only, never shipped); a `.tsx` test that needs a DOM follows `tools/editor-ui-toolchain/test/dom-shim.test.mjs`. `pnpm editor-ui-toolchain:check` scans the fixture bundle, and `apps/editor-ui/**/*.js` once the editor builds there, for `eval(` and `new Function`. The browser lane's `tools/browser/tests/editor-ui-csp.spec.ts` runs the fixture under the strict policy `default-src 'none'; script-src 'self'; style-src 'self'` and counts CSP violations. `preact` is installed at the repository root until the `editor-ui` package takes it over.
 
 `pnpm golden:record` rewrites the golden and is the only writer of it. Never run it in CI. A golden change is a reviewed behaviour change (G5), so explain it in the pull request.
 

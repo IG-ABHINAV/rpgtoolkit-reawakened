@@ -35,6 +35,8 @@
     "command-docs:test": "node --test tools/command-docs/test/*.test.mjs",
     "icons": "node tools/icons/build.mjs",
     "icons:test": "node --test tools/icons/test/icons.test.mjs",
+    "editor-ui-toolchain:test": "node --test tools/editor-ui-toolchain/test/*.test.mjs",
+    "editor-ui-toolchain:check": "node tools/editor-ui-toolchain/check-bundles.mjs",
     "no-skips:test": "node --test tools/no-skips/test/no-skips.test.mjs",
     "audio-protocol:check": "node tools/fixtures/audio-protocol/generate.mjs --check",
     "runner-protocol:check": "node tools/fixtures/runner-protocol/generate.mjs --check && node tools/fixtures/runner-protocol/generate-v2.mjs --check",
@@ -70,12 +72,16 @@
     "saveload:record": "tsc -b && node tools/fixtures/saveload/record.mjs",
     "saveload:check": "tsc -b && node tools/fixtures/saveload/record.mjs --check"
   },
+  "dependencies": {
+    "preact": "11.2.0"
+  },
   "devDependencies": {
     "@capacitor/android": "8.4.3",
     "@capacitor/cli": "8.5.3",
     "@capacitor/core": "8.5.3",
     "@capacitor/filesystem": "8.1.1",
     "@capacitor/ios": "8.4.3",
+    "@happy-dom/global-registrator": "21.0.4",
     "@playwright/test": "1.64.0",
     "@tk-reawakened/core": "workspace:*",
     "@tk-reawakened/runner-harness": "workspace:*",

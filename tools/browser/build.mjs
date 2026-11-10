@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { bundleOptions } from "./bundle-options.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -33,12 +34,7 @@ for (const entry of entries) {
   await build({
     entryPoints: [entry.in],
     outfile: join(out, entry.out),
-    bundle: true,
-    format: "iife",
-    platform: "browser",
-    target: "es2022",
-    sourcemap: false,
-    logLevel: "warning",
+    ...bundleOptions,
     // The worker and the AudioWorklet are single-file IIFE bundles with no runtime import(); so is every page entry.
   });
   console.log(`built apps/${entry.out}`);
@@ -102,12 +98,7 @@ console.log(`built apps/precache.json (version ${version}, ${precache.shell.leng
 await build({
   entryPoints: [join(root, "packages/runner-web/src/service-worker.ts")],
   outfile: join(out, "service-worker.js"),
-  bundle: true,
-  format: "iife",
-  platform: "browser",
-  target: "es2022",
-  sourcemap: false,
-  logLevel: "warning",
+  ...bundleOptions,
   define: {
     "__SERVICE_WORKER_VERSION__": JSON.stringify(version),
     "__PRECACHE_MANIFEST__": JSON.stringify(JSON.stringify(precache)),
