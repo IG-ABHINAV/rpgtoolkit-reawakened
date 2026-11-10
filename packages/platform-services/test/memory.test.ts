@@ -45,8 +45,10 @@ test("paths compare ASCII-folded and keep the stored case (ADR 0022 D1.1)", asyn
   ok(listed.ok);
   deepEqual(listed.value, [{ name: "Game.GAM", kind: "file" }], "one file, under its first spelling");
   // U+212A KELVIN SIGN is not the ASCII letter k: the fold is not Unicode case folding.
-  const kelvin = await host.fs.read("main/game\u212A.gam");
-  equal(kelvin.ok, false);
+  await host.fs.write("Main/Kit.gam", bytes(9));
+  equal((await host.fs.read("main/KIT.GAM")).ok, true, "ASCII case differences fold");
+  const kelvin = await host.fs.read("main/\u212Ait.gam");
+  equal(kelvin.ok, false, "the Kelvin sign is not a k");
 });
 
 test("failures are values with a code: missing, wrong kind, invalid path, existing destination", async () => {

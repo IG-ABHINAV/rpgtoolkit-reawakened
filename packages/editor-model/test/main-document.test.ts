@@ -1,7 +1,7 @@
 // The `.gam` document of ADR 0022 D2 and D3: bytes plus a serialisable command stack over the reader and writer of
 // `core`, saved through platform-services. Every case runs on real `.gam` bytes against the in-memory double.
 import { test } from "node:test";
-import { deepEqual, equal, notEqual, ok } from "node:assert/strict";
+import { deepEqual, equal, match, notEqual, ok } from "node:assert/strict";
 import { createMemoryPlatformServices } from "@tk-reawakened/platform-services/testing";
 import type { MemoryPlatformServices } from "@tk-reawakened/platform-services/testing";
 import {
@@ -347,6 +347,25 @@ test("a main file the writer cannot reproduce opens read-only with the reason; i
   ok(saved.failure.message.includes(PATH));
   equal(doc.getSnapshot().dirty, false);
   deepEqual(stored(host), text, "nothing was written");
+});
+
+test("a binary main file the writer would change opens read-only too, naming the first byte that would differ", async () => {
+  // One byte of a length field zeroed in the minor 9 example: the reader still accepts the file and keeps the tail as
+  // residue, but the writer derives its list bounds from the lists and would write other bytes. Saving it would alter
+  // the file, so it is not offered read-write (ADR 0022 D2.1; AD-18).
+  const odd = exampleMain(9);
+  odd[1820] = 0;
+  const host = hostWith(odd);
+  const doc = await open(host);
+  const reason = doc.getSnapshot().readOnly;
+  ok(reason !== null);
+  equal(reason.code, "no-same-version-writer");
+  match(reason.message, /minor 9/);
+  match(reason.message, /offset \d+/);
+  const applied = doc.apply({ type: "set-game-title", title: "Nope" });
+  ok(!applied.ok);
+  equal(applied.rejection.reason, "read-only");
+  deepEqual(stored(host), odd);
 });
 
 test("open fails whole, with the reason, for a file the reader refuses or the host cannot read", async () => {
