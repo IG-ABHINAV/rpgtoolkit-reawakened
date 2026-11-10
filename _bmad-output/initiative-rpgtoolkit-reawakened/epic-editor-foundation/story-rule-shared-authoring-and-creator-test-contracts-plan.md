@@ -2,7 +2,7 @@
 type: story
 title: "Rule shared authoring and creator test contracts"
 ticket: 1
-status: draft
+status: done
 ---
 
 ## Scope
