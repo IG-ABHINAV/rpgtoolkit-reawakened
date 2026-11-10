@@ -138,14 +138,35 @@ tiles:
     source: village-sheet
     cell: [0, 0]
     role: floor      # floor | wall | wall-cap | decorative
-    collision: walkable
+    collision:
+      walkable: true
 
   - id: stone-wall-base
     name: Rough Stone Wall
     source: village-sheet
     cell: [1, 0]
     role: wall
-    collision: solid
+    collision:
+      solid: true
+
+  - id: stone-wall-ne-slope
+    name: Diagonal Wall (NE)
+    source: village-sheet
+    cell: [1, 1]
+    role: wall
+    collision:
+      solid:
+        shape: triangle
+        corner: north-east # triangle corner is solid; rest is walkable
+
+  - id: tree-trunk-subtile
+    name: Tree Trunk Base
+    source: village-sheet
+    cell: [2, 1]
+    collision:
+      solid:
+        shape: polygon
+        points: [[8, 16], [24, 16], [24, 30], [8, 30]] # sub-tile footprint
 
   - id: wood-counter-diagonal
     name: Angled Counter Corner
@@ -207,7 +228,7 @@ assets:
   - id: stone-archway
     name: Stone Archway
     category: Architecture
-    kind: stamp      # stamp | prop | backdrop
+    kind: stamp      # stamp (scenery) | actor (interactive / dynamic) | backdrop (full environment)
     anchor:
       x: 64
       y: 96
@@ -245,8 +266,8 @@ assets:
 
   - id: wooden-chest
     name: Wooden Chest
-    category: Furniture
-    kind: prop
+    category: Interactives
+    kind: actor      # AD-32 Unified Actor: placed board entity (player, npc, enemy, item/chest)
     anchor:
       x: 16
       y: 28
@@ -255,7 +276,7 @@ assets:
       - source: props-atlas
         rect: [128, 0, 32, 32]
     vectors:
-      - label: Chest Footprint
+      - label: Chest Collision Base
         type: solid
         closed: true
         points:
@@ -263,6 +284,14 @@ assets:
           - [14, -10]
           - [14, 0]
           - [-14, 0]
+      - label: Chest Activation Base
+        type: activation
+        closed: true
+        points:
+          - [-18, -14]
+          - [18, -14]
+          - [18, 4]
+          - [-18, 4]
 ```
 
 ---
@@ -272,7 +301,7 @@ assets:
 When the editor saves a `.tkrscn` or builds for test-running:
 1. **Tiles & LUT Generation:** Referenced tiles and generated autotile variants compile into local `.tst` / `.iso` files or into the `.brd` tile LUT ([docs/spec/formats/board.md](board.md#dimensions-and-tiles)).
 2. **Placed Pack Expansion (`PlaceSceneAsset`):**
-   - Each placed stamp or prop in `placedPacks` expands its `visuals` into either `WorldImage` entries in the board's image array or `WorldTile` cells on the corresponding layer.
-   - Its relative `vectors` are translated by `(x, y)` and inserted into the board's vector array.
+   - Each placed stamp or backdrop in `placedPacks` expands its `visuals` into either `WorldImage` entries in the board's image array or `WorldTile` cells on the corresponding layer, and its relative `vectors` are translated by `(x, y)` into the board's vector array.
+   - Each placed `actor` in `placedPacks` (chests, interactive items, NPCs, enemies) lowers into the board's `WorldItem` / sprite array, mapping its visuals to sprite rest stances and its collision / activation vectors to the actor's footprint base.
 3. **Boundary Synthesis:** If `boundarySources` is active, the contour tracer executes and emits simplified `WorldVector` solid polylines (open outer loops, closed obstacle holes) and under polygons.
 4. **Target Persistence:** The compiled output is saved as a legacy binary `.brd` (minor 4 vector layout) that runtime runners read without modification.

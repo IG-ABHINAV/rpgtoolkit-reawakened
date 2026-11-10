@@ -168,9 +168,10 @@ One dock, many kinds, one index (`index/asset-index`):
 
 | Tab | Shows | Drag onto board does |
 |---|---|---|
-| Tiles | `.tst` / `.iso` tiles, `.tan` animated tiles | paint |
+| Tiles | `.tst` / `.iso` tiles, `.tan` animated tiles | paint (uniform grid brush) |
 | Terrains | autotile brushes from `.tkrtile` | paint with neighbour lookup |
-| Stamps & props | `.tbm`, pack stamps, cut-out props | `PlaceSceneAsset` |
+| Stamps | `.tbm`, pack stamps (scenery) | `PlaceSceneAsset` (stamps tiles / images + vectors) |
+| Actors | unified actors from `.tkrpack` (interactive chests, NPCs, items, obstacles) | place `WorldItem` / sprite actor with collision & activation base |
 | Backdrops | whole-room images from packs or `Bitmap/` | set background or add a layer image |
 | Audio | `Media/` files | attach (audition beside the row) |
 
@@ -181,10 +182,14 @@ Each entry shows projection (2D / iso), size, badges (`solid`, `walk-behind`, `a
 `PlaceSceneAsset(asset, point, layer)`:
 
 1. Snap `point` to the asset's anchor rule (tile corner, tile centre, diamond centre, or free).
-2. Emit visuals: a layer image at `point − anchor` with its transparency, **or** tile cells (`.tst` / `.iso` references) on the target layer(s).
-3. Emit the asset's solid shapes translated by `point`, on `layer`.
-4. Emit its walk-behind shapes translated by `point`, as under vectors with their attributes (background 1, lower layers 2, frame intersection 4).
-5. Record the editor link. One command; one undo.
+2. For `stamp` or `backdrop`:
+   - Emit visuals: a layer image at `point − anchor` with its transparency, **or** tile cells (`.tst` / `.iso` references) on the target layer(s).
+   - Emit the asset's solid shapes translated by `point`, on `layer`.
+   - Emit its walk-behind shapes translated by `point`, as under vectors with their attributes (background 1, lower layers 2, frame intersection 4).
+3. For `actor` (AD-32 Unified Actor: chest, pickup, NPC, enemy, interactive door):
+   - Lower into the board's `WorldItem` / sprite array with its bottom-centre/diamond anchor.
+   - Bind its rest visual and translate its collision and activation hulls.
+4. Record the editor link. One command; one undo.
 
 On a rotated iso board, cells that fall on invalid corner cells are clipped and listed in the preview ([01 board editor](01-board-editor.md#isometric-boards)).
 
